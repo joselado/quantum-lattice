@@ -2,7 +2,8 @@
 
 # Aim #
 
-This program allows to perform tight binding calculations with a user friendly interface
+This program allows to perform tight binding calculations with a user friendly interface in a variety of lattices and dimensionalities
+
 ![Alt text](screenshots/quantum_lattice.png?raw=true "Quantum Lattice System selection")
 
 
@@ -40,6 +41,38 @@ instructions. Alternatively, you can try
 [this version](https://github.com/TheGreatFox/quantum-lattice) 
 that was adapted for a Windows system (latest updates may not be included in
 it).
+
+# FUNCTIONALITIES #
+## Single particle Hamiltonians ##
+- Spinless, spinful and Nambu basis for orbitals
+- Full non-collinear electron and Nambu formalism
+- Include magnetism, spin-orbit coupling and superconductivity
+- Band structures with state-resolved expectation values
+- Momentum-resolved spectral functions
+- Local and full operator-resolved density of states
+- 0d, 1d, 2d and 3d tight binding models
+
+## Interacting mean-field Hamiltonians ##
+- Selfconsistent mean-field calculations with local/non-local interactions
+- Both collinear and non-collinear formalism
+- Anomalous mean-field for non-collinear superconductors
+- Full selfconsistency with all Wick terms for non-collinear superconductors
+- Automatic identification of order parameters for symmetry broken states
+
+## Topological characterization ##
+- Berry phases, Berry curvatures, Chern numbers and Z2 invariants
+- Operator-resolved Chern numbers and Berry density
+
+## Spectral functions ##
+- Surface spectral functions for semi-infinite systems
+- Single impurities in infinite systems
+- Operator-resolved spectral fucntions
+
+## Chebyshev kernel polynomial based-algorithms ##
+- Local and full spectral functions
+- Operator resolved spectral functions
+- Reaching system sizes up to 1000000 atoms on a single-core laptop
+
 
 # Examples
 This program allows to study a variety of electronic states by means of tight binding models as shown below.
@@ -94,17 +127,4 @@ Band structure of Bernal stacked bilayer graphene, showing the emergence of a ga
 Bandstructure and local density of states of twisted bilayer graphene at the magic angle, showing the emergence of a flat band, with an associated triangular density of states
 https://journals.aps.org/prb/abstract/10.1103/PhysRevB.82.121407
 ![Alt text](screenshots/tbg.png?raw=true "Magic angle twisted bilayer graphene")
-
-# Capabilities #
-- Tight binding models in different lattices (triangular, square, honeycomb, Kagome, Lieb, diamond, pyrochlore)
-- Possibility of crafting your own lattice interactively
-- Tunable parameters in the Hamiltonian (Fermi energy, magnetic order, sublattice imbalance, magnetic field,  Rashba spin-orbit coupling, intrinsic spin-orbit coupling, Haldane coupling, anti-Haldane coupling, s-wave superconductivity)
-- Different results are automatically plotted from the interface
-- Band structure of 0d,1d,2d systems
-- Density of states of 0d,1d,2d systems
-- Selfconsistent mean-field Hubbard calculations of 0d,1d,2d systems
-- Berry curvature, Chern number and Z2 invariant in 2d systems
-- Special module to deal with systems with more than 100000 atoms using the Kernel polynomial method
-- Special modules to study 1d and 2d study interfaces between different systems
-- Special module for single impurities in pristine infinite systems using the embedding technique
 
