@@ -1,6 +1,6 @@
 ## QUANTUM LATTICE ##
 
-# Aim #
+# Summary #
 
 This program allows to perform tight binding calculations with a user friendly interface in a variety of lattices and dimensionalities
 
