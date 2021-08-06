@@ -148,7 +148,7 @@ class Ui_MainWindow(object):
         self.huge0d_pyqt.setText(_translate("MainWindow", "Huge islands"))
         self.ribbons_pyqt.setText(_translate("MainWindow", "Ribbons"))
         self.label_2.setText(_translate("MainWindow", "0D systems"))
-        self.label_3.setText(_translate("MainWindow", "1D systens"))
+        self.label_3.setText(_translate("MainWindow", "1D systems"))
         self.label_4.setText(_translate("MainWindow", "2D systems"))
         self.label_5.setText(_translate("MainWindow", "3D systems"))
         self.twisted_bilayer.setText(_translate("MainWindow", "Twisted multilayer graphene"))

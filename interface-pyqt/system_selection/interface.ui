@@ -173,7 +173,7 @@
              </font>
             </property>
             <property name="text">
-             <string>1D systens</string>
+             <string>1D systems</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
