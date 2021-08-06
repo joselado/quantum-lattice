@@ -37,10 +37,7 @@ For using this program in Windows, the easiest solution is to create a virtual
 machine using [Virtual Box](https://www.virtualbox.org/), installing
 a version of [Ubuntu](https://releases.ubuntu.com/20.04/) 
 in that virtual machine, and following the previous
-instructions. Alternatively, you can try
-[this version](https://github.com/TheGreatFox/quantum-lattice) 
-that was adapted for a Windows system (latest updates may not be included in
-it).
+instructions. 
 
 # FUNCTIONALITIES #
 ## Single particle Hamiltonians ##
