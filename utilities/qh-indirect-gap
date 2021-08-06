@@ -1,0 +1,32 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import numpy as np
+import pylab as py
+import sys
+import matplotlib
+
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+fig = py.figure()
+fig.subplots_adjust(0.2,0.2)
+
+
+
+nfiles = len(sys.argv) -1 # number of files to plot
+
+for i in range(nfiles):
+  name = sys.argv[1+i] # name of the file
+  m = np.genfromtxt(name).transpose()
+  x = m[0]
+  y = m[1]
+  fig.set_facecolor("white")
+#  py.plot(x,y,linewidth=3.0,label=name,color="black",marker="o")
+  py.scatter(x,y,label=name,color="black",marker="o")
+  py.xlim([min(x),max(x)])
+#py.legend()
+
+py.xlabel("Parameter")
+py.ylabel("Indirect gap")
+py.show()
+

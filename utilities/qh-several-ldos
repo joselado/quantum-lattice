@@ -1,0 +1,64 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+# cretae figure and adjust subplot
+fig = plt.figure(1)
+fig.subplots_adjust(0.2,0.2)
+
+fig.set_facecolor("white")
+
+# read all the files
+files = os.listdir(os.getcwd()) # get files
+dosf = [] # files of dos
+for n in files: # loop over files
+  if "LDOS_" in n: 
+    print("Found",n)
+    dosf.append(n) # store file
+
+# Now plot the different DOS, together with the total
+
+dost = np.genfromtxt(dosf[0]).transpose()[1]*0.
+enet = np.genfromtxt(dosf[0]).transpose()[0]
+
+plt.subplot(1,2,1)
+plt.title("Different atoms")
+for fname in dosf: # loop over files  
+  index = fname.split("_")[1] 
+  index = index.split(".")[0] # number
+  m = np.genfromtxt(fname).transpose()
+  num_dos = len(m) - 1
+  print("Plotting",fname)
+  e = m[0]
+  d = m[1]
+  dost += d # add contribution
+  plt.plot(e,d,label=index)
+  plt.xlim([min(e),max(e)])
+
+plt.xlabel("Energy [t]")
+plt.ylabel("DOS")
+
+# plot the total
+plt.subplot(1,2,2)
+plt.title("Sum over atoms")
+plt.plot(enet,dost/len(dosf),linewidth=3,c="black")
+plt.xlim([min(enet),max(enet)])
+
+plt.xlabel("Energy [t]")
+plt.ylabel("DOS")
+
+
+if len(dosf)<10:
+  plt.subplot(1,2,1)
+  plt.legend()
+plt.show()
+
+

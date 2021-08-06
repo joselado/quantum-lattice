@@ -1,0 +1,43 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+# creates the file BANDS2D.OUT and plots it
+
+import numpy as np
+import sys
+
+
+try: # get which band to write
+  nband = int(sys.argv[1])
+except:  # if not provided take the first one
+  nband = 1 # fist band
+
+# import kpoints
+mk = np.genfromtxt("KPOINTS_BANDS.OUT").transpose()
+ind = mk[0] # indexes
+kx = mk[3] # kx
+ky = mk[4] # ky
+
+# import energies
+ene = np.genfromtxt("BANDS.OUT").transpose()[1]
+
+fo = open("BANDS2D.OUT","w")  # open file
+
+fo.write("# kx    ky     Energy\n")
+
+iold = 0 # old number of energies in this kpoint
+for (i,x,y,e) in zip(ind,kx,ky,ene):
+  if not int(i) == iold:  # if new kpoint, initialice
+    c = 1  # number of bands seen i this kpoint
+    iold = int(i)  # last kpoint seen
+  else: # if it is the same kpoint as the last iteraion
+    c += 1 # increase the number points seen
+  if c == nband:  # write only certain band
+    fo.write(str(x)+"  ")
+    fo.write(str(y)+"  ")
+    fo.write(str(e)+"  ")
+    fo.write("\n")
+
+
+fo.close()
+
+

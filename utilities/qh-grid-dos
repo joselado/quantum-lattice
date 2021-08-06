@@ -1,0 +1,94 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+
+
+### script for ploting a grid of data ###
+
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="DOS.OUT",
+        help='Input file with the dos')
+args = parser.parse_args() # get the arguments
+
+tmp = os.listdir(os.getcwd()) # list of files
+ls = [] # list of files
+for l in tmp: # loop over files
+    if args.input in l: 
+        print("Storing",l)
+        ls.append(l) # store file
+
+ne = 100 # number of energies
+es = np.genfromtxt(ls[0]).T[0] # energies 
+print(es)
+es = np.linspace(np.min(es),np.max(es),len(es)) # energies
+
+inds = [l.split("_") for l in ls] # split
+print(inds)
+inds = [[int(i[1]),int(i[2])] for i in inds] # get the indexes
+
+from scipy.interpolate import interp1d
+
+def get_function(l):
+    m = np.genfromtxt(l).T
+    f = interp1d(m[0],m[1])
+    return f
+
+fs = [get_function(l) for l in ls] # get all the functions
+
+def evaluate(e):
+    return np.array([f(e) for f in fs]) # evaluate
+
+inds = np.array(inds) # transform to array
+x = inds.T[0] # x coordinate
+y = inds.T[1] # y coordinate
+
+def getplot(obj):
+  # create figure and adjust subplot
+  fig = plt.figure(obj.figure.number)
+  fig.clear()
+  fig.subplots_adjust(0.2,0.2)
+  currentfig = plt.gcf()
+  currentfig.canvas.set_window_title('Density of states')
+  e = obj.get_slider("Energy") # energy
+  z = evaluate(e) # get the height
+  plt.scatter(x,y,c="black")
+  plt.scatter(x,y,s=z/max(z)*100,c=z,cmap="magma")
+  # first subplot
+  splot = plt.subplot(1,1,1)
+  splot.set_xlim([min(x)-1,max(x)+1])
+  splot.set_ylim([min(y)-1,max(y)+1])
+  splot.set_xlabel("x")
+  splot.set_ylabel("y")
+  fig.set_facecolor('white')
+  return fig
+
+
+
+# create the interface
+app,main = plotpyqt.get_interface(getplot)
+main.setWindowTitle("Density of states")
+main.add_slider(label="Energy",vs=np.linspace(0.,1.,100)) 
+main.plot()
+main.show()
+sys.exit(app.exec_())
+
+
+

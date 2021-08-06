@@ -1,0 +1,59 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="POSITIONS.OUT",
+        help='Input file')
+parser.add_argument("--bondl",default="1.2",
+        help='Distance between sites')
+
+args = parser.parse_args() # get the arguments
+
+
+
+
+
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+fig = plt.figure()
+plt.gcf().canvas.set_window_title('Structure')
+
+fig.set_facecolor("white") # white
+
+name = args.input
+
+m = np.genfromtxt(name).transpose() # read file
+x = m[0] # x position
+y = m[1] # y position
+z = m[2] # z position
+
+
+
+size = 500./np.sqrt(len(z))
+#size = 100
+
+plt.title(str(len(x))+" atoms")
+plt.scatter(x,y,color="black",s=size)
+plt.xticks([])
+plt.yticks([])
+
+bondl = float(args.bondl)
+for i in range(len(x)):
+  for j in range(i,len(x)):
+    dd = (x[i] -x[j])**2 + (y[i] -y[j])**2
+    if 0.8<dd<bondl:
+      plt.plot([x[i],x[j]],[y[i],y[j]],c="black")
+
+
+
+plt.axis("equal")
+plt.show()

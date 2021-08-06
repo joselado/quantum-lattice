@@ -1,0 +1,89 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+
+def getfig(main):
+  fig = plt.gcf()
+  fig.set_facecolor("white") # white
+  m = minput
+  x = m[0] # x position
+  y = m[1] # y position
+  z = m[int(args.col)] # z position
+#  print("Maximum value is ",np.max(np.abs(z)))
+  size = np.power(main.get_slider("Size"),4)
+  scale = 100*size
+  zsign = np.sign(z) # sign
+  plt.title(str(len(x))+" atoms")
+  plt.scatter(x,y,color="black",s=1)
+  color = z
+  if main.get_combobox("Range")=="Default":
+        minc = min(color)
+        maxc = max(color)
+  elif main.get_combobox("Range")=="Symmetric":
+        maxc = np.max(np.abs(color))
+        minc = -maxc
+  elif main.get_combobox("Range")=="Sign":
+        maxc = 1
+        minc = -1
+        color = np.sign(color)
+  csat = (1 - main.get_slider("Saturation"))
+  minc,maxc = minc*csat,maxc*csat
+  cplot = plt.scatter(x,y,s=scale,c=color,
+          edgecolor="none",cmap=args.cmap,
+          vmin=minc,vmax=maxc)
+  if args.colorbar=="true":
+    cb = fig.colorbar(cplot,ticks=[minc,maxc])
+#    cb.ax.set_yticklabels(["Min",'Max'])
+  plt.xticks([])
+  plt.yticks([])
+  plt.axis("equal")
+  zoom = main.get_slider("Zoom")
+  plt.xlim([np.min(x)*zoom,np.max(x)*zoom])
+  plt.ylim([np.min(y)*zoom,np.max(y)*zoom])
+  return fig
+
+
+
+
+# Do the PyQt wrapper
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+# arguments
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="POTENTIAL.OUT",help='Input file')
+parser.add_argument("--colorbar",default="true",help='Use a colorbar')
+parser.add_argument("--cmap",default="bwr",help='Colormap')
+parser.add_argument("--zoom",default="1.1",help='Initial zoom')
+parser.add_argument("--size",default="0.8",help='Initial zoom')
+parser.add_argument("--col",default="2",help='Column')
+args = parser.parse_args() # get the arguments
+
+minput = np.genfromtxt(args.input).transpose() # read file
+
+app,main = plotpyqt.get_interface(getfig)
+main.add_slider(label="Size",vs=np.linspace(0.,2,100),
+        v0=float(args.size))
+main.add_slider(label="Zoom",vs=np.linspace(1.1,0.01,100),
+        v0=float(args.zoom))
+main.add_slider(label="Saturation",vs=np.linspace(0.0,1.0,100),
+        v0=0)
+main.add_combobox(["Default","Symmetric","Sign"],label="Range")
+
+# execute the interface
+main.plot()
+main.show()
+sys.exit(app.exec_())

@@ -1,0 +1,52 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import pylab as py
+import sys
+import matplotlib
+import matplotlib.pyplot as plt
+
+
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="BERRY_CURVATURE.OUT",
+        help='Input file with the Berry curvature')
+parser.add_argument("--mode",default="",
+        help='Type of Berry curvature')
+parser.add_argument("--label",default="False",
+        help='Use labels')
+args = parser.parse_args() # get the arguments
+
+matplotlib.rcParams.update({'font.size': 18})
+
+fig = py.figure()
+currentfig = plt.gcf()
+currentfig.canvas.set_window_title('Berry curvature')
+fig.subplots_adjust(0.3,0.2)
+fig.set_facecolor("white") # white face
+
+name = args.input
+m = py.genfromtxt(name).transpose() # get the curvature
+
+ind = [float(i) for i in range(len(m[0]))] # create the indices
+ind = py.array(ind)/len(ind) # normalice to 1
+
+py.plot(ind,m[2],marker="o",color="red")
+
+# add the lines in the bandstructure
+if args.label=="True":
+  ll = open("BANDLINES.OUT","r").readlines()
+  ik = [] 
+  names = [] 
+  for l in ll:
+    l = l.split()
+    ik.append(float(l[0])/len(ind))
+    names.append("$"+l[1]+"$")
+  py.xticks(ik,names)
+
+py.ylabel(args.mode+" Berry curvature")
+
+
+py.show()
+

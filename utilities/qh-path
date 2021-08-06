@@ -1,0 +1,35 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+fig = plt.figure()
+
+fig.set_facecolor("white") # white
+
+m = np.genfromtxt("POSITIONS.OUT").transpose() # read file
+x = m[0] # x position
+y = m[1] # y position
+
+
+
+plt.title(str(len(x))+" atoms")
+plt.scatter(x,y,color="black",s=10)
+plt.xticks([])
+plt.yticks([])
+
+# now import the indexes of the atoms to plot in the path
+inds = np.genfromtxt("PATH.OUT").transpose()[0]
+inds = [int(i) for i in inds] # integer
+
+for i in inds:
+  plt.scatter(x[i],y[i],color="red",s=30)
+
+plt.axis("equal")
+plt.show()

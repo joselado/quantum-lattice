@@ -1,0 +1,52 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+fig = plt.figure()
+
+fig.set_facecolor("white") # white
+
+name = sys.argv[1] # name of the file
+
+m = np.genfromtxt(name).transpose() # read file
+x1 = m[0] # x position
+y1 = m[1] # y position
+x2 = m[2] # z position
+y2 = m[3] # z position
+ts = m[4] # weight of the link
+ts = np.round(ts,5)
+print("Minimum Hopping",np.min(ts))
+print("Maximum Hopping",np.max(ts))
+cs = ts-np.min(ts) ; cs = cs/np.max(cs)
+ls = np.tanh(10*ts)
+
+
+cmap = matplotlib.cm.get_cmap('Spectral')
+#cmap = matplotlib.cm.get_cmap('jet')
+
+
+for i in range(len(x1)): # loop over pairs
+  x = [x1[i],x2[i]]
+  y = [y1[i],y2[i]]
+  plt.plot(x,y,c=cmap(cs[i]),linewidth=abs(ls[i])*4)
+
+plt.scatter(np.mean([x1,x2],axis=0),np.mean([y1,y2],axis=0),s=0,c=ts,
+        cmap=cmap)
+plt.colorbar(format='%.2f')
+plt.scatter(x1,y1,color="black",s=200)
+plt.scatter(x2,y2,color="black",s=200)
+
+
+
+plt.xticks([])
+plt.yticks([])
+
+plt.axis("equal")
+plt.show()

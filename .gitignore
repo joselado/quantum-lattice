@@ -1,0 +1,14 @@
+*.OUT
+*.pyc
+*.so
+*.o
+__pycache__
+*.swp
+compiling.txt
+python_interpreter
+data
+pythoninterpreter.py
+*.tar
+quantum-lattice.desktop
+*.svg
+blender

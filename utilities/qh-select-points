@@ -1,0 +1,66 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="BANDS.OUT",
+        help='Input file with the bands')
+args = parser.parse_args() # get the arguments
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+write = False # if have to write in a file
+remove = False # if have to write in the file to remove
+write = True
+remove = True
+
+m = np.genfromtxt(args.input).transpose()
+x = m[0]
+y = m[1]
+corig = [] # oroginal color
+sorig = [] # original size
+corig = ["black" for ix in x]
+sorig = [60 for ix in x]
+isred = [False for ix in x] # if selected
+
+plt.ion()
+
+def onpick3(event):
+        ind = event.ind
+        print('onpick3 scatter:', ind, np.take(x, ind), np.take(y, ind))
+        # replot
+        try: del red
+        except: pass
+        for i in ind:
+          isred[i] = not isred[i]
+          if isred[i]: c = "red"
+          else: c = corig[i]
+          plt.scatter(x[i],y[i],sorig[i],c)
+        plt.title("Red sites will be saved into a file")
+        plt.draw() # draw image
+        namefile = args.input+"_SELECTED"
+        fo = open(namefile,"w")
+        for (w,i) in zip(isred,range(len(x))):
+            if w: 
+                fo.write(str(x[i])+"  ")
+                fo.write(str(y[i])+"\n")
+        fo.close()
+        print("Written selected points in "+namefile)
+        
+
+fig, ax = plt.subplots()
+fig.set_facecolor("white") # white
+col = ax.scatter(x, y,sorig, corig, picker=True)
+fig.canvas.mpl_connect('pick_event', onpick3)
+
+
+
+
+plt.show(block=True)

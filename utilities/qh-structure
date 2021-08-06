@@ -1,0 +1,62 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+import sys
+
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="POSITIONS.OUT",
+        help='Input file with the bands')
+parser.add_argument("--color",default="False",
+        help='Input file with the bands')
+parser.add_argument("--colorcol",default="3",
+        help='Input file with the bands')
+
+args = parser.parse_args() # get the arguments
+
+
+
+fig = plt.figure()
+fig.set_facecolor("white")
+ax = fig.add_subplot(111, projection='3d')
+fig.subplots_adjust(.1,.1,.9,.9)
+ax.set_aspect("auto")
+
+rs = np.genfromtxt(args.input) # get positions
+
+# scatter the central cell
+
+if args.color=="True":
+    cc = int(args.colorcol)
+    ax.scatter(rs[:,0],rs[:,1],rs[:,2],s=120,c=rs[:,cc],cmap="rainbow") 
+else:
+    ax.scatter(rs[:,0],rs[:,1],rs[:,2],s=120,c="black") # scatter the points
+
+# this is a workaround to fix the same scale
+
+X = rs[:,0]
+Y = rs[:,1]
+Z = rs[:,2]
+
+max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() / 2.0
+
+mid_x = (X.max()+X.min()) * 0.5
+mid_y = (Y.max()+Y.min()) * 0.5
+mid_z = (Z.max()+Z.min()) * 0.5
+ax.set_xlim(mid_x - max_range, mid_x + max_range)
+ax.set_ylim(mid_y - max_range, mid_y + max_range)
+ax.set_zlim(mid_z - max_range, mid_z + max_range)
+###################################
+# end of the workaround
+
+
+
+
+plt.show()
+
+
+

@@ -1,0 +1,31 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import numpy as np
+from mayavi import mlab
+import sys
+
+mlab.figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
+
+
+name = sys.argv[1]
+m = np.genfromtxt(name).transpose() # read file
+
+x,y,s = m[0],m[1],m[2]
+part = np.sum(s*s)
+
+print "Participation Ratio = ",part
+
+s = s/np.max(s)  # normalize
+
+mlab.points3d(x,y,y*0.,resolution=20,color=(0,0,0),scale_factor = 0.2) # plot pdos
+
+mlab.points3d(x,y,y*0.,s*0.1,resolution=20) # plot pdos
+
+
+
+figure.scene.disable_render = False
+mlab.show() # show figure

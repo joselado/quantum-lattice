@@ -1,0 +1,64 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+# this script read mean_field.in and calculates the magnetism in the
+# different sites
+# it assumes that each position has spin up and down (2*i,2*i+1)
+
+lattice_color = (0,1,1) # color of the lattice
+
+import os
+#os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
+import numpy as np
+import sys
+
+
+from mayavi import mlab
+
+
+
+
+################################################################################
+# Disable the rendering, to get bring up the figure quicker:
+mlab.figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
+
+name = sys.argv[1] # name of the file
+
+m = np.genfromtxt(name).transpose()
+
+if len(m)==6:
+    X = m[0]
+    Y = m[1]
+    Z = m[2]
+    Vx = m[3]
+    Vy = m[4]
+    Vz = m[5]
+elif len(m)==4:
+    X = m[0]
+    Y = m[1]
+    Z = m[0]*0.0
+    Vx = m[2]
+    Vy = m[3]
+    Vz = m[0]*0.0
+else:
+    print("Number of columns not recognised")
+    raise
+
+V = np.max(np.sqrt(Vx*Vx+Vy*Vy+Vz*Vz)) # normalize
+Vx /= V
+Vy /= V
+Vz /= V
+
+fac= 1.0
+res = 20
+col = "red"
+
+mlab.quiver3d(X,Y,Z,Vx,Vy,Vz,scale_factor=fac,
+                 mode='arrow',
+                 resolution=res,
+                 scale_mode='none')
+
+figure.scene.disable_render = False
+mlab.show()

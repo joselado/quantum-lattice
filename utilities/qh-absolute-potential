@@ -1,0 +1,42 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+fig = plt.figure()
+
+fig.set_facecolor("white") # white
+
+name = sys.argv[1] # name of the file
+
+m = np.genfromtxt(name).transpose() # read file
+x = m[0] # x position
+y = m[1] # y position
+z = m[2] # z position
+
+print("Maximum value is ",np.max(np.abs(z)))
+
+scale = np.abs(z)/np.max(np.abs(z))*100
+zsign = np.sign(z) # sign
+
+
+
+
+plt.title(str(len(x))+" atoms")
+plt.scatter(x,y,color="black",s=1)
+try:
+  plt.scatter(x,y,s=scale,c=scale/100,edgecolor="none",cmap=plt.get_cmap("inferno"))
+except:
+  plt.scatter(x,y,s=scale,c=scale/100,edgecolor="none")
+plt.xticks([])
+plt.yticks([])
+plt.colorbar() # colorbar
+
+plt.axis("equal")
+plt.show()

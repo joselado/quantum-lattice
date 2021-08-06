@@ -1,0 +1,47 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+import sys
+
+fig = plt.figure()
+fig.set_facecolor("white")
+ax = fig.add_subplot(111, projection='3d')
+fig.subplots_adjust(.1,.1,.9,.9)
+ax.set_aspect("auto")
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="ALLOY.OUT",
+        help='Input file with the data')
+parser.add_argument("--s",default=20,
+        help='Point size')
+
+args = parser.parse_args() # get the arguments
+
+name = args.input
+size = float(args.s)
+rs = np.genfromtxt(name).T # get positions
+
+
+# scatter the central cell
+cs = np.unique(rs[3]) # colors
+if len(cs)>2: raise # not implemented
+def scatter(ii):
+  c = np.round(rs[3]-cs[ii])
+  x = rs[0][c==0.0]
+  y = rs[1][c==0.0]
+  z = rs[2][c==0.0]
+  if ii==0: color="red"
+  elif ii==1: color="blue"
+  ax.scatter(x,y,z,c=color,s=size) # scatter the points
+
+[scatter(i) for i in range(len(cs))]
+
+
+
+plt.show()
+
+
+

@@ -1,0 +1,39 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+### script for ploting BANDS.OUT of tb90 ###
+
+import sys
+import numpy as np
+import pylab as py
+
+
+m = np.genfromtxt("CHI_RPA_I.OUT").transpose() # read the file
+
+def get_poles(x,y):
+  """ Gets the poles, assuming that they are located in the maximuns"""
+  yabs = np.abs(y) # absolute value
+  xout = [] 
+  yout = []
+  ipos = 0 # positive pole
+  for i in range(1,len(y)-1): # loop over points
+    if yabs[i-1]<yabs[i]>yabs[i+1]: # if maximun
+      if x[i] > 0.0: # positive energies
+        xout.append(ipos) # store
+        ipos += 1
+        yout.append(x[i]) # store
+  return xout,yout
+
+
+# plot
+fig = py.figure()
+fig.set_facecolor("white")
+xp,yp = get_poles(m[0],m[1])
+py.plot(xp,yp,marker="o",color="red")
+py.xlabel("Pole number")
+py.ylabel("Energy/t")
+py.show()
+
+
+
+
+

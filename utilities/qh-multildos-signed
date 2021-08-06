@@ -1,0 +1,143 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+#fig = plt.figure()
+
+#fig.set_facecolor("white") # white
+
+folder = "MULTILDOS/" # folder with all the stuff
+
+names = open(folder+"MULTILDOS.TXT").readlines() # read the files
+print("Reading files from MULTILDOS.TXT")
+print("Possible options")
+print("layer: to color by layer")
+
+names = [name.replace("\n","") for name in names] # remove character
+energies = [name.split("_")[1] for name in names] # energies
+
+###########################################
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button, RadioButtons
+
+fig = plt.figure()
+ax = fig.add_subplot(121) # axis for the LDOS
+axd = fig.add_subplot(122) # axis for the DOS
+plt.subplots_adjust(left=0.1, bottom=0.25)
+t = np.arange(0.0, 1.0, 0.001)
+a0 = 5
+f0 = 3
+#s = a0*np.sin(2*np.pi*f0*t)
+#l, = plt.plot(t, s, lw=2, color='red')
+plt.axis([0, 1, -10, 10])
+
+axcolor = 'lightgoldenrodyellow'
+try:
+  axenergy = plt.axes([0.25, 0.1, 0.65, 0.03], facecolor=axcolor)
+except:
+  print("axcolor not possible to set")
+  axenergy = plt.axes([0.25, 0.1, 0.65, 0.03])
+
+
+senergy = Slider(axenergy, '', 0, len(names), valinit=0,valfmt='%0.0f')
+senergy.valtext.set_visible(False)
+
+
+
+
+
+
+
+
+
+####################################################
+
+
+
+def update(val):
+  global ax,axd
+#  print(val)
+#  return
+  ax.clear() # clear LDOS
+  val = int(round(val))
+  if val>(len(names)-1): val = len(names)-1 # fix
+  name = names[val] # get this file
+  energy = energies[val] # get this energy
+  print("Name",name)
+  m = np.genfromtxt(folder+name).transpose() # read file
+  x = m[0] # x position
+  y = m[1] # y position
+  z = m[2] # z position
+  
+  print("Maximum value is ",np.max(np.abs(z)))
+  
+  if "layer" in sys.argv: # to color by layer
+    zpos = np.genfromtxt("POSITIONS.OUT").transpose()[2] # position z
+    nrep = len(z)/len(zpos)
+    zpos = np.array(zpos.tolist()*nrep) # workround
+    z = z*np.sign(zpos)
+    num = np.sqrt(len(z))
+    scale = np.abs(z)/np.max(np.abs(z))
+    scale = scale**2*num*4
+    cmap = plt.get_cmap("bwr") 
+    color = z
+    print("Coloring by layer")
+  else:
+    num = np.sqrt(len(z))
+    scale = np.abs(z)/np.max(np.abs(z))
+#    scale = z/np.max(np.abs(z))
+    scale = scale/np.sqrt(num)*700
+    cmap = plt.get_cmap("bwr") 
+    color = scale/np.max(scale) # between 0 and 1
+    color = z/np.max(np.abs(z))
+  maxj = np.max(np.abs(z))
+#  maxj = 0.0
+#  for (ix,iy,iz) in zip(x,y,z):
+#      if iy>0.0: maxj += iz
+  
+  
+#  plt.title(str(len(x))+" atoms")
+#  ax.scatter(x,y,color="black",s=1)
+  cplot = ax.scatter(x,y,s=scale,c=color,edgecolor="none",cmap=cmap,vmin=-1.0,vmax=1.0)
+#  fig.colorbar(cplot)
+  ax.axis("equal")
+  ax.set_xticks([])
+  ax.set_yticks([])
+  ttl = "E="+str(round(float(energy),3))
+  ttl = ttl + ", max = "+str(round(float(maxj),3))
+  ax.set_title(ttl)
+#  try:
+#    ax.set_facecolor('black')
+#  except: pass
+#  ax.colorbar() # colorbar
+  
+#  plt.axis("equal")
+  # now plot the DOS
+  md = np.genfromtxt(folder+"DOS.OUT").transpose()
+#  del axd
+#  axd = fig.add_subplot(122) # axis for the DOS
+  axd.clear()  # clear DOS
+  axd.plot(md[0],md[1]) # plot DOS
+  yys = np.array([0,max(md[1])]) # y positions
+  xxs = np.array([energy,energy]) # energy
+#  axd.plot(xxs,yys,linewidth=3,c="red") # energy checked
+  print("Energy",energy)
+  axd.set_ylim([min(md[1]),max(md[1])]) # ylim
+  axd.set_xlim([min(md[0]),max(md[0])]) # xlim
+  axd.set_xticks(np.linspace(min(md[0]),max(md[0]),5,endpoint=True)) # xlim
+  axd.set_ylabel("DOS")
+  axd.set_xlabel("Energy")
+#  axd.set_yticks([])
+
+
+update(0)
+
+senergy.on_changed(update)
+plt.show()

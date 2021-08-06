@@ -1,0 +1,61 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+write = False # if have to write in a file
+remove = False # if have to write in the file to remove
+write = True
+remove = True
+
+m = np.genfromtxt("POSITIONS.OUT").transpose()
+x = m[0]
+y = m[1]
+z = m[2]
+corig = [] # oroginal color
+sorig = [] # original size
+for iz in z:
+  if iz>0.00001: 
+    corig.append("lightgreen")
+    sorig.append(20)
+  else: 
+    corig.append("black")
+    sorig.append(60)
+isred = [False for ix in x] # if selected
+
+
+plt.ion()
+
+fig, ax = plt.subplots()
+fig.canvas.set_window_title('Site selection')
+
+def onpick(event):
+        ind = event.ind
+        # replot
+        color = ["black"]*len(x)
+        namefile = "SELECTED_SINGLE_ATOM.INFO"
+        if len(ind)>0: # if at least one site
+            i = ind[0] # first site
+            color[i] = "red"
+            open(namefile,"w").write(str(i)) # write the index
+        else: open(namefile,"w").write("") # nothing
+        plt.scatter(x,y,sorig,color)
+        plt.draw() # draw image
+        
+
+fig.set_facecolor("white") # white
+col = ax.scatter(x, y,sorig, corig, picker=True)
+plt.axis("equal")
+fig.canvas.mpl_connect('pick_event', onpick)
+
+
+
+
+plt.show(block=True)

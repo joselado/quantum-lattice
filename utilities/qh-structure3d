@@ -1,0 +1,104 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+# this script read mean_field.in and calculates the magnetism in the
+# different sites
+# it assumes that each position has spin up and down (2*i,2*i+1)
+
+lattice_color = (0,1,1) # color of the lattice
+
+import os
+#os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
+import numpy as np
+
+
+from mayavi import mlab
+
+
+
+################################################################################
+# Disable the rendering, to get bring up the figure quicker:
+mlab.figure('Structure', fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
+
+
+
+
+
+import numpy as np
+import sys
+import os.path
+
+
+
+def read_positions():
+  """Reads the positions of the system"""
+  return np.genfromtxt("POSITIONS.OUT")
+
+
+
+
+
+def create_atoms(P,col=lattice_color,rad=0.55,opa=1.0,res=20,scale='none'):
+   """
+     Draws an atom (sphere) at point P
+     P: array-like object
+   """
+   mlab.points3d(P[0], P[1], P[2],
+                 scale_factor=rad,
+                 resolution=res,
+#                 opacity=opa,
+                 color=col,
+                 scale_mode=scale)
+
+
+
+
+def bondplt(P1,P2,col=lattice_color,rad=0.15,opa=1.0):
+   """
+     Draws a bond (cylinder) from point P1 to point P2
+     P1 & P2: array-like object
+   """
+   mlab.plot3d([P1[0],P2[0]],[P1[1],P2[1]],[P1[2],P2[2]],
+               color=col,
+               tube_radius=rad,
+               opacity=opa,tube_sides=10)
+
+
+def get_bonds(rs1,rs2):
+  """ Get the bonds between different atoms """
+  n = len(rs1) # number of sites
+  bonds = []
+  for i in range(n):
+    for j in range(i,n):
+      ri = rs1[i]
+      rj = rs2[j]
+      dr = ri  - rj
+      if 0.8<dr.dot(dr)<1.2: # result
+        bonds += [(i,j)] 
+  bonds = np.array(bonds) # transform to int array
+  return bonds
+
+
+def create_bonds(rs1,rs2):
+  """ Creates the bonds of the crystal """
+  cylinders = []
+  bonds = get_bonds(rs1,rs2) # get the atoms that are connected
+  for (ii,jj) in bonds: # loop over bonds
+    r1 = rs1[ii]
+    r2 = rs2[jj]
+    crad = 0.1
+    bondplt(r1,r2,rad=crad)
+
+
+xyz = read_positions().transpose()
+create_atoms(xyz)    # plot the atoms
+rs = xyz.transpose() 
+
+if len(rs)<200:
+  create_bonds(rs,rs)
+
+
+figure.scene.disable_render = False
+mlab.show()

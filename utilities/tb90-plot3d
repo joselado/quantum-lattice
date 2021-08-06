@@ -1,0 +1,47 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import mayavi.mlab as mlab
+import numpy as np
+import sys
+
+names = sys.argv # files
+names = [names[i] for i in range(1,len(names))] # names of the files
+name = sys.argv[1] # name of the file
+
+for name in names:
+  m = np.genfromtxt(name).transpose()
+  x = m[0]
+  y = m[1]
+  z = m[2]
+  
+  
+  def sc(z):
+    z = z -min(z)
+    scale_z = max(abs(min(z)),abs(max(z)))
+    return z/scale_z
+  
+  x = sc(x)
+  y = sc(y)
+  z = sc(z)
+  
+  try:
+    s = float(sys.argv[2])
+  except:
+    s = 1.0
+  
+  z = z/s
+  
+  
+  from mayavi import mlab
+  mlab.figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+  
+  # Visualize the points
+  pts = mlab.points3d(x, y, z, z, scale_mode='none', scale_factor=0.0)
+  
+  # Create and visualize the mesh
+  mesh = mlab.pipeline.delaunay2d(pts)
+  surf = mlab.pipeline.surface(mesh)
+
+mlab.view(47, 57, 8.2, (0.1, 0.15, 0.14))
+mlab.show()

@@ -1,0 +1,58 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+##############################################
+## Adds spin polarization to hamiltonian.in ##
+##############################################
+
+import os
+
+
+lines = open('hamiltonian.in','r').readlines() # read lines
+
+# check if it a nonspin polarized calculation
+spinpol = True
+for l in lines:
+  if 'WITHOUT_SPIN_POLARIZATION' in l:
+    spinpol = False
+if spinpol:
+  print 'This is already a spin polarized calculation'
+  os.exit()
+
+
+
+# if it is non spinpolarized continue ....
+in_hopping = False # flag to assume you are working in a hopping and duplicate 
+in_size = False # flag to assume you are in the line of the size 
+f = open('hamiltonian.in','w')
+for l in lines:
+  if not len(l.split())==4: # this line is no longer a hopping
+    in_hopping = False
+  if in_hopping: # this line is a hopping
+    ll = l.split()
+    i = int(ll[0])
+    j = int(ll[1])
+    re = float(ll[2])
+    im = float(ll[3])
+    f.write(str(2*i-1)+'  '+str(2*j-1)+'  '+str(re)+'  '+str(im)+'\n')
+    f.write(str(2*i)+'  '+str(2*j)+'  '+str(re)+'  '+str(im)+'\n')
+    # now print the matrix elements
+  if not (in_hopping or in_size): # if not in a hopping element write the line
+    if not 'WITHOUT_SPIN_POLARIZATION' in l: # except nonsp flag
+      f.write(l)
+  if ('ONSITE_MATRIX' in l) or ('HOPPING_MATRIX' in l):
+    in_hopping = True # the next iteration is a matrix element
+  if in_size: # duplicate the size of the matrix
+    f.write(str(2*int(l.split()[0]))+'\n')
+    in_size = False
+  if 'DIMENSION_OF_THE_HAMILTONIAN' in l: # declaration of the dimension
+    in_size = True
+f.close()
+
+
+
+
+
+
+
+import numpy as np

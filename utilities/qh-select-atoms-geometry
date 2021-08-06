@@ -1,0 +1,98 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="POSITIONS.OUT")
+parser.add_argument("--output",default="SELECTED_ATOMS.OUT")
+parser.add_argument("--caption",default="")
+parser.add_argument("--initially_selected",default="")
+
+args = parser.parse_args() # get the arguments
+
+
+m = np.genfromtxt(args.input).transpose()
+x = m[0]
+y = m[1]
+z = m[2]
+
+# workaround for 1 site
+if len(m.shape)==1:
+    x = [x]
+    y = [y]
+    z = [z]
+
+
+corig = [] # oroginal color
+sorig = [] # original size
+for iz in z:
+  if iz>0.00001: 
+    corig.append("lightgreen")
+    sorig.append(20)
+  else: 
+    corig.append("black")
+    sorig.append(60)
+isred = [False for ix in x] # if selected
+
+ii = args.initially_selected # selected indexes to start
+if ii!="":
+    try: 
+        ii = int(ii)
+        isred[ii] = True
+    except: pass
+
+
+plt.ion()
+
+
+
+
+def onpick3(event):
+        ind = event.ind
+        # replot
+        try: del red
+        except: pass
+        for i in ind:
+          isred[i] = not isred[i]
+          if isred[i]: c = "red"
+          else: c = corig[i]
+          plt.scatter(x[i],y[i],sorig[i],c)
+        plt.title(args.caption)
+        plt.draw() # draw image
+        # this is just a workaround, I should do it better in the future
+        namefile = args.output
+        fo = open(namefile,"w")
+        for (w,i) in zip(isred,range(len(x))):
+          if w: fo.write(str(i)+"\n")
+        fo.close()
+#        print("Written selected atoms in "+namefile)
+        
+
+fig, ax = plt.subplots()
+fig.set_facecolor("white") # white
+col = ax.scatter(x, y,sorig, corig, picker=True)
+
+
+for i in range(len(x)): # plot all
+    if isred[i]: c = "red"
+    else: c = 'black'
+    plt.scatter(x[i],y[i],sorig[i],c)
+
+
+plt.axis("equal")
+fig.canvas.mpl_connect('pick_event', onpick3)
+
+
+
+
+plt.show(block=True)

@@ -1,0 +1,126 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+
+
+
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+
+
+#fig.set_facecolor("white") # white
+
+folder = "MULTITIMEEVOLUTION/" # folder with all the stuff
+
+names = open(folder+"MULTITIMEEVOLUTION.TXT").readlines() # read the files
+print("Reading files from MULTILDOS.TXT")
+print("Possible options")
+print("layer: to color by layer")
+
+names = [name.replace("\n","") for name in names] # remove character
+times = [name.split("_")[2] for name in names] # times
+
+###########################################
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button, RadioButtons
+
+
+ipr = [np.sum(np.genfromtxt(folder+name).T[2]**2) for name in names]
+ts = [float(name.split("_")[2]) for name in names]
+md = [ts,ipr] # data for the second plot
+
+datadict = dict() # create dictionary
+
+for name in names: datadict[name] = np.genfromtxt(folder+name).transpose()
+
+
+
+def plot(main):
+  """Plotting function"""
+  fig = plt.gcf()
+  plt.gcf().canvas.set_window_title('Spatially resolved DOS')
+  ax = fig.add_subplot(121) # axis for the LDOS
+  axd = fig.add_subplot(122) # axis for the DOS
+  plt.subplots_adjust(left=0.1, bottom=0.25)
+  t = np.arange(0.0, 1.0, 0.001)
+  a0 = 5
+  f0 = 3
+  ax.clear() # clear LDOS
+  val = main.get_slider("Time")
+  val = int(val/100*len(names))
+  if val>(len(names)-1): val = len(names)-1 # fix
+  name = names[val] # get this file
+  time = times[val] # get this time
+#  print("Name",name)
+  m = datadict[name] # get the data
+  x = m[0] # x position
+  y = m[1] # y position
+  z = m[2] # z position
+  
+#  print("Maximum value is ",np.max(np.abs(z)))
+  num = np.sqrt(len(z))
+  scale = np.abs(z)/np.max(np.abs(z))
+  scale = scale/np.sqrt(num)*700
+  cmap = plt.get_cmap(main.get_combobox("colormap")) 
+  color = scale/np.max(scale) # between 0 and 1
+  size = main.get_slider("Size")/50 # size reescaling
+  size = np.power(size,4) # exponential scale
+  sat = main.get_slider("Saturation")/50 # saturation
+  sat = np.power(sat,4) # exponential scale
+  color = np.tanh(color*sat)
+  color = color/np.abs(max(color))
+  ax.scatter(x,y,s=2)
+  cplot = ax.scatter(x,y,s=scale*size,c=color,edgecolor="none",cmap=cmap,vmin=0.0,vmax=1.0)
+  cb = fig.colorbar(cplot,ticks=[0,1])
+  cb.ax.set_yticklabels([0,'Max'])
+  ax.axis("equal")
+  zoom = main.get_slider("Zoom")
+  ax.set_xticks([])
+  ax.set_yticks([])
+  ax.set_xlim([np.min(x)*zoom,np.max(x)*zoom])
+  ax.set_ylim([np.min(y)*zoom,np.max(y)*zoom])
+  try:
+    ax.set_facecolor(main.get_combobox("Background"))
+  except: pass
+  axd.plot(md[0],md[1]) # plot the time dependent quantity
+  xxs = np.array([float(time),float(time)]) # time
+  yys = np.array([0,max(md[1])]) # y positions
+  xxs = np.array([float(time),float(time)]) # time
+  axd.plot(xxs,yys*1.4,linewidth=3,c="red") # time checked
+#  print("Energy",time)
+  axd.set_ylim([0,max(md[1])*1.4]) # ylim
+  axd.set_xlim([min(md[0]),max(md[0])]) # xlim
+  axd.set_xticks(np.linspace(min(md[0]),max(md[0]),5,endpoint=True)) # xlim
+  axd.set_ylabel("Localization")
+  axd.set_xlabel("Time")
+  axd.set_title("Time evolution")
+  axd.set_yticks([])
+  return fig
+
+
+app,main = plotpyqt.get_interface(plot)
+main.add_slider(label="Time") # Slider for the dots
+main.add_slider(label="Size",v0=50) # Slider for the dots
+main.add_slider(label="Saturation",v0=50) # Saturation
+main.add_slider(label="Zoom",vs=np.linspace(1.1,0.01,40)) # Slider for the dots
+cs = ["inferno","plasma","magma","rainbow","jet"]
+main.add_combobox(cs,label="Color Map",key="colormap") # Slider for the dots
+main.add_combobox(["black","white"],label="Background") # Slider for the dots
+main.setWindowTitle("Time evolution")
+
+main.plot()
+main.show()
+sys.exit(app.exec_())

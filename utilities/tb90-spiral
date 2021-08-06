@@ -1,0 +1,29 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import pylab as py
+
+def plot_spiral_energy():
+  """ Plots energy """
+  name = "EnergyVSq.OUT"
+  m = py.genfromtxt(name).transpose()
+  qx, qy, qz, e = m[0], m[1], m[2], m[3] # get the columns
+  q = py.sqrt(qx*qx + qy*qy + qz*qz)
+  fig = py.figure() # create figure
+  fig.set_facecolor("white")
+  subp = fig.add_subplot(111)
+  fig.subplots_adjust(0.2,0.2)
+  subp.scatter(q,e-min(e),marker="o",color="red")
+  subp.plot(q,e-min(e),color="green")
+#  subp.fill_between(q,0.,e-min(e),color="green")
+  subp.set_xlabel("$|q|/\pi$")
+  subp.set_ylim([0.,max(e)-min(e)])
+  subp.set_xlim([min(q),max(q)])
+  subp.set_ylabel("$E/t$")
+  py.rcParams.update({'font.size': 22})
+
+
+if __name__=="__main__":
+  plot_spiral_energy()
+  py.show()
+
+

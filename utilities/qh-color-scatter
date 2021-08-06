@@ -1,0 +1,30 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+
+### script for ploting BANDS.OUT of tb90 ###
+
+
+from os import system as sh
+
+
+cdict={'red': ((0., 0, 0),(0.6,0.0,0.0),(1, 1.0, 1.0)), 'green': ((0., 0.0, 0.0),(0.4,1.0,1.0),(0.6,1.0,1.0),(1, 0.0, 0.0)), 'blue': ((0., 1.0, 1.0),(0.4,0.0,0.0), (1, 0.0, 0.0))}
+my_cmap = matplotlib.colors.LinearSegmentedColormap('my_colormap',cdict,256)
+
+name = sys.argv[1] # name fo the file
+
+my_map = plt.get_cmap("bwr")
+  
+m = np.genfromtxt(name).transpose()
+color = np.sign(m[2])*np.sqrt(np.abs(m[2]))
+size = 300
+plt.scatter(m[0],m[1],c=color,s=size,cmap=plt.get_cmap("bwr"), edgecolors='none')
+plt.show()

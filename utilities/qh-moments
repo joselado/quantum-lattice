@@ -1,0 +1,253 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+# this script read mean_field.in and calculates the magnetism in the
+# different sites
+# it assumes that each position has spin up and down (2*i,2*i+1)
+
+
+
+lattice_color = (0.8,.8,0.6) # color of the lattice
+
+import os
+import sys
+
+try:
+  from mayavi import mlab
+except:
+  print("Mayavi is not working")
+  dirname = os.path.dirname(os.path.realpath(__file__))
+  sys.path.append(dirname+"/../pysrc/interpreter")
+  import pycommand
+  pyc = pycommand.get_python() # get python
+  os.system(pyc+" "+dirname+"/qh-quiver &") # use the backup script
+  exit()
+
+
+os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
+import numpy as np
+
+
+
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="MAGNETISM.OUT",
+        help='Input file')
+parser.add_argument("--xwindow",default="None",
+        help='xwindow')
+parser.add_argument("--ywindow",default="None",
+        help='ywindow')
+parser.add_argument("--zwindow",default="None",
+        help='zwindow')
+parser.add_argument("--bonds",default="True",
+        help='xwindow')
+parser.add_argument("--magnetization",default="True",
+        help='xwindow')
+parser.add_argument("--bondl",default="1.1",
+        help='xwindow')
+
+args = parser.parse_args() # get the arguments
+
+
+################################################################################
+# Disable the rendering, to get bring up the figure quicker:
+mlab.figure("Magnetism", fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
+
+
+
+
+mag_factor = 1.5
+
+import numpy as np
+import sys
+import os.path
+
+def get_mag():
+  """ Get the magnetization """
+  m = read_data().T
+  return (range(len(m[0])),np.array([m[3],m[4],m[5]]))
+
+
+def read_data():
+  """Reads the positions of the system"""
+  m = np.genfromtxt(args.input)
+  if args.xwindow!="None":
+      xw = float(args.xwindow) # x window
+      m = m[np.abs(m[:,0])<xw,:] 
+  if args.ywindow!="None":
+      xw = float(args.ywindow) # x window
+      m = m[np.abs(m[:,1])<xw,:] 
+  if args.zwindow!="None":
+      xw = float(args.zwindow) # x window
+      m = m[np.abs(m[:,2])<xw,:] 
+  return m
+  
+def read_positions():
+  m = read_data()
+  return m[:,0:3]
+
+
+
+
+get_magnetization = get_mag # use a particular function
+get_positions = read_positions # use a particular function
+
+
+
+xyz = get_positions().transpose()
+
+
+
+
+def scale_mag(mag,threshold=1e-9):
+  """ Scales the magnetism if bigger than a certain threhold"""
+  mmag = mag.transpose()
+  mm = np.array([im.dot(im) for im in mmag]) # norms square
+  mm = np.sqrt(mm) # vector with norms
+  if np.max(mm)<threshold:  # if small do nothing
+    return mag
+  else:
+    mag = mag/np.max(mm) # set maaximum norm to 1
+    m2 = np.power(mm,3./4.)
+    m2 /= np.max(m2) # list of norms renormalized
+    mag = mag/m2 # renormalized length (for visualization purposes)
+    return mag
+
+
+
+##########################
+# Visual python routines #
+##########################
+
+
+
+
+
+def create_atom(P,col=lattice_color,rad=0.55,opa=1.0,res=10,scale='none'):
+   """
+     Draws an atom (sphere) at point P
+     P: array-like object
+   """
+   mlab.points3d(P[0], P[1], P[2],
+                 scale_factor=rad,
+                 resolution=res,
+                 opacity=opa,
+                 color=col,
+                 scale_mode=scale)
+
+
+
+
+def create_lattice(xyz,dr=[0.,0.,0.],bold=False):
+  """ Creates a lattice using xyz coordinates"""
+  ii = 0
+  dr = np.array(dr)
+  xyz2 = (xyz.transpose() + dr).transpose()
+  create_atom(xyz2)
+
+
+def create_arrow(r,v,fac=2,res=20,op=1,col=(1,0,0)):
+   """Create an arrow"""
+   X = r[0]
+   Y = r[1]
+   Z = r[2]
+   Vx = v[0]
+   Vy = v[1]
+   Vz = v[2]
+   vv = np.sqrt(Vx**2 + Vy**2 + Vz**2) # norm
+   mlab.quiver3d(X,Y,Z,Vx,Vy,Vz,scale_factor=fac,
+                 mode='arrow',
+                 resolution=res,
+                 opacity=op,
+                 color=col,
+                 scale_mode='none')
+
+
+
+
+def plot_magnetization(xyz,mag,dr=np.array([0.,0.,0.])):
+  """ PLots the magnetization with arrows"""
+  global mag_factor
+  mag = scale_mag(mag)*mag_factor*0.8
+  for i in range(len(xyz[0])):
+    r = np.array([xyz[0][i],xyz[1][i],xyz[2][i]])
+    v = np.array([mag[0][i],mag[1][i],mag[2][i]])
+    size = v.dot(v) # size of the arrow
+    create_arrow(r+dr,v,fac=size)
+
+
+def bondplt(P1,P2,col=lattice_color,rad=0.15,opa=1.0):
+   """
+     Draws a bond (cylinder) from point P1 to point P2
+     P1 & P2: array-like object
+   """
+   mlab.plot3d([P1[0],P2[0]],[P1[1],P2[1]],[P1[2],P2[2]],
+               color=col,
+               tube_radius=rad,
+               opacity=opa,tube_sides=10)
+
+
+def get_bonds(rs1,rs2):
+  """ Get the bonds between different atoms """
+  n = len(rs1) # number of sites
+  bonds = []
+  bondl = float(args.bondl)
+  for i in range(n):
+    for j in range(n):
+      ri = rs1[i]
+      rj = rs2[j]
+      dr = ri  -rj
+      if 0.1<dr.dot(dr)<bondl: # result
+        bonds += [(i,j)] # this is for spin unpolarized!!!!
+  bonds = np.array(bonds) # transform to int array
+  return bonds
+
+
+def create_bonds(rs1,rs2):
+  """ Creates the bonds of the crystal """
+  cylinders = []
+  bonds = get_bonds(rs1,rs2) # get the atoms that are connected
+  for (ii,jj) in bonds: # loop over bonds
+    r1 = rs1[ii]
+    r2 = rs2[jj]
+    crad = 0.1
+    bondplt(r1,r2,rad=crad)
+
+
+def plot_magnetization_cylinders(xyz,mag,dr=[0.,0.,0.]):
+  """ PLots the magnetization with arrows"""
+  global mag_factor
+  dr = np.array(dr)
+  mag = scale_mag(mag)*mag_factor
+  cylinders = []
+  cones = []
+  ii = 0
+  for ii in range(len(xyz[0])): # loop over atoms
+    pos = np.array([xyz[0][ii],xyz[1][ii],xyz[2][ii]]) + dr  # position
+    axis = np.array([mag[0][ii],mag[1][ii],mag[2][ii]])  # position
+    crad = 0.05*np.sqrt(axis.dot(axis)) # radius of the cone and cylinder
+  return cylinders
+
+
+
+
+create_lattice(xyz)    # plot the atoms
+  
+(ind,mag) = get_magnetization() # get the orbital index and magnetizations
+if args.magnetization=="True":
+  plot_magnetization(xyz,mag)   # plot the magnetization as cylinders
+
+############################
+# Create bonds ############
+############################
+rs = xyz.transpose() 
+if args.bonds=="True":
+  create_bonds(rs,rs)
+
+
+figure.scene.disable_render = False
+mlab.show()

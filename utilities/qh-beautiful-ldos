@@ -1,0 +1,176 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+lattice_color = (1,1,0) # color of the lattice
+ldos_color = (0,1,0) # color of the lattice
+
+# this is for performance
+resolution = 10
+tube_sides = 4
+
+
+import numpy as np
+from mayavi import mlab
+
+################################################################################
+# Disable the rendering, to get bring up the figure quicker:
+mlab.figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
+
+
+
+
+
+import numpy as np
+import sys
+import os.path
+
+
+
+
+
+
+
+def get_bonds(xyz,d=1.0):
+  """ Get the bonds between different atoms """
+  pairs = []
+  rs = xyz.transpose() # transpose
+  for i in range(len(rs)): # loop
+    for j in range(i+1,len(rs)): # loop
+      dr = rs[i] - rs[j]
+      if dr.dot(dr)<d*1.01: pairs.append([i,j]) 
+  return pairs
+
+
+
+
+
+
+def create_atom(P,col=lattice_color,rad=0.55,opa=1.0,res=resolution,scale='none'):
+   """
+     Draws an atom (sphere) at point P
+     P: array-like object
+   """
+   mlab.points3d(P[0], P[1], P[2],
+                 scale_factor=rad,
+                 resolution=res,
+                 opacity=opa,
+                 color=col,
+                 scale_mode=scale)
+
+
+
+
+def create_lattice(xyz,dr=[0.,0.,0.],bold=False):
+  """ Creates a lattice using xyz coordinates"""
+  ii = 0
+  dr = np.array(dr)
+  xyz2 = (xyz.transpose() + dr).transpose()
+  create_atom(xyz2)
+
+
+
+
+def bondplt(P1,P2,col=lattice_color,rad=0.15,opa=1.0):
+   """
+     Draws a bond (cylinder) from point P1 to point P2
+     P1 & P2: array-like object
+   """
+   mlab.plot3d([P1[0],P2[0]],[P1[1],P2[1]],[P1[2],P2[2]],
+               color=col,
+               tube_radius=rad,tube_sides=tube_sides,
+               opacity=opa)
+
+
+def create_bonds(xyz,bonds,dr1=[0.,0.,0.],dr2=[0.,0.,0.]):
+  """ Creates the bonds of the crystal """
+  dr1 = np.array(dr1)  # first diplacement
+  dr2 = np.array(dr2)  # second displacenement
+  cylinders = []
+  p1 = []
+  p2 = []
+  for (ii,jj) in bonds: # loop over the bonds
+    r1 = np.array([xyz[0][ii],xyz[1][ii],xyz[2][ii]]) + dr1  # position
+    r2 = np.array([xyz[0][jj],xyz[1][jj],xyz[2][jj]]) + dr2  # position
+    axis = r2-r1  # position
+    crad = 0.1 # radius of the cylinder
+    bondplt(r1,r2,rad=crad)
+
+
+
+def create_ldos(xyz,ds):
+  mlab.points3d(xyz[0],xyz[1],xyz[2],ds*0.1,resolution=resolution,
+             color=ldos_color,opacity=0.5)
+
+def create_arrow(r,v,fac=2,res=20,op=1,col=ldos_color):
+   """
+     Draws an arrow starting at point r and with direction v
+     The size is tricky, and is controlled by the parameter fac...
+     ...good luck!
+     r & v: arra-like objects
+   """
+   X = r[0]
+   Y = r[1]
+   Z = r[2]
+   Vx = v[0]
+   Vy = v[1]
+   Vz = v[2]
+   mlab.quiver3d(X,Y,Z,Vx,Vy,Vz,scale_factor=fac,
+                 mode='arrow',
+                 resolution=res,
+                 opacity=op,
+                 color=col,
+                 scale_mode='none')
+
+
+def scale_mag(mag,threshold=0.001):
+  """ Scales the magnetism if bigger than a certain threhold"""
+  mmag = mag.transpose()
+  mm = np.array([im.dot(im) for im in mmag]) # norms square
+  mm = np.sqrt(mm) # vector with norms
+  if max(mm)<threshold:  # if small do nothing
+    return mag
+  else:
+    return mag/max(mm)
+
+
+
+def create_mag(xyz,mag,dr=np.array([0.,0.,0.])):
+  """ PLots the magnetization with arrows"""
+  mag_factor = 3.0
+  mag = scale_mag(mag)*mag_factor*0.8
+  for i in range(len(xyz[0])):
+    r = np.array([xyz[0][i],xyz[1][i],xyz[2][i]])
+    v = np.array([mag[0][i],mag[1][i],mag[2][i]])
+    size = v.dot(v) # size of the arrow
+    create_arrow(r+dr,v,fac=size)
+
+
+
+
+
+
+
+
+
+
+# plot the atoms
+##############################################
+
+name = sys.argv[1] # name of the file
+m = np.genfromtxt(name).transpose()
+
+xyz = np.array([m[0],m[1],m[1]*0.]) # positions
+
+
+create_lattice(xyz)    # plot the atoms
+pairs = get_bonds(xyz) # get the bonds
+create_bonds(xyz,pairs)
+create_ldos(xyz,m[2])
+#mag = np.array([m[2]*0.,m[2]*0.,m[2]])
+#create_mag(xyz,mag)
+
+
+figure.scene.disable_render = False
+mlab.show()

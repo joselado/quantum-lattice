@@ -1,0 +1,41 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+
+import argparse
+parser = argparse.ArgumentParser()
+
+parser.add_argument("name")
+parser.add_argument("--nx",default=20)
+parser.add_argument("--xmin",default=None)
+parser.add_argument("--xmax",default=None)
+args = parser.parse_args()
+
+
+m = np.genfromtxt(args.name)
+
+if args.xmin is None:  xmin = np.min(m)
+else:  xmin = float(args.xmin)
+
+if args.xmax is None:  xmax = np.max(m)
+else:  xmax = float(args.xmax)
+
+a = m
+
+x,y = np.histogram(a,bins=int(args.nx),range=(xmin,xmax))
+y = y[0:len(x)]
+x = x/np.sum(x) # normalize frequencies
+print(np.sum(x))
+
+name2 = "HISTOGRAM_"+args.name
+np.savetxt(name2,np.matrix([x,y]).T)
+print("Written histogram in ",name2)
+print("Average value ",np.mean(m))
+print("Maximum x ",np.max(m))
+print("Minimum x ",np.min(m))
+#exit()
+plt.plot(y,x,marker="o")
+plt.show()

@@ -1,0 +1,16 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import numpy as np
+import sys
+
+name = sys.argv[1]
+m = np.genfromtxt(name).transpose() # read file
+
+x,y,s = m[0],m[1],m[2]
+
+part = np.sum(s*s)
+
+print "Participation Ratio = ",part
+
+

@@ -1,0 +1,19 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import numpy as np
+import numpy 
+from mayavi.mlab import *
+
+figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+
+def read_positions():
+  """Reads the positions of the system"""
+  return np.genfromtxt("POSITIONS.OUT").transpose()
+
+
+(x,y,z) = read_positions() 
+
+points3d(x,y,z,scale_factor=.5,color=(1,0,1))
+
+
+show()

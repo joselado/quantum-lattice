@@ -1,0 +1,31 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import sys
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+print("Hello")
+
+if len(sys.argv)>1: # if provided
+  files = [sys.argv[i] for i in range(1,len(sys.argv))] # files
+else: # guess the files
+  ff = os.listdir(os.getcwd()) # list of files
+  files = []
+  for f in ff:
+    if ".XYZ" in f: files.append(f) # store file
+
+print("Files selected",files)
+
+ic = 0 # color counter
+color = ["red","blue","black"]
+for f in files:
+  m = np.genfromtxt(f).transpose()
+  (x,y,z) = (m[0],m[1],m[2])
+  plt.scatter(x,y,c=color[ic],s=80)
+  plt.axis("equal")
+  ic += 1 # increase counter
+
+plt.show()
+
+

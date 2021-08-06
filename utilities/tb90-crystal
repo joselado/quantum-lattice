@@ -1,0 +1,58 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+# this script plot the crystal
+
+
+
+import numpy as np
+import visual as v
+
+def read_dout():
+  m = np.genfromtxt('DENSITIES.OUT').transpose() # read file
+  mag = np.array([m[2],m[3],m[4]]) # index and magnetizations
+  return (m[0],mag) # index and magnetizations
+
+
+
+def get_xyz():
+  return np.genfromtxt("POSITIONS.OUT").transpose()
+
+
+xyz = get_xyz()
+
+
+
+##########################
+# Visual python routines #
+##########################
+
+import visual as v
+
+
+def create_lattice(xyz,dx=0.0):
+  """ Creates a lattice using xyz coordinates"""
+  spheres = []
+  ii = 0
+  for ii in range(len(xyz[0])): # loop over atoms
+    pos = (xyz[0][ii]+dx,xyz[1][ii],xyz[2][ii])  # position
+    sphere = v.sphere(pos=pos) # create sphere
+    sphere.color = v.color.yellow  # color of the arrow
+    spheres += [sphere] # store spheres
+    sphere.radius = 0.3
+    ii += 1
+  return spheres
+
+
+
+# setup the display
+scene2 = v.display(title='Magnetism',
+     x=0, y=0, width=300, height=300,
+     center=(0,0,0), background=(1,1,1))
+
+
+
+
+
+create_lattice(xyz)    # plot the atoms
+
+

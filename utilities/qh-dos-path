@@ -1,0 +1,70 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.interpolate import interp2d
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+fig = plt.figure()
+plt.subplots_adjust(left=0.25, bottom=0.25)
+
+fig.set_facecolor("white") # white
+
+
+# read the indexes
+inds = np.genfromtxt("PATH.OUT").transpose()[0]
+linepoint = np.genfromtxt("PATH.OUT").transpose()[1]
+print("Reading indexes from PATH.OUT")
+
+# normalize to interval 0,1
+linepoint -= np.min(linepoint)
+linepoint /= np.max(linepoint)
+inds = [int(i) for i in inds] # indexes
+
+x = np.zeros(0)
+y = np.zeros(0)
+z = np.zeros(0)
+zarr = [None for i in inds]
+ii = 0 # counter
+for (l,i) in zip(linepoint,inds): # loop over indexes
+  name = "LDOS_"+str(i)+".OUT" # name of the file
+  m = np.genfromtxt(name).transpose() # get the data
+  x = np.concatenate([x,m[0]*0.+l]) # x position
+  y = np.concatenate([y,m[0]]) # y position
+  z = np.concatenate([z,m[1]]) # y position
+  zarr[ii] = m[1]# z position
+  ii += 1 # increase
+  print("Extracting DOS from ",name)
+
+zarr = np.array(zarr).transpose() # convert to 2d array
+
+
+# get the interpolation function
+#fun2d = interp2d(linepoint,m[0],zarr)
+
+
+#z = z/(np.abs(y)+0.001)
+#z = np.log(z)
+
+
+levels = levels = np.linspace(np.min(z),np.max(z), 200)
+plt.contourf(linepoint,m[0],zarr,cmap=plt.get_cmap("seismic"),levels=levels)
+#plt.scatter(x,y,c=-z,cmap=plt.get_cmap("seismic"),edgecolor="none",s=60)
+#plt.tricontourf(x,y,z)
+
+plt.xlabel("Point in the path")
+plt.ylabel("Energy")
+
+np.savetxt("MAP_LDOS.OUT",np.matrix([x,y,z]).T)
+print("Saved map in MAP_LDOS.OUT")
+
+
+
+
+plt.show()

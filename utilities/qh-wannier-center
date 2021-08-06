@@ -1,0 +1,81 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import numpy as np
+import pylab as py
+import matplotlib.pyplot as plt
+import sys
+
+import matplotlib
+matplotlib.rcParams.update({'font.size': 24})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+fig = py.figure()
+fig.subplots_adjust(.2,.2)
+currentfig = plt.gcf()
+currentfig.canvas.set_window_title('Z2 invariant')
+
+name = "WANNIER_CENTERS.OUT"
+m = np.genfromtxt(name).transpose()
+x = m[0]
+# find the position of the maximum gap at every t
+fermis = x*0. # maximum gap
+for it in range(len(x)): # loop over times
+  imax,jmax = None,None
+  dmax = -1 # initialize
+  gapangle = None
+  maxgap = -1.0 # maximum gap
+  for i in range(1,len(m)): 
+    for j in range(i+1,len(m)): 
+      for ipi in [0.,1.]:
+        ip = np.exp(1j*m[i][it]) # center of wave i
+        jp = np.exp(1j*m[j][it]) # center of wave j
+        angle = np.angle(ip+jp)+np.pi*ipi # get the angle
+        #angle = np.angle(ip+jp)+np.pi # get the angle
+        dp = np.exp(1j*angle) # now obtain this middle point gap
+        mindis = 4.0 # calculate minimum distance
+        for k in range(1,len(m)): # loop over centers
+          kp = np.exp(1j*m[k][it]) # center of wave k
+          dis = np.abs(dp-kp) # distance between the two points 
+          if dis<mindis: mindis = dis+0. # update minimum distance
+        if mindis>maxgap: # if found a bigger gap
+          maxgap = mindis+0. # maximum distance
+          gapangle = np.angle(dp) # update of found bigger gap
+  fermis[it] = gapangle    
+
+
+# now check the number of cuts of each wannier center
+
+def angleg(a,b,c):
+  """Function to say if a jump has been made or not"""
+  d = np.sin(a-b) + np.sin(b-c) + np.sin(c-a)
+  return -d
+
+
+parity = 1 # start with
+for i in range(1,len(m)): # loop over waves 
+  cwf = m[i] # center of the wave
+  for it in range(len(x)-1): # loop over times
+    s = np.sign(angleg(fermis[it],fermis[it+1],cwf[it])) # calculate the sign
+    if s<0.:
+      parity *= -1 # add a minus -1
+
+
+
+
+ 
+# now plot the different centers
+fig.set_facecolor("white")
+py.plot(x,fermis/np.pi,color="black")
+for i in range(1,len(m)):
+  y = m[i]
+  py.plot(x,y/np.pi,linewidth=0.0,label=name,marker="o")
+if parity<0:
+  py.title("Topological")
+else:
+  py.title("Trivial")
+py.xlim([min(x),max(x)])
+py.xlabel("Pumping parameter [$2\pi$]")
+py.ylabel("Wannier center [$\pi$]")
+py.show()
+

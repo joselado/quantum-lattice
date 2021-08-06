@@ -1,0 +1,79 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+###########################################
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button, RadioButtons
+
+
+
+
+def plot(main):
+  fig = plt.gcf()
+  plt.gcf().canvas.set_window_title('Local DOS')
+  ax = fig.add_subplot(111) # axis for the LDOS
+  plt.subplots_adjust(left=0.1, bottom=0.25)
+  t = np.arange(0.0, 1.0, 0.001)
+  a0 = 5
+  f0 = 3
+  plt.axis([0, 1, -10, 10])
+  axcolor = 'lightgoldenrodyellow'
+  smax = 100
+  ####################################################
+  m = np.genfromtxt(sys.argv[1]).transpose() # read file
+  x = m[0] # x position
+  y = m[1] # y position
+  z = m[2] # z position
+  ax.clear() # clear LDOS
+  ax.axis("equal")
+  ax.set_xticks([])
+  ax.set_yticks([])
+  size = main.get_slider("Size")
+  size = np.power(4,size/20)
+  ax.scatter(x,y,color="black",s=size)
+  sat = main.get_slider("Saturation")/50 # saturation
+  sat = np.power(sat,4) # exponential scale
+  scale = np.abs(z)/np.max(np.abs(z)) # scale to 0,1 interval
+  scale = np.tanh(scale*sat)
+  ax.scatter(x,y,color="black",s=1)
+  ss = main.get_slider("DOSSize")
+  ss = np.power(4,ss/20)
+  try:
+    cplot = ax.scatter(x,y,s=ss,c=scale,edgecolor="none",
+            cmap=main.get_combobox("cmap"),vmin=0)
+    cb = fig.colorbar(cplot,ticks=[0,max(scale)])
+    cb.ax.set_yticklabels([0,'Max'])
+    cb.set_label("DOS",rotation=0)
+  except:
+    ax.scatter(x,y,s=scale,c=scale,edgecolor="none")
+  
+  plt.axis("equal")
+  return fig
+
+
+app,main = plotpyqt.get_interface(plot)
+main.add_slider(label="Lattice size",key="Size",
+        vs=range(1,100),v0=50) # Slider for the dots
+main.add_slider(label="DOS size",key="DOSSize",
+        vs=range(1,100),v0=50) # Slider for the dots
+main.add_slider(label="Saturation",v0=50) # Saturation
+main.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
+main.setWindowTitle("Local DOS")
+
+main.plot()
+main.show()
+sys.exit(app.exec_())

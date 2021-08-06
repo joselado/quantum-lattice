@@ -1,0 +1,25 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import sys
+
+name = sys.argv[1]
+
+m = np.genfromtxt(name)
+
+fo = open(name,"w")
+fodis = open(name+"_discarded","w")
+for im in m:
+  if not im[3]<0.0: 
+    for i in range(4): fo.write(str(im[i])+"   ")
+    fo.write("\n")
+  else:
+    for i in range(4): fodis.write(str(im[i])+"   ")
+    fodis.write("\n")
+
+print("Overwritten",name)
+
+fo.close()
+fodis.close()
+

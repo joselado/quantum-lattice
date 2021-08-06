@@ -1,0 +1,91 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+
+try:
+  from mayavi import mlab
+except:
+  print("Default python does not work, trying python in PATH")
+  try: 
+    import os
+    qhpath = os.environ["QHROOT"]+"/" # path to quantum lattice
+    os.system("python "+qhpath+"utilities/qh-pick")
+  except:
+    print("Something wrong")
+    exit()
+  exit()
+
+
+################################################################################
+# Disable the rendering, to get bring up the figure quicker:
+mlab.figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
+
+# Creates two set of points using mlab.points3d: red point and
+# white points
+
+
+
+def read_positions():
+  """Reads the positions of the system"""
+  return np.genfromtxt("POSITIONS.OUT").transpose()
+
+
+(x1,y1,z1) = read_positions()
+
+
+red_glyphs = mlab.points3d(x1, y1, z1, color=(0, 0, 1), scale_factor = .5,
+                resolution=6)
+
+
+# Add an outline to show the selected point and center it on the first
+# data point.
+outline = mlab.outline(line_width=3)
+outline.outline_mode = 'cornered'
+outline.bounds = (x1[0]-0.1, x1[0]+0.1,
+                  y1[0]-0.1, y1[0]+0.1,
+                  z1[0]-0.1, z1[0]+0.1)
+
+# Every object has been created, we can reenable the rendering.
+figure.scene.disable_render = False
+################################################################################
+
+
+# Here, we grab the points describing the individual glyph, to figure
+# out how many points are in an individual glyph.
+glyph_points = red_glyphs.glyph.glyph_source.glyph_source.output.points.to_array()
+
+
+def picker_callback(picker):
+    """ Picker callback: this get called when on pick events.
+    """
+    if picker.actor in red_glyphs.actor.actors:
+        # Find which data point corresponds to the point picked:
+        # we have to account for the fact that each data point is
+        # represented by a glyph with several points
+        point_id = picker.point_id/glyph_points.shape[0]
+        print(point_id,picker.point_id)
+        point_id = int(point_id)
+        # If the no points have been selected, we have '-1'
+        if point_id != -1:
+            # Retrieve the coordinnates coorresponding to that data
+            # point
+            x, y, z = x1[point_id], y1[point_id], z1[point_id]
+            mlab.title("Selected atom "+str(point_id)+" ")
+            # Move the outline to the data point.
+            outline.bounds = (x-0.1, x+0.1,
+                              y-0.1, y+0.1,
+                              z-0.1, z+0.1)
+
+
+picker = figure.on_mouse_pick(picker_callback)
+
+# Decrease the tolerance, so that we can more easily select a precise
+# point.
+picker.tolerance = 0.01
+
+
+mlab.show()

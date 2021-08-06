@@ -1,0 +1,74 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import numpy as np
+import numpy 
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="")
+parser.add_argument("--nx",default=4)
+parser.add_argument("--ny",default=4)
+parser.add_argument("--reflecty",default="False")
+#        description="Frames per second in the video")
+args = parser.parse_args() # get the arguments
+nx = float(args.nx)
+ny = float(args.ny)
+
+name = args.input
+reflecty = args.reflecty=="True"
+
+
+if name=="":
+    print("Provide an input file")
+    exit()
+
+m = np.genfromtxt(name).T # get data
+x0 = m[0]
+y0 = m[1]
+
+# now interpolate everything
+x = np.unique(x0) # array with x
+y = np.unique(y0) # array with y
+
+nx0 = len(x)
+ny0 = len(y)
+nx1 = int(nx0*nx)
+ny1 = int(ny0*ny)
+print(nx0,ny0,len(m[2]))
+if reflecty: miny = -np.max(y)
+else: miny = np.min(y)
+
+xn = np.linspace(np.min(x),np.max(x),nx1,endpoint=True)
+yn = np.linspace(miny,np.max(y),ny1,endpoint=True)
+X, Y = np.meshgrid(xn,yn)
+
+xn2d = []
+yn2d = []
+for ix in xn:
+  for iy in yn:
+      xn2d.append(ix)
+      yn2d.append(iy)
+
+
+from scipy.interpolate import interp2d
+from scipy.interpolate import griddata
+
+
+def refine(i):
+  method = "cubic"
+#  Z = griddata((x0, y0), m[2+i], (X, Y), method=method)
+#  return Z.reshape(nx1*ny1)
+  z = m[2+i].reshape((nx0,ny0)).T
+  print(x.shape,y.shape,z.shape)
+  f = interp2d(x,y,z,kind="linear")
+  if reflecty:  out = f(xn,np.abs(yn))
+  else: out = f(xn,yn)
+  print(xn.shape,yn.shape,out.shape)
+  return out.T.reshape(nx1*ny1)
+
+out = [xn2d,yn2d] + [refine(i) for i in range(len(m)-2)]
+
+np.savetxt("INTERPOLATED_"+name,np.array(out).T)
+
+
+

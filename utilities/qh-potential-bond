@@ -1,0 +1,46 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+fig = plt.figure()
+
+fig.set_facecolor("white") # white
+
+name = sys.argv[1] # name of the file
+
+m = np.genfromtxt(name).transpose() # read file
+x = m[0] # x position
+y = m[1] # y position
+z = m[2] # z position
+
+
+scale = np.abs(z)/np.max(np.abs(z))*100
+zsign = np.sign(z) # sign
+
+
+
+
+plt.title(str(len(x))+" atoms")
+plt.scatter(x,y,color="black",s=1)
+plt.scatter(x,y,s=scale,c=zsign*scale,edgecolor="none",cmap=plt.get_cmap("bwr"))
+plt.xticks([])
+plt.yticks([])
+
+
+for i in range(len(x)):
+  for j in range(i,len(x)):
+    dd = (x[i] -x[j])**2 + (y[i] -y[j])**2
+    if dd<2:
+      plt.plot([x[i],x[j]],[y[i],y[j]],c="black")
+
+
+
+plt.axis("equal")
+plt.show()

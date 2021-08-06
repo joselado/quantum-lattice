@@ -1,0 +1,65 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import matplotlib.pyplot as plt
+import numpy as np
+import time
+
+
+def update_energy_error(fig):
+  m = np.genfromtxt("ENERGY.OUT").transpose()  
+  et = m[0]
+  ei = m[1]
+  error = np.genfromtxt("ERROR.OUT") # read the error
+  # add figure
+  fig.clear() # clear the figure
+  plot_ei_last = fig.add_subplot(1,2,1)  # plot for the energy
+  plot_error_last = fig.add_subplot(1,2,2)  # plot for the error
+  inds_last = range(len(ei)/2,len(ei))
+  ei_last = [ei[i] for i in inds_last]
+  error_last = [error[i] for i in inds_last]
+  inds = range(len(ei))
+  
+  # do the plots
+  plot_ei_last.plot(inds_last,ei_last,marker="o",color="red")
+  plot_error_last.plot(range(len(error)),error,marker="o",color="blue")
+  
+  # put the titles and labels
+  plot_ei_last.set_title("Energy per atom = "+"{:.4f}".format(ei[-1]))
+  plot_ei_last.set_ylabel("Energy")
+  plot_ei_last.set_xlabel("Iteration #")
+  plot_ei_last.set_ylim([min(ei_last)*1.1,0.0])
+  plot_error_last.set_title("SCF ERROR = "+"{:.2e}".format(error[-1]))
+  plot_error_last.set_ylabel("Error ")
+  plot_error_last.set_yscale("log")
+  plot_error_last.set_xlabel("Iteration #")
+  
+
+
+def finished(fig):
+  """ End of the calculation """
+  fig.set_facecolor("lightgreen")
+
+
+
+
+
+if __name__=="__main__":
+  plt.ion()
+#  plt.show() # infinite loop
+  fig = plt.figure(1)
+  fig.set_facecolor("white")
+  import os.path
+  while True:  # infinite loop
+    fig.clear() # clear the figure
+    try:
+      update_energy_error(fig)  # replot the data
+    except:  # if no iteration yet, go to the next
+      pass
+    plt.draw()   # draw the figure
+    time.sleep(0.5)  # wait
+    if os.path.isfile("DONE"):  # if end of the calculation
+       finished(fig) # paint in green for finished
+       plt.draw()
+       break # end
+
+

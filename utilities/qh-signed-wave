@@ -1,0 +1,27 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+
+name = sys.argv[1] # name of the file
+
+m = np.genfromtxt(name).transpose() # read file
+x = m[0] # x position
+y = m[1] # y position
+z = m[2] # z position
+
+scale = np.abs(z)/np.max(np.abs(z))*100
+zsign = np.sign(z) # sign
+
+plt.scatter(x,y,color="black",s=6)
+plt.scatter(x,y,s=scale,c=zsign)
+
+plt.axis("equal")
+plt.show()

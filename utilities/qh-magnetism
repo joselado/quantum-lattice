@@ -1,0 +1,381 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import os
+import sys
+
+try:
+  from mayavi import mlab
+except:
+  print("Mayavi is not working")
+  dirname = os.path.dirname(os.path.realpath(__file__))
+  sys.path.append(dirname+"/../pysrc/interpreter")
+  import pycommand
+  pyc = pycommand.get_python() # get python
+  print(pyc)
+  os.system(pyc+" "+dirname+"/qh-quiver &") # use the backup script
+  exit()
+
+
+lattice_color = (0,1,1) # color of the lattice
+
+os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
+import numpy as np
+
+
+################################################################################
+# Disable the rendering, to get bring up the figure quicker:
+mlab.figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+figure = mlab.gcf()
+mlab.clf()
+figure.scene.disable_render = True
+
+
+
+
+mag_factor = 2.0
+
+import numpy as np
+import sys
+import os.path
+
+class crystal:
+  dimensionality = 0
+  a1 = np.array([0.,0.,0.])
+  a2 = np.array([0.,0.,0.])
+  a3 = np.array([0.,0.,0.])
+  
+
+
+
+def read_dout():
+  m = np.genfromtxt('DENSITIES.OUT').transpose() # read file
+  mag = np.array([m[2],m[3],m[4]]) # index and magnetizations
+  return (m[0],mag) # index and magnetizations
+
+def get_mag():
+  """ Get the magnetization """
+  return np.genfromtxt("MAGNETISM.OUT").transpose()[3:6]
+  
+
+
+
+def read_color():
+  """Read the color of the atoms"""
+  cc = open("ATOM_COLOR.OUT").readlines()
+  cc = [c.split()[0] for c in cc]
+  return cc
+
+
+def read_positions():
+  """Reads the positions of the system"""
+  return np.genfromtxt("MAGNETISM.OUT").transpose()[0:3]
+
+
+def get_lattice(crys):
+  """Get the lattice vectors"""
+  f = "LATTICE.OUT"
+  if os.path.isfile(f):
+    if  len(open(f,"r").readlines()) == 1:  # one dimensional
+      crys.dimensionality = 1
+      a1 = np.genfromtxt("LATTICE.OUT")
+      try:
+        a1[0]==1
+      except:
+        a1 = np.array([a1,0.,0.])
+      crys.a1 = a1  # store in class
+      return a1
+    elif len(open(f,"r").readlines()) == 2:  # two dimensional
+      crys.dimensionality = 2
+      a1 = np.genfromtxt("LATTICE.OUT")[0]
+      a2 = np.genfromtxt("LATTICE.OUT")[1]
+      crys.a1, crys.a2 = a1, a2
+    else:
+      raise
+  else:
+    crys.dimensionality = 0
+    
+
+
+def get_hamiltonian_factor():
+  """ Get the factor between number of atoms and number of orbitals"""
+  ll = open("hamiltonian.in").readlines() 
+  for i in range(len(ll)):
+    if "DIMENSION_OF_THE_HAMILTONIAN" in ll[i]:
+      norb = int(float(ll[i+1])) # number of orbitals
+  r = np.genfromtxt("POSITIONS.OUT")
+  nr = len(r)
+  c = norb/nr
+  print("There are",c,"orbitals per site")
+  return c
+
+
+
+
+
+
+get_magnetization = get_mag # use a particular function
+get_positions = read_positions # use a particular function
+
+
+xyz = get_positions()
+
+
+
+
+def scale_mag(mag,threshold=0.001):
+  """ Scales the magnetism if bigger than a certain threhold"""
+  mmag = mag.transpose()
+  mm = np.array([im.dot(im) for im in mmag]) # norms square
+  mm = np.sqrt(mm) # vector with norms
+  if max(mm)<threshold:  # if small do nothing
+    return mag
+  else:
+    return mag/max(mm)
+
+
+
+##########################
+# Visual python routines #
+##########################
+
+
+
+atom_color=False
+if "-color" in sys.argv: # if draw color
+#if True:
+  colors =  read_color() # reads the colors
+  atom_color = True
+  print("Using colors from ATOM_COLOR.OUT")
+
+
+def create_atom(P,col=lattice_color,rad=0.55,opa=1.0,res=10,scale='none'):
+   """
+     Draws an atom (sphere) at point P
+     P: array-like object
+   """
+   mlab.points3d(P[0], P[1], P[2],
+                 scale_factor=rad,
+                 resolution=res,
+                 opacity=opa,
+                 color=col,
+                 scale_mode=scale)
+
+
+
+
+def create_lattice(xyz,dr=[0.,0.,0.],bold=False):
+  """ Creates a lattice using xyz coordinates"""
+  ii = 0
+  dr = np.array(dr)
+  print(dr)
+  xyz2 = (xyz.transpose() + dr).transpose()
+  create_atom(xyz2)
+
+
+def create_arrow(r,v,fac=2,res=20,op=1,col=(1,0,0)):
+   """
+     Draws an arrow starting at point r and with direction v
+     The size is tricky, and is controlled by the parameter fac...
+     ...good luck!
+     r & v: arra-like objects
+   """
+   X = r[0]
+   Y = r[1]
+   Z = r[2]
+   Vx = v[0]
+   Vy = v[1]
+   Vz = v[2]
+   mlab.quiver3d(X,Y,Z,Vx,Vy,Vz,scale_factor=fac,
+                 mode='arrow',
+                 resolution=res,
+                 opacity=op,
+                 color=col,
+                 scale_mode='none')
+
+
+
+
+def plot_magnetization(xyz,mag,dr=np.array([0.,0.,0.])):
+  """ PLots the magnetization with arrows"""
+  global mag_factor
+  mag = scale_mag(mag)*mag_factor*0.8
+  for i in range(len(xyz[0])):
+    r = np.array([xyz[0][i],xyz[1][i],xyz[2][i]])
+    v = np.array([mag[0][i],mag[1][i],mag[2][i]])
+    size = v.dot(v) # size of the arrow
+    create_arrow(r+dr,v,fac=size)
+
+
+def bondplt(P1,P2,col=lattice_color,rad=0.15,opa=1.0):
+   """
+     Draws a bond (cylinder) from point P1 to point P2
+     P1 & P2: array-like object
+   """
+   mlab.plot3d([P1[0],P2[0]],[P1[1],P2[1]],[P1[2],P2[2]],
+               color=col,
+               tube_radius=rad,
+               opacity=opa,tube_sides=10)
+
+
+def get_bonds(rs1,rs2):
+  """ Get the bonds between different atoms """
+  n = len(rs1) # number of sites
+  bonds = []
+  for i in range(n):
+    for j in range(n):
+      ri = rs1[i]
+      rj = rs2[j]
+      dr = ri  -rj
+      if 0.1<dr.dot(dr)<1.1: # result
+        bonds += [(i,j)] # this is for spin unpolarized!!!!
+  bonds = np.array(bonds) # transform to int array
+  return bonds
+
+
+def create_bonds(rs1,rs2):
+  """ Creates the bonds of the crystal """
+  cylinders = []
+  bonds = get_bonds(rs1,rs2) # get the atoms that are connected
+  for (ii,jj) in bonds: # loop over bonds
+    r1 = rs1[ii]
+    r2 = rs2[jj]
+    crad = 0.1
+    bondplt(r1,r2,rad=crad)
+
+
+def plot_magnetization_cylinders(xyz,mag,dr=[0.,0.,0.]):
+  """ PLots the magnetization with arrows"""
+  global mag_factor
+  dr = np.array(dr)
+  mag = scale_mag(mag)*mag_factor
+  cylinders = []
+  cones = []
+  ii = 0
+  for ii in range(len(xyz[0])): # loop over atoms
+    pos = np.array([xyz[0][ii],xyz[1][ii],xyz[2][ii]]) + dr  # position
+    axis = np.array([mag[0][ii],mag[1][ii],mag[2][ii]])  # position
+    crad = 0.05*np.sqrt(axis.dot(axis)) # radius of the cone and cylinder
+#    cylinder = v.cylinder(pos=pos,axis=axis) # create arrow
+#    cone = v.cone(pos=pos+axis,axis=axis/4.0,radius = 2.0*crad ) # create arrow
+#    cylinder.color = v.color.red  # color of the arrow
+#    cone.color = v.color.red  # color of the arrow
+#    if atom_color: # if atoms have color change to green
+#      cylinder.color = v.color.green  # color of the arrow
+#      cone.color = v.color.green  # color of the arrow
+#    cylinder.radius = crad  # radius of the cone
+#    cylinders += [cylinder] # store arrow
+#    ii += 1
+  return cylinders
+
+###############################################
+###############################################
+###############################################
+
+crys = crystal() # create a crystal class
+
+# setup the display
+#scene2 = v.display(title='Magnetism',
+#     x=0, y=0, width=300, height=300,
+#     center=(0,0,0), background=(1,1,1))
+
+
+ncells = 0 # number of cells
+
+try:
+  ncells = int(sys.argv[1]) # number of cells
+
+except:
+  ncells = 0 # number of cells
+  print("Ploting only one cell")
+
+lattice=None # initialice lattice
+try:
+  if ncells>0:
+    get_lattice(crys) # get lattice vectors  
+except: pass
+
+
+# plot the atoms
+##############################################
+das = [] # number of displacements
+if crys.dimensionality == 0:
+  create_lattice(xyz)    # plot the atoms
+if crys.dimensionality == 1:  
+  for i in range(-ncells,ncells+1):
+    if i==0:
+      create_lattice(xyz,dr=crys.a1*i,bold=True)    # plot the atoms
+    else:
+      create_lattice(xyz,dr=crys.a1*i)    # plot the atoms
+    das.append([i,0,0])
+if crys.dimensionality == 2:
+  for i in range(-ncells,ncells+1):
+    for j in range(-ncells,ncells+1):
+      if i==0 and j==0:  # central cell
+# plot the atoms
+        create_lattice(xyz,dr=crys.a1*i + crys.a2*j,bold=True)    
+      else:
+        create_lattice(xyz,dr=crys.a1*i + crys.a2*j)    # plot the atoms
+      das.append([i,j,0])
+##############################################
+  
+
+
+# Plot magnetization
+##############################################
+##############################################
+#plot_magnetization_arrow(xyz,mag)   # plot the magnetization as arrows
+try:
+  if not "nomag" in sys.argv:
+    mag = get_magnetization() # get the orbital index and magnetizations
+    plot_magnetization(xyz,mag)   # plot the magnetization as cylinders
+    for da in das: # and loop over replicas
+      plot_magnetization(xyz,mag,dr=crys.a1*da[0] + crys.a2*da[1]) 
+except: pass
+##############################################
+##############################################
+
+
+
+
+
+#v.display(background=v.color.white)
+
+
+
+def tlabel(dr,crys):
+  """ Function to decide which label return """
+  dr = np.array(dr)
+  a1, a2 = crys.a1 ,crys.a2
+  def is0(a):
+    b = np.dot(a,a)
+    if b < 0.00001: return True ; return False
+  if is0(dr): return "ons"
+  elif is0(dr-a1): return "tx"
+  elif is0(dr+a1): return "tmx"
+  elif is0(dr-a2): return "ty"
+  elif is0(dr+a2): return "tmy"
+  elif is0(dr-a1-a2): return "txy"
+  elif is0(dr+a1-a2): return "txmy"
+  else: return ""
+
+
+
+
+############################
+# Create bonds ############
+############################
+rs = xyz.transpose() 
+if not "nobonds" in sys.argv:
+  create_bonds(rs,rs)
+  for da1 in das:
+    for da2 in das:
+      dr1 = crys.a1*da1[0] + crys.a2*da1[1] + crys.a3*da1[2]
+      dr2 = crys.a1*da2[0] + crys.a2*da2[1] + crys.a3*da2[2]
+      rs1 = [ri + dr1 for ri in rs]
+      rs2 = [ri + dr2 for ri in rs]
+      create_bonds(rs1,rs2)
+
+
+figure.scene.disable_render = False
+mlab.show()

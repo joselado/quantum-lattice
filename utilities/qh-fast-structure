@@ -1,0 +1,32 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+m = np.genfromtxt("POSITIONS.OUT").transpose()
+x = m[0]
+y = m[1]
+z = m[2]
+sorig = x*0. + 500/np.sqrt(len(x)) # original size
+
+plt.ion()
+
+fig, ax = plt.subplots()
+currentfig = plt.gcf()
+currentfig.canvas.set_window_title('Structure')
+plt.title("Number of atoms "+str(len(x)))
+fig.set_facecolor("white") # white
+col = ax.scatter(x, y,sorig, c="black", picker=True)
+plt.axis("equal")
+
+
+
+
+plt.show(block=True)

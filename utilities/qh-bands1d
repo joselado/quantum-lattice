@@ -1,0 +1,88 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+
+### script for ploting BANDS.OUT of tb90 ###
+
+
+from os import system as sh
+
+
+def plot_bands():
+  """ Plots the bandstructure from BANDS.OUT"""
+    
+  fig = plt.figure()
+  fig.subplots_adjust(0.2,0.2)
+  
+  # check if shift the bands by 0.5
+  
+  # the color map
+  import numpy as np
+  cdict={'red': ((0., 0, 0),(0.6,0.0,0.0),(1, 1.0, 1.0)), 'green': ((0., 0.0, 0.0),(0.4,1.0,1.0),(0.6,1.0,1.0),(1, 0.0, 0.0)), 'blue': ((0., 1.0, 1.0),(0.4,0.0,0.0), (1, 0.0, 0.0))}
+  import matplotlib
+  my_cmap = matplotlib.colors.LinearSegmentedColormap('my_colormap',cdict,256)
+  if "-absmap" in sys.argv:
+    my_cmap = plt.get_cmap("gray_r")
+  
+  
+  
+  
+  
+  
+  m = np.genfromtxt("BANDS.OUT").transpose()
+  
+  # check if plot the color
+  draw_color = False
+  if len(m.T[0]) > 2:
+    draw_color = True
+    color = m[2]
+    tc = 0.0
+    for i in range(len(m[1])):
+      if m[1][i]<0.0: tc += m[2][i]
+    print("Total color below Ef", tc)
+  
+  
+  k = m[0] # default x axis
+  k = (k - np.min(k))/(np.max(k) -np.min(k))
+  e = m[1] # default x axis
+  xlabel = "K-path" # default
+  # plot a rectangle in the ocupied levels
+  from matplotlib.patches import Rectangle
+  plt.fill_between(sorted(k),min(e)-3.0,0,color="yellow")
+  
+  if not draw_color:  # plot without color
+    col = plt.scatter(k,e, color ="black")
+  if draw_color: # plot with color
+    col = plt.scatter(k,e,c=color,cmap=my_cmap, edgecolors='none')
+  plt.xlim([min(k),max(k)])   # x axis range
+  plt.ylim([min(e),max(e)])   # y axis range
+  
+  
+  # axis
+  xlab = plt.xlabel("")
+  ylab = plt.ylabel("$E/t$")
+  # font size of the axis
+  ylab.set_fontsize(30) # label of the y xis
+  xlab.set_fontsize(30) # label of the y xis
+  fig.set_facecolor("white")  # set the layout in white
+  bandstructure = plt.gcf()
+  bandstructure.canvas.set_window_title('Bandstructure')
+# add the lines in the bandstructure
+  plt.xticks([0.,0.5,1.],["$\Gamma$","$X$","$\Gamma$"])
+
+  return fig
+
+
+if __name__=="__main__":
+  fig = plot_bands()  
+  if not "-noshow" in sys.argv:
+    plt.show()

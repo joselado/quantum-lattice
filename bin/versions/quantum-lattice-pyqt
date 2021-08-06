@@ -1,0 +1,86 @@
+#!/usr/bin/python3
+
+import sys
+import os
+import platform
+
+  
+# Add path of the interface
+qhroot = os.path.dirname(os.path.realpath(__file__))+"/../../" 
+# Add path of the wrapper
+sys.path.append(qhroot+"/pysrc/") # python libraries
+sys.path.append(qhroot+"/interface-pyqt/system_selection") # python libraries
+
+from interfacetk import qtwrap # import the library with simple wrappers to pyqt
+window = qtwrap.main() # this is the main interface
+
+from interpreter import pycommand
+
+
+def get_command(name="python"):
+  """Return the path for Anaconda Python, which has pyqt by default"""
+  return pycommand.get_python()
+
+
+
+python = get_command() # Python command
+
+
+def call_mode(mode,folder=None,pyqt=True):
+  """ Returns a function which calls a particular quantum lattice mode"""
+  if folder is None: folder = mode # if not provided
+  path = qhroot
+  def launch():
+    """Function to launch a particular calculation, passes qhroot as input"""
+    os.system(python+" "+path+"interface-pyqt/"+mode+"/"+mode+".py   "+path +"  &")
+  return launch
+
+
+
+# create signals
+signals = dict()
+signals["sheets"] = call_mode("2d",pyqt=True)   
+signals["heterostructure"] = call_mode("hybridfilm",pyqt=True)   
+signals["twisted_bilayer"] = call_mode("tbg",pyqt=True)  
+signals["ribbons_pyqt"] = call_mode("1d",pyqt=True)  
+signals["islands_pyqt"] = call_mode("0d",pyqt=True)  
+signals["film2d_pyqt"] = call_mode("2dslab",pyqt=True)  
+signals["hybridribbon_pyqt"] = call_mode("hybridribbon",pyqt=True)  
+signals["hofstader_pyqt"] = call_mode("hofstader1d",pyqt=True)  
+signals["crystal3d_pyqt"] = call_mode("3d",pyqt=True)  
+signals["huge0d_pyqt"] = call_mode("huge_0d",pyqt=True)  
+signals["multilayergraphene"] = call_mode("multilayergraphene",pyqt=True)  
+signals["impurity_embedding"] = call_mode("impurity_embedding")  
+signals["tmdc"] = call_mode("tmdc")  
+
+
+
+def update_qh():
+    os.chdir(qhroot) # go to the main directory
+    os.system("git pull") # pull the directory
+    pycommand.create_icon() # create the icon
+#    try: # try to compile fortran
+#        from pygra import compilefortran
+#        compiler = os.path.dirname(os.path.realpath(pycommand.get_python()))+"/f2py"
+#        compilefortran.compile_fortran(compiler=compiler) # compile fortran
+#    except: pass
+    pycommand.run_qh()
+#    pycommand.install_python()
+#    pycommand.install_dependencies() # install dependencies if necessary
+    exit()
+
+
+signals["update_qh"] = update_qh # update Quantum Lattice 
+
+
+# set the quantum lattice logo
+qtwrap.set_logo("qhlogo","quantum_lattice.png")
+
+# Set the version number
+version = open(os.environ["QHROOT"]+"/VERSION.TXT").read().replace("\n","")
+version = "Version "+version.replace(" ",".")
+window.set("qh_version",version) # set the version number
+
+window.connect_clicks(signals,robust=False) # connect the clicks
+window.run()
+

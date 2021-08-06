@@ -1,0 +1,111 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import matplotlib.pyplot as plt
+import sys
+import numpy as np
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="KDOS.OUT",
+        help='Input file with the kdos')
+parser.add_argument("--cmap",default="hot",
+        help='Colormap for the plot')
+args = parser.parse_args() # get the arguments
+
+
+
+name = args.input # input file
+
+
+import os
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+
+
+
+def getplot(obj):
+  fig = plt.figure(obj.figure.number)
+  for i in range(2):
+    m = np.genfromtxt(name).transpose()
+    x = m[0]
+    y = m[1]
+    ze = m[2]
+    zb = m[3]
+    zs = [ze,zb] # list with zs
+    plt.subplot(1,2,i+1)
+    z = zs[i]
+    
+    # get dimensions assuming uniform grid
+    
+    nx = len(np.unique(x))
+    ny = len(np.unique(y)) 
+    print("Detected",nx,ny,"grid")
+    Z = np.abs(z).reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+    Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+    T = Z.T              # transposes the matrix (Zx,Zy)
+    
+    # now interpolate to get a smooth mesh
+#    from scipy.interpolate import interp2d
+#    x = np.linspace(0.,1.,nx)
+#    y = np.linspace(0.,1.,ny)
+#    xx, yy = np.meshgrid(x, y)
+#    f = interp2d(x, y, T, kind='linear')
+    
+    # 
+#    x = np.linspace(0.,1.,1000)
+#    y = np.linspace(0.,1.,1000)
+    
+#    z_inter = f(x,y)
+    z_inter = T    
+    # now plot the data
+    vper = 100 - 99*obj.get_slider("Saturation")
+    vmax = np.percentile(z_inter,vper)
+    
+    #plt.subplot(1,2,1)
+    #plt.contour(x,y,z_inter,300,cmap = plt.get_cmap("hot"))
+    minx = np.min(x)
+    maxx = np.max(x)
+#    dy = 1.0-obj.get_slider("ylim")*0.99
+    dy = 1.0
+    miny = np.min(y)*dy
+    maxy = np.max(y)*dy
+    plt.imshow(z_inter, aspect='auto', origin='lower',
+            cmap = plt.get_cmap(obj.get_combobox("cmap")),
+            extent = ( minx, maxx, miny, maxy),
+            interpolation=obj.get_combobox("Interpolation"),
+            vmax=vmax,vmin=0.0)
+    plt.xticks([])
+    #plt.yticks([])
+    
+    plt.xlabel("K-path [2$\pi$]")
+    if i==0: # first one
+      plt.ylabel("Energy [t]")
+    if i==0:
+      plt.title("Surface")
+    elif i==1:
+      plt.title("Bulk")
+      from matplotlib import ticker
+      cb = plt.colorbar(ticks=[0.,vmax])
+      cb.ax.set_yticklabels([0, 'Max'])
+      cb.set_label("DOS")
+  return fig
+  
+
+app,main = plotpyqt.get_interface(getplot)
+main.add_slider(label="Saturation",vs=np.linspace(0.,1.,100),v0=0.1) # Saturation
+main.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
+main.add_combobox(["bicubic","none"],label="Interpolation")
+
+
+main.setWindowTitle("Momentum resolved DOS")
+main.plot()
+main.show()
+sys.exit(app.exec_())
+

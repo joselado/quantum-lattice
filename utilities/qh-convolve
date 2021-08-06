@@ -1,0 +1,91 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+
+
+### script for ploting DOS.OUT ###
+
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="DOS.OUT",
+        help='Input file with the dos')
+args = parser.parse_args() # get the arguments
+name = args.input
+m = np.genfromtxt(name).transpose()
+
+
+from scipy.signal import savgol_filter
+
+def getplot(obj):
+  # cretae figure and adjust subplot
+  fig = plt.figure(obj.figure.number)
+  fig.clear()
+  fig.subplots_adjust(0.2,0.2)
+  currentfig = plt.gcf()
+  currentfig.canvas.set_window_title('Density of states')
+  
+  import sys
+  num_dos = len(m) - 1
+  e = m[0]
+  d = m[1]
+#  win = int(len(d)*0.1*obj.get_slider("Smoothness"))
+  # delta for the convolution
+  de = (max(e)-min(e)) # energy window
+  delta = obj.get_slider("Smoothness")*100*de/len(e) # delta
+  x = np.linspace(-de/2.,de/2.,len(e))
+  if delta>0: 
+#      d = savgol_filter(d,2*win+1,3)
+      conv = delta/(x**2+delta**2)/np.pi # convolution
+      d = np.convolve(d,conv,mode="same")*de/len(e)
+  d = d/np.sum(d)*np.sum(m[1])
+  # first subplot
+  splot = plt.subplot(1,1,1)
+  splot.set_title("DOS")
+  splot.plot(e,d,color="black")
+  np.savetxt(name+"_CONVOLVED",np.array([e,d]).T)
+  splot.set_xlim([min(e),max(e)])
+  splot.set_xlabel("Energy [t]")
+  splot.set_ylabel("$DOS$")
+  # fill until the fermi level
+  efill = []
+  dfill = []
+  for (ie,idos) in zip(e,d): # get only negative energies
+    if ie < 0.:
+      efill.append(ie) 
+      dfill.append(idos) 
+#  splot.fill_between(efill,0,dfill,color="yellow")
+  splot.set_ylim([np.min(d),np.max(d)])  
+  splot.set_xlim([np.min(e),np.max(e)])  
+  plt.locator_params(nbins=4)
+  return fig
+
+
+
+# create the interface
+app,main = plotpyqt.get_interface(getplot)
+main.setWindowTitle("Density of states")
+main.add_slider(label="Smoothness",vs=np.linspace(0.,1.,100)) # Saturation
+#main.add_slider(label="Energy window",key="ewin",vs=np.linspace(0.,1.,100)) 
+main.plot()
+main.show()
+sys.exit(app.exec_())
+
+
+

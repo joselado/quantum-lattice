@@ -1,0 +1,96 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+
+def getfig(main):
+  fig = plt.gcf()
+  fig.set_facecolor("white") # white
+  
+  name = args.input # name of the file
+  
+  m = np.genfromtxt(name).transpose() # read file
+  x1 = m[0] # x position
+  y1 = m[1] # y position
+  x2 = m[2] # z position
+  y2 = m[3] # z position
+  ts = m[4] # weight of the link
+  ts = np.round(ts,5)
+  print("Minimum Hopping",np.min(ts))
+  print("Maximum Hopping",np.max(ts))
+#  cs = ts-np.min(ts) ; 
+  cs = ts/np.max(ts)
+  minc = main.get_slider("Lower threshold")
+  maxc = main.get_slider("Upper threshold")
+  cs[maxc<cs] = maxc # normalize
+#  cs = cs-np.min(cs) ; cs = cs/np.max(cs)
+  cs = cs/np.max(cs)
+  cs[minc>cs] = 0.0
+#  cs = cs-np.min(cs) ; cs = cs/np.max(cs)
+  ls = cs
+  ls = np.tanh(10*ls)
+  print(max(ls)) 
+  print(min(ls)) 
+  
+  cmap = matplotlib.cm.get_cmap('Spectral')
+  #cmap = matplotlib.cm.get_cmap('jet')
+  
+  
+  for i in range(len(x1)): # loop over pairs
+    x = [x1[i],x2[i]]
+    y = [y1[i],y2[i]]
+    if cs[i]>1e-5:
+      plt.plot(x,y,c=cmap(cs[i]),linewidth=abs(ls[i])*4)
+  plt.scatter(np.mean([x1,x2],axis=0),np.mean([y1,y2],axis=0),s=0,c=ls,
+          cmap=cmap,vmin=0.0,vmax=np.max(ts))
+  plt.colorbar(format='%.2f')
+#  plt.scatter(x1,y1,color="black",s=200)
+#  plt.scatter(x2,y2,color="black",s=200)
+  plt.axis("equal")
+  return fig
+
+
+
+
+# Do the PyQt wrapper
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+# arguments
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="HOPPING.OUT",help='Input file')
+#parser.add_argument("--colorbar",default="true",help='Use a colorbar')
+#parser.add_argument("--cmap",default="bwr",help='Colormap')
+parser.add_argument("--zoom",default="1.1",help='Initial zoom')
+#parser.add_argument("--size",default="0.8",help='Initial zoom')
+args = parser.parse_args() # get the arguments
+
+minput = np.genfromtxt(args.input).transpose() # read file
+
+app,main = plotpyqt.get_interface(getfig)
+main.add_slider(label="Upper threshold",vs=np.linspace(0.,1,100),
+        v0=1.0)
+main.add_slider(label="Lower threshold",vs=np.linspace(0.,1,100),
+        v0=0.0)
+#main.add_slider(label="Zoom",vs=np.linspace(1.1,0.01,100),
+#        v0=float(args.zoom))
+#main.add_slider(label="Saturation",vs=np.linspace(0.0,1.0,100),
+#        v0=0)
+#main.add_combobox(["Default","Symmetric","Sign"],label="Range")
+
+# execute the interface
+main.plot()
+main.show()
+sys.exit(app.exec_())

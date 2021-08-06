@@ -1,0 +1,20 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import numpy as np
+import sys
+
+import matplotlib.pyplot as plt
+
+name = sys.argv[1] # name of the file
+try: c = int(sys.argv[2]) # column
+except: c = 1
+
+fig= plt.figure()
+
+fig.set_facecolor("white")
+
+m = np.genfromtxt(name).transpose()
+plt.scatter(m[0],m[c])
+plt.show()
+

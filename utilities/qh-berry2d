@@ -1,0 +1,59 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import pylab as py
+import sys
+import numpy as np
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+fig = py.figure()
+fig.subplots_adjust(0.2,0.2)
+
+
+
+
+fig.set_facecolor("white")
+
+name = sys.argv[1]  # name of the file
+
+m = py.genfromtxt(name).transpose()
+x = m[0]
+y = m[1]
+z = m[2]
+
+# get dimensions assuming uniform grid
+
+  
+ny = (y.max()-y.min())/abs(y[1]-y[0])
+ny = int(round(ny)) + 1
+nx = len(z)/ny
+
+
+nx = int(nx)
+ny = int(ny)
+
+
+print("Detected",nx,ny,"grid")
+
+Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+T = Z.T              # transposes the matrix (Zx,Zy)
+
+vmax = np.percentile(Z,95)
+
+#py.subplot(1,2,1)
+#py.contour(x,y,z_inter,300,cmap = py.get_cmap("hot"))
+minx = np.min(m[0])
+maxx = np.max(m[0])
+miny = np.min(m[1])
+maxy = np.max(m[1])
+cax = py.imshow(Z, aspect='auto', origin='lower',cmap = py.get_cmap("rainbow"), extent = ( minx, maxx, miny, maxy),interpolation='nearest')
+cbar = fig.colorbar(cax) # colorbar
+
+py.xlabel("$k_x$")
+py.ylabel("$k_y$")
+py.title("Berry curvature")
+
+
+py.show()

@@ -1,0 +1,130 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+
+
+#fig.set_facecolor("white") # white
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="MULTIQPI",help='Input folder')
+parser.add_argument("--maplabel",default="Fermi surface")
+args = parser.parse_args() # get the arguments
+folder = args.input
+
+names = open(folder+"/"+folder+".TXT").readlines() # read the files
+
+names = [name.replace("\n","") for name in names] # remove character
+energies = [name.split("_")[1] for name in names] # energies
+
+
+###########################################
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider, Button, RadioButtons
+
+md = np.genfromtxt("DOS.OUT").transpose()
+
+def plot(main):
+  """Plotting function"""
+  fig = plt.figure(main.figure.number)
+  plt.gcf().canvas.set_window_title('Spatially resolved DOS')
+  axf = fig.add_subplot(131) # axis for the LDOS
+  ax = fig.add_subplot(132) # axis for the LDOS
+  axd = fig.add_subplot(133) # axis for the DOS
+  plt.subplots_adjust(left=0.1, bottom=0.25)
+  t = np.arange(0.0, 1.0, 0.001)
+  a0 = 5
+  f0 = 3
+  val = main.get_slider("Energy")
+  val = int(val/100*len(names))
+  if val>(len(names)-1): val = len(names)-1 # fix
+  name = names[val] # get this file
+  energy = energies[val] # get this energy
+  print("Name",name)
+  def plotmap(ax,name,colorbar=True,maplabel=""):
+      """Plot this map"""
+      ax.clear() # clear LDOS
+      m = np.genfromtxt(folder+"/"+name).transpose() # read file
+      x = m[0] # x position
+      y = m[1] # y position
+      z = m[2] # z position
+      nx = len(np.unique(x)) # xgrid
+      ny = len(np.unique(y)) # ygrid
+    
+      print("Maximum value is ",np.max(np.abs(z)))
+      num = np.sqrt(len(z))
+      scale = np.abs(z)/np.max(np.abs(z))
+      scale = scale/np.sqrt(num)*700
+      cmap = plt.get_cmap(main.get_combobox("colormap")) 
+      color = scale/np.max(scale) # between 0 and 1
+      size = 1
+      sat = main.get_slider("Saturation")/50 # saturation
+      sat = 15*np.power(sat,4) # exponential scale
+      color = np.tanh(color*sat)
+      color = color/np.abs(max(color))
+    #  cplot = ax.scatter(x,y,s=size*600/nx,c=color,edgecolor="none",cmap=cmap,vmin=0.0,vmax=1.0)
+      cplot = ax.imshow(color.reshape((nx,ny)),cmap=cmap,vmin=0,aspect='auto',
+              vmax=1,interpolation=main.get_combobox("interpolation"),
+              extent = (0,ny,0,nx))
+      if colorbar:
+          cb = fig.colorbar(cplot,ticks=[0,1])
+          cb.ax.set_yticklabels([0,'Max'])
+    
+      ax.axis("equal")
+      ax.set_xticks([])
+      ax.set_yticks([])
+      ax.set_xlabel("$k_x$")
+      ax.set_ylabel("$k_y$")
+      #ax.set_title("Fermi surface E="+str(round(float(energy),3)))
+      ax.set_title(maplabel)
+      ax.set_xlim([0,nx])
+      ax.set_ylim([0,ny])
+  plotmap(axf,name+"_FS",colorbar=False,maplabel="Fermi surface") # plot FS
+  plotmap(ax,name,colorbar=True,maplabel="QPI") # plot the QPI
+#  try:
+#    ax.set_facecolor(main.get_combobox("Background"))
+#  except: pass
+  axd.clear()  # clear DOS
+  axd.plot(md[0],md[1]) # plot DOS
+  yys = np.array([0,max(md[1])]) # y positions
+  xxs = np.array([float(energy),float(energy)]) # energy
+  axd.plot(xxs,yys,linewidth=3,c="red") # energy checked
+  print("Energy",energy)
+  axd.set_ylim([0,max(md[1])]) # ylim
+  axd.set_xlim([min(md[0]),max(md[0])]) # xlim
+  axd.set_xticks(np.linspace(min(md[0]),max(md[0]),5,endpoint=True)) # xlim
+  axd.set_ylabel("DOS")
+  axd.set_title("DOS")
+  axd.set_xlabel("Energy")
+  axd.set_yticks([])
+  return fig
+
+
+app,main = plotpyqt.get_interface(plot)
+main.add_slider(label="Energy") # Slider for the dots
+main.add_slider(label="Saturation",v0=50) # Saturation
+cs = ["inferno","plasma","magma","rainbow","jet","binary"]
+main.add_combobox(cs,label="Color Map",key="colormap") # Slider for the dots
+ts = ["bicubic","nearest","none"]
+main.add_combobox(ts,label="Interpolation",key="interpolation") 
+#main.add_combobox(["white","black"],label="Background") # Slider for the dots
+main.setWindowTitle("Fermi surface")
+
+
+main.plot()
+main.show()
+sys.exit(app.exec_())

@@ -1,0 +1,69 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import sys
+import numpy as np
+import pylab as plt
+import sys
+
+ine = float(sys.argv[1])
+print "Looking for response at E = ",ine
+
+def response_matrix(name,label,tot):
+  ## real part
+  m = np.genfromtxt(name + ".OUT").transpose()
+  ene = m[0] 
+  inde = 0
+  cle = ene[0]
+  for i in range(1,len(ene)): # look for closest energy
+    if abs(cle-ine)>abs(ine-ene[i]):
+      cle = ene[i] # assign new energy
+      inde = i # assign index
+  print "Taken energy E =",cle
+  # now build the matrix
+  norb = int(np.sqrt(len(m)-1)) # number of orbitals
+  print "number of orbitals",norb
+  chi = np.matrix([[0.0 for i in range(norb)] for j in range(norb)])
+  il = 0
+  for i in range(norb):
+    for j in range(norb):
+      il += 1 # increase counter
+      chi[i,j] = m[il][inde] # assign element
+  # now create the ldos
+  ldos = np.array([0. for i in range(norb)])
+  for i in range(norb):
+    ldos[i] = np.abs(chi[i,i])
+  # and write in a file
+  fd = open("CHI_WAVE.OUT","w")
+  for i in range(len(ldos)):
+    fd.write(str(i)+"      ")
+    fd.write(str(ldos[i])+"\n")
+  fd.close() # and close
+
+
+
+
+
+
+
+
+
+response_matrix('CHI_RPA_I',2,2)
+
+  
+if not "-noshow" in sys.argv:  # show the plot
+  import pylab as py
+  fig = py.figure()
+  name = "CHI_WAVE.OUT" # name of the file
+  m = np.genfromtxt(name).transpose()
+  x = m[0]
+  y = m[1]
+  fig.set_facecolor("white")
+  py.plot(x,y,linewidth=3.0,color="black")
+  py.fill_between(x,0,y,linewidth=3.0,color="gray")
+  py.xticks([])
+  py.yticks([])
+  py.xlim([min(x),max(x)])
+  py.ylim([0.,max(y)])
+  py.show()
+

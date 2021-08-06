@@ -1,0 +1,137 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# plotpyqt
+import os
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+###
+
+
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="BANDS.OUT",
+        help='Input file with the bands')
+parser.add_argument("--dim",default=0,
+        help='Dimension of the system')
+parser.add_argument("--cblabel",default="",
+        help='Colorbar label')
+parser.add_argument("--show",default="True",
+        help='Show the bandstructure')
+parser.add_argument("--cmap",default="RGB",
+        help='Color map')
+
+args = parser.parse_args() # get the arguments
+
+from os import system as sh
+
+m = np.genfromtxt(args.input).transpose()
+
+def getplot(obj):
+  """ Plots the bandstructure from BANDS.OUT"""
+  fig = plt.figure(obj.figure.number)
+  # the color map
+  import numpy as np
+  cdict={'red': ((0., 0, 0),(0.6,0.0,0.0),(1, 1.0, 1.0)), 'green': ((0., 0.0, 0.0),(0.4,1.0,1.0),(0.6,1.0,1.0),(1, 0.0, 0.0)), 'blue': ((0., 1.0, 1.0),(0.4,0.0,0.0), (1, 0.0, 0.0))}
+  import matplotlib
+  rgb_cmap = matplotlib.colors.LinearSegmentedColormap('my_colormap',cdict,256)
+  
+  # check if plot the color
+  draw_color = False
+  if len(m) > 2:
+    draw_color = True
+    color = m[2]
+   
+  k = m[0] # default x axis
+  if args.dim=="0": k = range(len(m[0])) # indexes
+  else: k = (k - np.min(k))/(np.max(k) -np.min(k))
+  e = m[1] # default x axis
+  xlabel = "K-path" # default
+  # plot a rectangle in the ocupied levels
+  from matplotlib.patches import Rectangle
+  plt.fill_between(sorted(k),min(e)-3.0,0,color="yellow")
+  
+  if not draw_color:  # plot without color
+    col = plt.scatter(k,e, color ="black",s=obj.get_slider("size"))
+    fig.subplots_adjust(0.3,0.3)
+  if draw_color: # plot with color
+    fig.subplots_adjust(0.3,0.1)
+    args.cmap = obj.get_combobox("cmap") # get the colormap
+    if args.cmap=="RGB": cmap = rgb_cmap # red-green-blue colormap
+    else: cmap = plt.get_cmap(args.cmap) # get the colormap
+    col = plt.scatter(k,e,c=color,cmap=cmap, edgecolors='none',
+            s=obj.get_slider("size"))
+    from matplotlib import ticker
+    cb = plt.colorbar(orientation="horizontal")
+    tick_locator = ticker.MaxNLocator(nbins=5)
+    cb.locator = tick_locator
+    cb.update_ticks()
+    cb.set_label(args.cblabel) # set the label
+  plt.xlim([min(k),max(k)])   # x axis range
+  ewin = 1.01 - obj.get_slider("ewin") # energy window
+  e0 = obj.get_slider("e0")
+  de = np.max(np.abs(e)) # maximum value
+  eshift = de*(e0-.5)*2
+  plt.ylim([ewin*min(e)+eshift,ewin*max(e)+eshift])   # y axis range
+  
+  # axis
+  xlab = plt.xlabel("")
+  ylab = plt.ylabel("E/t")
+  # font size of the axis
+  ylab.set_fontsize(30) # label of the y xis
+  xlab.set_fontsize(30) # label of the y xis
+  fig.set_facecolor("white")  # set the layout in white
+  bandstructure = plt.gcf()
+  bandstructure.canvas.set_window_title('Bandstructure')
+# add the lines in the bandstructure
+  if args.dim=="0": # zero dimensional
+      plt.xlabel("State index")
+  elif args.dim=="1": # zero dimensional
+      plt.xticks([0.,0.5,1.],["$\Gamma$","$X$","$\Gamma$"])
+  elif args.dim=="2": # two dimensional
+    try: ll = open("BANDLINES.OUT","r").readlines()
+    except:
+        print("BANDLINES.OUT not found")
+        ll = []
+    ik = []
+    names = []
+    for l in ll:
+      l = l.split()
+      ik.append(float(l[0]))
+      names.append("$"+l[1]+"$")
+    ik = np.array(ik)/max(ik)
+    plt.xticks(ik,names)
+  plt.tight_layout(h_pad=0.1,w_pad=0.1) 
+  return fig
+
+
+app,main = plotpyqt.get_interface(getplot)
+main.setWindowTitle("Band structure")
+if len(m)>2: # has color
+  main.add_combobox(["RGB","rainbow","plasma","inferno"],
+        label="Colormap",key="cmap")
+main.add_slider(label="Energy window",key="ewin",
+        vs=np.linspace(0.,1.,100)) # Energy window
+main.add_slider(label="Offset",key="e0",
+        vs=np.linspace(0.,1.,100),v0=0.5) # Energy window
+main.add_slider(label="Size",key="size",
+        vs=range(1,100),v0=40) # Energy window
+main.plot()
+main.show()
+sys.exit(app.exec_())
+
+
+

@@ -1,0 +1,77 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import pylab as py
+import sys
+import numpy as np
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+fig = py.figure()
+fig.subplots_adjust(0.2,0.2)
+
+
+
+
+fig.set_facecolor("white")
+
+name = sys.argv[1]  # name of the file
+
+m = py.genfromtxt(name).transpose()
+x = m[0]
+y = m[1]
+z = m[2]
+
+# get dimensions assuming uniform grid
+
+  
+ny = (y.max()-y.min())/abs(y[1]-y[0])
+ny = int(round(ny)) + 1
+nx = len(z)/ny
+
+nx = int(nx)
+ny = int(ny)
+
+#nx = 20
+#ny = len(z)//nx
+
+
+
+print("Detected",nx,ny,"grid")
+
+Z = np.abs(z).reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+T = Z.T              # transposes the matrix (Zx,Zy)
+
+# now interpolate to get a smooth mesh
+from scipy.interpolate import interp2d
+x = np.linspace(0.,1.,nx)
+y = np.linspace(0.,1.,ny)
+xx, yy = np.meshgrid(x, y)
+f = interp2d(x, y, T, kind='linear')
+
+# 
+x = np.linspace(0.,1.,1000)
+y = np.linspace(0.,1.,1000)
+
+z_inter = f(x,y)
+
+# now plot the data
+
+vmax = np.percentile(z_inter,95)
+
+#py.subplot(1,2,1)
+#py.contour(x,y,z_inter,300,cmap = py.get_cmap("hot"))
+minx = np.min(m[0])
+maxx = np.max(m[0])
+miny = np.min(m[1])
+maxy = np.max(m[1])
+py.imshow(z_inter, aspect='auto', origin='lower',cmap = py.get_cmap("hot"), extent = ( minx, maxx, miny, maxy),interpolation='nearest',vmax=vmax)
+#py.xticks([])
+#py.yticks([])
+
+py.ylabel("z-position")
+py.xlabel("Energy [t]")
+
+
+py.show()

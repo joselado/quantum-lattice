@@ -1,0 +1,56 @@
+#!/mnt/extradrive/apps/anaconda3/bin/python
+
+
+import sys
+import numpy as np
+import pylab as plt
+
+def plot_chi(name,index,leg,color = "gray"):
+  fig = plt.figure(1)
+  fig.subplots_adjust(0.2,0.2)
+  """Plot a particular scheme for chi"""  
+  ## setup the plots
+  if not "rpa" in sys.argv:
+    prt = plt.subplot(2,1,index)
+  else:
+    prt = plt.subplot(1,1,1)
+  ## real part
+  m = np.genfromtxt(name + ".OUT").transpose()
+  ene = m[0] 
+  chi = m[0]*0.0 
+  norb = int(np.sqrt(len(m)-1))
+  ii = 0
+  for i in range(norb):
+    for j in range(norb):
+      ii += 1
+      if i==j:
+        chi += m[ii]
+  prt.plot(ene, chi,marker = 'None',linewidth = 2.0, label = leg, color = color )
+  prt.fill_between(ene,chi,0,color = color)
+  xl = prt.set_xlabel("$\omega$")
+  yl = prt.set_ylabel(leg)
+  xl.set_fontsize(30)
+  yl.set_fontsize(30)
+  # write down in a file
+  fo = open(name+"_TRACE.OUT","w") 
+  fo.write("#  Energy, Trace of CHI\n") 
+  for (ie,ichi) in zip(ene,chi):
+    fo.write(str(ie)+"        "+str(ichi)+"\n") 
+  fo.close() 
+  fig.set_facecolor("white")
+
+
+  
+  
+if not "rpa" in sys.argv:
+  try:
+    plot_chi('CHI_I',1,"$Im(\chi_{+-})$")
+  except:
+    pass
+try:
+  plot_chi('CHI_RPA_I',2,"$Im(\chi^{RPA}_{+-})$")
+except:
+  pass
+  
+if not "-noshow" in sys.argv:  # show the plot
+  plt.show()
