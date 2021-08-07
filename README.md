@@ -71,8 +71,15 @@ instructions.
 - Reaching system sizes up to 1000000 atoms on a single-core laptop
 
 
-# Examples
+# Examples #
 This program allows to study a variety of electronic states by means of tight binding models as shown below.
+
+
+## Scanning tunnel spectroscopy of nanographene islands ##
+Real space simulation of the STS spectra, using atomic-like orbitals
+for a nanographene island
+![Alt text](screenshots/nanographene.png?raw=true "STS nanographene")
+
 
 ## Quantum anomalous Hall state
 Honeycomb lattice with Rashba spin-orbit coupling and exchange field, giving rise to a net Chern number and chiral edge states
