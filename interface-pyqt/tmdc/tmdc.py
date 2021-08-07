@@ -6,8 +6,8 @@ import sys
 import os
 
 # main path
-qhroot = os.path.dirname(os.path.realpath(__file__))+"/../.."
-sys.path.append(qhroot+"/pysrc/") # python libraries
+qlroot = os.path.dirname(os.path.realpath(__file__))+"/../.."
+sys.path.append(qlroot+"/pysrc/") # python libraries
 
 
 from interfacetk import qtwrap # import the library with simple wrappaers to qt4

@@ -3,13 +3,11 @@
 import sys
 import os
 
-# Root path
-qhroot = os.environ["QHROOT"] # root path
 
 # Add path of the wrapper
-
-
-sys.path.append(qhroot+"/pysrc/") # python libraries
+# main path
+qlroot = os.path.dirname(os.path.realpath(__file__))+"/../.."
+sys.path.append(qlroot+"/pysrc/") # python libraries
 
 from interfacetk import qtwrap # import the library with simple wrappaers to qt4
 get = qtwrap.get  # get the value of a certain variable

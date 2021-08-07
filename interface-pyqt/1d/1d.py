@@ -5,8 +5,9 @@ from __future__ import print_function
 import sys
 import os
 
-qhroot = os.environ["QHROOT"] # root path
-sys.path.append(qhroot+"/pysrc/") # python libraries
+# main path
+qlroot = os.path.dirname(os.path.realpath(__file__))+"/../.."
+sys.path.append(qlroot+"/pysrc/") # python libraries
 
 
 from interfacetk import qtwrap # import the library with simple wrappaers to qt4
@@ -87,7 +88,8 @@ def modify_geometry(g):
 def initialize():
   """ Initialize the calculation"""
   g = get_geometry() # get the geometry
-  h = g.get_hamiltonian(has_spin=True)
+  h = g.get_hamiltonian(has_spin=True,ts=qtwrap.get_array("hoppings"))
+  h.turn_multicell()
   h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field

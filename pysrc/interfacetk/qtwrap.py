@@ -72,29 +72,58 @@ def main():
     return form
 
 
-def get(name,string=False,default=0.0):
+def string2array(v):
+    """Convert a string in an array"""
+    try:
+        v = float(v) # if it is a number
+        v = np.array([v])
+        return v
+    except:
+        v = [float(iv) for iv in v.split(",")]
+        return np.array(v)
+    return None
+
+
+def array2string(v):
+    """Convert an array to a string"""
+    ss = ""
+    ss += str(v[0])
+    for i in range(1,len(v)): ss += ","+str(v[i])
+    return ss
+
+
+def get_array(name,v0=[0.,0.,0.],**kwargs):
+    v = getattr(form,name).text() # get the text
+    v = string2array(v) # convert to array
+    if v is not None: return v # return the array
+    else: # something wrong happened
+        modify(name,array2string(v0)) # overwrite
+        return np.array(v0) # return the default value
+
+
+def get(name,string=False,default=0.0,call=True):
   """Return a certain value"""
   try:
-    obj = getattr(form,name) # get the object
-    out = obj.text()
-    if string: return out # return as string
-    try: # if it is a number
-        return float(out) # return as float
-    except: # execute
-        if "import os" in out: raise # silly sanity check
-        out = out.replace("\n","")
-        a = eval("lambda r: "+out) # execute the string
-        # try the function
-        try: 
-            a([0.,0.,0.])
-            return a
-        except:
-            modify(name,0)
-            return 0.0
+      obj = getattr(form,name) # get the object
+      out = obj.text()
+      if string: return out # return as string
+      try: # if it is a number
+          return float(out) # return as float
+      except: # execute
+          if call:
+              if "import os" in out: raise # silly sanity check
+              out = out.replace("\n","")
+              a = eval("lambda r: "+out) # execute the string
+              # try the function
+              try: 
+                  a([0.,0.,0.])
+                  return a
+              except: raise
+          else: raise
   except:
-    print(name,"not found, set to ",default)
-    modify(name,default) # set this value
-    return default
+      print(name,"not found, set to ",default)
+      modify(name,default) # set this value
+      return default
 
 
 
