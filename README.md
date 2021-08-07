@@ -81,17 +81,27 @@ for a nanographene island
 ![Alt text](screenshots/nanographene.png?raw=true "STS nanographene")
 
 
-## Quantum anomalous Hall state
+
+## Kagome lattice with first and second neighbor hopping ##
+Fermi surface and band structure of a two-dimensional lattice,
+including both first and second neighbor hoppings. In the absence
+of second neighbor hopping, the lowest band is flat. Only first
+neighbor hoppings are shown in the 3D structure plot.
+![Alt text](screenshots/kagome_lattice_second.png?raw=true "Kagome lattice with NN and NNN hopping")
+
+
+
+## Quantum anomalous Hall state ##
 Honeycomb lattice with Rashba spin-orbit coupling and exchange field, giving rise to a net Chern number and chiral edge states
 https://journals.aps.org/prb/abstract/10.1103/PhysRevB.82.161414
 ![Alt text](screenshots/qah.png?raw=true "QAH state")
 
 
-## Quantum Spin Hall state
+## Quantum Spin Hall state ##
 Honeycomb lattice with Kane-Mele spin-orbit coupling and Rashba spin-orbit coupling, giving rise to a gapped spectra with a non-trivial Z2 invariant and helical edge states https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.95.226801
 ![Alt text](screenshots/qsh.png?raw=true "QSH state")
 
-## Magnetism in graphene zigzag nanoribbons
+## Magnetism in graphene zigzag nanoribbons ##
 Self-consistent mean field calculation of a zigzag graphene ribbon, with electronic interactions included as a mean field Hubbard model. Interactions give rise to an edge magnetization in the ribbon, with an antiferromagnetic alignment between edges
 ![Alt text](screenshots/zzscf.png?raw=true "Magnetism in zigzag nanoribbons")
 
