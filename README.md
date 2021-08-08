@@ -75,6 +75,13 @@ instructions.
 This program allows to study a variety of electronic states by means of tight binding models as shown below.
 
 
+## Spin-triplet chiral topological superconductor ##
+Electronic band structure, Berry curvature and momentum resolved surface
+spectral function of a px + ipy spin-triplet topological
+superconductor with d-vector (0,0,1).
+![Alt text](screenshots/chiral_superconductor.png?raw=true "Spin-triplet chiral topological superconductor")
+
+
 ## Scanning tunnel spectroscopy of nanographene islands ##
 Real space simulation of the STS spectra, using atomic-like orbitals
 for a nanographene island
@@ -91,7 +98,7 @@ neighbor hoppings are shown in the 3D structure plot.
 
 
 
-## Quantum anomalous Hall state ##
+## Artificial Chern insulator with exchange field and SOC ##
 Honeycomb lattice with Rashba spin-orbit coupling and exchange field, giving rise to a net Chern number and chiral edge states
 https://journals.aps.org/prb/abstract/10.1103/PhysRevB.82.161414
 ![Alt text](screenshots/qah.png?raw=true "QAH state")

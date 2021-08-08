@@ -135,7 +135,7 @@ def show_dos():
   elif h.dimensionality==2:
     dos.dos2d(h,ndos=500,delta=get("DOS_smearing"))
   else: raise
-  execute_script("tb90-dos  ")
+  execute_script("qh-dos  ")
 
 
 def pickup_hamiltonian():

@@ -65,7 +65,7 @@ def create_folder():
   os.chdir("/tmp")
   # get the name of the folder
   i = 0
-  forig = "qh-tmp-"
+  forig = "ql-tmp-"
   folders = os.listdir(os.getcwd()) # list all the folders 
   while True:
     folder = forig + str(i)

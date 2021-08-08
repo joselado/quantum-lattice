@@ -91,21 +91,7 @@ def modify_geometry(g):
 def initialize():
   """ Initialize the calculation"""
   g = get_geometry() # get the geometry
-  h = g.get_hamiltonian(has_spin=True,ts=qtwrap.get_array("hoppings"))
-  h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
-  h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-  h.add_rashba(get("rashba"))  # Rashba field
-  h.add_antiferromagnetism(get("mAF"))  # AF order
-  h.shift_fermi(get("fermi")) # shift fermi energy
-  h.add_kane_mele(get("kanemele")) # intrinsic SOC
-  h.add_haldane(get("haldane")) # intrinsic SOC
-  h.add_antihaldane(get("antihaldane")) 
-  h.add_anti_kane_mele(get("antikanemele")) 
-  if abs(get("swave"))>0.0: 
-      h = h.get_multicell()
-      special_pairing(h)
-  return h
-
+  return common.generate_hamiltonian(qtwrap,g=g) # return Hamiltonian
 
 
 def special_pairing(h):

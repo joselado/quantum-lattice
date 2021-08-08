@@ -155,7 +155,7 @@ def show_dos():
   elif h.dimensionality==2:
     dos.dos2d(h,ndos=500,delta=get("DOS_smearing"))
   else: raise
-  execute_script("tb90-dos  ")
+  execute_script("qh-dos  ")
 
 
 def pickup_hamiltonian():
@@ -197,7 +197,7 @@ def show_berry2d():
 def show_magnetism():
   h = pickup_hamiltonian() # get hamiltonian
   h.get_magnetization() # get the magnetization
-  execute_script("tb90-magnetism  ")
+  execute_script("qh-magnetism  ")
 #  execute_script("qh-magnetism  ")
 
 

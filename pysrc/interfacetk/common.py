@@ -96,7 +96,7 @@ def get_berry2d(h,window):
     opname = window.getbox("topology_operator")
     op = get_operator(h,opname,projector=True) # get operator
     topology.berry_map(h,nk=nk,operator=op)
-    execute_script("qh-berry2d BERRY_MAP.OUT")
+    execute_script("qh-map2d --input BERRY_MAP.OUT --xlabel px --ylabel py --zlabel \Omega --show_cuts False --title 'Berry curvature map'")
 
 
 def get_chern(h,window):
@@ -220,6 +220,30 @@ def set_colormaps(form,name,cs=[]):
         return
     cb.clear() # clear the items
     cb.addItems(cs)
+
+
+def generate_hamiltonian(window,g=None):
+    """Generate the Hamiltonian taking as input the geometry"""
+    if g is None: raise
+    get = window.get # function
+    get_array = window.get_array # function
+    h = g.get_hamiltonian(has_spin=True,ts=get_array("hoppings"))
+    h.add_exchange(get_array("exchange")) # Zeeman fields
+    h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+    h.add_rashba(get("rashba"))  # Rashba field
+    h.add_antiferromagnetism(get("mAF"))  # AF order
+    h.shift_fermi(get("fermi")) # shift fermi energy
+    h.add_kane_mele(get("kanemele")) # intrinsic SOC
+    h.add_haldane(get("haldane")) # intrinsic SOC
+    h.add_antihaldane(get("antihaldane"))
+    h.add_anti_kane_mele(get("antikanemele"))
+    if np.abs(get("swave"))>0.0: h.add_swave(get("swave")) # add term
+    p = get_array("pwave")
+    if np.sum(np.abs(p))>0.0: 
+        h.add_pairing(d=get_array("pwave"),mode="triplet",delta=1.0)
+    return h
+
+
 
 
 

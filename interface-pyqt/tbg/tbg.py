@@ -191,10 +191,6 @@ def show_ldos():
   nsuper = int(get("nsuper_ldos_single"))
   ldos.ldos(h,e=e,delta=delta,nk=nk,mode="arpack",nrep=nsuper)
   execute_script("qh-fast-ldos LDOS.OUT  ")
-#  execute_script("qh-multildos ")
-#  execute_script("tb90-calculate-ldos "+str(get("stm_bias")))
-#  execute_script("qh-interpolate LDOS.OUT ")
-#  execute_script("tb90-cmap LDOS.OUT-interpolated ")
 
 
 

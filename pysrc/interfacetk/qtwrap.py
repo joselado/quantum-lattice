@@ -75,11 +75,11 @@ def main():
 def string2array(v):
     """Convert a string in an array"""
     try:
-        v = float(v) # if it is a number
+        v = complex(v) # if it is a number
         v = np.array([v])
         return v
     except:
-        v = [float(iv) for iv in v.split(",")]
+        v = [complex(iv) for iv in v.split(",")]
         return np.array(v)
     return None
 

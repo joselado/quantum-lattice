@@ -24,7 +24,7 @@ def getplot(obj):
     z2d = z.reshape(ny,nx) # makes a (Zy,Zx) matrix out of z
     x2d = x.reshape(ny,nx) # makes a (Zy,Zx) matrix out of z
     y2d = y.reshape(ny,nx) # makes a (Zy,Zx) matrix out of z
-    print(x2d.shape,nx,ny)
+#    print(x2d.shape,nx,ny)
     minx = np.min(x)
     maxx = np.max(x)
     miny = np.min(y)
@@ -32,16 +32,19 @@ def getplot(obj):
     vmax = np.max(z)*(1.01-obj.get_slider("Saturation"))
     vmin = np.min(z)
     ### get the index fr the cuts
-    xcut = obj.get_slider("xcut") # xcut
-    ycut = obj.get_slider("ycut") # ycut
-    ix = max([0,int(nx*xcut)-1]) # x index to plot
-    iy = max([int(ny*ycut)-1]) # y index to plot
+    if args.show_cuts=="True":
+        xcut = obj.get_slider("xcut") # xcut
+        ycut = obj.get_slider("ycut") # ycut
+        ix = max([0,int(nx*xcut)-1]) # x index to plot
+        iy = max([int(ny*ycut)-1]) # y index to plot
     ya = np.linspace(miny,maxy,nx) # array with ys
     xa = np.linspace(minx,maxx,ny) # array with xs
     ### now plot everything
-    plt.subplot(211) # first figure
-    cx = obj.get_combobox("cx")
-    cy = obj.get_combobox("cy")
+    if args.show_cuts=="True": # now if there were cuts
+        plt.subplot(211) # first figure
+        cx = obj.get_combobox("cx")
+        cy = obj.get_combobox("cy")
+    else: pass
     zmap = z2d.copy() # copy array
     zmap[zmap>vmax] = vmax # maximum value
 #    print(zmap.shape) ; exit()
@@ -51,24 +54,25 @@ def getplot(obj):
             interpolation=obj.get_combobox("Interpolation"))
     plt.xlabel(args.xlabel)
     plt.ylabel(args.ylabel)
-    plt.plot(ux[iy]*(ya*0+1),ya,c=cx)
-    plt.plot(xa,uy[ix]*(xa*0+1),c=cy)
     cb = fig.colorbar(cplot,ticks=[vmin,vmax])
     cb.ax.set_yticklabels(["Min",'Max'])
     cb.set_label(args.zlabel)
-    # cut though the x axis
-    plt.subplot(224) # first figure
-    plt.plot(ya,z2d[iy,:],cx)
-    plt.xlabel(args.ylabel)
-    plt.ylabel(args.zlabel)
-    plt.subplot(223) # second figure
-    plt.plot(xa,z2d[:,ix],cy)
-    plt.xlabel(args.xlabel)
-    plt.ylabel(args.zlabel)
-    plt.tight_layout()
-    if args.save_cuts=="True":
-        np.savetxt("XCUT_"+args.input,np.array([ya,z2d[iy,:]]).T)
-        np.savetxt("YCUT_"+args.input,np.array([xa,z2d[:,ix]]).T)
+    if args.show_cuts=="True": # now if there were cuts
+        plt.plot(ux[iy]*(ya*0+1),ya,c=cx)
+        plt.plot(xa,uy[ix]*(xa*0+1),c=cy)
+        # cut though the x axis
+        plt.subplot(224) # first figure
+        plt.plot(ya,z2d[iy,:],cx)
+        plt.xlabel(args.ylabel)
+        plt.ylabel(args.zlabel)
+        plt.subplot(223) # second figure
+        plt.plot(xa,z2d[:,ix],cy)
+        plt.xlabel(args.xlabel)
+        plt.ylabel(args.zlabel)
+        plt.tight_layout()
+        if args.save_cuts=="True":
+            np.savetxt("XCUT_"+args.input,np.array([ya,z2d[iy,:]]).T)
+            np.savetxt("YCUT_"+args.input,np.array([xa,z2d[:,ix]]).T)
     return fig
 
 
@@ -82,6 +86,7 @@ parser.add_argument("--xlabel",default="x",help='x label')
 parser.add_argument("--ylabel",default="y",help='y label')
 parser.add_argument("--save_cuts",default="False",help='Save the cuts')
 parser.add_argument("--zlabel",default="z",help='z label')
+parser.add_argument("--show_cuts",default="True",help='Show cuts')
 parser.add_argument("--title",default="Colormap",help='Window title')
 args = parser.parse_args() # get the arguments
 
@@ -93,11 +98,12 @@ path += "/../pysrc"
 sys.path.append(path) # add library
 from interfacetk import plotpyqt
 app,window = plotpyqt.get_interface(getplot)
-window.add_slider(label="xcut",vs=np.linspace(0.,1.,100),v0=0.5) # Slider for the dots
-window.add_slider(label="ycut",vs=np.linspace(0.,1.,100),v0=0.5) # Slider for the dots
 window.add_slider(label="Saturation",vs=np.linspace(0.,1.,100),v0=0.1)
-window.add_combobox(["red","blue","green","black"],label="Color xcut",key="cx")
-window.add_combobox(["blue","red","green","black"],label="Color ycut",key="cy")
+if args.show_cuts=="True":
+    window.add_slider(label="xcut",vs=np.linspace(0.,1.,100),v0=0.5) # Slider for the dots
+    window.add_slider(label="ycut",vs=np.linspace(0.,1.,100),v0=0.5) # Slider for the dots
+    window.add_combobox(["red","blue","green","black"],label="Color xcut",key="cx")
+    window.add_combobox(["blue","red","green","black"],label="Color ycut",key="cy")
 window.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
 window.add_combobox(["bicubic","none"],label="Interpolation")
 window.setWindowTitle(args.title)

@@ -21,10 +21,10 @@ def correct_python(install=False):
         import matplotlib
         return True
     except: 
-        if install: 
+        if install: # if something wrong happened, try to install the libraries
             install_dependencies(executable=sys.executable) # try to install 
             return correct_python(install=False) # try again
-        return False
+        return False # if it still does not work, give up
 
 def install_python():
     """Install a correct Python distribution"""

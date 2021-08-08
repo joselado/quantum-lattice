@@ -165,7 +165,7 @@ def show_berry2d():
 def show_magnetism():
   h = pickup_hamiltonian() # get hamiltonian
   h.get_magnetization() # get the magnetization
-  execute_script("tb90-magnetism  ")
+  execute_script("qh-magnetism  ")
 #  execute_script("qh-magnetism  ")
 
 
