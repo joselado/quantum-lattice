@@ -63,7 +63,7 @@ instructions.
 ## Spectral functions ##
 - Surface spectral functions for semi-infinite systems
 - Single impurities in infinite systems
-- Operator-resolved spectral fucntions
+- Operator-resolved spectral functions
 
 ## Chebyshev kernel polynomial based-algorithms ##
 - Local and full spectral functions
