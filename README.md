@@ -2,7 +2,7 @@
 
 # Summary #
 
-This program allows to perform tight binding calculations with a user friendly interface in a variety of lattices and dimensionalities
+This program allows to perform tight binding calculations with a user friendly interface in a variety of lattices and dimensionalities, using [pyqula]([https://github.com/joselado/quantum-lattice](https://github.com/joselado/pyqula).
 
 ![Alt text](screenshots/quantum_lattice.png?raw=true "Quantum Lattice System selection")
 
