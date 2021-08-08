@@ -63,7 +63,7 @@ def get_geometry(modify=True):
 def select_atoms_removal():
   g = get_geometry(modify=False) # get the unmodified geometry
   g.write() # write geometry
-  execute_script("qh-remove-atoms-geometry") # remove the file
+  execute_script("ql-remove-atoms-geometry") # remove the file
 
 
 def modify_geometry(g):
@@ -117,7 +117,7 @@ def show_dosbands():
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
   comp.kill()
-  execute_script("qh-dosbands1d  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands1d  KDOS_BANDS.OUT ")
 
 
 
@@ -160,7 +160,7 @@ def show_ldos():
   name = qtwrap.getbox("ldos_operator")
   ldos.spatial_energy_profile(h,operator=h.get_operator(name),
           nk=nk,delta=delta,energies=energies)
-  execute_script('qh-map2d --input DOSMAP.OUT --xlabel Energy --ylabel "y-position" --zlabel DOS --title "Local DOS"')
+  execute_script('ql-map2d --input DOSMAP.OUT --xlabel Energy --ylabel "y-position" --zlabel DOS --title "Local DOS"')
   
 
 
@@ -170,7 +170,7 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure-bond --input POSITIONS.OUT")
+  execute_script("ql-structure-bond --input POSITIONS.OUT")
 
 
 
@@ -180,7 +180,7 @@ def show_structure_3d():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure3d POSITIONS.OUT")
+  execute_script("ql-structure3d POSITIONS.OUT")
 
 
 

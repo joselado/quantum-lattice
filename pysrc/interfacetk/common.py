@@ -34,7 +34,7 @@ def get_bands(h,window):
     check_parallel(window) # check if use parallelization
     if op is None: h = h.reduce() # reduce dimensionality if possible
     h.get_bands(operator=op,kpath=kpath,num_bands=num_bands)
-    command = "qh-bands --dim "+str(h.dimensionality) 
+    command = "ql-bands --dim "+str(h.dimensionality) 
     if op is not None: command += " --cblabel "+opname
     execute_script(command) # execute the command
 
@@ -49,7 +49,7 @@ def get_kdos(h,window):
     kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
     h = h.reduce() # reduce dimensionality if possible
     kdos.surface(h,energies=energies,delta=ew/new,kpath=kpath)
-    command = "qh-kdos-both --input KDOS.OUT"
+    command = "ql-kdos-both --input KDOS.OUT"
     execute_script(command) # execute the script
 
 
@@ -58,7 +58,7 @@ def show_exchange(h,window):
     """Show the exchange field"""
     nrep = max([int(window.get("magnetization_nrep")),1]) # replicas
     h.write_magnetization(nrep=nrep) # write the magnetism
-    execute_script("qh-moments",mayavi=True)
+    execute_script("ql-moments",mayavi=True)
 
 
 def get_dos(h,window,silent=False):
@@ -71,7 +71,7 @@ def get_dos(h,window,silent=False):
       dos.dos(h,delta=delta,nk=nk,energies=energies,mode="Green") # compute DOS
     else:
       dos.dos(h,delta=delta,nk=nk,energies=energies) # compute DOS
-    if not silent: execute_script("qh-dos --input DOS.OUT")
+    if not silent: execute_script("ql-dos --input DOS.OUT")
 
 
 
@@ -82,7 +82,7 @@ def get_berry1d(h,window):
     opname = window.getbox("topology_operator")
     op = get_operator(h,opname,projector=True) # get operator
     topology.write_berry(h,ks,operator=op)
-    command = "qh-berry1d  --label True " 
+    command = "ql-berry1d  --label True " 
     if opname!="None": command += " --mode "+opname
     execute_script(command)
 
@@ -96,7 +96,7 @@ def get_berry2d(h,window):
     opname = window.getbox("topology_operator")
     op = get_operator(h,opname,projector=True) # get operator
     topology.berry_map(h,nk=nk,operator=op)
-    execute_script("qh-map2d --input BERRY_MAP.OUT --xlabel px --ylabel py --zlabel \Omega --show_cuts False --title 'Berry curvature map'")
+    execute_script("ql-map2d --input BERRY_MAP.OUT --xlabel px --ylabel py --zlabel \Omega --show_cuts False --title 'Berry curvature map'")
 
 
 def get_chern(h,window):
@@ -105,7 +105,7 @@ def get_chern(h,window):
     opname = window.getbox("topology_operator")
     op = get_operator(h,opname,projector=True) # get operator
     topology.chern(h,nk=nk,operator=op)
-    execute_script("qh-chern BERRY_CURVATURE.OUT")
+    execute_script("ql-chern BERRY_CURVATURE.OUT")
 
 def get_fermi_surface(h,window):
     check_parallel(window) # check if use parallelization
@@ -117,7 +117,7 @@ def get_fermi_surface(h,window):
     h = h.reduce() # reduce dimensionality if possible
     spectrum.multi_fermi_surface(h,nk=nk,energies=energies,
         delta=delta,nsuper=1,numw=numw)
-    execute_script("qh-multifermisurface")
+    execute_script("ql-multifermisurface")
 
 
 
@@ -130,7 +130,7 @@ def get_qpi(h,window):
     delta = window.get("qpi_delta")
     h = h.reduce() # reduce dimensionality if possible
     h.get_qpi(nk=nk,energies=energies,delta=delta) # compute the QPI
-    execute_script("qh-multiqpi")
+    execute_script("ql-multiqpi")
 
 
 
@@ -165,7 +165,7 @@ def solve_scf(h,window):
 def get_z2(h,window):
     nk = int(np.sqrt(window.get("topology_nk")))
     topology.z2_vanderbilt(h,nk=nk,nt=nk//2) # calculate z2 invariant
-    execute_script("qh-wannier-center  ") # plot the result
+    execute_script("ql-wannier-center  ") # plot the result
 
 
 
@@ -184,8 +184,8 @@ def get_multildos(h,window):
     ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),
             nk=nk,delta=delta,nrep=nrep,numw=numw,
             projection=projection,ratomic=window.get("ratomic_ldos"))
-    if projection=="TB": execute_script("qh-multildos ")
-    else: execute_script("qh-multildos --grid True")
+    if projection=="TB": execute_script("ql-multildos ")
+    else: execute_script("ql-multildos --grid True")
 
 
 

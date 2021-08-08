@@ -52,7 +52,7 @@ def get_geometry(modify=True):
 def select_atoms_removal():
   g = get_geometry(modify=False) # get the unmodified geometry
   g.write() # write geometry
-  execute_script("qh-remove-atoms-geometry") # remove the file
+  execute_script("ql-remove-atoms-geometry") # remove the file
 
 
 
@@ -60,7 +60,7 @@ def select_atom_time_evolution():
   """Select a single atom"""
   g = get_geometry() # get the unmodified geometry
   g.write()
-  execute_script("qh-pick-single-atom") # pick a single atom
+  execute_script("ql-pick-single-atom") # pick a single atom
 
 
 def show_time_evolution():
@@ -77,7 +77,7 @@ def show_time_evolution():
   tmax = qtwrap.get("tmax_time_evolution") # maximum time
   timeevolution.evolve_local_state(h,i=i,ts=np.linspace(0.,tmax,100),
         mode="green")
-  execute_script("qh-multitimeevolution") # plot the result
+  execute_script("ql-multitimeevolution") # plot the result
 
 
 
@@ -141,7 +141,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  execute_script("qh-dosbands1d  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands1d  KDOS_BANDS.OUT ")
 
 
 
@@ -159,9 +159,9 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-#  execute_script("qh-light-structure POSITIONS.OUT")
-  execute_script("qh-structure-bond --input POSITIONS.OUT")
-#  execute_script("qh-structure  ")
+#  execute_script("ql-light-structure POSITIONS.OUT")
+  execute_script("ql-structure-bond --input POSITIONS.OUT")
+#  execute_script("ql-structure  ")
 
 
 
@@ -172,7 +172,7 @@ def show_structure_3d():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure3d POSITIONS.OUT")
+  execute_script("ql-structure3d POSITIONS.OUT")
 
 
 
@@ -196,7 +196,7 @@ def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization() # write the magnetism
-  execute_script("qh-moments",mayavi=True)
+  execute_script("ql-moments",mayavi=True)
 
 
 
@@ -210,7 +210,7 @@ def show_local_chern():
   op = getbox("operator_chern")
   op = h.get_operator(op)
   topology.real_space_chern(h,operator=op)
-  execute_script("qh-potential --input REAL_SPACE_CHERN.OUT --cmap rainbow")
+  execute_script("ql-potential --input REAL_SPACE_CHERN.OUT --cmap rainbow")
 
 
 

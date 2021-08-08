@@ -10,7 +10,7 @@ except:
   try: 
     import os
     qhpath = os.environ["QHROOT"]+"/" # path to quantum lattice
-    os.system("python "+qhpath+"utilities/qh-pick")
+    os.system("python "+qhpath+"utilities/ql-pick")
   except:
     print("Something wrong")
     exit()

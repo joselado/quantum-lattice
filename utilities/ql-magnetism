@@ -13,7 +13,7 @@ except:
   import pycommand
   pyc = pycommand.get_python() # get python
   print(pyc)
-  os.system(pyc+" "+dirname+"/qh-quiver &") # use the backup script
+  os.system(pyc+" "+dirname+"/ql-quiver &") # use the backup script
   exit()
 
 

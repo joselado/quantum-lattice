@@ -25,7 +25,7 @@ from interfacetk import common # common routines for all the geometries
 def select_atoms_removal():
   g = get_geometry(modify=False) # get the unmodified geometry
   g.write() # write geometry
-  execute_script("qh-remove-atoms-geometry-3d") # remove the file
+  execute_script("ql-remove-atoms-geometry-3d") # remove the file
 
 
 #def modify_geometry(g):
@@ -149,7 +149,7 @@ def show_ldos():
   energies = np.linspace(-ewin,ewin,int(get("ne_ldos")))
   delta = get("delta_ldos")
   ldos.slabldos(h,energies=energies,delta=delta,nk=int(get("nk_ldos")))
-  execute_script('qh-map2d --input DOSMAP.OUT --xlabel Energy --ylabel "z-position" --zlabel DOS --title "Local DOS"')
+  execute_script('ql-map2d --input DOSMAP.OUT --xlabel Energy --ylabel "z-position" --zlabel DOS --title "Local DOS"')
 
 
 
@@ -161,7 +161,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  execute_script("qh-dosbands  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
 
 
 
@@ -189,8 +189,8 @@ def show_berry2d():
 def show_magnetism():
   h = pickup_hamiltonian() # get hamiltonian
   h.get_magnetization() # get the magnetization
-  execute_script("qh-magnetism  ")
-#  execute_script("qh-magnetism  ")
+  execute_script("ql-magnetism  ")
+#  execute_script("ql-magnetism  ")
 
 
 def show_structure():
@@ -199,7 +199,7 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure")
+  execute_script("ql-structure")
 
 
 
@@ -209,7 +209,7 @@ def show_structure_3d():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure3d POSITIONS.OUT")
+  execute_script("ql-structure3d POSITIONS.OUT")
 
 
 
@@ -220,7 +220,7 @@ def show_kdos():
   energies = np.linspace(-ew,ew,new) # number of ene
   kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
   kdos.surface(h,energies=energies,delta=ew/new,kpath=kpath)
-  execute_script("qh-kdos-both KDOS.OUT  ")
+  execute_script("ql-kdos-both KDOS.OUT  ")
 
 
 
@@ -264,7 +264,7 @@ def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization() # write the magnetism
-  execute_script("qh-moments",mayavi=True)
+  execute_script("ql-moments",mayavi=True)
 
 def show_fermi_surface():
   h = pickup_hamiltonian() # get hamiltonian

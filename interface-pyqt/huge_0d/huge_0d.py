@@ -205,7 +205,7 @@ def show_ldos():
     dos.write_dos(x,y) # write dos in file
     fname = "LDOS_"+str(iatom)+".OUT" # name of the file
     os.system("mv DOS.OUT " + fname) # save the file
-  execute_script("qh-several-ldos ")
+  execute_script("ql-several-ldos ")
 
 
 
@@ -214,7 +214,7 @@ def show_full_spectrum():
   nmax = 10000
   if h.intra.shape[0]<nmax:
     h.get_bands()    
-    execute_script("qh-bands0d ")
+    execute_script("ql-bands0d ")
   else:
     print("Too large Hamiltonian ",nmax)
 
@@ -238,7 +238,7 @@ def show_dos():
   x,y = x*6.,y/6. # renormalize
   y = dos.convolve(x,y,delta=get("smearing_dos")) # add broadening
   dos.write_dos(x,y) # write dos in file
-  execute_script("qh-dos")
+  execute_script("ql-dos")
   print("Time spent in Kernel PM DOS calculation =",time.perf_counter() - t0)
 
 
@@ -261,7 +261,7 @@ def show_spatial_dos():
     energy = get("energy_spatial_DOS") # one shot
     shot_dos(energy) # calculate
     print("Time spent in STM calculation =",time.perf_counter() - t0)
-    execute_script("qh-fast-ldos LDOS.OUT  ") # using matplotlib
+    execute_script("ql-fast-ldos LDOS.OUT  ") # using matplotlib
   if mode_dosmap=="Movie": # do a sweep
     energies = np.linspace(get("mine_movie"),get("maxe_movie"),
                                int(get("stepse_movie")))
@@ -271,7 +271,7 @@ def show_spatial_dos():
       shot_dos(energy) # calculate
       name = "ENERGY_"+'{0:.8f}'.format(energy)+"_LDOS.OUT"
       os.system("mv LDOS.OUT "+name) # save the data
-      execute_script("qh-silent-ldos "+name) # save the image
+      execute_script("ql-silent-ldos "+name) # save the image
       namepng = name+".png" # name of the image
       fof.write(namepng+"\n") # save the name
     fof.close() # close file
@@ -301,7 +301,7 @@ def edge_atoms(g,nn=3):
 def show_potential():
   g = get_geometry0d() # get the geometry
   edge_atoms(g) 
-  execute_script("qh-absolute-potential EDGE.OUT  ")
+  execute_script("ql-absolute-potential EDGE.OUT  ")
 
 
 
@@ -311,8 +311,8 @@ def show_lattice():
   g = get_geometry0d() # get the geometry
   g.write()
   print("Structure has been created")
-#  if getactive("show3d"): execute_script("qh-pick ")
-  execute_script("qh-fast-structure  ")
+#  if getactive("show3d"): execute_script("ql-pick ")
+  execute_script("ql-fast-structure  ")
 
 
 def show_path_dos():
@@ -338,7 +338,7 @@ def show_path_dos():
     dos.write_dos(xout,yout) # write dos in file
     fname = "LDOS_"+str(iatom)+".OUT" # name of the file
     os.system("cp DOS.OUT " + fname) # save the file
-  execute_script("qh-dos-path  ")
+  execute_script("ql-dos-path  ")
 
 
 
@@ -354,7 +354,7 @@ def show_path():
   """Show the path followed in the DOS, when calculating several
   atoms"""
   calculate_path_dos() # calculate the path
-  execute_script("qh-path  ")
+  execute_script("ql-path  ")
 
 
 def show_eigenvalues():
@@ -367,7 +367,7 @@ def show_eigenvalues():
     else:
         ne = int(get("num_eigenvalues")) # number of eigenvalues
         h.get_bands(num_bands=ne) # get the bandstructure
-    execute_script("qh-bands0d")
+    execute_script("ql-bands0d")
 
 
 
@@ -432,11 +432,11 @@ def clear_removal():
 
 
 def select_atoms():
-  execute_script("qh-fast-pick write remove  ") # remove the file
+  execute_script("ql-fast-pick write remove  ") # remove the file
 
 
 def select_atoms_dos():
-  execute_script("qh-fast-pick write  ") # remove the file
+  execute_script("ql-fast-pick write  ") # remove the file
 
 
 # create signals

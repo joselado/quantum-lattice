@@ -60,7 +60,7 @@ def get_geometry(modify=True):
 def select_atoms_removal():
   g = get_geometry(modify=False) # get the unmodified geometry
   g.write() # write geometry
-  execute_script("qh-remove-atoms-geometry") # remove the file
+  execute_script("ql-remove-atoms-geometry") # remove the file
 
 
 def modify_geometry(g):
@@ -115,9 +115,9 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-#  execute_script("qh-light-structure POSITIONS.OUT")
-  execute_script("qh-structure-bond --input POSITIONS.OUT")
-#  execute_script("qh-structure  ")
+#  execute_script("ql-light-structure POSITIONS.OUT")
+  execute_script("ql-structure-bond --input POSITIONS.OUT")
+#  execute_script("ql-structure  ")
 
 
 
@@ -129,7 +129,7 @@ def show_structure_3d():
     nsuper = int(get("nsuper_struct"))
     g = g.supercell(nsuper)
     g.write()
-    execute_script("qh-structure3d POSITIONS.OUT")
+    execute_script("ql-structure3d POSITIONS.OUT")
 
 
 def show_embedding_ldos():
@@ -144,7 +144,7 @@ def show_embedding_ldos():
     nk = common.get_nk(h,delta=delta,fac=20*nks) # number of kpoints
     (x,y,d) = eb.ldos(nsuper=ns,e=e,delta=delta,nk=nk)
     np.savetxt("LDOS.OUT",np.array([x,y,d]).T)
-    execute_script("qh-ldos --input LDOS.OUT")
+    execute_script("ql-ldos --input LDOS.OUT")
 
 
 def get_impurity_matrix(h):
@@ -180,7 +180,7 @@ def show_embedding_ldos_sweep():
     nk = common.get_nk(h,delta=delta,fac=20*nks) # number of kpoints
     ds = [] # density of states
     eb.multildos(es=es,delta=delta,nk=nk,nsuper=ns) # compute
-    execute_script("qh-multildos ")
+    execute_script("ql-multildos ")
 
 
 
@@ -190,12 +190,12 @@ def select_impurity_sites():
     g = g.supercell(n) # supercell
     np.savetxt("POSITIONS_PP.OUT",np.array(g.r)) # write in file
     # select the sites
-    execute_script("qh-select-atoms-geometry  --input POSITIONS_PP.OUT --output IMPURITY_SITES.OUT --initially_selected \"0\"  --caption \" Sites with impurities\"")
+    execute_script("ql-select-atoms-geometry  --input POSITIONS_PP.OUT --output IMPURITY_SITES.OUT --initially_selected \"0\"  --caption \" Sites with impurities\"")
 
 
 
-#    execute_script("qh-interpolate --input LDOS.OUT --dx -2 --dy -2 --smooth 1.0")
-#    execute_script("qh-ldos --input LDOS.OUT-interpolated ")
+#    execute_script("ql-interpolate --input LDOS.OUT --dx -2 --dy -2 --smooth 1.0")
+#    execute_script("ql-ldos --input LDOS.OUT-interpolated ")
 
 inipath = os.getcwd() # get the initial directory
 

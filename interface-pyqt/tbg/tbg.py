@@ -151,7 +151,7 @@ def show_dos():
     energies = None
     dos.dos2d(h,nk=nk,delta=delta,numw=numw)
   else: raise
-  execute_script("qh-dos --input DOS.OUT ")
+  execute_script("ql-dos --input DOS.OUT ")
   comp.kill()
   return
 
@@ -168,7 +168,7 @@ def show_structure():
   nsuper = int(get("nsuper_struct")) 
   g = g.supercell(nsuper) # build a supercell
   g.write()
-  execute_script("qh-potential --input POSITIONS.OUT --colorbar false --cmap rainbow --zoom 70 --size 30")
+  execute_script("ql-potential --input POSITIONS.OUT --colorbar false --cmap rainbow --zoom 70 --size 30")
 
 
 
@@ -190,7 +190,7 @@ def show_ldos():
   nk = int(round(np.sqrt(nk)))
   nsuper = int(get("nsuper_ldos_single"))
   ldos.ldos(h,e=e,delta=delta,nk=nk,mode="arpack",nrep=nsuper)
-  execute_script("qh-fast-ldos LDOS.OUT  ")
+  execute_script("ql-fast-ldos LDOS.OUT  ")
 
 
 
@@ -198,7 +198,7 @@ def show_z2_invariant():
   h = pickup_hamiltonian()  # get the hamiltonian
   nk = get("nkpoints")/4
   topology.z2_vanderbilt(h,nk=nk,nt=nk/2) # calculate z2 invariant
-  execute_script("qh-wannier-center  ") # plot the result
+  execute_script("ql-wannier-center  ") # plot the result
 
 
 
@@ -210,7 +210,7 @@ def show_kdos():
   energies = np.linspace(-ew,ew,new) # number of ene
   klist = np.linspace(0.,1.,new)
   kdos.write_surface_2d(h,energies=energies,delta=ew/new,klist=klist)
-  execute_script("qh-kdos KDOS.OUT  ")
+  execute_script("ql-kdos KDOS.OUT  ")
 
 
 def show_dosbands():
@@ -219,7 +219,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")),kpath=kpath)
-  execute_script("qh-dosbands  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
 
 
 
@@ -236,7 +236,7 @@ def show_2dband():
   spectrum.get_bands(h,nindex=ns,nk=nk,reciprocal=True)
   string = ""
   for n in ns: string += "BANDS2D__"+str(n)+".OUT "
-  execute_script("qh-plot3d "+string +"  ")
+  execute_script("ql-plot3d "+string +"  ")
 
 
 
@@ -253,9 +253,9 @@ def show_structure_3d():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-#  execute_script("qh-structure3d POSITIONS.OUT")
-#  execute_script("qh-magnetism nomag nobonds POSITIONS.OUT")
-  execute_script("qh-structure-tbg ")
+#  execute_script("ql-structure3d POSITIONS.OUT")
+#  execute_script("ql-magnetism nomag nobonds POSITIONS.OUT")
+  execute_script("ql-structure-tbg ")
 
 
 
@@ -268,7 +268,7 @@ def show_multildos():
 def select_atoms_removal():
   g = get_geometry(modify=False) # get the unmodified geometry
   g.write() # write geometry
-  execute_script("qh-remove-atoms-geometry-3d") # remove the file
+  execute_script("ql-remove-atoms-geometry-3d") # remove the file
 
 
 save_results = lambda x: save_outputs(inipath,tmppath) # function to save

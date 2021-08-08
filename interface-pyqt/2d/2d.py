@@ -61,7 +61,7 @@ def get_geometry(modify=True):
 def select_atoms_removal():
   g = get_geometry(modify=False) # get the unmodified geometry
   g.write() # write geometry
-  execute_script("qh-remove-atoms-geometry") # remove the file
+  execute_script("ql-remove-atoms-geometry") # remove the file
 
 
 def modify_geometry(g):
@@ -128,7 +128,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  execute_script("qh-dosbands  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
 
 
 
@@ -159,9 +159,9 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-#  execute_script("qh-light-structure POSITIONS.OUT")
-  execute_script("qh-structure-bond --input POSITIONS.OUT")
-#  execute_script("qh-structure  ")
+#  execute_script("ql-light-structure POSITIONS.OUT")
+  execute_script("ql-structure-bond --input POSITIONS.OUT")
+#  execute_script("ql-structure  ")
 
 
 
@@ -240,14 +240,14 @@ def show_magnetism_3d():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization(nrep=int(get("magnetization_nrep"))) 
-  execute_script("qh-moments",mayavi=True)
+  execute_script("ql-moments",mayavi=True)
 
 
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization(nrep=int(get("magnetization_nrep"))) 
-  execute_script("qh-quiver")
+  execute_script("ql-quiver")
 
 
 def show_structure_3d():
@@ -256,7 +256,7 @@ def show_structure_3d():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure3d POSITIONS.OUT")
+  execute_script("ql-structure3d POSITIONS.OUT")
 
 
 
@@ -307,13 +307,13 @@ def sweep_parameter():
         else: raise
     np.savetxt("SWEEP.OUT",np.matrix(out)) # store result
     if cname=="DOS":
-        execute_script("qh-sweep-dos SWEEP.OUT") # remove the file
+        execute_script("ql-sweep-dos SWEEP.OUT") # remove the file
     elif cname=="Indirect gap":
-        execute_script("qh-indirect-gap SWEEP.OUT") # remove the file
+        execute_script("ql-indirect-gap SWEEP.OUT") # remove the file
     elif cname=="Chern number":
-        execute_script("qh-chern-evolution SWEEP.OUT") # remove the file
+        execute_script("ql-chern-evolution SWEEP.OUT") # remove the file
     else:
-        execute_script("qh-indirect-gap SWEEP.OUT") # remove the file
+        execute_script("ql-indirect-gap SWEEP.OUT") # remove the file
     
 
 

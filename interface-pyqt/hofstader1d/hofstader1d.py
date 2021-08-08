@@ -95,7 +95,7 @@ def show_bands():
   elif opname=="y-position": op = h.get_operator("yposition")
   else: op =None
   h.get_bands(operator=op)
-  execute_script("qh-bands1d  ")
+  execute_script("ql-bands1d  ")
 
 
 
@@ -104,7 +104,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  execute_script("qh-dosbands1d  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands1d  KDOS_BANDS.OUT ")
 
 
 
@@ -117,7 +117,7 @@ def show_interactive_ldos():
   ne = int(get("ne_ldos"))
   delta = get("delta_ldos")
   ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
-  execute_script("qh-multildos ")
+  execute_script("ql-multildos ")
 
 
 
@@ -135,7 +135,7 @@ def show_dos():
   elif h.dimensionality==2:
     dos.dos2d(h,ndos=500,delta=get("DOS_smearing"))
   else: raise
-  execute_script("qh-dos  ")
+  execute_script("ql-dos  ")
 
 
 def pickup_hamiltonian():
@@ -155,7 +155,7 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure-bond --input POSITIONS.OUT")
+  execute_script("ql-structure-bond --input POSITIONS.OUT")
 
 
 def show_hofstader():
@@ -192,7 +192,7 @@ def show_hofstader():
       f.write(str(d)+"\n")
     f.flush()
   f.close()
-  execute_script("qh-hofstader  HOFSTADER.OUT")
+  execute_script("ql-hofstader  HOFSTADER.OUT")
 
 
 

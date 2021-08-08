@@ -128,7 +128,7 @@ def show_ldos():
   energies = np.linspace(-ewin,ewin,int(get("ne_ldos")))
   delta = get("delta_ldos")
   ldos.slabldos(h,energies=energies,delta=delta,nk=int(get("nk_ldos")))
-  execute_script('qh-map2d --input DOSMAP.OUT --xlabel Energy --ylabel "z-position" --zlabel DOS --title "Local DOS"')
+  execute_script('ql-map2d --input DOSMAP.OUT --xlabel Energy --ylabel "z-position" --zlabel DOS --title "Local DOS"')
 
 
 
@@ -140,7 +140,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  execute_script("qh-dosbands  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
 
 
 
@@ -155,7 +155,7 @@ def show_dos():
   elif h.dimensionality==2:
     dos.dos2d(h,ndos=500,delta=get("DOS_smearing"))
   else: raise
-  execute_script("qh-dos  ")
+  execute_script("ql-dos  ")
 
 
 def pickup_hamiltonian():
@@ -181,10 +181,10 @@ def show_stm():
   ne = int(get("num_ldos")) # number of LDOS
   delta = ewin/ne # delta
   ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=1,delta=delta)
-  execute_script("qh-multildos ")
+  execute_script("ql-multildos ")
 #  hamiltonians.ldos(h,e=get("stm_bias"),delta=get("DOS_smearing")) # calculate the stm spectra
 #  print("Using semaring",get("DOS_smearing"))
-#  execute_script("qh-ldos  LDOS.OUT")
+#  execute_script("ql-ldos  LDOS.OUT")
   return
 
 
@@ -197,8 +197,8 @@ def show_berry2d():
 def show_magnetism():
   h = pickup_hamiltonian() # get hamiltonian
   h.get_magnetization() # get the magnetization
-  execute_script("qh-magnetism  ")
-#  execute_script("qh-magnetism  ")
+  execute_script("ql-magnetism  ")
+#  execute_script("ql-magnetism  ")
 
 
 def show_structure():
@@ -208,8 +208,8 @@ def show_structure():
   g = g.supercell(nsuper)
   g.write()
   g.write_profile(np.sign(g.z),name="PROFILE.OUT",normal_order=True,nrep=1)
-  execute_script("qh-structure --input PROFILE.OUT --color True")
-#  execute_script("qh-structure  ")
+  execute_script("ql-structure --input PROFILE.OUT --color True")
+#  execute_script("ql-structure  ")
 
 
 def show_structure_3d():
@@ -218,7 +218,7 @@ def show_structure_3d():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure-tbg POSITIONS.OUT")
+  execute_script("ql-structure-tbg POSITIONS.OUT")
 
 
 

@@ -92,7 +92,7 @@ def show_ldos():
   energies = np.linspace(-ewin,ewin,int(get("ne_ldos")))
   delta = get("delta_ldos")
   ldos.slabldos(h,energies=energies,delta=delta,nk=int(get("nk_ldos")))
-  execute_script("qh-ldos-slab DOSMAP.OUT  ")
+  execute_script("ql-ldos-slab DOSMAP.OUT  ")
 
 
 
@@ -104,7 +104,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  execute_script("qh-dosbands  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
 
 
 
@@ -134,15 +134,15 @@ def show_berry2d():
   h = pickup_hamiltonian() # get hamiltonian
   nk = int(get("nk_topology"))
   topology.berry_map(h,nk=nk)
-  execute_script("qh-berry2d BERRY_MAP.OUT")
+  execute_script("ql-berry2d BERRY_MAP.OUT")
 
   
 
 def show_magnetism():
   h = pickup_hamiltonian() # get hamiltonian
   h.get_magnetization() # get the magnetization
-  execute_script("qh-magnetism  ")
-#  execute_script("qh-magnetism  ")
+  execute_script("ql-magnetism  ")
+#  execute_script("ql-magnetism  ")
 
 
 def show_structure():
@@ -151,7 +151,7 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure --input POSITIONS.OUT")
+  execute_script("ql-structure --input POSITIONS.OUT")
 
 
 
@@ -161,7 +161,7 @@ def show_structure_3d():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-  execute_script("qh-structure3d POSITIONS.OUT")
+  execute_script("ql-structure3d POSITIONS.OUT")
 
 
 
@@ -177,14 +177,14 @@ def show_berry1d():
   h = pickup_hamiltonian()  # get the hamiltonian
   ks = klist.default(h.geometry,nk=int(get("nk_topology")))  # write klist
   topology.write_berry(h,ks)
-  execute_script("qh-berry1d  label  ")
+  execute_script("ql-berry1d  label  ")
 
 
 def show_z2():
   h = pickup_hamiltonian()  # get the hamiltonian
   nk = get("nk_topology")
   topology.z2_vanderbilt(h,nk=nk,nt=nk/2) # calculate z2 invariant
-  execute_script("qh-wannier-center  ") # plot the result
+  execute_script("ql-wannier-center  ") # plot the result
 
 
 
@@ -208,7 +208,7 @@ def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization() # write the magnetism
-  execute_script("qh-moments",mayavi=True)
+  execute_script("ql-moments",mayavi=True)
 
 
 

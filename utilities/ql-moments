@@ -19,7 +19,7 @@ except:
   sys.path.append(dirname+"/../pysrc/interpreter")
   import pycommand
   pyc = pycommand.get_python() # get python
-  os.system(pyc+" "+dirname+"/qh-quiver &") # use the backup script
+  os.system(pyc+" "+dirname+"/ql-quiver &") # use the backup script
   exit()
 
 
