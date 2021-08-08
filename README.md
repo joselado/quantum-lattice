@@ -13,7 +13,7 @@ This program allows to perform tight binding calculations with a user friendly i
 
 The program runs in Linux and Mac machines. 
 
-Clone the github repository
+Clone the GitHub repository
 ```bash
 git clone https://github.com/joselado/quantum-lattice
 ```
@@ -124,7 +124,7 @@ Spectra and spatially resolved density of states of a triangular graphene island
 
 
 ## Colossal graphene quantum dots
-Density of states and spatially resolved density of states of a bg graphene quantum dot. The huge islands module uses special techniques to efficiently solve systems with hundreds of thousands of atoms.
+Density of states and spatially resolved density of states of a big graphene quantum dot. The huge islands module uses special techniques to efficiently solve systems with hundreds of thousands of atoms.
 ![Alt text](screenshots/giant_island.png?raw=true "Big graphene island")
 
 
@@ -135,7 +135,7 @@ Electronic spectra of a massive honeycomb lattice in the presence of an off-plan
 
 
 ## Artificial topological superconductors
-Bogoliuvov de Gennes band structructure of a two-dimensional gas in a square lattice with Rashba spin-orbit coupling, off-plane exchange field and s-wave superconducting proximity effect. When superconductivity is turned on, a gap opens up in the spectra hosting a non-trivial Chern number, giving rise to propagating Majorana modes in the system
+Bogoliuvov de Gennes band structure of a two-dimensional gas in a square lattice with Rashba spin-orbit coupling, off-plane exchange field and s-wave superconducting proximity effect. When superconductivity is turned on, a gap opens up in the spectra hosting a non-trivial Chern number, giving rise to propagating Majorana modes in the system
 ![Alt text](screenshots/topologicalSC.png?raw=true "Artificial topological superconductor in a square lattice")
 
 
