@@ -102,7 +102,7 @@ Lieb lattice. When repulsive
 local Hubbard interactions are included, an spontaneously
 ferromagnetic state appears in the system, leading to a real-space
 magnetic distribution.
-![Alt text](screenshots/scf_lieb.png?raw=true "Interacting Lieb lattice")
+![Alt text](screenshots/lieb_scf.png?raw=true "Interacting Lieb lattice")
 
 
 ## Artificial Chern insulator with exchange field and SOC ##
