@@ -96,6 +96,13 @@ of second neighbor hopping, the lowest band is flat. Only first
 neighbor hoppings are shown in the 3D structure plot.
 ![Alt text](screenshots/kagome_lattice_second.png?raw=true "Kagome lattice with NN and NNN hopping")
 
+## Interaction-induced symmetry breaking in the Lieb lattice ##
+Non-interacting and interacting band structure of a two-dimensional
+Lieb lattice. When repulsive 
+local Hubbard interactions are included, an spontaneously
+ferromagnetic state appears in the system, leading to a real-space
+magnetic distribution.
+![Alt text](screenshots/scf_lieb.png?raw=true "Interacting Lieb lattice")
 
 
 ## Artificial Chern insulator with exchange field and SOC ##
