@@ -113,6 +113,13 @@ Self-consistent mean field calculation of a zigzag graphene ribbon, with electro
 ![Alt text](screenshots/zzscf.png?raw=true "Magnetism in zigzag nanoribbons")
 
 
+## Scanning tunnel spectroscopy of graphene nanoribbons ##
+Real space simulation of the STS spectra, using atomic-like orbitals
+for a graphene nanoribbon 
+![Alt text](screenshots/sts_nanoribbon.png?raw=true "STS graphene nanoribbon")
+
+
+
 ## Nodal line semimetals
 Band structure of a slab of a 3D nodal line semimetal in a diamond lattice, showing the emergence of topological zero energy drumhead states in the surface of the slab https://link.springer.com/article/10.1007%2Fs10909-017-1846-3
 ![Alt text](screenshots/nodalline.png?raw=true "Magnetism in zigzag nanoribbons")
