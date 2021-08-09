@@ -22,7 +22,6 @@ def get_qhroot():
   return os.path.dirname(os.path.realpath(__file__))+"/../" 
 
 qhroot = get_qhroot()  # get the root path
-os.environ["QHROOT"] = qhroot # create the environmental variable
 
 
 def get_command(name="python"):

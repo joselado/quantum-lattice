@@ -6,10 +6,11 @@ import platform
 
   
 # Add path of the interface
-qhroot = os.path.dirname(os.path.realpath(__file__))+"/../../" 
+qlroot = os.path.dirname(os.path.realpath(__file__))+"/../../"
+
 # Add path of the wrapper
-sys.path.append(qhroot+"/pysrc/") # python libraries
-sys.path.append(qhroot+"/interface-pyqt/system_selection") # python libraries
+sys.path.append(qlroot+"/pysrc/") # python libraries
+sys.path.append(qlroot+"/interface-pyqt/system_selection") # python libraries
 
 from interfacetk import qtwrap # import the library with simple wrappers to pyqt
 window = qtwrap.main() # this is the main interface
@@ -29,9 +30,9 @@ python = get_command() # Python command
 def call_mode(mode,folder=None,pyqt=True):
   """ Returns a function which calls a particular quantum lattice mode"""
   if folder is None: folder = mode # if not provided
-  path = qhroot
+  path = qlroot
   def launch():
-    """Function to launch a particular calculation, passes qhroot as input"""
+    """Function to launch a particular calculation, passes qlroot as input"""
     os.system(python+" "+path+"interface-pyqt/"+mode+"/"+mode+".py   "+path +"  &")
   return launch
 
@@ -56,7 +57,7 @@ signals["tmdc"] = call_mode("tmdc")
 
 
 def update_qh():
-    os.chdir(qhroot) # go to the main directory
+    os.chdir(qlroot) # go to the main directory
     os.system("git pull") # pull the directory
     pycommand.create_icon() # create the icon
 #    try: # try to compile fortran
@@ -77,7 +78,7 @@ signals["update_qh"] = update_qh # update Quantum Lattice
 qtwrap.set_logo("qhlogo","quantum_lattice.png")
 
 # Set the version number
-version = open(os.environ["QHROOT"]+"/VERSION.TXT").read().replace("\n","")
+version = open(qlroot+"/VERSION.TXT").read().replace("\n","")
 version = "Version "+version.replace(" ",".")
 window.set("qh_version",version) # set the version number
 

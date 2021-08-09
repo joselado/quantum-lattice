@@ -174,8 +174,8 @@ def set_image(name,path):
 
 def set_logo(name,image):
   """Set a certain logo"""
-  qhroot = os.environ["QHROOT"] # root path
-  path = qhroot+"/interface-pyqt/logos/"+image
+  qlroot = os.path.dirname(os.path.realpath(__file__))+"/../../"
+  path = qlroot+"/interface-pyqt/logos/"+image
   set_image(name,path)
   
 

@@ -5,9 +5,8 @@ def get_header():
     out = ""
     out = "import sys\n"
     out = "import os\n"
-    out += 'qhroot = os.environ["QHROOT"]\n'
-    out = "import geometry\n"
-    out = "import hamiltonians\n"
+    out = "from pyqula import geometry\n"
+    out = "from pyqula import hamiltonians\n"
     return out # return header
 
 

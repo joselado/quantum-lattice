@@ -6,14 +6,12 @@ import numpy as np
 try:
   from mayavi import mlab
 except:
-  print("Default python does not work, trying python in PATH")
-  try: 
-    import os
-    qhpath = os.environ["QHROOT"]+"/" # path to quantum lattice
-    os.system("python "+qhpath+"utilities/ql-pick")
-  except:
-    print("Something wrong")
-    exit()
+  print("Mayavi is not working")
+  dirname = os.path.dirname(os.path.realpath(__file__))
+  sys.path.append(dirname+"/../pysrc/interpreter")
+  import pycommand
+  pyc = pycommand.get_python() # get python
+  os.system(pyc+" "+dirname+"/ql-pick &") # use the backup script
   exit()
 
 
