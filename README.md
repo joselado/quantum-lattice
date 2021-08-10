@@ -105,10 +105,9 @@ magnetic distribution.
 ![Alt text](screenshots/lieb_scf.png?raw=true "Interacting Lieb lattice")
 
 
-## Artificial Chern insulator with exchange field and SOC ##
-Honeycomb lattice with Rashba spin-orbit coupling and exchange field, giving rise to a net Chern number and chiral edge states
-https://journals.aps.org/prb/abstract/10.1103/PhysRevB.82.161414
-![Alt text](screenshots/qah.png?raw=true "QAH state")
+## Artificial Chern insulators ##
+Kagome lattice with Rashba spin-orbit coupling and exchange field, giving rise to a net Chern number and chiral edge states
+![Alt text](screenshots/qah.png?raw=true "QAH state in the Kagome lattice")
 
 
 ## Quantum Spin Hall state ##
