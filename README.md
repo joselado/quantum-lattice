@@ -10,7 +10,7 @@ This program allows to perform tight binding calculations with a user friendly i
 
 Below you can see videos showing the real-time usage of this program
 
-- [Confined modes in graphene nanoislands] (https://youtu.be/YFIpONVQinc)
+- [Confined modes in graphene nanoislands](https://youtu.be/YFIpONVQinc)
 
 # How to install #
 
