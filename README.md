@@ -6,6 +6,11 @@ This program allows to perform tight binding calculations with a user friendly i
 
 ![Alt text](screenshots/quantum_lattice.png?raw=true "Quantum Lattice System selection")
 
+# Video examples #
+
+Below you can see videos showing the real-time usage of this program
+
+- [Confined modes in graphene nanoislands] (https://youtu.be/YFIpONVQinc)
 
 # How to install #
 
@@ -71,7 +76,7 @@ instructions.
 - Reaching system sizes up to 1000000 atoms on a single-core laptop
 
 
-# Examples #
+# Screenshot examples #
 
 ## Unconventional superconductivity ##
 Electronic band structure, Berry curvature and momentum resolved surface
