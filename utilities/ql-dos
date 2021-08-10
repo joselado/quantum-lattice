@@ -26,6 +26,8 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--input",default="DOS.OUT",
         help='Input file with the dos')
+parser.add_argument("--integrated",default="False",
+        help='Integrated DOS')
 args = parser.parse_args() # get the arguments
 name = args.input
 m = np.genfromtxt(name).transpose()
@@ -55,7 +57,10 @@ def getplot(obj):
       conv = delta/(e**2+delta**2)/np.pi # convolution
       d = np.convolve(d,conv,mode="same")*de/len(e)
   # first subplot
-  splot = plt.subplot(2,1,1)
+  if args.integrated=="True":
+      splot = plt.subplot(2,1,1)
+  else:
+      splot = plt.subplot(1,1,1)
   splot.set_title("DOS")
   splot.plot(e,d,color="black")
   splot.set_xlim([min(e),max(e)])
@@ -73,18 +78,19 @@ def getplot(obj):
   splot.set_xlim([-ewin,ewin])  
   plt.locator_params(nbins=4)
   # now the integral of the DOS
-  iplot = plt.subplot(2,1,2)
-  iplot.set_title("Integrated DOS")
-  from scipy.integrate import cumtrapz
-  di = cumtrapz(d,e)
-  ei = np.array(e[0:len(e)-1]) # energies for integrated DOS
-  imin = np.where(ei==np.min(ei[ei>0])) # minimum energy
-  di = di -di[imin[0]] # set zero density in zero
-  iplot.plot(e[0:len(e)-1],di,c="black")
-  iplot.set_xlim([-ewin,ewin])  
-  iplot.set_ylim([min(di[abs(ei)<ewin]),max(di[abs(ei)<ewin])])  
-  iplot.set_xlabel("Energy [t]")
-  iplot.set_ylabel("Integrated $DOS$")
+  if args.integrated=="True":
+      iplot = plt.subplot(2,1,2)
+      iplot.set_title("Integrated DOS")
+      from scipy.integrate import cumtrapz
+      di = cumtrapz(d,e)
+      ei = np.array(e[0:len(e)-1]) # energies for integrated DOS
+      imin = np.where(ei==np.min(ei[ei>0])) # minimum energy
+      di = di -di[imin[0]] # set zero density in zero
+      iplot.plot(e[0:len(e)-1],di,c="black")
+      iplot.set_xlim([-ewin,ewin])  
+      iplot.set_ylim([min(di[abs(ei)<ewin]),max(di[abs(ei)<ewin])])  
+      iplot.set_xlabel("Energy [t]")
+      iplot.set_ylabel("Integrated $DOS$")
   fig.set_facecolor('white')
   plt.locator_params(nbins=4)
   return fig

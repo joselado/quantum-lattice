@@ -81,6 +81,12 @@ spectral function of a px + ipy spin-triplet topological
 superconductor with d-vector (0,0,1).
 ![Alt text](screenshots/chiral_superconductor.png?raw=true "Spin-triplet chiral topological superconductor")
 
+## Interaction-driven non-collinear magnetism ##
+Electronic band structure and selfconsistent local magnetization
+of a square lattice with an applied Zeeman field
+and local Hubbard interactions.
+![Alt text](screenshots/non_collinear_scf.png?raw=true "Non-collinear magnetization with Hubbard interactions and Zeeman field")
+
 
 ## Superlattices ##
 Electronic band structure, Fermi surface and local density of states
