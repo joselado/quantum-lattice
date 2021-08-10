@@ -127,38 +127,38 @@ for a graphene nanoribbon
 
 
 
-## Nodal line semimetals
+## Nodal line semimetals ##
 Band structure of a slab of a 3D nodal line semimetal in a diamond lattice, showing the emergence of topological zero energy drumhead states in the surface of the slab https://link.springer.com/article/10.1007%2Fs10909-017-1846-3
 ![Alt text](screenshots/nodalline.png?raw=true "Magnetism in zigzag nanoribbons")
 
 
-## Confined modes in 0D systems
-Spectra and spatially resolved density of states of a triangular graphene island, showing the emergence of confined modes
-![Alt text](screenshots/island.png?raw=true "Confined modes in a graphene island")
+## Confined modes in quantum dots ##
+Spectra and spatially resolved density of states of square quantum dot, showing the emergence of confined modes
+![Alt text](screenshots/island.png?raw=true "Confined modes in square quantum dot")
 
 
-## Colossal graphene quantum dots
+## Colossal quantum dots ##
 Density of states and spatially resolved density of states of a big graphene quantum dot. The huge islands module uses special techniques to efficiently solve systems with hundreds of thousands of atoms.
 ![Alt text](screenshots/giant_island.png?raw=true "Big graphene island")
 
 
 
-## Landau levels
+## Landau levels ##
 Electronic spectra of a massive honeycomb lattice in the presence of an off-plane magnetic field, giving rise to Landau levels and chiral edge states
 ![Alt text](screenshots/zzqh.png?raw=true "Landau levels in a massive zigzag honeycomb ribbon")
 
 
-## Artificial topological superconductors
+## Artificial topological superconductors ##
 Bogoliuvov de Gennes band structure of a two-dimensional gas in a square lattice with Rashba spin-orbit coupling, off-plane exchange field and s-wave superconducting proximity effect. When superconductivity is turned on, a gap opens up in the spectra hosting a non-trivial Chern number, giving rise to propagating Majorana modes in the system
 ![Alt text](screenshots/topologicalSC.png?raw=true "Artificial topological superconductor in a square lattice")
 
 
-## Quantum Valley Hall effect
+## Quantum Valley Hall effect ##
 Band structure of Bernal stacked bilayer graphene, showing the emergence of a gap when an interlayer bias is applied. The previous gap hosts a non-trivial valley Chern number, giving rise to the emergence of pseudo-helical states in the edge of the system
 ![Alt text](screenshots/qvh.png?raw=true "Quantum valley Hall state in biased bilayer AB graphene")
 
 
-## Twisted bilayer graphene
+## Twisted bilayer graphene ##
 Bandstructure and local density of states of twisted bilayer graphene at the magic angle, showing the emergence of a flat band, with an associated triangular density of states
 https://journals.aps.org/prb/abstract/10.1103/PhysRevB.82.121407
 ![Alt text](screenshots/tbg.png?raw=true "Magic angle twisted bilayer graphene")

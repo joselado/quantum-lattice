@@ -108,7 +108,7 @@ def plot(main):
   #print("Energy",energy)
   axd.set_ylim([0,max(md[1])]) # ylim
   axd.set_xlim([min(md[0]),max(md[0])]) # xlim
-  axd.set_xticks(np.linspace(min(md[0]),max(md[0]),5,endpoint=True)) # xlim
+  axd.set_xticks(np.linspace(min(md[0]),max(md[0]),3,endpoint=True)) # xlim
   axd.set_ylabel("DOS")
   axd.set_xlabel("Energy")
   axd.set_title("Density of states")
