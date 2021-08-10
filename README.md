@@ -82,6 +82,12 @@ superconductor with d-vector (0,0,1).
 ![Alt text](screenshots/chiral_superconductor.png?raw=true "Spin-triplet chiral topological superconductor")
 
 
+## Superlattices ##
+Electronic band structure, Fermi surface and local density of states
+of a superlattice built from a defected triangular lattice
+![Alt text](screenshots/2d_superlattice.png?raw=true "Triangular superlattice")
+
+
 ## Scanning tunnel spectroscopy of nanographene islands ##
 Real space simulation of the STS spectra, using atomic-like orbitals
 for a nanographene island
