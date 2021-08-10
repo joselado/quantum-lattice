@@ -72,8 +72,6 @@ instructions.
 
 
 # Examples #
-This program allows to study a variety of electronic states by means of tight binding models as shown below.
-
 
 ## Unconventional superconductivity ##
 Electronic band structure, Berry curvature and momentum resolved surface
