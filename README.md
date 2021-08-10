@@ -143,8 +143,8 @@ Density of states and spatially resolved density of states of a big graphene qua
 
 
 ## Landau levels ##
-Electronic spectra of a massive honeycomb lattice in the presence of an off-plane magnetic field, giving rise to Landau levels and chiral edge states
-![Alt text](screenshots/zzqh.png?raw=true "Landau levels in a massive zigzag honeycomb ribbon")
+Electronic spectra of a graphene lattice in the presence of an off-plane magnetic field and antiferromagnetic order, giving rise to Landau levels and chiral edge states
+![Alt text](screenshots/honeycomb_qh.png?raw=true "Landau levels in an antiferromagnetic graphene ribbon")
 
 
 ## Artificial topological superconductors ##
