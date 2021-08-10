@@ -99,6 +99,18 @@ def get_berry2d(h,window):
     execute_script("ql-map2d --input BERRY_MAP.OUT --xlabel px --ylabel py --zlabel \Omega --show_cuts False --title 'Berry curvature map'")
 
 
+def get_kdos_bands(h,window):
+    """Get the Berry curvature"""
+    get = window.get
+    energies = np.linspace(-get("window_kbands"),get("window_kbands"),int(get("ne_kbands")))
+    nk = int(get("ne_ldos"))
+    kdos.kdos_bands(h,scale=get("scale_kbands"),
+                energies=energies,delta=get("delta_kbands"),
+                   ntries=int(get("nv_kbands")),nk=nk)
+    execute_script("ql-dosbands KDOS_BANDS.OUT ")
+
+
+
 def get_chern(h,window):
     """Get the Chern number"""
     nk = int(np.sqrt(window.get("topology_nk")))

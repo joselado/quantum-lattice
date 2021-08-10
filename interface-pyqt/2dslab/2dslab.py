@@ -89,11 +89,10 @@ def initialize():
         if 0.9<abs(dr[2])<1.1: return 1.0 + dfun # first neighbor
         return 1.0
       else: return 0.0
-    h = g.get_hamiltonian(fun) # get the Hamiltonian
+    h = g.get_hamiltonian(fun=fun) # get the Hamiltonian
   else:
     h = g.get_hamiltonian(has_spin=True)
-  j = np.array([get("Bx"),get("By"),get("Bz")])
-  h.add_zeeman(j) # Zeeman field
+  h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman field
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   h.add_rashba(get("rashba"))  # Rashba field
   h.add_antiferromagnetism(get("mAF"))  # AF order
@@ -107,8 +106,7 @@ def initialize():
   if abs(get("inplaneb"))>0.0:
       h.add_inplane_bfield(b=get("inplaneb"),phi=get("inplaneb_phi"))
   if abs(get("swave"))>0.0: 
-      h = h.get_multicell()
-      special_pairing(h)
+      h.add_swave(get("swave")) # s-wave SC
   return h
 
 
@@ -156,15 +154,11 @@ def show_ldos():
 
 
 
-
+show_dosbands = common.get_kdos_bands
 
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian
-  kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
-                   ne=int(get("ne_kbands")),delta=get("delta_kbands"),
-                   ntries=int(get("nv_kbands")))
-  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
-
+  common.get_kdos_bands(h,window)
 
 
 def show_dos():

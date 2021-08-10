@@ -98,7 +98,7 @@ def initialize():
         if 0.9<abs(dr[2])<1.1: return 1.0 + dfun(r1,r2) # first neighbor
         return 1.0
       else: return 0.0
-    h = g.get_hamiltonian(fun) # get the Hamiltonian
+    h = g.get_hamiltonian(fun=fun) # get the Hamiltonian
   else:
     h = g.get_hamiltonian(has_spin=True)
   j1 = np.array([get("Bx"),get("By"),get("Bz")])

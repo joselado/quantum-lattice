@@ -90,7 +90,7 @@ and local Hubbard interactions.
 
 ## Superlattices ##
 Electronic band structure, Fermi surface and local density of states
-of a superlattice built from a defected triangular lattice
+of a superlattice built from a defective triangular lattice
 ![Alt text](screenshots/2d_superlattice.png?raw=true "Triangular superlattice")
 
 
@@ -122,13 +122,20 @@ Kagome lattice with Rashba spin-orbit coupling and exchange field, giving rise t
 ![Alt text](screenshots/qah.png?raw=true "QAH state in the Kagome lattice")
 
 
-## Quantum Spin Hall state ##
+## Two-dimensional quantum Spin Hall state ##
 Honeycomb lattice with Kane-Mele spin-orbit coupling and Rashba spin-orbit coupling, giving rise to a gapped spectra with a non-trivial Z2 invariant and helical edge states https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.95.226801
 ![Alt text](screenshots/qsh.png?raw=true "QSH state")
 
 ## Magnetism in graphene zigzag nanoribbons ##
 Self-consistent mean field calculation of a zigzag graphene ribbon, with electronic interactions included as a mean field Hubbard model. Interactions give rise to an edge magnetization in the ribbon, with an antiferromagnetic alignment between edges
 ![Alt text](screenshots/zzscf.png?raw=true "Magnetism in zigzag nanoribbons")
+
+
+## Three-dimensional quantum spin Hall insulators ##
+Three-dimensional quantum spin-Hall insulator, engineered by intrinsic
+spin-orbit coupling in the diamond lattice. the top and bottom of the
+slab show an emergent helical electron gas.
+![Alt text](screenshots/3D_QSL.png?raw=true "3D QSH state")
 
 
 ## Scanning tunnel spectroscopy of graphene nanoribbons ##
