@@ -75,7 +75,7 @@ instructions.
 This program allows to study a variety of electronic states by means of tight binding models as shown below.
 
 
-## Spin-triplet chiral topological superconductor ##
+## Unconventional superconductivity ##
 Electronic band structure, Berry curvature and momentum resolved surface
 spectral function of a px + ipy spin-triplet topological
 superconductor with d-vector (0,0,1).
