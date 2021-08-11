@@ -8,8 +8,12 @@ This program allows to perform tight binding calculations with a user friendly i
 
 # Video examples #
 
-Below you can see videos showing the real-time usage of this program
+[Here](https://youtu.be/g2YAE9Kpd9c) 
+you can see four simultaneous examples of the
+usage of Quantum Lattice.
 
+Below you can see videos showing the real-time usage of this program for
+individual examples
 - [Confined modes in graphene nanoislands](https://youtu.be/YFIpONVQinc)
 - [Superlattices](https://youtu.be/cPx2tOFxdyI)
 - [Interaction-induced magnetism](https://youtu.be/RrPWVqJ7VS4)
