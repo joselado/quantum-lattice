@@ -253,6 +253,7 @@ def generate_hamiltonian(window,g=None):
     p = get_array("pwave")
     if np.sum(np.abs(p))>0.0: 
         h.add_pairing(d=get_array("pwave"),mode="triplet",delta=1.0)
+    h.turn_dense()
     return h
 
 

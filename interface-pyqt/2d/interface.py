@@ -758,7 +758,7 @@ class Ui_MainWindow(object):
         self.label_50.setText(_translate("MainWindow", "Number of kpoints"))
         self.label_51.setText(_translate("MainWindow", "Energy window"))
         self.dos_ewindow.setText(_translate("MainWindow", "4.0"))
-        self.dos_delta.setText(_translate("MainWindow", "0.01"))
+        self.dos_delta.setText(_translate("MainWindow", "0.03"))
         self.label_48.setText(_translate("MainWindow", "Smearing"))
         self.dos_nk.setText(_translate("MainWindow", "100"))
         self.dos_mode.setItemText(0, _translate("MainWindow", "ED"))

@@ -11,6 +11,7 @@ This program allows to perform tight binding calculations with a user friendly i
 Below you can see videos showing the real-time usage of this program
 
 - [Confined modes in graphene nanoislands](https://youtu.be/YFIpONVQinc)
+- [Superlattices](https://youtu.be/cPx2tOFxdyI)
 - [Artificial Chern insulators](https://youtu.be/zEwywwQprNY)
 
 # How to install #
