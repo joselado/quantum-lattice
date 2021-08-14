@@ -191,3 +191,9 @@ Bandstructure and local density of states of twisted bilayer graphene at the mag
 https://journals.aps.org/prb/abstract/10.1103/PhysRevB.82.121407
 ![Alt text](screenshots/tbg.png?raw=true "Magic angle twisted bilayer graphene")
 
+
+## Twisted trilayer graphene ##
+Structure and band structure of a twisted graphene trilayer at the magic angle.
+![Alt text](screenshots/TTG.png?raw=true "Twisted trilayer graphene")
+
+

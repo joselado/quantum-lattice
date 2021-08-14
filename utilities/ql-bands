@@ -31,6 +31,8 @@ parser.add_argument("--cblabel",default="",
         help='Colorbar label')
 parser.add_argument("--show",default="True",
         help='Show the bandstructure')
+parser.add_argument("--yscale",default="1.0",
+        help='Scale of the y axis')
 parser.add_argument("--cmap",default="RGB",
         help='Color map')
 
