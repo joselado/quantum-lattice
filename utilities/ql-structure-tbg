@@ -38,24 +38,32 @@ def read_positions():
 (x1,y1,z1) = read_positions()
 
 
-xu,yu,zu = [],[],[]  # upper layer
-xl,yl,zl = [],[],[]  # lower layer
+ca = (z1 - np.min(z1))/(np.max(z1) - np.min(z1) +1e-3) # scaled width
 
-for (ix,iy,iz) in zip(x1,y1,z1): # loop
-  if iz<0.0:
-    xu.append(ix)
-    yu.append(iy)
-    zu.append(iz)
-  else:
-    xl.append(ix)
-    yl.append(iy)
-    zl.append(iz)
-
-
-mlab.points3d(xu, yu, zu, color=(1, 0, 0), scale_factor = .8,
+color = np.array([ca,0*ca,1-ca]).T
+#color = [tuple(c) for c in color]
+mlab.points3d(x1, y1, z1,ca,colormap="cool",scale_factor = .8,
+                scale_mode='none',
                 resolution=10)
-mlab.points3d(xl, yl, zl, color=(0, 0, 1), scale_factor = .8,
-                resolution=10)
+
+#xu,yu,zu = [],[],[]  # upper layer
+#xl,yl,zl = [],[],[]  # lower layer
+#
+#for (ix,iy,iz) in zip(x1,y1,z1): # loop
+#  if iz<0.0:
+#    xu.append(ix)
+#    yu.append(iy)
+#    zu.append(iz)
+#  else:
+#    xl.append(ix)
+#    yl.append(iy)
+#    zl.append(iz)
+#
+#
+#mlab.points3d(xu, yu, zu, color=(1, 0, 0), scale_factor = .8,
+#                resolution=10)
+#mlab.points3d(xl, yl, zl, color=(0, 0, 1), scale_factor = .8,
+#                resolution=10)
 
 
 # Every object has been created, we can reenable the rendering.

@@ -295,7 +295,7 @@ signals["select_atoms_removal"] = select_atoms_removal
 #signals["save_results"] = save_results  # save the results
 
 
-window.connect_clicks(signals)
+window.connect_clicks(signals,robust=False)
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()
