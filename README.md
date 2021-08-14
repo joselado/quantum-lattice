@@ -19,7 +19,7 @@ individual examples
 - [Interaction-induced magnetism](https://youtu.be/RrPWVqJ7VS4)
 - [Artificial Chern insulators](https://youtu.be/zEwywwQprNY)
 - [Twisted bilayer graphene](https://youtu.be/OHlLOLKAfVs)
-
+- [Landau levels and quantum Hall edge states](https://youtu.be/aI-2rMdZ8iY)
 
 # How to install #
 
