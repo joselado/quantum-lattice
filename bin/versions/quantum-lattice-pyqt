@@ -58,6 +58,8 @@ signals["tmdc"] = call_mode("tmdc")
 
 def update_qh():
     os.chdir(qlroot) # go to the main directory
+    os.system("git reset --hard HEAD") # this will overwrite changes
+    os.system("git clean -f -d") # this will overwrite changes
     os.system("git pull") # pull the directory
     pycommand.create_icon() # create the icon
 #    try: # try to compile fortran
