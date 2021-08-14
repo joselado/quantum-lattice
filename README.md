@@ -187,7 +187,7 @@ Band structure of Bernal stacked bilayer graphene, showing the emergence of a ga
 
 
 ## Twisted bilayer graphene ##
-Bandstructure and local density of states of twisted bilayer graphene at the magic angle, showing the emergence of a flat band, with an associated triangular density of states
+Bandstructure and Fermi surface of a twisted graphene bilayer, showing the emergence of nearly flat bands
 https://journals.aps.org/prb/abstract/10.1103/PhysRevB.82.121407
 ![Alt text](screenshots/tbg.png?raw=true "Magic angle twisted bilayer graphene")
 
