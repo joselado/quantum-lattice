@@ -2,7 +2,7 @@
 
 # Summary #
 
-This program allows to perform tight binding calculations with a user friendly interface in a variety of lattices and dimensionalities, using [pyqula](https://github.com/joselado/pyqula).
+This program allows to perform tight binding calculations with a user friendly interface in a variety of lattices and dimensionalities.
 
 ![Alt text](screenshots/quantum_lattice.png?raw=true "Quantum Lattice System selection")
 
@@ -82,6 +82,7 @@ instructions.
 - Operator resolved spectral functions
 - Reaching system sizes up to 1000000 atoms on a single-core laptop
 
+Quantum Lattice uses [pyqula](https://github.com/joselado/pyqula).
 
 # Screenshot examples #
 
