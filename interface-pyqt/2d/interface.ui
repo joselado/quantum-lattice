@@ -553,17 +553,17 @@
             </property>
            </widget>
           </item>
+          <item row="5" column="0" colspan="2">
+           <widget class="QPushButton" name="show_dosbands">
+            <property name="toolTip">
+             <string>This is equivalent to band structure calculation, but it can be applied for very large systems</string>
+            </property>
+            <property name="text">
+             <string>Show DOS Bands</string>
+            </property>
+           </widget>
+          </item>
          </layout>
-        </item>
-        <item row="0" column="1">
-         <widget class="QPushButton" name="show_dosbands">
-          <property name="toolTip">
-           <string>This is equivalent to band structure calculation, but it can be applied for very large systems</string>
-          </property>
-          <property name="text">
-           <string>Show DOS Bands</string>
-          </property>
-         </widget>
         </item>
        </layout>
       </widget>
