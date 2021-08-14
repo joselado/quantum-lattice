@@ -62,14 +62,7 @@ def update_qh():
     os.system("git clean -f -d") # this will overwrite changes
     os.system("git pull") # pull the directory
     pycommand.create_icon() # create the icon
-#    try: # try to compile fortran
-#        from pygra import compilefortran
-#        compiler = os.path.dirname(os.path.realpath(pycommand.get_python()))+"/f2py"
-#        compilefortran.compile_fortran(compiler=compiler) # compile fortran
-#    except: pass
     pycommand.run_qh()
-#    pycommand.install_python()
-#    pycommand.install_dependencies() # install dependencies if necessary
     exit()
 
 
