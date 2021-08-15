@@ -125,10 +125,12 @@ def show_bands():
 
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian
+  nk = int(get("ne_kbands"))
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
-                   ntries=int(get("nv_kbands")))
-  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
+                   ntries=int(get("nv_kbands")),nk=nk)
+  execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
+#  execute_script("ql-map2d --input KDOS_BANDS.OUT --xlabel k --ylabel E/t --zlabel A --show_cuts False --title 'Spectral function'")
 
 
 

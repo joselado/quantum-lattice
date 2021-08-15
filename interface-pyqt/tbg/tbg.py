@@ -215,11 +215,15 @@ def show_kdos():
 
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian
+  ewindow=get("window_kbands")
+  ne = int(get("ne_kbands"))
+  energies = np.linspace(-ewindow,ewindow,ne)
   kpath = klist.default(h.geometry,nk=int(get("nk_kbands")))
-  kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
-                   ne=int(get("ne_kbands")),delta=get("delta_kbands"),
+  kdos.kdos_bands(h,scale=get("scale_kbands"),
+                   energies=energies,ne=ne,
+                   delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")),kpath=kpath)
-  execute_script("ql-dosbands  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
 
 
 

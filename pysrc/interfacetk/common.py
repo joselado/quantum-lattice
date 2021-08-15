@@ -107,7 +107,7 @@ def get_kdos_bands(h,window):
     kdos.kdos_bands(h,scale=get("scale_kbands"),
                 energies=energies,delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")),nk=nk)
-    execute_script("ql-dosbands KDOS_BANDS.OUT ")
+    execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
 
 
 

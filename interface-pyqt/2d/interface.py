@@ -742,7 +742,7 @@ class Ui_MainWindow(object):
         self.label_9.setText(_translate("MainWindow", "# kpoints"))
         self.nk_bands.setText(_translate("MainWindow", "500"))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_5), _translate("MainWindow", "Bands"))
-        self.delta_kbands.setText(_translate("MainWindow", "0.01"))
+        self.delta_kbands.setText(_translate("MainWindow", "0.03"))
         self.label_27.setText(_translate("MainWindow", "Smearing"))
         self.ne_kbands.setText(_translate("MainWindow", "400"))
         self.label_28.setText(_translate("MainWindow", "# of energies"))
