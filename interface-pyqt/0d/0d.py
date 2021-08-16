@@ -128,6 +128,9 @@ def initialize():
   h.add_antihaldane(get("antihaldane")) 
   h.add_peierls(get("peierls")) # magnetic field
   if get("swave")!=0.0: h.add_swave(get("swave")) 
+  p = qtwrap.get_array("pwave")
+  if np.sum(np.abs(p))>0.0:
+      h.add_pairing(d=p,mode="triplet",delta=1.0)
   return h
 
 
