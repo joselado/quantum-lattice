@@ -107,12 +107,12 @@ def add_to_path():
     else: 
         print("Shell interpreter is not recognized")
         raise # unrecognized shell
-    qlpath = os.path.dirname(os.path.realpath(__file__))+"/../../bin"
-    try: ls = open(rcfile,"r").read() # if the file exists
-    except: ls = "" # otherwise
     addrc = "alias quantum-lattice=\"" + get_qh_command() +"\"\n\n"
-#    addrc = "\nexport PATH=\""+qlpath+"\":$PATH\n"
-    open(rcfile,"w").write(ls+addrc) # add to the bash
+    qlpath = os.path.dirname(os.path.realpath(__file__))+"/../../bin"
+    if os.path.isfile(rcfile): # if the file exists
+        open(rcfile,"a").write(addrc) # append to the file anyway
+    else: # if the file does not exist exists
+        open(rcfile,"w").write(addrc) # write the file
     print("quantum-lattice has been added to "+rcfile)
 
 
