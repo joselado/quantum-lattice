@@ -104,11 +104,14 @@ def add_to_path():
         else: rcfile = home+"/.bash_profile"
     elif out=="/bin/zsh": 
         rcfile = home+"/.zshrc"
-    qhpath = os.path.dirname(os.path.realpath(__file__))+"/../../bin"
+    else: 
+        print("Shell interpreter is not recognized")
+        raise # unrecognized shell
+    qlpath = os.path.dirname(os.path.realpath(__file__))+"/../../bin"
     try: ls = open(rcfile,"r").read() # if the file exists
     except: ls = "" # otherwise
     addrc = "alias quantum-lattice=\"" + get_qh_command() +"\"\n\n"
-#    addrc = "\nexport PATH=\""+qhpath+"\":$PATH\n"
+#    addrc = "\nexport PATH=\""+qlpath+"\":$PATH\n"
     open(rcfile,"w").write(ls+addrc) # add to the bash
 
 
@@ -120,8 +123,8 @@ def install_package(package,executable=None):
 
 def run_qh():
     """Run Quantum Lattice"""
-    qhpath = os.path.dirname(os.path.realpath(__file__))+"/../../bin"
-    os.system(get_python() +" "+qhpath+"/quantum-lattice &")
+    qlpath = os.path.dirname(os.path.realpath(__file__))+"/../../bin"
+    os.system(get_python() +" "+qlpath+"/quantum-lattice &")
 
 def create_icon():
     """Create the Quantum Lattice icon"""
