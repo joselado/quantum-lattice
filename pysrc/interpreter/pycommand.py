@@ -113,6 +113,7 @@ def add_to_path():
     addrc = "alias quantum-lattice=\"" + get_qh_command() +"\"\n\n"
 #    addrc = "\nexport PATH=\""+qlpath+"\":$PATH\n"
     open(rcfile,"w").write(ls+addrc) # add to the bash
+    print("quantum-lattice has been added to "+rcfile)
 
 
 def install_package(package,executable=None):
@@ -158,7 +159,8 @@ def set_utility_interpreter():
     from os.path import isfile, join
     onlyfiles = [f for f in listdir(upath) if isfile(join(upath, f))]
     for f in onlyfiles: # loop over files
-        ls = open(upath+"/"+f).readlines() # read all the lines
+        try: ls = open(upath+"/"+f).readlines() # read all the lines
+        except: continue # just skip this one
         for i in range(len(ls)):
             if "#!/" in ls[i]: 
                 ls[i] = "#!"+get_python()+"\n" # put the right interpreter
