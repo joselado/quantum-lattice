@@ -435,16 +435,6 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_40">
-            <property name="text">
-             <string>Colormap</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QComboBox" name="kdos_colormap"/>
-          </item>
          </layout>
         </item>
         <item row="1" column="0">
@@ -507,7 +497,7 @@
                </widget>
               </item>
               <item row="1" column="1">
-               <widget class="QLineEdit" name="hubbard">
+               <widget class="QLineEdit" name="U">
                 <property name="text">
                  <string>2.0</string>
                 </property>
@@ -607,7 +597,21 @@
         <string>Magnetism</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_16">
-        <item row="0" column="0">
+        <item row="1" column="1">
+         <widget class="QLineEdit" name="magnetization_nrep">
+          <property name="text">
+           <string>3</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_2">
+          <property name="text">
+           <string>Unit cells</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="2">
          <widget class="QPushButton" name="show_magnetism">
           <property name="text">
            <string>Show magnetism</string>
@@ -690,16 +694,6 @@
       </widget>
      </widget>
     </item>
-    <item row="2" column="1">
-     <widget class="QLabel" name="label_46">
-      <property name="toolTip">
-       <string>This module allows to compute heterostructures consisting of two different films. You have to specify the parameters of the two films</string>
-      </property>
-      <property name="text">
-       <string>About</string>
-      </property>
-     </widget>
-    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -708,7 +702,7 @@
      <x>0</x>
      <y>0</y>
      <width>950</width>
-     <height>25</height>
+     <height>20</height>
     </rect>
    </property>
   </widget>

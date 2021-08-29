@@ -1132,69 +1132,6 @@
             </item>
            </layout>
           </widget>
-          <widget class="QWidget" name="tab_17">
-           <attribute name="title">
-            <string>Mean field type</string>
-           </attribute>
-           <layout class="QGridLayout" name="gridLayout_31">
-            <item row="0" column="0">
-             <layout class="QGridLayout" name="gridLayout_30">
-              <item row="1" column="0">
-               <widget class="QCheckBox" name="compute_anomalous">
-                <property name="toolTip">
-                 <string>Include spontaneous superconducting terms</string>
-                </property>
-                <property name="text">
-                 <string>Include anomalous terms</string>
-                </property>
-                <property name="checked">
-                 <bool>false</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="0">
-               <widget class="QCheckBox" name="compute_dd">
-                <property name="toolTip">
-                 <string>Include density-density mean fields, this include magnetization in the z-direction and density renormalization</string>
-                </property>
-                <property name="text">
-                 <string>Include density-density</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QCheckBox" name="compute_cross">
-                <property name="toolTip">
-                 <string>Include spontaneous hopping terms, this includes X/Y magnetization and spontaneous hopping</string>
-                </property>
-                <property name="text">
-                 <string>Include cross hopping terms</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QCheckBox" name="compute_normal">
-                <property name="toolTip">
-                 <string>Include normal terms in the mean field Hamiltonian</string>
-                </property>
-                <property name="text">
-                 <string>Include normal terms</string>
-                </property>
-                <property name="checked">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </widget>
          </widget>
         </item>
        </layout>

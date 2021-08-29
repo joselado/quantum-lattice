@@ -137,12 +137,11 @@ def show_berry2d():
   execute_script("ql-berry2d BERRY_MAP.OUT")
 
   
-
 def show_magnetism():
-  h = pickup_hamiltonian() # get hamiltonian
-  h.get_magnetization() # get the magnetization
-  execute_script("ql-magnetism  ")
-#  execute_script("ql-magnetism  ")
+  """Show the magnetism of the system"""
+  h = pickup_hamiltonian() # get the Hamiltonian
+  h.write_magnetization(nrep=int(get("magnetization_nrep")))
+  execute_script("ql-quiver")
 
 
 def show_structure():
@@ -190,25 +189,35 @@ def show_z2():
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
-  scfin = getbox("scf_initialization")
+#  comp = computing() # create the computing window
+  scfin = window.getbox("scf_initialization")
   h = initialize() # initialize the Hamiltonian
   mf = scftypes.guess(h,mode=scfin)
   nk = int(get("nk_scf"))
-  U = get("hubbard")
+  U = get("U")
+  V1 = get("V1")
+  V2 = get("V2")
   filling = get("filling_scf")
   filling = filling%1.
-  scf = scftypes.selfconsistency(h,nkp=nk,filling=filling,g=U,
-                mf=mf,mode="U",smearing=get("smearing_scf"),
-                mix = get("mix_scf"))
+  # flavor of the mean field
+#  compute_dd = window.is_checked("compute_dd",default=True)
+#  compute_anomalous = window.is_checked("compute_anomalous",default=False)
+#  compute_cross = window.is_checked("compute_cross",default=True)
+#  compute_normal = window.is_checked("compute_normal",default=True)
+  error = window.get("scf_error",default=1e-5) # error in the mean field
+#  if compute_anomalous: h.add_swave(0.)
+  scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+                mf=mf,load_mf=False,
+                mix = get("mix_scf"),
+                maxerror=error,
+                verbose=1,
+                )
+  mfname = scf.identify_symmetry_breaking(as_string=True)
+  window.set("identified_mean_field",mfname)
   scf.hamiltonian.save() # save in a file
 
 
 
-def show_magnetism():
-  """Show the magnetism of the system"""
-  h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization() # write the magnetism
-  execute_script("ql-moments",mayavi=True)
 
 
 

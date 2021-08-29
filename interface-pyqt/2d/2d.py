@@ -216,20 +216,17 @@ def solve_scf():
   filling = get("filling_scf")
   filling = filling%1.
   # flavor of the mean field
-  compute_dd = window.is_checked("compute_dd",default=True)
-  compute_anomalous = window.is_checked("compute_anomalous",default=False)
-  compute_cross = window.is_checked("compute_cross",default=True)
-  compute_normal = window.is_checked("compute_normal",default=True)
+#  compute_dd = window.is_checked("compute_dd",default=True)
+#  compute_anomalous = window.is_checked("compute_anomalous",default=False)
+#  compute_cross = window.is_checked("compute_cross",default=True)
+#  compute_normal = window.is_checked("compute_normal",default=True)
   error = window.get("scf_error",default=1e-5) # error in the mean field
-  if compute_anomalous: h.add_swave(0.)
+#  if compute_anomalous: h.add_swave(0.)
   scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
-                mf=mf,load_mf=False,#T=get("smearing_scf"),
+                mf=mf,load_mf=False,
                 mix = get("mix_scf"),
-                compute_dd=compute_dd,
-                compute_anomalous=compute_anomalous,
-                compute_cross=compute_cross,
-                compute_normal=compute_normal,
-                maxerror=error
+                maxerror=error,
+                verbose=1,
                 )
   mfname = scf.identify_symmetry_breaking(as_string=True)
   window.set("identified_mean_field",mfname)  
