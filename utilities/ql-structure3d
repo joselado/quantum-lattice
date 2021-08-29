@@ -1,10 +1,6 @@
 #!/mnt/extradrive/apps/anaconda3/bin/python
 
-# this script read mean_field.in and calculates the magnetism in the
-# different sites
-# it assumes that each position has spin up and down (2*i,2*i+1)
 
-lattice_color = (0,1,1) # color of the lattice
 
 import os
 #os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
@@ -13,6 +9,7 @@ import numpy as np
 
 from mayavi import mlab
 
+lattice_color = tuple(np.random.random(3))
 
 
 ################################################################################
