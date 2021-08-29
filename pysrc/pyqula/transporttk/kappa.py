@@ -2,16 +2,17 @@
 import numpy as np
 from ..parallel import pcall
 
-def get_single(HT=None,c=1.0,energies=[0.0]):
+def get_single(HT=None,c=1.0,energies=[0.0],**kwargs):
     """Get a single conductance"""
     HT.scale_rc = c # scaling
-    return np.array([HT.didv(energy=e) for e in energies]) # loop over Ts
+    return np.array([HT.didv(energy=e,**kwargs) for e in energies]) # loop over Ts
 
 
 def get_conductances(T=1e-2,**kwargs):
     """Compute Kappa by doing a log-log plot"""
     cref = T
-    ts = cref + np.exp(np.linspace(np.log(cref*0.99),np.log(cref*1.01),3)) # hoppings
+    ts = np.exp(np.linspace(np.log(cref*0.9),np.log(cref*1.1),2)) # hoppings
+#    ts = [cref*0.9,cref*1.1]
     Gs = np.array([get_single(c=t,**kwargs) for t in ts]) # compute conductance
     return ts,Gs
 
@@ -32,13 +33,13 @@ def get_kappa(**kwargs):
     return np.array(ks) # return kappa
 
 
-def get_kappa_ratio(HT,delta=1e-10,**kwargs):
-    ks1 = get_kappa(HT=generate_HT(HT,delta=delta,SC=True),**kwargs)
-    ks2 = get_kappa(HT=generate_HT(HT,delta=delta,SC=False),**kwargs)
+def get_kappa_ratio(HT,**kwargs):
+    ks1 = get_kappa(HT=generate_HT(HT,SC=True,**kwargs),**kwargs)
+    ks2 = get_kappa(HT=generate_HT(HT,SC=False,**kwargs),**kwargs)
     return ks1/ks2
 
 
-def generate_HT(ht,SC=True,delta=1e-10):
+def generate_HT(ht,SC=True,temperature=0.,**kwargs):
     """Given a heterostructure, generate a new one to compute kappa"""
     def f(h):
         h = h.copy()
@@ -49,11 +50,30 @@ def generate_HT(ht,SC=True,delta=1e-10):
     from ..heterostructures import build
     Hr = f(ht.Hr)
     Hl = f(ht.Hl)
-    hto = build(Hr,Hl) # create a new heterostructure
-    hto.delta = delta
+    hto = build(Hl,Hr) # create a new heterostructure
+    hto.delta = ht.delta
+#    hto.extra_delta_right = temperature
+#    hto.extra_delta_left = temperature
     return hto
 
 
+#### These are workrounds for more efficient finite temperature calculations ##
+## Not yet finished! ##
+
+def get_kappa_finite_temperature_energies(**kwargs):
+    """Compute kappa using temperature convolution"""
+    ts,Gs = get_conductances_finite_temp(**kwargs) # G at T=0
+    ks = []
+    for g in Gs.T: # loop over energies
+        k = get_power(ts,g)
+        ks.append(k)
+    return np.array(ks) # return kappa
 
 
+def get_kappa_finite_temperature_energies(HT,**kwargs):
+    ks1 = get_kappa_finite_temperature_energies(
+                     HT=generate_HT(HT,SC=True,**kwargs),**kwargs)
+    ks2 = get_kappa_finite_temperature_energies(
+                     HT=generate_HT(HT,SC=False,**kwargs),**kwargs)
+    return ks1/ks2
 
