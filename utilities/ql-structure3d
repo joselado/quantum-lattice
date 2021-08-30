@@ -52,7 +52,8 @@ def create_atoms(P,col=lattice_color,rad=0.55,opa=1.0,res=20,scale='none'):
 
 
 
-def bondplt(P1,P2,col=lattice_color,rad=0.15,opa=1.0):
+def bondplt(P1,P2,col=lattice_color,rad=0.15,opa=1.0,
+   tube_sides=10):
    """
      Draws a bond (cylinder) from point P1 to point P2
      P1 & P2: array-like object
@@ -60,7 +61,7 @@ def bondplt(P1,P2,col=lattice_color,rad=0.15,opa=1.0):
    mlab.plot3d([P1[0],P2[0]],[P1[1],P2[1]],[P1[2],P2[2]],
                color=col,
                tube_radius=rad,
-               opacity=opa,tube_sides=10)
+               opacity=opa,tube_sides=tube_sides)
 
 
 def get_bonds(rs1,rs2):
@@ -78,7 +79,7 @@ def get_bonds(rs1,rs2):
   return bonds
 
 
-def create_bonds(rs1,rs2):
+def create_bonds(rs1,rs2,**kwargs):
   """ Creates the bonds of the crystal """
   cylinders = []
   bonds = get_bonds(rs1,rs2) # get the atoms that are connected
@@ -86,7 +87,7 @@ def create_bonds(rs1,rs2):
     r1 = rs1[ii]
     r2 = rs2[jj]
     crad = 0.1
-    bondplt(r1,r2,rad=crad)
+    bondplt(r1,r2,rad=crad,**kwargs)
 
 
 xyz = read_positions().transpose()
@@ -94,7 +95,7 @@ create_atoms(xyz)    # plot the atoms
 rs = xyz.transpose() 
 
 if len(rs)<200:
-  create_bonds(rs,rs)
+  create_bonds(rs,rs,tube_sides=10)
 
 
 figure.scene.disable_render = False
