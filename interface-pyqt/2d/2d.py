@@ -225,8 +225,6 @@ def solve_scf():
   mfname = scf.identify_symmetry_breaking(as_string=True)
   window.set("identified_mean_field",mfname)  
   scf.hamiltonian.save() # save in a file
-#  comp.kill()
-
 
 
 def show_magnetism_3d():

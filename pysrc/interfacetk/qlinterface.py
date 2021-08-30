@@ -107,19 +107,16 @@ def execute_script(name,background=True,mayavi=False):
 
 
 def computing():
-  """Return an object that shows up a window saying computing"""
-  qlpath = get_qlroot()
-  python = get_python()
-  name = qlpath + "interface-pyqt/timer/timer.py"
-  import subprocess
-#  import psutil
-#  print(name)
-  subp = subprocess.Popen([python,name]) # execute the command
-#  p = psutil.Process(subp.pid) # return process
-  return subp
+    """Return an object that shows up a window saying computing"""
+    qlpath = get_qlroot()
+    python = get_python()
+    name = qlpath + "interface-pyqt/timer/timer.py"
+    subp = subprocess.Popen([python,name]) # execute the command
+    return subp
 
 
 def running(original):
+    """Wrapper to use a timer on a fucntion"""
     def wrapper(*args,**kwargs):
         comp = computing()
         out = original(*args,**kwargs)
