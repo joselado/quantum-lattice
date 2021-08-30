@@ -64,7 +64,6 @@ class App(QtGui.QMainWindow, interface.Ui_MainWindow):
       for d in ds2:
           bu = getattr(self,d) # label in the interface
           fun = ds2[d] # function to call
-#          self.connect(bu, SIGNAL("clicked()"),fun) # connect name to function
           bu.clicked.connect(fun) # connect name to function
 
 
