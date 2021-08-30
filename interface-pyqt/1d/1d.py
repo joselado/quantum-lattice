@@ -114,12 +114,10 @@ def show_bands():
 
 
 def show_dosbands():
-  comp = computing() # create the computing window
   h = pickup_hamiltonian() # get hamiltonian
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  comp.kill()
   execute_script("ql-dosbands1d  KDOS_BANDS.OUT ")
 
 
@@ -191,7 +189,6 @@ def show_structure_3d():
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
-  comp = computing() # create the computing window
   scfin = getbox("scf_initialization")
   h = initialize() # initialize the Hamiltonian
   mf = scftypes.guess(h,mode=scfin)
@@ -203,7 +200,6 @@ def solve_scf():
                 mf=mf,T=get("smearing_scf"),
                 mix = get("mix_scf"))
   scf.hamiltonian.save() # save in a file
-  comp.kill()
 
 
 
