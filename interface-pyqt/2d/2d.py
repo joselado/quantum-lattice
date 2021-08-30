@@ -17,7 +17,7 @@ window = qtwrap.main() # this is the main interface
 
 
 
-from interfacetk.qh_interface import * # import all the libraries needed
+from interfacetk.qlinterface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 
 common.initialize(qtwrap) # do several common initializations
@@ -114,12 +114,9 @@ def special_pairing(h):
 
 
 
-
 def show_bands():
-  comp = computing() # create the computing window
   h = pickup_hamiltonian() # get hamiltonian
   common.get_bands(h,qtwrap) # get the band structure
-  comp.kill()
 
 
 
@@ -161,9 +158,7 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-#  execute_script("ql-light-structure POSITIONS.OUT")
   execute_script("ql-structure-bond --input POSITIONS.OUT")
-#  execute_script("ql-structure  ")
 
 
 
@@ -205,7 +200,6 @@ def show_qpi():
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
-#  comp = computing() # create the computing window
   scfin = window.getbox("scf_initialization")
   h = initialize() # initialize the Hamiltonian
   mf = scftypes.guess(h,mode=scfin)

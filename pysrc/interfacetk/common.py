@@ -1,4 +1,4 @@
-from .qh_interface import execute_script
+from .qlinterface import execute_script
 import numpy as np
 from pyqula import klist
 from .qh_interface import *

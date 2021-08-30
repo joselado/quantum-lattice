@@ -16,6 +16,7 @@ import numpy as np
 import os
 
 from numpy import * # this may not be a good idea
+from .qlinterface import running
 
 
 # This file holds our MainWindow and all interface related things
@@ -27,7 +28,7 @@ app = QtWidgets.QApplication(sys.argv)  # A new instance of QApplication
 
 def get_failsafe(f,robust=True):
     """Return a function that if fails things do not break down"""
-    def fout():
+    def fout(*args,**kwargs):
         if not robust: return f()
         try: f()
         except: 
@@ -58,7 +59,8 @@ class App(QtGui.QMainWindow, interface.Ui_MainWindow):
     def connect_clicks(self,ds,robust=True):
       """Connect the different functions"""
       ds2 = dict()
-      for d in ds: ds2[d] = get_failsafe(ds[d],robust=robust) 
+      for d in ds: 
+          ds2[d] = get_failsafe(running(ds[d]),robust=robust) 
       for d in ds2:
           bu = getattr(self,d) # label in the interface
           fun = ds2[d] # function to call
