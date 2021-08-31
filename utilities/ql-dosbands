@@ -1,4 +1,4 @@
-
+#!/usr/bin/python
 
 import pylab as py
 import matplotlib.pyplot as plt

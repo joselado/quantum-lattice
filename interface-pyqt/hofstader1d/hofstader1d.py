@@ -104,7 +104,7 @@ def show_dosbands():
   kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
                    ne=int(get("ne_kbands")),delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
-  execute_script("ql-dosbands1d  KDOS_BANDS.OUT ")
+  execute_script("ql-dosbands1d --input KDOS_BANDS.OUT ")
 
 
 

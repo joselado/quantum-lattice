@@ -1,77 +1,101 @@
 #!/mnt/extradrive/apps/anaconda3/bin/python
 
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="KDOS_BANDS.OUT",help='Input file')
+parser.add_argument("--title",default="Momentum DOS",help='Title')
+args = parser.parse_args() # get the arguments
 
-import pylab as py
+import matplotlib.pyplot as plt
 import sys
 import numpy as np
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
 matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
-fig = py.figure()
-fig.subplots_adjust(0.2,0.2)
+
+name = args.input # input file
+
+m = np.genfromtxt(name).transpose()
+
+def getplot(obj):
+    fig = plt.figure(obj.figure.number)
+    
+    x = m[0]
+    y = m[1]
+    z = m[2]
+    
+    # get dimensions assuming uniform grid
+    
+      
+    ny = (y.max()-y.min())/abs(y[1]-y[0])
+    ny = int(round(ny)) + 1
+    nx = len(z)/ny
+    
+    nx = int(nx)
+    ny = int(ny)
+    
+    #nx = 20
+    #ny = len(z)//nx
+    
+    
+    
+    print("Detected",nx,ny,"grid")
+    
+    Z = np.abs(z).reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+    Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
+    T = Z.T              # transposes the matrix (Zx,Zy)
+    
+    # now interpolate to get a smooth mesh
+    from scipy.interpolate import interp2d
+    x = np.linspace(0.,1.,nx)
+    y = np.linspace(0.,1.,ny)
+    xx, yy = np.meshgrid(x, y)
+    f = interp2d(x, y, T, kind='linear')
+    
+    # 
+    x = np.linspace(0.,1.,1000)
+    y = np.linspace(0.,1.,1000)
+    
+    z_inter = f(x,y)
+    
+    # now plot the data
+    
+    vmax = np.percentile(z_inter,95)
+    
+    minx = np.min(m[0])
+    maxx = np.max(m[0])
+    miny = np.min(m[1])
+    maxy = np.max(m[1])
+    plt.imshow(z_inter, aspect='auto', origin='lower',
+             cmap = plt.get_cmap(obj.get_combobox("cmap")),
+             extent = ( minx, maxx, miny, maxy),
+             interpolation='nearest',
+             vmax=vmax)
+    #py.xticks([])
+    #py.yticks([])
+    
+    plt.ylabel("Energy [t]")
+    plt.xlabel("k/(2$\\pi)$")
+    return fig
 
 
 
+# now create the interface
+import os
+import sys
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+app,window = plotpyqt.get_interface(getplot)
+#window.add_slider(label="Saturation",vs=np.linspace(0.,1.,100),v0=0.95)
+window.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
+#window.add_combobox(["bicubic","none"],label="Interpolation")
+window.setWindowTitle(args.title)
 
-fig.set_facecolor("white")
-
-name = sys.argv[1]  # name of the file
-
-m = py.genfromtxt(name).transpose()
-x = m[0]
-y = m[1]
-z = m[2]
-
-# get dimensions assuming uniform grid
-
-  
-ny = (y.max()-y.min())/abs(y[1]-y[0])
-ny = int(round(ny)) + 1
-nx = len(z)/ny
-
-nx = int(nx)
-ny = int(ny)
-
-#nx = 20
-#ny = len(z)//nx
+window.plot()
+window.show()
+sys.exit(app.exec_())
 
 
 
-print("Detected",nx,ny,"grid")
-
-Z = np.abs(z).reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
-Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
-T = Z.T              # transposes the matrix (Zx,Zy)
-
-# now interpolate to get a smooth mesh
-from scipy.interpolate import interp2d
-x = np.linspace(0.,1.,nx)
-y = np.linspace(0.,1.,ny)
-xx, yy = np.meshgrid(x, y)
-f = interp2d(x, y, T, kind='linear')
-
-# 
-x = np.linspace(0.,1.,1000)
-y = np.linspace(0.,1.,1000)
-
-z_inter = f(x,y)
-
-# now plot the data
-
-vmax = np.percentile(z_inter,95)
-
-#py.subplot(1,2,1)
-#py.contour(x,y,z_inter,300,cmap = py.get_cmap("hot"))
-minx = np.min(m[0])
-maxx = np.max(m[0])
-miny = np.min(m[1])
-maxy = np.max(m[1])
-py.imshow(z_inter, aspect='auto', origin='lower',cmap = py.get_cmap("hot"), extent = ( minx, maxx, miny, maxy),interpolation='nearest',vmax=vmax)
-#py.xticks([])
-#py.yticks([])
-
-py.ylabel("Energy [t]")
-py.xlabel("k/(2$\\pi)$")
-
-
-py.show()
