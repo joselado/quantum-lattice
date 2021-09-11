@@ -6,9 +6,9 @@ from . import filesystem as fs
 import signal
 import subprocess
 
-srcpath = os.path.dirname(os.path.realpath(__file__)) 
+srcpath = os.path.dirname(os.path.realpath(__file__))+"/.." 
 
-#pickle.settings['recurse'] = True
+pickle.settings['recurse'] = True
 
 def pcall(fin,xs,batch_size=1,**kwargs):
     """Wrapper to allow for a batch size"""
@@ -34,7 +34,7 @@ def pcall_single(fin,xs,time=10,error=None):
     n = len(xs) # number of calculations
     f = lambda x: fin(x)
     main = "import dill as pickle\nimport os\n"
-    main += "import sys ; sys.path.append("+srcpath+")\n"
+    main += "import sys ; sys.path.append('"+srcpath+"')\n"
     main += "try: ii = int(os.environ['SLURM_ARRAY_TASK_ID'])\n"
     main += "except: ii = 0\n"
     main += "f = pickle.load(open('function.obj','rb'))\n"

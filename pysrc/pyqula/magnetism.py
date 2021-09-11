@@ -30,20 +30,17 @@ def add_zeeman(h,zeeman=[0.0,0.0,0.0]):
     else: return np.array([0.,0.,z]) # just a number
   from scipy.sparse import coo_matrix as coo
   from scipy.sparse import bmat
-  if h.has_spin: # only if the system has spin
-   # no = h.num_orbitals # number of orbitals (without spin)
-    no = len(h.geometry.r) # number of orbitals (without spin)
-    # create matrix to add to the hamiltonian
-    bzee = [[None for i in range(no)] for j in range(no)]
-    # assign diagonal terms
-    r = h.geometry.r  # z position
-    for i in range(no):
-        JJ = evaluate_J(zeeman,r[i],i) # evaluate the exchange
-        bzee[i][i] = JJ[0]*sx+JJ[1]*sy+JJ[2]*sz
-    bzee = bmat(bzee) # create matrix
-    h.intra = h.intra + h.spinful2full(bzee) # Add matrix 
-  if not h.has_spin:  # still have to implement this...
-    raise
+  if not h.has_spin:  h.turn_spinful()
+  no = len(h.geometry.r) # number of orbitals (without spin)
+  # create matrix to add to the hamiltonian
+  bzee = [[None for i in range(no)] for j in range(no)]
+  # assign diagonal terms
+  r = h.geometry.r  # z position
+  for i in range(no):
+      JJ = evaluate_J(zeeman,r[i],i) # evaluate the exchange
+      bzee[i][i] = JJ[0]*sx+JJ[1]*sy+JJ[2]*sz
+  bzee = bmat(bzee) # create matrix
+  h.intra = h.intra + h.spinful2full(bzee) # Add matrix 
 
 
 
@@ -137,27 +134,15 @@ def add_frustrated_antiferromagnetism(h,m):
 
 
 
-def get_magnetization(h,nkp=20):
+def compute_magnetization(h,**kwargs):
   """Return the magnetization of the system"""
-  totkp = nkp**(h.dimensionality)
-  nat = h.intra.shape[0]//2 # number of atoms
-  eigvals,eigvecs = h.get_eigenvectors(nk=nkp)
-  voccs = [] # accupied vectors
-  eoccs = [] # accupied eigenvalues
-  occs = [] # accupied eigenvalues
-  for (e,v) in zip(eigvals,eigvecs): # loop over eigenvals,eigenvecs
-    if e<0.0000001:  # if level is filled, add contribution
-      voccs.append(v) # store
-      eoccs.append(e) # store
-  pdup = np.array([[2*i,2*i] for i in range(nat)]) # up density
-  pddn = pdup + 1 # down density
-  pxc = np.array([[2*i,2*i+1] for i in range(nat)]) # exchange
-  from . import correlatorsf90
-  vdup = correlatorsf90.correlators(voccs,pdup)/totkp
-  vddn = correlatorsf90.correlators(voccs,pddn)/totkp
-  vxc = correlatorsf90.correlators(voccs,pxc)/totkp
-  magnetization = np.array([vxc.real,vxc.imag,vdup-vddn]).transpose().real
-  from .scftypes import write_magnetization
-  write_magnetization(magnetization)
-
+  if not h.has_spin: raise # meaningless
+  if h.has_eh: raise # not implemented
+  from .densitymatrix import full_dm
+  dm = full_dm(h,**kwargs) # compute density matrix
+  n = dm.shape[0]//2 # number of orbitals
+  mz = np.array([dm[2*i,2*i] - dm[2*i+1,2*i+1] for i in range(n)])/2..real
+  mx = np.array([dm[2*i,2*i+1].real for i in range(n)])
+  my = np.array([dm[2*i,2*i+1].imag for i in range(n)])
+  return (mx,my,mz)
 
