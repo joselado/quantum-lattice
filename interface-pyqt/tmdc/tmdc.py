@@ -45,10 +45,8 @@ def initialize():
 
 
 def show_bands():
-  comp = computing() # create the computing window
   h = pickup_hamiltonian() # get hamiltonian
   common.get_bands(h,qtwrap) # get the band structure
-  comp.kill()
 
 
 
