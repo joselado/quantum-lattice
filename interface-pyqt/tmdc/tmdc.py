@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-from __future__ import print_function
-
 import sys
 import os
 
@@ -16,7 +14,7 @@ getbox = qtwrap.getbox  # get the value of a certain variable
 window = qtwrap.main() # this is the main interface
 
 
-from interfacetk.qh_interface import * # import all the libraries needed
+from interfacetk.ql_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 
 common.initialize(qtwrap) # do several common initializations

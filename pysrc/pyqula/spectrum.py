@@ -19,10 +19,13 @@ arpack_maxiter = 10000
 def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
                     e=0.0,nk=50,nsuper=1,reciprocal=True,
                     delta=None,refine_delta=1.0,operator=None,
-                    mode='full',num_waves=2,info=True):
+                    mode='eigen',num_waves=2,info=True):
   """Calculates the Fermi surface of a 2d system"""
-  if operator is None:
-    operator = np.matrix(np.identity(h.intra.shape[0]))
+  if operator is not None: # operator given
+      if mode=="eigen": mode = "full" # redefine
+  else: # no operator given
+      if mode=="full":
+          operator = np.matrix(np.identity(h.intra.shape[0]))
   if h.dimensionality!=2: raise  # continue if two dimensional
   hk_gen = h.get_hk_gen() # gets the function to generate h(k)
   kxs = np.linspace(-nsuper,nsuper,nk)  # generate kx
@@ -36,16 +39,19 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
   if delta is None:
  #   delta = 1./refine_delta*2.*np.max(np.abs(h.intra))/nk
     delta = 1./refine_delta*2./nk
-
   #### function to calculate the weight ###
   if mode=='full': # use full inversion
     def get_weight(hk):
-      gf = ((e+1j*delta)*iden - hk).I # get green function
+      gf = algebra.inv((e+1j*delta)*iden - hk) # get green function
       if callable(operator):
         tdos = -(operator(x,y)*gf).imag # get imaginary part
       else: tdos = -(operator*gf).imag # get imaginary part
-      return tdos.trace()[0,0].real # return traze
-  elif mode=='lowest': # use full inversion
+      return np.trace(tdos).real # return traze
+  elif mode=='eigen': # use full diagonalization
+    def get_weight(hk):
+      es = algebra.eigvalsh(hk)
+      return np.sum(delta/((e-es)**2+delta**2)) # return weight
+  elif mode=='lowest': # use sparse diagonalization
     def get_weight(hk):
       es,waves = slg.eigsh(hk,k=num_waves,sigma=e,tol=arpack_tol,which="LM",
                             maxiter = arpack_maxiter)
@@ -62,6 +68,7 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
     for y in kxs:
       rs.append([x,y,0.]) # store
   def getf(r): # function to compute FS
+      if info: print("Doing",r)
       rm = np.matrix(r).T
       k = np.array((R*rm).T)[0] # change of basis
       hk = hk_gen(k) # get hamiltonian
@@ -73,7 +80,6 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
   if parallel.cores==1: # serial execution
       kdos = [] # empty list
       for r in rs: # loop
-        if info: print("Doing",r)
         kdos.append(getf(r)) # add to the list
   else: # parallel execution
       kdos = parallel.pcall(getf,rs) # compute all
@@ -401,8 +407,22 @@ def singlet_map(h,nk=40,nsuper=3,mode="abs"):
       if mode=="trace": return ud.trace()[0,0] # trace
       elif mode=="det": return np.linalg.det(ud) # trace
       elif mode=="abs": return np.sum(np.abs(ud)) # trace
-    reciprocal_map(h,f,nk=nk,nsuper=nsuper,filename="PAIRING_MAP.OUT")
+    reciprocal_map(h,f,nk=nk,nsuper=nsuper,filename="SINGLET_MAP.OUT")
 
+
+
+def pairing_map(h,**kwargs):
+    """Compute a map with the superconducting singlet pairing"""
+    h0 = h.copy()
+    h0.remove_nambu()
+    h0.setup_nambu_spinor()
+    h = h - h0 # get only the pairing
+    hk = h.get_hk_gen() # get function
+    def f(k): # define function
+        m = hk(k) # call Hamiltonian
+        es = algebra.eigvalsh(m)
+        return np.max(np.abs(es))
+    reciprocal_map(h,f,filename="PAIRING_MAP.OUT",**kwargs)
 
 
 

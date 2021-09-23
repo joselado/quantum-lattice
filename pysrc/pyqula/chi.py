@@ -3,12 +3,15 @@ import scipy.linalg as lg
 from . import parallel
 from numba import jit
 
+
 try:
     from . import chif90
     use_fortran = True
 except:
     use_fortran = False
-    print("Error, chif90 not found")
+#    print("Error, chif90 not found")
+
+use_fortran = False
 
 
 def chargechi(h,i=0,j=0,es=np.linspace(-3.0,3.0,100),delta=0.01,temp=1e-7):
@@ -20,11 +23,11 @@ def chargechi(h,i=0,j=0,es=np.linspace(-3.0,3.0,100),delta=0.01,temp=1e-7):
     ws = np.transpose(ws)
     if i<0: raise
     if j<0: raise
-    if use_fortran:
-      return es,chif90.elementchi(ws,esh,ws,esh,es,i+1,j+1,temp,delta)
-    else:
-      out = 0*es + 0j # initialize
-      return es,elementchi(ws,esh,ws,esh,es,i,j,temp,delta,out)
+#    if use_fortran:
+#      return es,chif90.elementchi(ws,esh,ws,esh,es,i+1,j+1,temp,delta)
+#    else:
+    out = 0*es + 0j # initialize
+    return es,elementchi(ws,esh,ws,esh,es,i,j,temp,delta,out)
 
 @jit(nopython=True)
 def elementchi(ws1,es1,ws2,es2,omegas,ii,jj,T,delta,out):
@@ -67,7 +70,7 @@ def chargechi_row(h,i=0,es=np.linspace(-3.0,3.0,100),delta=1e-6,temp=1e-7):
     ws = np.transpose(ws)
     out = [] # store
     if i<0: raise
-    f = lambda j: chif90.elementchi(ws,esh,ws,esh,es,i+1,j+1,temp,delta)
+    f = lambda j: elementchi(ws,esh,ws,esh,es,i+1,j+1,temp,delta)
     out = parallel.pcall(f,range(m.shape[0])) # parallel call
     return np.array(out)
 
@@ -112,6 +115,84 @@ def chargechi_reciprocal(h,i=None,
           fo.write(str(es[j])+"  ")
           fo.write(str(np.abs(fcs[j][i]))+"\n")
     fo.close()
+
+
+
+def chiAB(h,energies=np.linspace(-3.0,3.0,100),q=[0.,0.,0.],nk=60,
+               delta=0.1,temp=1e-7,A=None,B=None,projs=None,
+               mode="matrix"):
+    """Compute AB response function
+       - energies: energies of the dynamical response
+       - q: q-vector of the response
+       - nk: number of k-points for the integration
+       - delta: imaginary part
+       - A: first operator
+       - B: second operator
+       - projs: projection operators
+       - mode: response to compute"""
+    hk = h.get_hk_gen() # get generator
+    if A is None or B is None:
+        A = np.identity(h.intra.shape[0],dtype=np.complex)
+        B = A # initial operator
+    # generate the projectors
+    if projs is None:
+        from . import operators
+        projs = [operators.index(h,n=[i]) for i in range(len(h.geometry.r))]
+    def getk(k):
+        m1 = hk(k) # get Hamiltonian
+        es1,ws1 = lg.eigh(m1)
+        ws1 = ws1.T
+        m2 = hk(k+q) # get Hamiltonian
+        es2,ws2 = lg.eigh(m2)
+        ws2 = ws2.T
+        def getAB(Ai,Bj): # compute for a single operator
+            out = 0*energies + 0j # initialize
+            return chiAB_jit(ws1,es1,ws2,es2,energies,Ai,Bj,temp,delta,out)
+        if mode=="matrix": # return a matrix
+            out = np.array([[getAB(pi@A,pj@B) for pi in projs] for pj in projs])
+            return np.transpose(out,(2,0,1)) # return array of matrices
+        elif mode=="trace": # return the trace
+            out = np.array([getAB(pi@A,pi@B) for pi in projs])
+            return np.mean(out,axis=0) # sum over the first axis
+        else: raise # not implemented
+    ks = h.geometry.get_kmesh(nk=nk) # get the kmesh
+    out = np.mean([getk(k) for k in ks],axis=0) # sum over kpoints
+    return out
+
+
+def chiAB_trace(h,**kwargs):
+    """Compute the trace of chiAB"""
+    return chiAB(h,mode="trace",**kwargs)
+
+
+
+
+def chiABmap(h,energies=np.linspace(-3.0,3.0,100),nq=30,
+                qpath=None,**kwargs):
+    """Return the map for the response function"""
+    if qpath is None: qpath = h.geometry.get_default_kpath(nk=nq)
+    return None
+
+
+
+@jit(nopython=True)
+def chiAB_jit(ws1,es1,ws2,es2,omegas,A,B,T,delta,out):
+    """Compute the response function"""
+    out  = out*0.0 # initialize
+    n = len(ws1) # number of wavefunctions
+    for i in range(n):
+      if es1[i]<0.0: oi = 1.0 # first occupation
+      else: oi = 0.0
+      for j in range(n):
+          if es2[j]<0.0: oj = 1.0 # second occupation
+          else: oj = 0.0
+          fac = np.conjugate(ws1[i]).dot(A@ws2[j]) # add the factor
+          fac *= np.conjugate(ws2[j]).dot(B@ws1[i]) # add the factor
+          fac *= oi - oj # occupation factor
+          out = out + fac*(1./(es1[i]-es2[j] - omegas + 1j*delta))
+    return out
+
+
 
 
 
