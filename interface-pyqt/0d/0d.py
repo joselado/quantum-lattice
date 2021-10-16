@@ -153,9 +153,9 @@ def show_structure():
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
-#  execute_script("ql-light-structure POSITIONS.OUT")
   execute_script("ql-structure-bond --input POSITIONS.OUT")
-#  execute_script("ql-structure  ")
+
+
 
 
 
@@ -193,6 +193,12 @@ def show_magnetism():
   execute_script("ql-moments",mayavi=True)
 
 
+def show_hoppings():
+  """Show the lattice of the system"""
+  h = pickup_hamiltonian() # get the Hamiltonian
+  h.write_hopping()
+  execute_script("ql-network --input HOPPING.OUT")
+
 
 def show_dos():
   h = pickup_hamiltonian() # get hamiltonian
@@ -221,6 +227,7 @@ signals["solve_scf"] = solve_scf
 signals["show_bands"] = show_bands  # show bandstructure
 signals["show_structure"] = show_structure  # show bandstructure
 signals["show_dos"] = show_dos  # show DOS
+signals["show_hoppings"] = show_hoppings  # show DOS
 signals["show_structure_3d"] = show_structure_3d
 signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
 signals["show_magnetism"] = show_magnetism

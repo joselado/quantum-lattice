@@ -9,11 +9,20 @@ import sys
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
 
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="HOPPINGS.OUT",
+        help='Input file')
+args = parser.parse_args() # get the arguments
+
+name = args.input # name of the file
+
 fig = plt.figure()
 
 fig.set_facecolor("white") # white
 
-name = sys.argv[1] # name of the file
+
 
 m = np.genfromtxt(name).transpose() # read file
 x1 = m[0] # x position
@@ -24,7 +33,9 @@ ts = m[4] # weight of the link
 ts = np.round(ts,5)
 print("Minimum Hopping",np.min(ts))
 print("Maximum Hopping",np.max(ts))
-cs = ts-np.min(ts) ; cs = cs/np.max(cs)
+cs = ts-np.min(ts) 
+if np.max(cs)>1e-4:  cs = cs/np.max(cs)
+else: cs = cs + 1.0
 ls = np.tanh(10*ts)
 
 
