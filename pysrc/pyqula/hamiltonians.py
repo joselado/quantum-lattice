@@ -68,9 +68,12 @@ class Hamiltonian():
     def get_eigenvectors(self,**kwargs):
         from .htk.eigenvectors import get_eigenvectors
         return get_eigenvectors(self,**kwargs)
-    def modify_hamiltonian_matrices(self,f):
+    def modify_hamiltonian_matrices(self,f,**kwargs):
         """Modify all the matrices of a Hamiltonian"""
-        modify_hamiltonian_matrices(self,f)
+        modify_hamiltonian_matrices(self,f,**kwargs)
+    def add_strain(self,fs):
+        from .strain import add_strain
+        add_strain(self,fs) 
     def remove_sites(self,store):
         from . import sculpt
         self.geometry = sculpt.remove_sites(self.geometry,store)
@@ -111,7 +114,8 @@ class Hamiltonian():
     def set_multihopping(self,mh):
         """Set a multihopping as the Hamiltonian"""
         multicell.set_multihopping(self,mh)
-
+    def get_berry_curvature(self,**kwargs):
+        return topology.write_berry(self,**kwargs)
     @get_docstring(spectrum.set_filling)
     def set_filling(self,filling,**kwargs):
         spectrum.set_filling(self,filling=filling,**kwargs)
@@ -245,7 +249,7 @@ class Hamiltonian():
     def get_gap(self,**kwargs):
       """Returns the gap of the Hamiltonian"""
       from . import gap
-      return gap.indirect_gap(self,**kwargs) # return the gap
+      return gap.get_gap(self,**kwargs) # return the gap
     def save(self,output_file="hamiltonian.pkl"):
       """ Write the hamiltonian in a file"""
       inout.save(self,output_file) # write in a file
@@ -396,6 +400,8 @@ class Hamiltonian():
       """Adds Rashba coupling"""
       from . import rashba
       rashba.add_rashba(self,c)
+    def add_soc(self,t,**kwargs):
+      self.add_kane_mele(t,**kwargs)
     def add_kane_mele(self,t,**kwargs):
       """ Adds a Kane-Mele SOC term"""  
       kanemele.add_kane_mele(self,t,**kwargs) # return kane-mele SOC

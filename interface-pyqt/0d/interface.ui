@@ -33,35 +33,35 @@
        <layout class="QGridLayout" name="gridLayout_8">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout">
-          <item row="5" column="1">
+          <item row="6" column="1">
            <widget class="QLineEdit" name="Bz">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
+          <item row="4" column="1">
            <widget class="QLineEdit" name="Bx">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="5" column="0">
+          <item row="6" column="0">
            <widget class="QLabel" name="label_5">
             <property name="text">
              <string>Zeeman Jz</string>
             </property>
            </widget>
           </item>
-          <item row="10" column="1">
+          <item row="11" column="1">
            <widget class="QLineEdit" name="mAB">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="1">
+          <item row="5" column="1">
            <widget class="QLineEdit" name="By">
             <property name="text">
              <string>0.0</string>
@@ -75,7 +75,7 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
+          <item row="3" column="1">
            <widget class="QLineEdit" name="peierls">
             <property name="enabled">
              <bool>true</bool>
@@ -85,28 +85,28 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="1">
+          <item row="8" column="1">
            <widget class="QLineEdit" name="kanemele">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="8" column="0">
+          <item row="9" column="0">
            <widget class="QLabel" name="label_24">
             <property name="text">
              <string>Haldane</string>
             </property>
            </widget>
           </item>
-          <item row="9" column="1">
+          <item row="10" column="1">
            <widget class="QLineEdit" name="antihaldane">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="12" column="0">
+          <item row="13" column="0">
            <widget class="QLabel" name="label_26">
             <property name="text">
              <string>swave superconductivity</string>
@@ -123,115 +123,129 @@
             </property>
            </widget>
           </item>
-          <item row="6" column="1">
+          <item row="7" column="1">
            <widget class="QLineEdit" name="rashba">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="8" column="1">
+          <item row="9" column="1">
            <widget class="QLineEdit" name="haldane">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="11" column="1">
+          <item row="12" column="1">
            <widget class="QLineEdit" name="mAF">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="6" column="0">
+          <item row="7" column="0">
            <widget class="QLabel" name="label_10">
             <property name="text">
              <string>Rashba</string>
             </property>
            </widget>
           </item>
-          <item row="7" column="0">
+          <item row="8" column="0">
            <widget class="QLabel" name="label_11">
             <property name="text">
              <string>Kane-Mele</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="0">
+          <item row="4" column="0">
            <widget class="QLabel" name="label_3">
             <property name="text">
              <string>Zeeman Jx</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
+          <item row="5" column="0">
            <widget class="QLabel" name="label_4">
             <property name="text">
              <string>Zeeman Jy</string>
             </property>
            </widget>
           </item>
-          <item row="10" column="0">
+          <item row="11" column="0">
            <widget class="QLabel" name="label_12">
             <property name="text">
              <string>Sublattice imbalance</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
+          <item row="3" column="0">
            <widget class="QLabel" name="label_14">
             <property name="text">
              <string>Magnetic field</string>
             </property>
            </widget>
           </item>
-          <item row="12" column="1">
+          <item row="13" column="1">
            <widget class="QLineEdit" name="swave">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="11" column="0">
+          <item row="12" column="0">
            <widget class="QLabel" name="label_13">
             <property name="text">
              <string>Antiferromagnetism</string>
             </property>
            </widget>
           </item>
-          <item row="9" column="0">
+          <item row="10" column="0">
            <widget class="QLabel" name="label_25">
             <property name="text">
              <string>Anti-Haldane</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="2" column="1">
            <widget class="QLineEdit" name="crystalfield">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="0">
+          <item row="2" column="0">
            <widget class="QLabel" name="label_17">
             <property name="text">
              <string>Crystal field</string>
             </property>
            </widget>
           </item>
-          <item row="13" column="1">
+          <item row="14" column="1">
            <widget class="QLineEdit" name="pwave">
             <property name="text">
              <string>0.0,0.0,0.0</string>
             </property>
            </widget>
           </item>
-          <item row="13" column="0">
+          <item row="14" column="0">
            <widget class="QLabel" name="label_37">
             <property name="text">
              <string>pwave superconductivity</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="hoppings">
+            <property name="text">
+             <string>1.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_38">
+            <property name="text">
+             <string>Hoppings</string>
             </property>
            </widget>
           </item>
@@ -246,33 +260,44 @@
        <layout class="QGridLayout" name="gridLayout_25">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_24">
-          <item row="1" column="0">
-           <widget class="QLabel" name="label_36">
-            <property name="text">
-             <string>Third neighbor hopping</string>
-            </property>
-           </widget>
-          </item>
           <item row="0" column="0">
            <widget class="QLabel" name="label_35">
             <property name="text">
-             <string>Second neighbor hopping</string>
+             <string>Non-uniform strain</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="t2">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QLineEdit" name="t3">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
+           <layout class="QGridLayout" name="gridLayout_27">
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="strain_strength">
+              <property name="text">
+               <string>0.0</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_36">
+              <property name="text">
+               <string>Strength</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="label_39">
+              <property name="text">
+               <string>Decay length</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLineEdit" name="strain_decay">
+              <property name="text">
+               <string>3.0</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </item>

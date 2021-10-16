@@ -16,7 +16,7 @@ window = qtwrap.main() # this is the main interface
 
 
 
-from interfacetk.qh_interface import * # import all the libraries needed
+from interfacetk.ql_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # several initilizations
 
@@ -108,30 +108,28 @@ def modify_geometry(g):
 
 
 def initialize():
-  """ Initialize the calculation"""
-  g = get_geometry() # get the geometry
-  t2,t3 = get("t2"),get("t3") # get hoppings
-  if t2!=0.0 or t3!=0.0:
-      ts = [1.,t2,t3]
-      fm = specialhopping.neighbor_hopping_matrix(g,ts)
-      h = g.get_hamiltonian(mgenerator=fm,has_spin=True)
-  else:
-      h = g.get_hamiltonian(has_spin=True)
-  h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
-  h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-  h.add_rashba(get("rashba"))  # Rashba field
-  h.add_antiferromagnetism(get("mAF"))  # AF order
-  h.add_crystal_field(qtwrap.get("crystalfield")) # add magnetic field
-  h.shift_fermi(get("fermi")) # shift fermi energy
-  h.add_kane_mele(get("kanemele")) # intrinsic SOC
-  h.add_haldane(get("haldane")) # intrinsic SOC
-  h.add_antihaldane(get("antihaldane")) 
-  h.add_peierls(get("peierls")) # magnetic field
-  if get("swave")!=0.0: h.add_swave(get("swave")) 
-  p = qtwrap.get_array("pwave")
-  if np.sum(np.abs(p))>0.0:
-      h.add_pairing(d=p,mode="triplet",delta=1.0)
-  return h
+    """ Initialize the calculation"""
+    g = get_geometry() # get the geometry
+    h = g.get_hamiltonian(has_spin=True,ts=qtwrap.get_array("hoppings"))
+    h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
+    h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+    h.add_rashba(get("rashba"))  # Rashba field
+    h.add_antiferromagnetism(get("mAF"))  # AF order
+    h.add_crystal_field(qtwrap.get("crystalfield")) # add magnetic field
+    h.shift_fermi(get("fermi")) # shift fermi energy
+    h.add_kane_mele(get("kanemele")) # intrinsic SOC
+    h.add_haldane(get("haldane")) # intrinsic SOC
+    h.add_antihaldane(get("antihaldane")) 
+    h.add_peierls(get("peierls")) # magnetic field
+    if get("strain_strength")!=0.0:
+          fs = potentials.radial_decay(v0=1.+get("strain_strength"),
+                     voo=1.0,rl=get("strain_decay"))
+          h.add_strain(fs)
+    if get("swave")!=0.0: h.add_swave(get("swave")) 
+    p = qtwrap.get_array("pwave")
+    if np.sum(np.abs(p))>0.0:
+        h.add_pairing(d=p,mode="triplet",delta=1.0)
+    return h
 
 
 def show_bands():
