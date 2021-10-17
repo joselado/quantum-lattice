@@ -121,10 +121,7 @@ def initialize():
     h.add_haldane(get("haldane")) # intrinsic SOC
     h.add_antihaldane(get("antihaldane")) 
     h.add_peierls(get("peierls")) # magnetic field
-    if get("strain_strength")!=0.0:
-          fs = potentials.radial_decay(v0=1.+get("strain_strength"),
-                     voo=1.0,rl=get("strain_decay"))
-          h.add_strain(fs)
+    common.add_strain(h,window) # add strain
     if get("swave")!=0.0: h.add_swave(get("swave")) 
     p = qtwrap.get_array("pwave")
     if np.sum(np.abs(p))>0.0:

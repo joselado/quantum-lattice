@@ -297,10 +297,31 @@
               </property>
              </widget>
             </item>
-            <item row="2" column="0" colspan="2">
+            <item row="3" column="0" colspan="2">
              <widget class="QPushButton" name="show_hoppings">
               <property name="text">
                <string>Show hoppings</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="strain_type">
+              <item>
+               <property name="text">
+                <string>Radial scalar</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Radial vector</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="label_42">
+              <property name="text">
+               <string>Strain type</string>
               </property>
              </widget>
             </item>

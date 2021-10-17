@@ -5,59 +5,79 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
+# plotpyqt
+import os
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+###
+
+
 # change the font size
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
 
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--input",default="HOPPINGS.OUT",
+parser.add_argument("--input",default="HOPPING.OUT",
         help='Input file')
 args = parser.parse_args() # get the arguments
 
 name = args.input # name of the file
 
-fig = plt.figure()
-
-fig.set_facecolor("white") # white
-
-
-
 m = np.genfromtxt(name).transpose() # read file
-x1 = m[0] # x position
-y1 = m[1] # y position
-x2 = m[2] # z position
-y2 = m[3] # z position
-ts = m[4] # weight of the link
-ts = np.round(ts,5)
-print("Minimum Hopping",np.min(ts))
-print("Maximum Hopping",np.max(ts))
-cs = ts-np.min(ts) 
-if np.max(cs)>1e-4:  cs = cs/np.max(cs)
-else: cs = cs + 1.0
-ls = np.tanh(10*ts)
 
+def getplot(obj):
+    fig = plt.figure(obj.figure.number)
+    fig.clear()
+    x1 = m[0] # x position
+    y1 = m[1] # y position
+    x2 = m[2] # z position
+    y2 = m[3] # z position
+    ts = m[4] # weight of the link
+    ts = np.round(ts,5)
+    print("Minimum Hopping",np.min(ts))
+    print("Maximum Hopping",np.max(ts))
+    cs = ts-np.min(ts) 
+    if np.max(cs)>1e-4:  cs = cs/np.max(cs)
+    else: cs = cs + 1.0
+    ls = np.tanh(10*ts)
+    
+    
+    cmap = obj.get_combobox("cmap") 
+    cmap = matplotlib.cm.get_cmap(cmap)
+    #cmap = matplotlib.cm.get_cmap('jet')
+    size = obj.get_slider("size")
+    for i in range(len(x1)): # loop over pairs
+      x = [x1[i],x2[i]]
+      y = [y1[i],y2[i]]
+      plt.plot(x,y,c=cmap(cs[i]),linewidth=size*abs(ls[i])*4)
+    
+    plt.scatter(np.mean([x1,x2],axis=0),np.mean([y1,y2],axis=0),s=0,c=ts,
+            cmap=cmap)
+    plt.colorbar(format='%.2f')
+    plt.scatter(x1,y1,color="black",s=100*size)
+    plt.scatter(x2,y2,color="black",s=100*size)
+    
+    
+    
+    plt.xticks([])
+    plt.yticks([])
+    
+    plt.axis("equal")
+    plt.tight_layout(h_pad=0.1,w_pad=0.1)
+    return fig
 
-cmap = matplotlib.cm.get_cmap('Spectral')
-#cmap = matplotlib.cm.get_cmap('jet')
+app,main = plotpyqt.get_interface(getplot)
+main.setWindowTitle("Hopping")
+main.add_combobox(["Spectral","rainbow","plasma","inferno"],
+        label="Colormap",key="cmap")
+main.add_slider(label="Size",key="size",
+        vs=np.linspace(0.1,3.0),v0=1.) 
+main.plot()
+main.show()
+sys.exit(app.exec_())
 
-
-for i in range(len(x1)): # loop over pairs
-  x = [x1[i],x2[i]]
-  y = [y1[i],y2[i]]
-  plt.plot(x,y,c=cmap(cs[i]),linewidth=abs(ls[i])*4)
-
-plt.scatter(np.mean([x1,x2],axis=0),np.mean([y1,y2],axis=0),s=0,c=ts,
-        cmap=cmap)
-plt.colorbar(format='%.2f')
-plt.scatter(x1,y1,color="black",s=200)
-plt.scatter(x2,y2,color="black",s=200)
-
-
-
-plt.xticks([])
-plt.yticks([])
-
-plt.axis("equal")
-plt.show()

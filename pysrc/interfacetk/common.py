@@ -174,6 +174,26 @@ def solve_scf(h,window):
 
 
 
+def add_strain(h,window):
+    """Add strain to a Hamiltonian"""
+    get = window.get
+    if get("strain_strength")!=0.0:
+        stype = window.getbox("strain_type")
+        if stype=="Radial scalar": # radial scalar
+            f0 = potentials.radial_decay
+            smode="scalar" # mdoe of the strain
+        elif stype=="Radial vector": # radial scalar
+            from pyqula.potentialtk.vectorprofile import radial_vector_decay
+            f0 = radial_vector_decay
+            smode="non_uniform" # mdoe of the strain
+        else: raise
+        fs = f0(v0=1.+get("strain_strength"),
+                   voo=1.0,rl=get("strain_decay"))
+        h.add_strain(fs,mode=smode)
+
+
+
+
 def get_z2(h,window):
     nk = int(np.sqrt(window.get("topology_nk")))
     topology.z2_vanderbilt(h,nk=nk,nt=nk//2) # calculate z2 invariant
