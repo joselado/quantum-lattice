@@ -74,7 +74,7 @@ def plot(main):
   color = np.tanh(color*sat)
   color = color/np.abs(max(color))
 #  cplot = ax.scatter(x,y,s=size*600/nx,c=color,edgecolor="none",cmap=cmap,vmin=0.0,vmax=1.0)
-  cplot = ax.imshow(color.reshape((nx,ny)),cmap=cmap,vmin=0,aspect='auto',
+  cplot = ax.imshow(color.reshape((nx,ny)).T,cmap=cmap,vmin=0,aspect='auto',
           vmax=1,interpolation=main.get_combobox("interpolation"),
           extent = (0,ny,0,nx))
   cb = fig.colorbar(cplot,ticks=[0,1])

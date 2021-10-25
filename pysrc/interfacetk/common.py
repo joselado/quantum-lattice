@@ -170,7 +170,6 @@ def solve_scf(h,window):
                 mf=mf,load_mf=False,#T=get("smearing_scf"),
                 mix = get("mix_scf"))
   scf.hamiltonian.save() # save in a file
-#  comp.kill()
 
 
 
@@ -181,11 +180,11 @@ def add_strain(h,window):
         stype = window.getbox("strain_type")
         if stype=="Radial scalar": # radial scalar
             f0 = potentials.radial_decay
-            smode="scalar" # mdoe of the strain
+            smode="scalar" # mode of the strain
         elif stype=="Radial vector": # radial scalar
             from pyqula.potentialtk.vectorprofile import radial_vector_decay
             f0 = radial_vector_decay
-            smode="non_uniform" # mdoe of the strain
+            smode="non_uniform" # mode of the strain
         else: raise
         fs = f0(v0=1.+get("strain_strength"),
                    voo=1.0,rl=get("strain_decay"))
