@@ -5,16 +5,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="POSITIONS.OUT",
+        help='Input file')
+parser.add_argument("--color",default="False",help='Color')
+parser.add_argument("--size",default="1.",help='Size')
+
+args = parser.parse_args() # get the arguments
+
+
+
 # change the font size
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
 matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
 
-m = np.genfromtxt("POSITIONS.OUT").transpose()
+m = np.genfromtxt(args.input).transpose()
 x = m[0]
 y = m[1]
 z = m[2]
 sorig = x*0. + 500/np.sqrt(len(x)) # original size
+sorig = sorig*float(args.size)
 
 plt.ion()
 
@@ -23,7 +37,10 @@ currentfig = plt.gcf()
 currentfig.canvas.set_window_title('Structure')
 plt.title("Number of atoms "+str(len(x)))
 fig.set_facecolor("white") # white
-col = ax.scatter(x, y,sorig, c="black", picker=True)
+if args.color=="True":
+  col = ax.scatter(x, y,sorig, c=z, cmap="rainbow")
+else:
+  col = ax.scatter(x, y,sorig, c="black", picker=True)
 plt.axis("equal")
 
 

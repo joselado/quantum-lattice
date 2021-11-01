@@ -4,10 +4,11 @@ from numba import jit
 
 try:
     from . import specialhoppingf90
+#    raise
     use_fortran=True
 except:
     use_fortran=False
-#    print("FORTRAN not working in specialhopping")
+    print("FORTRAN not working in specialhopping")
 
 
 
@@ -41,7 +42,7 @@ def twisted(cutoff=5.0,ti=0.3,lambi=8.0,
   return fun
 
 
-def twisted_matrix(cutoff=5.0,ti=0.3,lambi=8.0,
+def twisted_matrix(cutoff=5.0,ti=0.3,lambi=8.0,mint=1e-5,
         lamb=12.0,dl=3.0,lambz=10.0,**kwargs):
   """Function capable of returning the hopping matrix
   for twisted bilayer graphene"""
@@ -52,23 +53,26 @@ def twisted_matrix(cutoff=5.0,ti=0.3,lambi=8.0,
       nr = len(r1) # 
       nmax = len(r1)*int(10*cutoff**2) # maximum number of hoppings
       (ii,jj,ts,nout) = specialhoppingf90.twistedhopping(r1,r2,nmax,
-                                  cutoff,ti,lamb,lambi,lambz,1e-5,dl)
+                                  cutoff,ti,lamb,lambi,lambz,mint,dl)
       if nout>nmax: raise # sanity check
       ts = ts[0:nout]
       ii = ii[0:nout]
       jj = jj[0:nout]
       out = csc_matrix((ts,(ii-1,jj-1)),shape=(nr,nr),dtype=np.complex) # matrix
       return out
+    return funhop # return function
   else:
     print("Using Python function in twisted")
-    def funhop(r1,r2):
-      fh = twisted(cutoff=cutoff,ti=ti,lambi=lambi,lamb=lamb,dl=dl,**kwargs)
-      m = np.array([[fh(r1i,r2j) for r1i in r1] for r2j in r2],dtype=np.complex)
-      m = csc_matrix(m,dtype=np.complex).T
-      m.eliminate_zeros()
-      return m
-#      raise
-  return funhop # function
+    return twisted_matrix_python(cutoff=cutoff,ti=ti,mint=mint,
+                                  lambi=lambi,lamb=lamb,lambz=lambz,
+                                  dl=dl,**kwargs)
+#    def funhop(r1,r2):
+#      fh = twisted(cutoff=cutoff,ti=ti,lambi=lambi,lamb=lamb,dl=dl,**kwargs)
+#      m = np.array([[fh(r1i,r2j) for r1i in r1] for r2j in r2],dtype=np.complex)
+#      m = csc_matrix(m,dtype=np.complex).T
+#      m.eliminate_zeros()
+#      return m
+#  return funhop # function
 
 
 
@@ -192,6 +196,62 @@ class HoppingGenerator():
     def __rmul__(self,m): return self*m # commutative 
 
 
+def twisted_matrix_python(cutoff=10,**kwargs):
+  """Function returning the hopping of a twisted matrix"""
+  def tij(rs1,rs2): # function to return
+    nr = len(rs1) # length
+    nmax = nr*int(10*cutoff**2) # maximum number of hoppings
+    data = np.zeros(nmax,dtype=np.complex) # data
+    ii = np.zeros(nmax,dtype=int) # index
+    jj = np.zeros(nmax,dtype=int) # index
+    ii,jj,data,nk = twisted_matrix_jit(np.array(rs1),np.array(rs2),ii,jj,data,cutoff=cutoff,**kwargs) # call function
+    if nk>nmax: raise # sanity check
+    ii = ii[0:nk] # only nonzero
+    jj = jj[0:nk] # only nonzero
+    data = data[0:nk] # only nonzero
+    out = csc_matrix((data,(ii,jj)),shape=(nr,nr),dtype=np.complex) # matrix
+    out.eliminate_zeros()
+    return out
+  return tij
+    
 
 
+@jit(nopython=True)
+def twisted_matrix_jit(rs1,rs2,ii,jj,data,cutoff=5.0,ti=0.3,lambi=8.0,
+        mint = 1e-5,
+        lamb=12.0,dl=3.0,lambz=10.0):
+  """Hopping for twisted bilayer graphene, returning the indexes of a sparse matrix"""
+  cutoff2 = cutoff**2 # cutoff in distance
+  ik = 0 # counter
+  for i1 in range(len(rs1)):
+    for i2 in range(len(rs2)):
+      r1 = rs1[i1]
+      r2 = rs2[i2]
+      rr = (r1-r2) # distance
+      rr = rr.dot(rr) # distance
+      if rr>cutoff2: continue  # too far
+      if rr<0.001: continue # same atom
+      dx = r1[0]-r2[0]
+      dy = r1[1]-r2[1]
+      dz = r1[2]-r2[2]
+      r = np.sqrt(rr)
+  #    if r2>100.0: return 0.0 # too far
+      if (r-1.0)<-0.1:
+        raise
+      out = -(dx*dx + dy*dy)/rr*np.exp(-lamb*(r-1.0))*np.exp(-lambz*dz*dz)
+      out += -ti*(dz*dz)/rr*np.exp(-lambi*(r-dl))
+      #### fix for magnetic field
+#      cphi = np.cos(phi*np.pi)
+#      sphi = np.sin(phi*np.pi)
+#      r = (r1+r2)/2.
+#      dr = r1-r2
+#      p = 2*r[2]*(dr[0]*sphi - dr[1]*cphi)
+#      out *= np.exp(1j*b*p)
+      #####
+      if np.abs(out)>mint:
+        ii[ik] = i1 # store
+        jj[ik] = i2 # store
+        data[ik] = out # store
+        ik += 1 # increase counter
+  return ii,jj,data,ik
 

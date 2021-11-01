@@ -148,6 +148,7 @@ def write_surface_3d(h,energies=None,klist=None,delta=0.01):
 
 
 def kdos_bands(h,use_kpm=False,kpath=None,scale=10.0,frand=None,
+                 P = None,
                  ewindow=4.0,ne=1000,delta=0.01,ntries=10,nk=100,
                  operator=None,energies=np.linspace(-3.0,3.0,200),
                  mode="ED",**kwargs):
@@ -168,12 +169,16 @@ def kdos_bands(h,use_kpm=False,kpath=None,scale=10.0,frand=None,
             return -algebra.trace(m).imag # return DOS
         return energies,np.array([gfun(e) for e in energies])
   elif mode=="KPM": # KPM method
-    if operator is not None: return NotImplemented # not implemented
+    if operator is not None: 
+        from .operators import Operator
+        operator = Operator(operator).get_matrix() # convert to matrix
     hkgen = h.get_hk_gen() # get generator
     def pfun(k): # do it for this k-point
+      print("Doing",k)
       hk = hkgen(k) # get Hamiltonian
       npol = int(scale/delta) # number of polynomials
-      (x,y) = kpm.tdos(hk,scale=scale,npol=npol,ne=ne,frand=frand,
+      (x,y) = kpm.pdos(hk,scale=scale,npol=npol,ne=ne,P=P,
+                   operator=operator,
                    ewindow=ewindow,ntries=ntries,x=energies) # compute
       return (x,y)
   if kpath is None: 

@@ -49,9 +49,7 @@ def python_kpm_moments(v,m,n=100):
   for i in range(1,n): 
     ap = 2*m@a - am # recursion relation
     bk = algebra.braket_ww(a,a)
-#    bk = (np.transpose(np.conjugate(a))*a)[0,0] # scalar product
     bk1 = algebra.braket_ww(ap,a)
-#    bk1 = (np.transpose(np.conjugate(ap))*a)[0,0] # scalar product
     mus[2*i] = 2.*bk
     mus[2*i+1] = 2.*bk1
     am = a.copy() # new variables
@@ -247,6 +245,20 @@ def tdos(m_in,scale=10.,npol=None,ne=500,kernel="jackson",
   else: return xs,ys
 
 
+def pdos(m,P=None,**kwargs):
+    """Compute the projected density of states, assuming the operator
+    fufills P^2 = P"""
+    from .randomtk import randomwf
+    fun0 = randomwf(m.shape[0]) # generator
+    if P is not None: # operator provided
+        from .operators import Operator
+        op = Operator(P).get_matrix() # redefine
+        fun = lambda : op@fun0() # define new generator
+    else: fun = fun0 # original generator
+    return tdos(m,frand=fun,**kwargs) # call TDOS with the generator
+
+
+
 tdos0d = tdos # redefine
 
 
@@ -259,22 +271,24 @@ def total_energy(m_in,scale=10.,npol=None,ne=500,ntries=20):
 
 def random_trace(m_in,ntries=20,n=200,fun=None,operator=None):
   """ Calculates local DOS using the KPM"""
+  m = csc(m_in) # sparse matrix
+  nd = m.shape[0] # length of the matrix
   if fun is not None: # check that dimensions are fine
     v0 = fun()
     if len(v0) != m_in.shape[0]: raise
   if fun is None:
 #    def fun(): return rand.random(nd) -.5 + 1j*rand.random(nd) -.5j
-    def fun(): return (rand.random(nd) - 0.5)*np.exp(2*1j*np.pi*rand.random(nd))
-  m = csc(m_in) # saprse matrix
-  nd = m.shape[0] # length of the matrix
+      from .randomtk import randomwf
+      fun = randomwf(nd) # generator
   def pfun(x):
     v = fun()
     v = v/np.sqrt(v.dot(np.conjugate(v))) # normalize the vector
 #    v = csc(v).transpose()
     if operator is None:
-      mus = get_moments(v,m,n=n) # get the chebychev moments
+        mus = get_moments(v,m,n=n) # get the chebychev moments
     else:
-      mus = get_momentsA(v,m,n=2*n,A=operator) # get the chebychev moments
+#        mus = get_moments_vivj(m,v,operator@v,n=2*n,use_fortran=False)
+        mus = get_momentsA(v,m,n=2*n,A=operator) # get the chebychev moments
     return mus
 #  from . import parallel
 #  out = [pfun(i) for i in range(ntries)] # perform all the computations
