@@ -86,7 +86,7 @@ parser.add_argument("--xlabel",default="x",help='x label')
 parser.add_argument("--ylabel",default="y",help='y label')
 parser.add_argument("--save_cuts",default="False",help='Save the cuts')
 parser.add_argument("--zlabel",default="z",help='z label')
-parser.add_argument("--show_cuts",default="True",help='Show cuts')
+parser.add_argument("--show_cuts",default="False",help='Show cuts')
 parser.add_argument("--title",default="Colormap",help='Window title')
 args = parser.parse_args() # get the arguments
 

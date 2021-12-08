@@ -53,9 +53,9 @@ class Hamiltonian():
     def __mul__(self,h):  return hamiltonianalgebra.mul(self,h)
     def __neg__(self):  return (-1)*self
     def __sub__(self,a):  return self + (-a)
-    def spinless2full(self,m,time_reversal=False):
+    def spinless2full(self,m,**kwargs):
         """Transform a spinless matrix in its full form"""
-        return get_spinless2full(self,time_reversal=time_reversal)(m) # return
+        return get_spinless2full(self,**kwargs)(m) # return
     def spinful2full(self,m):
         """Transform a spinless matrix in its full form"""
         return get_spinful2full(self)(m) # return
@@ -142,8 +142,12 @@ class Hamiltonian():
         self.num_orbitals = len(geometry.x)
     def get_hk_gen(self):
         """ Generate kdependent hamiltonian"""
-        if self.is_multicell: return multicell.hk_gen(self) # for multicell
-        else: return hk_gen(self) # for normal cells
+        #if self.is_multicell:
+        out = multicell.hk_gen(self) # for multicell
+       # else: out = hk_gen(self) # for normal cells
+        from .htk.canonicalphase import canonical_unitary
+#        return canonical_unitary(self,out)
+        return out
 
     def has_time_reversal_symmetry(self):
         """Check if a Hamiltonian has time reversal symmetry"""
@@ -167,7 +171,8 @@ class Hamiltonian():
           # start in zero
           U = np.diag([self.geometry.bloch_phase(k,r) for r in frac_r])
           U = np.matrix(U) # this is without .H
-          U = self.spinless2full(U) # increase the space if necessary
+          # increase the space if necessary
+          U = self.spinless2full(U,is_hamiltonian=False) 
           Ud = np.conjugate(U.T) # dagger
           hk = Ud@hk@U
   #        print(csc_matrix(np.angle(hk)))
@@ -196,6 +201,9 @@ class Hamiltonian():
     def get_dos(self,**kwargs):
         from . import dos
         return dos.get_dos(self,**kwargs)
+    def get_density(self,**kwargs):
+        from .ldostk import atomicmultildos
+        return atomicmultildos.get_density(self,**kwargs)
     def get_bands(self,**kwargs):
       """ Returns a figure with teh bandstructure"""
       return get_bands_nd(self,**kwargs)
@@ -230,7 +238,7 @@ class Hamiltonian():
     def same_hamiltonian(self,*args,**kwargs):
         """Check if two hamiltonians are the same"""
         return hamiltonianmode.same_hamiltonian(self,*args,**kwargs)
-    def supercell(self,nsuper):
+    def get_supercell(self,nsuper,**kwargs):
       """ Creates a supercell of a one dimensional system"""
       if nsuper==1: return self
       if self.dimensionality==0: return self
@@ -242,7 +250,9 @@ class Hamiltonian():
           elif self.dimensionality==2: ns = [nsuper,nsuper,1]
           elif self.dimensionality==3: ns = [nsuper,nsuper,nsuper]
           else: raise
-      return multicell.supercell_hamiltonian(self,nsuper=ns)
+      return multicell.supercell_hamiltonian(self,nsuper=ns,**kwargs)
+    def supercell(self,*args,**kwargs):
+      return self.get_supercell(*args,**kwargs)
     def set_finite_system(self,periodic=True):
       """ Transforms the system into a finite system"""
       return set_finite_system(self,periodic=periodic) 

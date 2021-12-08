@@ -268,19 +268,22 @@ def default_v2(g,nk=400):
 
 def kmesh(dimensionality,nk=10,nsuper=1):
   """Return a mesh of k-points for a certain dimensionality"""
+  from .checkclass import number2array
   kp = []
   if nk==1 or dimensionality==0: return [[0.,0.,0.]]
   if dimensionality==1:
     for k1 in np.linspace(0.,nsuper,nk,endpoint=False):
       kp.append([k1,0.,0.]) # store
   elif dimensionality==2:
-    for k1 in np.linspace(0.,nsuper,nk,endpoint=False):
-      for k2 in np.linspace(0.,nsuper,nk,endpoint=False):
+    nk = number2array(nk) # return an array
+    for k1 in np.linspace(0.,nsuper,nk[0],endpoint=False):
+      for k2 in np.linspace(0.,nsuper,nk[1],endpoint=False):
         kp.append([k1,k2,0.]) # store
   elif dimensionality==3:
-    for k1 in np.linspace(0.,nsuper,nk,endpoint=False):
-      for k2 in np.linspace(0.,nsuper,nk,endpoint=False):
-        for k3 in np.linspace(0.,nsuper,nk,endpoint=False):
+    nk = number2array(nk) # return an array
+    for k1 in np.linspace(0.,nsuper,nk[0],endpoint=False):
+      for k2 in np.linspace(0.,nsuper,nk[1],endpoint=False):
+        for k3 in np.linspace(0.,nsuper,nk[2],endpoint=False):
           kp.append([k1,k2,k3]) # store
   else: raise
   kp = [np.array(k) for k in kp] # to array
@@ -303,17 +306,26 @@ def label2k(g,kl):
     elif kl=="M1": return [.5,.0,.0]
     elif kl=="M2": return [.0,.5,.0]
     elif kl=="M3": return [.5,.5,.0]
+    elif kl=="X": return [.5,.5,.0]
     else: raise
 
 
 
 
 
-def get_kpath(g,ks,**kwargs):
+def get_kpath_labels(g,ks,**kwargs):
     """Return the k-path"""
     kps = [label2k(g,k) for k in ks] # get the kpoints
     from .kpointstk.locate import k2path
     return k2path(g,kps,**kwargs) # closest path
+
+
+def get_kpath(g,kpath=None,**kwargs):
+    """Return a kpath"""
+    if kpath is None: return default(g,**kwargs)
+    elif type(kpath[0])==str: return get_kpath_labels(g,kpath,**kwargs)
+    else: return kpath # assume is a valid list of vectors
+
 
 
 

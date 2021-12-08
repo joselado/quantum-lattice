@@ -4,6 +4,7 @@ import numpy as np
 
 def get_operator(self,name,**kwargs):
       """Return the conventional operator"""
+      if type(name) is operators.Operator: return name # return operator
       if name=="None": return None
       elif name in ["berry","Berry"]: 
           return operators.get_berry(self,**kwargs)
@@ -62,6 +63,9 @@ def get_operator(self,name,**kwargs):
         return operators.get_valley_layer(self,n=0)
       elif name in ["ipr","IPR"]: return operators.ipr
       elif name=="potential":  return operators.get_potential(self,**kwargs)
+      elif name=="unfold":  
+          from .unfolding import bloch_projector
+          return bloch_projector(self,**kwargs)
       else: raise
 
 

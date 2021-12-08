@@ -4,6 +4,7 @@ from copy import deepcopy
 from scipy.sparse import bmat
 from scipy.sparse import csc_matrix as csc
 from . import sculpt
+from . import klist
 from .supercell import non_orthogonal_supercell
 from . import supercell as supercelltk
 from . import checkclass
@@ -41,6 +42,7 @@ class Geometry:
     self.b3 = np.array([0.0,0.0,1.])  # first vector to the nearest cell
     self.shift_kspace = False # shift the klist when plotting
     self.name = "None"
+    self.primal_geometry = None # store the primal geometry
     self.lattice_name = "" # lattice name
     self.atoms_names = [] # no name for the atoms
     self.atoms_have_names = False # atoms do not have names
@@ -67,7 +69,6 @@ class Geometry:
     return plot_geometry(self)
   def get_kmesh(self,**kwargs):
       """Return the k-mesh"""
-      from . import klist
       return klist.kmesh(self.dimensionality,**kwargs)
   def get_default_kpath(self,**kwargs):
       from . import klist
@@ -89,8 +90,8 @@ class Geometry:
       else:
         iis = sculpt.get_closest(self,n=n,r0=r)
         return [self.r[ii] for ii in iis] # return positions
-  def get_supercell(self,nsuper):
-      return get_supercell(self,nsuper)
+  def get_supercell(self,nsuper,**kwargs):
+      return get_supercell(self,nsuper,**kwargs)
   supercell = get_supercell # backwards compatibility
   def xyz2r(self):
     """Updates r atributte according to xyz"""
@@ -103,13 +104,15 @@ class Geometry:
     self.z = r[2]
   @get_docstring(get_hamiltonian) # inherint docstring
   def get_hamiltonian(self,**kwargs):
-    return get_hamiltonian(self,**kwargs)
+      return get_hamiltonian(self,**kwargs)
   def write(self,**kwargs):
       """ Writes the geometry in file"""
       write_positions(self,**kwargs)
       write_xyz(self)
       write_lattice(self)
       write_sublattice(self)
+  def get_kpath(self,*args,**kwargs):
+      return klist.get_kpath(self,*args,**kwargs)
   def write_positions(self,**kwargs):
       """Write the positions in a file"""
       write_positions(self,**kwargs)
@@ -129,11 +132,11 @@ class Geometry:
       self.z = self.z - sum(self.z)/len(self.z)
       self.xyz2r() # update r
   def get_lattice_name(self):
-    if self.dimensionality==2:
-      if np.abs(self.a1.dot(self.a2))<0.0001:        
-        self.lattice_name = "square"
-      else:
-        self.lattice_name = "triangular"
+      if self.dimensionality==2:
+          if np.abs(self.a1.dot(self.a2))<0.0001:        
+            self.lattice_name = "square"
+          else:
+            self.lattice_name = "triangular"
   def get_k2K(self):
       from .kpointstk.mapping import get_k2K
       return get_k2K(self)
@@ -378,6 +381,7 @@ def chain(n=1):
   g = square_ribbon(1) 
   g = g.supercell(n)
   g.has_sublattice = False
+  g.get_fractional()
 #  g.sublattice = [(-1)**i for i in range(len(g.x))]
   return g
 
@@ -386,10 +390,10 @@ def chain(n=1):
 def bichain(n=1):
   """ Create a chain """
   g = square_ribbon(1) 
-  g = g.supercell(2)
+  g = g.get_supercell(2)
   g.has_sublattice = True
   g.sublattice = [(-1)**i for i in range(len(g.x))]
-  g = g.supercell(n)
+  g = g.get_supercell(n)
   return g
 
 
@@ -581,6 +585,7 @@ def supercell1d(g,nsuper):
 #    print(nsuper)
   if g.atoms_have_names: # supercell sublattice
     go.atoms_names = g.atoms_names*nsuper
+  go.get_fractional()
   return go
 
 
@@ -659,7 +664,7 @@ def triangular_lattice_tripartite():
 
 def triangular_lattice_pentapartite():
   """
-  Creates a triangular lattice with three sites per unit cell
+  Creates a triangular lattice with five sites per unit cell
   """
   g = triangular_lattice()
   return supercelltk.target_angle(g,angle=1./3.,volume=5,same_length=True)
@@ -1019,11 +1024,12 @@ def apilate(g,drs=[np.array([0.,0.,0.])]):
 
 
 
-def write_positions(g,output_file = "POSITIONS.OUT"):
+def write_positions(g,output_file = "POSITIONS.OUT",nrep=None):
   """Writes the geometry associatted with a hamiltonian in a file"""
-  x = g.x  # x posiions
-  y = g.y  # y posiions
-  z = g.z  # z posiions
+  if nrep is not None: g = g.get_supercell(nrep)
+  x = g.r[:,0]  # x positions
+  y = g.r[:,1]  # y positions
+  z = g.r[:,2]  # z positions
   fg = open(output_file,"w")
   fg.write(" # x    y     z   (without spin degree)\n")
   for (ix,iy,iz) in zip(x,y,z):
@@ -1379,7 +1385,12 @@ def replicate_array(g,v,nrep=1):
    """Replicate a certain array in a supercell"""
    if len(np.array(v).shape)>1: # not one dimensional
        return np.array([replicate_array(g,vi,nrep=nrep) for vi in v.T]).T
-   else: return np.array(v.tolist()*(nrep**g.dimensionality))
+   else: 
+       from .checkclass import number2array
+       nrep = number2array(nrep,d=g.dimensionality) # as array
+       nout = 1
+       for n in nrep: nout *= n # multiply
+       return np.array(v.tolist()*nout)
 
 
 def write_profile(g,d,name="PROFILE.OUT",nrep=3,normal_order=False):
@@ -1552,8 +1563,10 @@ read_xyz = readgeometry.read_xyz
 
 
 
-def get_supercell(self,nsuper):
+def get_supercell(self,nsuper,store_primal=False):
     """Creates a supercell"""
+    if store_primal: # store the primal geometry
+        self.primal_geometry = self.copy() 
     if self.dimensionality==0: return self # zero dimensional
     if np.array(nsuper).shape==(3,3):
       return supercelltk.non_orthogonal_supercell(self,nsuper)
