@@ -74,6 +74,12 @@ def getplot(obj):
     args.cmap = obj.get_combobox("cmap") # get the colormap
     if args.cmap=="RGB": cmap = rgb_cmap # red-green-blue colormap
     else: cmap = plt.get_cmap(args.cmap) # get the colormap
+    sat = obj.get_slider("sat") # saturation
+    if sat>0.:
+        zmax = np.max(np.abs(color))*(1.-sat) # maximum
+        color = m[2].copy()
+        color[color>zmax] = zmax
+        color[color<-zmax] = -zmax
     col = plt.scatter(k,e,c=color,cmap=cmap, edgecolors='none',
             s=obj.get_slider("size"))
     from matplotlib import ticker
@@ -123,8 +129,10 @@ def getplot(obj):
 app,main = plotpyqt.get_interface(getplot)
 main.setWindowTitle("Band structure")
 if len(m)>2: # has color
-  main.add_combobox(["RGB","rainbow","plasma","inferno"],
+  main.add_combobox(["RGB","rainbow","gist_rainbow","plasma","inferno"],
         label="Colormap",key="cmap")
+  main.add_slider(label="Saturation",key="sat",
+        vs=np.linspace(0,1.,100),v0=0) # Saturation
 main.add_slider(label="Energy window",key="ewin",
         vs=np.linspace(0.,1.,100)) # Energy window
 main.add_slider(label="Offset",key="e0",

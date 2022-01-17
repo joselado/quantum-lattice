@@ -48,7 +48,7 @@ def get_kdos(h,window):
     energies = np.linspace(-ew,ew,new) # number of ene
     kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
     h = h.reduce() # reduce dimensionality if possible
-    kdos.surface(h,energies=energies,delta=ew/new,kpath=kpath)
+    kdos.surface(h,energies=energies,delta=4*ew/new,kpath=kpath)
     command = "ql-kdos-both --input KDOS.OUT"
     execute_script(command) # execute the script
 
