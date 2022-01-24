@@ -342,7 +342,7 @@ signals["show_multildos"] = show_multildos
 
 
 
-window.connect_clicks(signals,robust=False)
+window.connect_clicks(signals)
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()
