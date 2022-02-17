@@ -257,11 +257,6 @@ signals["show_kdos"] = show_kdos  # show DOS
 signals["show_dosbands"] = show_dosbands  # show DOS
 signals["show_z2"] = show_z2  # show DOS
 signals["show_ldos"] = show_ldos  # show DOS
-#signals["show_stm"] = show_stm  # show STM
-#signals["show_magnetism"] = show_magnetism  # show magnetism
-#signals["show_lattice"] = show_lattice  # show magnetism
-#signals["save_results"] = save_results  # save the results
-
 
 
 

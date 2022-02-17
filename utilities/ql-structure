@@ -12,9 +12,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--input",default="POSITIONS.OUT",
         help='Input file with the bands')
 parser.add_argument("--color",default="False",
-        help='Input file with the bands')
+        help='Use color (z coordinate if no 4th column)')
 parser.add_argument("--colorcol",default="3",
-        help='Input file with the bands')
+        help='Column for the color')
 
 args = parser.parse_args() # get the arguments
 
@@ -32,6 +32,7 @@ rs = np.genfromtxt(args.input) # get positions
 
 if args.color=="True":
     cc = int(args.colorcol)
+    if cc>=len(rs.T): cc = len(rs.T)-1 # last column
     ax.scatter(rs[:,0],rs[:,1],rs[:,2],s=120,c=rs[:,cc],cmap="rainbow") 
 else:
     ax.scatter(rs[:,0],rs[:,1],rs[:,2],s=120,c="black") # scatter the points

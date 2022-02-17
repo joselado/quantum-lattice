@@ -28,12 +28,12 @@ sys.path.append(path) # add library
 from interfacetk import plotpyqt
 
 
+m = np.genfromtxt(name).transpose()
 
 
 def getplot(obj):
   fig = plt.figure(obj.figure.number)
-  for i in range(2):
-    m = np.genfromtxt(name).transpose()
+  for i in range(len(m)-2):
     x = m[0]
     y = m[1]
     ze = m[2]
