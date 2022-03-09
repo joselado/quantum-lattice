@@ -56,7 +56,7 @@ def plot(main):
   ax.axis("equal")
   ax.set_xticks([])
   ax.set_yticks([])
-  sat = main.get_slider("Saturation")/50 # saturation
+  sat = main.get_slider("maxsat") # saturation
   sat = np.power(sat,4) # exponential scale
   scale = np.abs(z)/np.max(np.abs(z)) # scale to 0,1 interval
   scale = np.tanh(scale*sat)
@@ -64,7 +64,8 @@ def plot(main):
   ss = 10*np.power(4,ss/20)
   if args.grid=="False":
       cplot = ax.scatter(x,y,s=ss,c=scale,edgecolor="none",
-              cmap=main.get_combobox("cmap"),vmin=0)
+              cmap=main.get_combobox("cmap"),
+                   vmin=np.max(scale)*main.get_slider("minsat"))
   else:
       nx = len(np.unique(x))
       ny = len(np.unique(x))
@@ -86,7 +87,10 @@ def plot(main):
 app,main = plotpyqt.get_interface(plot)
 main.add_slider(label="DOS size",key="DOSSize",
         vs=range(1,100),v0=50) # Slider for the dots
-main.add_slider(label="Saturation",v0=50) # Saturation
+main.add_slider(label="Max saturation",v0=0.5,key="maxsat",
+                             vs=np.linspace(0.,1.0,100)) # Saturation
+main.add_slider(label="Min saturation",v0=0.,key="minsat",
+                             vs=np.linspace(0.,1.0,100)) # Saturation
 main.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
 main.setWindowTitle("Local DOS")
 

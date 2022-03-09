@@ -5,11 +5,11 @@ from . import geometry
 
 
 def twisted_bilayer(n=7,ti=0.12,lambi=3.0,lamb=3.0,is_sparse=True,
-        g=None,has_spin=False,dl=3.0,**kwargs):
+        g=None,g0=None,has_spin=False,dl=3.0,**kwargs):
     """
     Return the Hamiltonian of twisted bilayer graphene
     """
-    if g is None: g = specialgeometry.twisted_bilayer(n,dz=dl,**kwargs)
+    if g is None: g = specialgeometry.twisted_bilayer(n,dz=dl,g=g0,**kwargs)
     mgenerator = specialhopping.twisted_matrix(ti=ti,
             lambi=lambi,lamb=lamb,dl=dl)
     h = g.get_hamiltonian(is_sparse=is_sparse,has_spin=has_spin,
@@ -89,7 +89,9 @@ def TaS2_SOC(**kwargs):
 
 
 
-def TMDC_MX2(soc=0.0,cdw=0.0,g=None,ts=[1.0],normalize=True):
+def TMDC_MX2(soc=0.0,cdw=0.0,g=None,ts=[1.0],
+              drcdw = np.array([0.,0.,0.]), # shift in the CDW profile
+              normalize=True):
     """Return the Hamiltonian of NbSe2"""
     if g is None: 
         g = geometry.triangular_lattice()  # triangular lattice
@@ -116,6 +118,7 @@ def TMDC_MX2(soc=0.0,cdw=0.0,g=None,ts=[1.0],normalize=True):
         f0 = f0.normalize()*cdw
         f0 = f0.set_average(0.)
         rc = np.mean(h.geometry.get_closest_position([.1,.1,0.],n=3),axis=0)
+        rc = rc - np.array(drcdw) # add the shift
         f = lambda r: f0(r-rc)
         h.geometry.write_profile(f)
         h.add_onsite(f)

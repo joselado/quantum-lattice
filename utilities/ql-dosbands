@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/mnt/extradrive/apps/anaconda3/bin/python
 
 import pylab as py
 import matplotlib.pyplot as plt

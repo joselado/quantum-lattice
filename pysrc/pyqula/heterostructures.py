@@ -38,11 +38,11 @@ class Heterostructure():
       self.right_inter = h.inter  # interterm in the right lead (to the right)
       self.right_green = None  # right green function
       self.left_intra = h.intra  # intraterm in the left lead
-      self.left_inter = h.inter.H  # interterm in the left lead (to the left)
+      self.left_inter = dagger(h.inter)  # interterm in the left lead (to the left)
       self.left_green = None  # left green function
       self.central_intra = h.intra  # intraterm in the center
       self.right_coupling = h.inter # coupling from the center to the right lead
-      self.left_coupling = h.inter.H # coupling from the center to the left lead
+      self.left_coupling = dagger(h.inter) # coupling from the center to the left lead
       # geometry of the central part
       gc = dc(h.geometry)
       self.central_geometry = gc # geometry of the central part
@@ -90,33 +90,43 @@ class Heterostructure():
     return eigenvalues(self,numeig=numeig,effective=effective,
                         full=full)
   def replace_center(self,ht_replacement):
-    """ Replaces the central part by the second argument"""
-    self.central_intra = ht_replacement.central_intra  # make the change
+      """ Replaces the central part by the second argument"""
+      self.central_intra = ht_replacement.central_intra  # make the change
   def calculate_surface_green(self,energy=0.0,delta=0.0001,error=0.0000001):
-    """Calculate the surface Green function"""
-    delta = self.delta
-    # Right
-    intra = self.right_intra
-    inter = self.right_inter
-    gbulk,g = green.green_renormalization(intra,inter,error=error,
-                                           energy=energy,delta=delta)
-    self.right_green = g # save green function
-    # Left
-    intra = self.left_intra
-    inter = self.left_inter
-    gbulk,g = green.green_renormalization(intra,inter,error=error,
-                                           energy=energy,delta=delta)
-    self.left_green = g # save green function
-    self.energy_green = energy # energy of the Green function
+      """Calculate the surface Green function"""
+      delta = self.delta
+      # Right
+      intra = self.right_intra
+      inter = self.right_inter
+      gbulk,g = green.green_renormalization(intra,inter,error=error,
+                                             energy=energy,delta=delta)
+      self.right_green = g # save green function
+      # Left
+      intra = self.left_intra
+      inter = self.left_inter
+      gbulk,g = green.green_renormalization(intra,inter,error=error,
+                                             energy=energy,delta=delta)
+      self.left_green = g # save green function
+      self.energy_green = energy # energy of the Green function
   def copy_surface_green(self,ht):
-    """Copy the surface Green fucntions"""
-    self.energy_green = ht.energy_green
-    self.left_green = ht.left_green
-    self.right_green = ht.right_green
+      """Copy the surface Green fucntions"""
+      self.energy_green = ht.energy_green
+      self.left_green = ht.left_green
+      self.right_green = ht.right_green
   def get_selfenergy(self,energy,**kwargs):
      """Return selfenergy of iesim lead"""
      from .transporttk.selfenergy import get_selfenergy
      return get_selfenergy(self,energy,**kwargs)
+  def get_reflection_normal_lead(self,s):
+     from .transporttk.builder import get_reflection_normal_lead
+     return get_reflection_normal_lead(self,s)
+  def get_central_gmatrix(self,**kwargs):
+     """Return the inverse central Green's function"""
+     from .transporttk.smatrix import get_central_gmatrix
+     return get_central_gmatrix(self,**kwargs) 
+  def set_coupling(self,c): 
+     """Coupling for kappa functionality"""
+     self.scale_rc = c
   def setup_selfenergy_interpolation(self,es=np.linspace(-4.0,4.0,100),
            delta=0.0001,pristine=False):
     """Create the functions that interpolate the selfenergy"""
@@ -134,9 +144,9 @@ class Heterostructure():
   def block2full(self,sparse=False):
       """Put in full form"""
       return block2full(self,sparse=sparse)
-  def get_kappa(self,energy=[0.],**kwargs):
+  def get_kappa(self,**kwargs):
       from .transporttk.kappa import get_kappa_ratio
-      return get_kappa_ratio(self,energies=[energy],**kwargs)[0]
+      return get_kappa_ratio(self,**kwargs)
   
 
 
@@ -159,7 +169,7 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
   ht.right_intra = h_right.intra.copy()  
   ht.right_inter = h_right.inter.copy()  
   ht.left_intra = h_left.intra.copy()  
-  ht.left_inter = h_left.inter.H.copy() 
+  ht.left_inter = dagger(h_left.inter).copy() 
   # create matrix of the central part and couplings to the leads
   from scipy.sparse import csc_matrix,bmat
   z = csc_matrix(h_central.intra*0.0j) # zero matrix
@@ -237,7 +247,7 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
     tcl[i][0] = csc_matrix(z) 
 
   tcr[-1][0] = csc_matrix(h_right.inter) # hopping to the right lead
-  tcl[0][0] = csc_matrix(h_left.inter.H) # hopping to the left lead
+  tcl[0][0] = csc_matrix(dagger(h_left.inter)) # hopping to the left lead
   # create dense matrices
   if not block_diagonal:
     hc = bmat(hc).todense()
@@ -271,22 +281,6 @@ def device_dos(HT,energy=0.0,mode="central",operator=None):
        g = HT.Hr.get_operator(operator)*g
    d = -np.trace(g.imag)
    return d
-#   if HT.block_diagonal: HT = HT.block2full()
-#   dos = [] # list with the density of states
-#   intra = HT.central_intra # central intraterm
-#   iden = np.matrix(np.identity(len(intra),dtype=complex)) # create identity
-#   delta = HT.delta # analytic continuation
-#   for energy in energies: # loop over energies
-#       # central green function
-#       intra = HT.central_intra
-#       selfl = HT.get_selfenergy(energy,lead=0,pristine=False)
-#       selfr = HT.get_selfenergy(energy,lead=1,pristine=False)
-#       gc = (energy+1j*delta)*iden -intra -selfl -selfr # dyson equation for the center
-#       gc = lg.inv(gc) # calculate inverse
-#       if project is not None: gc = project(gc) # project on something
-#       dos.append(-np.trace(gc).imag)  # calculate the trace of the Green function
-#   return dos
-
 
 
 
@@ -311,74 +305,7 @@ def plot_central_dos(ht,energies=[0.0],num_rep=100,
 
 
 
-
-def landauer(HT,energy=0.0,delta = 0.0001,error=0.0000001,do_leads=True,
-             gr=None,gl=None,has_eh=False,right_channel=None,
-             left_channel=None):
-   """ Calculates transmission using Landauer formula"""
-   if not do_leads: # if use old Green function, ensure that they are right
-     if energy != HT.energy_green: 
-       do_leads = True
-       print("Wrong energy in Landauer, recalculating Green functions")
-
-   try: # if it is a list
-     return [landauer(HT,energy=e,delta=delta,error=error,
-                      do_leads=do_leads,gr=gr,gl=gl,has_eh=has_eh) for e in energy]
-   except: # contnue if it is not a list
-     pass
-   from . import green
-   from .hamiltonians import is_number
-   if not HT.block_diagonal:
-     intra = HT.central_intra # central intraterm   
-     dimhc = len(intra) # dimension of the central part
-   if HT.block_diagonal:
-     intra = HT.central_intra[0][0] # when it is diagonal
-# dimension of the central part
-     dimhc = len(HT.central_intra)*intra.shape[0] 
-   iden = np.matrix(np.identity(len(intra),dtype=complex)) # create idntity
-   selfl = HT.get_selfenergy(energy,lead=0,delta=delta,pristine=False) # left Sigma
-   selfr = HT.get_selfenergy(energy,lead=1,delta=delta,pristine=False) # right Sigma
-   #################################
-   # calculate Gammas 
-   #################################
-   gammar = 1j*(selfr-dagger(selfr))
-   gammal = 1j*(selfl-dagger(selfl))
-
-   #################################
-   # dyson equation for the center     
-   #################################
-   # central green function
-   intra = HT.central_intra
-   # full matrix
-   if not HT.block_diagonal:
-     heff = intra + selfl + selfr
-     HT.heff = heff
-     gc = (energy+1j*delta)*iden - heff
-     gc = gc.I # calculate inverse
-     if has_eh: raise # if it has electron-hole, trace over electrons
-     G = np.trace(gammar@gc@gammal@dagger(gc)).real
-     return G
-   # reduced matrix
-   if HT.block_diagonal: 
-     from copy import deepcopy
-     heff = deepcopy(intra)
-     heff[0][0] = intra[0][0] + selfl
-     heff[-1][-1] = intra[-1][-1] + selfr
-     dd = (energy+1j*delta)*iden
-     for i in range(len(intra)):  # add the diagonal energy part
-       heff[i][i] = heff[i][i] - dd  # this has the wrong sign!!
-    # now change the sign
-     for i in range(len(intra)):  
-       for j in range(len(intra)):  
-         if heff[i][j] is not None:
-           heff[i][j] = -heff[i][j]
-     # calculate green function
-     from .green import gauss_inverse  # routine to invert the matrix
-     # calculate only some elements of the central green function
-     gcn1 = gauss_inverse(heff,len(heff)-1,0) # calculate element 1,n 
-     # and apply Landauer formula
-     G = np.trace(gammar@gcn1@gammal@dagger(gcn1)).real
-   return G # return transmission
+from .transporttk.landauer import landauer
 
 
 
@@ -421,179 +348,6 @@ def block2full(ht,sparse=False):
 
 
 
-#
-#def plot_landauer(ht,energy=[0.0],delta=0.001,has_eh=False):
-#   """ Plots the density of states and Landauer transmission
-#    by using a 
-#    green function approach"""
-#   # get the transmission
-#   trans = landauer(ht,energy=energy,delta=delta,has_eh=has_eh)
-#   # plot the figure
-#   fig = py.figure() # create figure
-#   fig.subplots_adjust(0.2,0.2)
-#   fig.set_facecolor("white") # face in white
-#   strans = fig.add_subplot(111) # create subplot for the transmission
-#
-#   # transport graph
-#   strans.set_xlabel("Energy",size=20)
-#   strans.set_ylabel("Transmission",size=20)
-#   strans.plot(energy,trans,color="green") # create the plot
-#   strans.fill_between(energy,0,trans,color="green")
-#   strans.set_ylim([0.0,max(trans)+0.5])
-#   strans.set_xlim([min(energy),max(energy)])
-#   strans.tick_params(labelsize=20)
-#   return fig
-#
-#
-
-#
-#def plot_local_central_dos(HT,energies=0.0,gf=None):
-#   """ Plots the local density of states in the central part"""
-#   from .green import dyson
-#   from .green import gf_convergence
-#   from .hamiltonians import is_number
-#   if gf==None: gf = gf_convergence("lead")
-#   if not HT.block_diagonal:
-#     intra = HT.central_intra # central intraterm   
-#     dimhc = len(intra) # dimension of the central part
-#   if HT.block_diagonal:
-#     intra = HT.central_intra[0][0] # when it is diagonal
-## dimension of the central part
-#     dimhc = len(HT.central_intra)*len(intra)  
-#   iden = np.matrix(np.identity(len(intra),dtype=complex)) # create idntity
-#   ldos = np.array([0.0 for i in range(dimhc)]) # initialice ldos
-#   # initialize ldos
-#   for energy in energies: # loop over energies
-#     # right green function
-#     gr = None
-#     gl = None
-#     # perform dyson calculation
-#
-#     intra = HT.right_intra
-#     inter = HT.right_inter
-#     gr = dyson(intra,inter,energy=energy,gf=gf)
-#     HT.right_green = gr # save green function
-#     # left green function
-#     intra = HT.left_intra
-#     inter = HT.left_inter
-#     gl = dyson(intra,inter,energy=energy,gf=gf)
-#     HT.left_green = gl # save green function
-#     # save green functions
-##     HT.write_green()
-#     # left selfenergy
-#     inter = HT.left_coupling
-#     selfl = inter*gl*inter.H # left selfenergy
-#     # right selfenergy
-#     inter = HT.right_coupling
-#     selfr = inter*gr*inter.H # right selfenergy
-#     # central green function
-#     intra = HT.central_intra
-## dyson equation for the center     
-#     # full matrix
-#     if not HT.block_diagonal:
-#       heff = intra + selfl + selfr
-#       HT.heff = heff
-#       gc = (energy+1j*eps)*iden - heff
-#       gc = gc.I # calculate inverse
-#       # get the local density of states
-#       ldos += np.array([-gc[i,i].imag for i in range(len(gc))])
-##       if save_heff:
-##         HT.write_heff() 
-#     # reduced matrix
-#     if HT.block_diagonal: 
-#       from copy import deepcopy
-#       heff = deepcopy(intra)
-#       heff[0][0] = intra[0][0] + selfl
-#       heff[-1][-1] = intra[-1][-1] + selfr
-#       dd = (energy+1j*gf.eps)*iden
-#       for i in range(len(intra)):  # add the diagonal energy part
-#         heff[i][i] = heff[i][i] - dd  # this has the wrong sign!!
-#      # now change the sign
-#       for i in range(len(intra)):  
-#         for j in range(len(intra)):  
-#           try:
-#             heff[i][j] = -heff[i][j]
-#           except:
-#             heff[i][j] = heff[i][j]
-#      # save the green function
-#       HT.heff = heff
-##       if save_heff:
-##         from scipy.sparse import bmat
-##         HT.heff = bmat(heff)
-##         HT.write_heff() 
-#      # calculate the inverse
-#       from .green import gauss_inverse  # routine to invert the matrix
-#       # list with the diagonal matrices
-#       ldos_e = ldos*0.0 # initialice ldos at this energy
-#       ii = 0 # counter for the element
-#       for i in range(len(heff)): # loop over blocks
-#         gci = gauss_inverse(heff,i,i) # calculate each block element      
-#         for j in range(len(heff[0][0])): # loop over each block
-#           ldos_e[ii] = -gci[j,j].imag 
-#           ii += 1 # increase counter
-#       if not ii==dimhc:
-#         print("Wrong dimensions",ii,dimhc)
-#         raise
-#       ldos += ldos_e # add to the total ldos
-## save the effective hamiltonian
-#
-#   if HT.has_spin: # resum ldos if there is spin degree of freedom
-#     ldos = [ldos[2*i]+ldos[2*i+1] for i in range(len(ldos)/2)]
-#   if HT.has_eh: # resum ldos if there is eh 
-#     ldos = [ldos[2*i]+ldos[2*i+1] for i in range(len(ldos)/2)]
-#  #   ne = len(ldos)/2
-#  #   ldos = [ldos[i]+ldos[ne+i] for i in range(ne)]
-#
-#
-#   ldos = np.array(ldos) # transform into an array
-#
-#   if min(ldos)<0.0:
-#     print("Negative density of states")
-#     raise
-#
-#   g = HT.central_geometry # geometry of the central part
-#   fldos = open("LDOS.OUT","w") # open file for ldos
-#   fldos.write("# X   Y    LDOS\n")
-#   for (ix,iy,il) in zip(g.x,g.y,ldos):
-#     fldos.write(str(ix)+"  "+str(iy)+"  "+str(il)+"\n")
-#   fldos.close()
-#   # scale the ldos
-#   # save the LDOS in a file
-#   if True:
-##   if True>0.001:
-##     ldos = np.sqrt(ldos)
-##     ldos = np.arctan(7.*ldos/max(ldos))
-#     print("Sum of the LDOS =",sum(ldos))
-#     ldos = ldos*300/max(ldos)
-#   else:
-#     ldos = ldos*0.0
-#
-#
-#
-#
-#
-#   # now create the figure
-#   fig = py.figure() # create figure
-#   fig.subplots_adjust(0.2,0.2)
-#   fig.set_facecolor("white") # face in white
-#   sldos = fig.add_subplot(111) # create subplot for the DOS
-#
-#   # plot the lattice
-#   if not len(g.x)==len(ldos):
-#     raise 
-#   sldos.scatter(g.x,g.y,color="red",s=ldos) # plot the lattice
-#   sldos.scatter(g.x,g.y,color="black",s=4) # plot the lattice
-#   sldos.set_xlabel("X")
-#   sldos.set_xlabel("Y")
-#   sldos.axis("equal") # same scale in axes
-#
-#
-#
-#   return fig
-#
-
-
-
 
 
 
@@ -614,8 +368,8 @@ def create_leads_and_central_list(h_right,h_left,list_h_central,
     if len(list_h_central)==1: # only one central part
       return create_leads_and_central(h_right,h_left,list_h_central[0])
     ht = HTstructure(h_right) # create HTstructure
-    ht.Hr = h_right # store
-    ht.Hl = h_left # store
+    ht.Hr = h_right.copy() # store
+    ht.Hl = h_left.copy() # store
     # assign matrices of the leads
     ht.right_intra = h_right.intra.copy() 
     ht.right_inter = h_right.inter.copy()  
@@ -731,10 +485,10 @@ def effective_central_hamiltonian(HT,energy=0.0,delta=0.0001,write=False):
 #   HT.write_green()
    # left selfenergy
    inter = HT.left_coupling
-   selfl = inter*gl*inter.H # left selfenergy
+   selfl = inter@gl@dagger(inter) # left selfenergy
    # right selfenergy
    inter = HT.right_coupling
-   selfr = inter*gr*inter.H # right selfenergy
+   selfr = inter@gr@dagger(inter) # right selfenergy
    # central green function
    intra = HT.central_intra
 # dyson equation for the center     
@@ -761,52 +515,6 @@ def effective_central_hamiltonian(HT,energy=0.0,delta=0.0001,write=False):
    return heff
 
 
-def didv(ht,energy=0.0,delta=0.00001,kwant=False,opl=None,opr=None,**kwargs):
-  """Calculate differential conductance"""
-  if ht.has_eh: # for systems with electons and holes
-    s = get_smatrix(ht,energy=energy,check=True) # get the smatrix
-    r1,r2 = s[0][0],s[1][1] # get the reflection matrices
-    get_eh = ht.get_eh_sector # function to read either electron or hole
-    # select the normal lead
-    # r1 is normal
-    if np.sum(np.abs(get_eh(ht.left_intra,i=0,j=1)))<0.0001: r = r1 
-    elif np.sum(np.abs(get_eh(ht.right_intra,i=0,j=1)))<0.0001: r = r2
-    else:
-        print("There is SC in both leads, aborting")
-        raise
-    ree = get_eh(r,i=0,j=0) # reflection e-e
-    reh = get_eh(r,i=0,j=1) # reflection e-h
-    Ree = np.trace(dagger(ree)@ree) # total e-e reflection 
-    Reh = np.trace(dagger(reh)@reh) # total e-h reflection 
-    G = (ree.shape[0] - Ree + Reh).real # conductance
-    return G
-  else: 
-    if kwant:
-      if opl is not None or opr is not None: raise # not implemented
-      from . import kwantlink 
-      return kwantlink.transport(ht,energy)
-    s = get_smatrix(ht,energy=energy) # get the smatrix
-    if opl is not None or opr is not None: # some projector given
-      raise # this does not make sense
-      U = [[np.identity(s[0][0].shape[0]),None],
-               [None,np.identity(s[1][1].shape[0])]] # projector
-      if opl is not None: U[0][0] = opl # assign this matrix
-      if opr is not None: U[1][1] = opr # assign this matrix
-      #### those formulas are not ok
-      s[0][0] = U[0][0]@s[0][0]@U[0][0] # new smatrix
-      s[0][1] = U[0][0]@s[0][1]@U[1][1] # new smatrix
-      s[1][0] = U[1][1]@s[1][0]@U[0][0] # new smatrix
-      s[1][1] = U[1][1]@s[1][1]@U[1][1] # new smatrix
-    r1,r2,t = s[0][0],s[1][1],s[0][1] # get the reflection matrices
-    # select a normal lead (both of them are)
-    # r1 is normal
-    ree = r1
-    Ree = np.trace(dagger(ree)@ree) # total e-e reflection 
-    G1 = (ree.shape[0] - Ree).real # conductance
-    G2 = np.trace(s[0][1]@dagger(s[0][1])).real # total e-e transmission
-    return (G1+G2)/2.
-#return landauer(ht,energy=energy,delta=delta) # call usual landauer 
-    
 
 
 def get_tmatrix(ht,energy=0.0,delta=0.0001):
@@ -820,12 +528,7 @@ def get_tmatrix(ht,energy=0.0,delta=0.0001):
 
 
 
-
-
-
-
-
-def get_surface_green(HT,energy=0.0,delta=0.0001):
+def get_surface_green(HT,energy=0.0,delta=1e-5):
    """Calculate left and right greeen functions"""
    from .green import green_renormalization
    # right lead
@@ -897,3 +600,5 @@ def get_surface_selfenergies(HT,energy=0.0,delta=0.0001,pristine=False):
 from .transporttk.builder import build
 
 from .transporttk.smatrix import get_smatrix
+
+from .transporttk.localprobe import LocalProbe

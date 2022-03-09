@@ -10,7 +10,7 @@ import scipy.linalg as lg
 import os
 from .increase_hilbert import full2profile
 from . import filesystem as fs
-
+from .hamiltonians import Hamiltonian
 
 
 class Embedding():
@@ -24,6 +24,9 @@ class Embedding():
         self.has_eh = self.h0.has_eh
         self.nsuper = None # supercell between original Hamiltonian
         if m is not None: 
+            if type(m)==Hamiltonian: 
+                print("Picking intracell in embedding")
+                m = m.intra # get the intracell
             self.m = m # provided matrix
             if m.shape[0]!=h.intra.shape[0]: 
                 if nsuper is None:
@@ -49,32 +52,10 @@ class Embedding():
         emat = iden*(e + delta*1j) # energy matrix
         gv = algebra.inv(emat - self.m -selfe)   # Defective Green function 
         return gv
-    def ldos(self,e=0.0,delta=1e-2,nsuper=1,nk=100,operator=None,**kwargs):
-        """Compute the local density of states"""
-        h = self.h0
-        if self.nsuper is None: # old way
-            g,selfe = green.supercell_selfenergy(h,e=e,delta=delta,nk=nk,
-                    nsuper=nsuper)
-        else: # workaround for supercells
-            raise # this does not work yet
-            g,selfe = green.supercell_selfenergy(h,e=e,delta=delta,nk=nk,
-                    nsuper=nsuper*self.nsuper) # compute Green's function
-            h = h.supercell(self.nsuper) # and redefine with a supercell
-        ms = onsite_supercell(h,nsuper)
-        n = self.m.shape[0]
-        ms = onsite_defective_central(h,self.m,nsuper)
-        ns = ms.shape[0] # dimension of the supercell
-        iden = np.identity(ns,dtype=np.complex) # identity
-        emat = iden*(e + delta*1j) # energy matrix
-        gv = algebra.inv(emat - ms -selfe)   # Defective Green function 
-        if operator is not None: 
-            gv = operator*gv # multiply
-        ds = [-gv[i,i].imag for i in range(ns)] # LDOS
-        ds = full2profile(h,ds,check=False) # resum if necessary
-        ds = np.array(ds) # convert to array
-        gs = h.geometry.supercell(nsuper)
-        x,y = gs.x,gs.y
-        return x,y,ds
+    def get_gf(self,**kwargs):
+        return get_gf(self,**kwargs)
+    def ldos(self,**kwargs):
+        return get_ldos(self,**kwargs)
     def dos(self,**kwargs):
         (x,y,d) = self.ldos(**kwargs)
         return np.sum(d) # sum the DOS
@@ -120,6 +101,9 @@ class Embedding():
     def copy(self):
         from copy import deepcopy
         return deepcopy(self)
+    def get_energy_ingap_state(EO,**kwargs):
+        from .embeddingtk import ingap
+        return ingap.energy_ingap_state(EO,**kwargs)
     # dummy methods for compatibility
     def turn_multicell(self): pass
     def get_multicell(self): return self
@@ -256,6 +240,38 @@ def onsite_supercell(h,nsuper,mc=None):
 
 
 
+def get_gf(self,energy=0.0,delta=1e-2,nsuper=1,nk=100,operator=None,**kwargs):
+    """Return the Green's function"""
+    h = self.h0
+    e = energy
+    if self.nsuper is None: # old way
+        g,selfe = green.supercell_selfenergy(h,e=e,delta=delta,nk=nk,
+                nsuper=nsuper)
+    else: # workaround for supercells
+        raise # this does not work yet
+        g,selfe = green.supercell_selfenergy(h,e=e,delta=delta,nk=nk,
+                nsuper=nsuper*self.nsuper) # compute Green's function
+        h = h.supercell(self.nsuper) # and redefine with a supercell
+    ms = onsite_supercell(h,nsuper)
+    n = self.m.shape[0]
+    ms = onsite_defective_central(h,self.m,nsuper)
+    ns = ms.shape[0] # dimension of the supercell
+    iden = np.identity(ns,dtype=np.complex) # identity
+    emat = iden*(e + delta*1j) # energy matrix
+    gv = algebra.inv(emat - ms -selfe)   # Defective Green function
+    return gv
 
 
-
+def get_ldos(self,e=0.0,delta=1e-2,nsuper=1,nk=100,operator=None,**kwargs):
+    """Compute the local density of states"""
+    h = self.h0
+    # get the Green's function
+    gv = self.get_gf(energy=e,delta=delta,nsuper=nsuper,nk=nk)
+    if operator is not None:
+        gv = operator*gv # multiply
+    ds = [-gv[i,i].imag for i in range(gv.shape[0])] # LDOS
+    ds = full2profile(h,ds,check=False) # resum if necessary
+    ds = np.array(ds) # convert to array
+    gs = h.geometry.supercell(nsuper)
+    x,y = gs.x,gs.y
+    return x,y,ds

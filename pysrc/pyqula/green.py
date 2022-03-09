@@ -4,21 +4,18 @@ import scipy.linalg as lg
 from . import multicell
 from . import algebra
 from numba import jit
+from .greentk.rg import green_renormalization
+from .greentk.selfenergy import bloch_selfenergy
+from .greentk.kchain import green_kchain
+from .greentk.kchain import get1dhamiltonian
+from .greentk.kchain import green_kchain_evaluator
 
-
-#try:
-#  import greenf90
-#  use_fortran = True
-#except:
-#  use_fortran=False
-#  print("Ups, FORTRAN not working in, green.py")
 
 use_fortran = False
 
 try: from .gauss_invf90 import gauss_inv as ginv
 except: 
   pass
-#    print("FORTRAN gauss routines not ok in green.py")
 
 
 class gf_convergence():
@@ -300,100 +297,29 @@ def gauss_inverse(m,i=0,j=0,test=False):
 
 
 def block_inverse(m,i=0,j=0):
-  """ Calculate a certain element of the inverse of a block matrix"""
-  from scipy.sparse import csc_matrix,bmat
-  nb = len(m) # number of blocks
-  if i<0: i += nb 
-  if j<0: j += nb 
-  mt = [[None for ii in range(nb)] for jj in range(nb)]
-  for ii in range(nb): # diagonal part
-    mt[ii][ii] = csc_matrix(m[ii][ii])
-  for ii in range(nb-1):
-    mt[ii][ii+1] = csc_matrix(m[ii][ii+1])
-    mt[ii+1][ii] = csc_matrix(m[ii+1][ii])
-  mt = bmat(mt).todense() # create dense matrix
-  # select which elements you need
-  ilist = [m[ii][ii].shape[0] for ii in range(i)] 
-  jlist = [m[jj][jj].shape[1] for jj in range(j)] 
-  imin = sum(ilist)
-  jmin = sum(jlist)
-  mt = mt.I # calculate inverse
-  imax = imin + m[i][i].shape[0]
-  jmax = jmin + m[j][j].shape[1]
-  mo = [ [mt[ii,jj] for jj in range(jmin,jmax)] for ii in range(imin,imax) ] 
-  mo = np.matrix(mo)
-  return mo
-
-
-
-
-def green_renormalization(intra,inter,energy=0.0,nite=None,
-                            error=0.000001,info=False,delta=0.001,
-                            use_fortran = use_fortran):
-    """ Calculates bulk and surface Green function by a renormalization
-    algorithm, as described in I. Phys. F: Met. Phys. 15 (1985) 851-858 """
-    intra = algebra.todense(intra)
-    inter = algebra.todense(inter)
-    error = delta*1e-6 # overwrite error
-#  if use_fortran: # use the fortran implementation
-#    (ge,gb) = greenf90.renormalization(intra,inter,energy,error,delta)
-#    return np.matrix(gb),np.matrix(ge)
-#  else:
-#      g0,g1 = intra*0j,intra*0j
-#      e = np.identity(intra.shape[0],dtype=np.complex) * (energy + 1j*delta)
-#      g0,g1 = green_renormalization_jit(g0,g1,intra,inter,e,nite,
-#                            error,delta)
-#      return np.matrix(g0),np.matrix(g1)
-    e = np.matrix(np.identity(intra.shape[0])) * (energy + 1j*delta)
-    ite = 0
-    alpha = inter.copy()
-    beta = algebra.dagger(inter).copy()
-    epsilon = intra.copy()
-    epsilon_s = intra.copy()
-    while True: # implementation of Eq 11
-      einv = algebra.inv(e - epsilon) # inverse
-      epsilon_s = epsilon_s + alpha @ einv @ beta
-      epsilon = epsilon + alpha * einv @ beta + beta @ einv @ alpha
-      alpha = alpha @ einv @ alpha  # new alpha
-      beta = beta @ einv @ beta  # new beta
-      ite += 1
-      # stop conditions
-      if not nite is None:
-        if ite > nite:  break 
-      else:
-        if np.max(np.abs(alpha))<error and np.max(np.abs(beta))<error: break
-    if info:
-      print("Converged in ",ite,"iterations")
-    g_surf = algebra.inv(e - epsilon_s) # surface green function
-    g_bulk = algebra.inv(e - epsilon)  # bulk green function 
-    return g_bulk,g_surf
-
-
-
-
-from numba import jit
-
-#@jit(nopython=True)
-### this seems to not work with numba ###
-def green_renormalization_jit(g0,g1,intra,inter,e,nite,error,delta):
-    ite = 0
-    alpha = inter.copy()
-    beta = np.conjugate(inter).T.copy()
-    epsilon = intra.copy()
-    epsilon_s = intra.copy()
-    while True: # implementation of Eq 11
-      einv = np.linalg.inv(e - epsilon) # inverse
-      epsilon_s = epsilon_s + alpha @ einv @ beta
-      epsilon = epsilon + alpha * einv @ beta + beta @ einv @ alpha
-      alpha = alpha @ einv @ alpha  # new alpha
-      beta = beta @ einv @ beta  # new beta
-      ite += 1
-      # stop conditions
-      if np.max(np.abs(alpha))<error and np.max(np.abs(beta))<error: break
-    g_surf = np.linalg.inv(e - epsilon_s) # surface green function
-    g_bulk = np.linalg.inv(e - epsilon)  # bulk green function 
-    g0,g1 = g_bulk*1,g_surf*1
-    return g0,g1
+    """ Calculate a certain element of the inverse of a block matrix"""
+    from scipy.sparse import csc_matrix,bmat
+    nb = len(m) # number of blocks
+    if i<0: i += nb 
+    if j<0: j += nb 
+    mt = [[None for ii in range(nb)] for jj in range(nb)]
+    for ii in range(nb): # diagonal part
+      mt[ii][ii] = csc_matrix(m[ii][ii])
+    for ii in range(nb-1):
+      mt[ii][ii+1] = csc_matrix(m[ii][ii+1])
+      mt[ii+1][ii] = csc_matrix(m[ii+1][ii])
+    mt = bmat(mt).todense() # create dense matrix
+    # select which elements you need
+    ilist = [m[ii][ii].shape[0] for ii in range(i)] 
+    jlist = [m[jj][jj].shape[1] for jj in range(j)] 
+    imin = sum(ilist)
+    jmin = sum(jlist)
+    mt = mt.I # calculate inverse
+    imax = imin + m[i][i].shape[0]
+    jmax = jmin + m[j][j].shape[1]
+    mo = [ [mt[ii,jj] for jj in range(jmin,jmax)] for ii in range(imin,imax) ] 
+    mo = np.matrix(mo)
+    return mo
 
 
 
@@ -401,106 +327,6 @@ def green_renormalization_jit(g0,g1,intra,inter,e,nite,error,delta):
 
 
 
-
-
-
-def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 0.01,mode="full",
-                         error=0.00001):
-  """ Calculates the selfenergy of a cell defect,
-      input is a hamiltonian class"""
-  if mode=="adaptative": mode = "adaptive"
-  def gr(ons,hop):
-    """ Calculates G by renormalization"""
-    gf,sf = green_renormalization(ons,hop,energy=energy,nite=None,
-                            error=error,info=False,delta=delta)
-    return gf,sf
-  hk_gen = h.get_hk_gen()  # generator of k dependent hamiltonian
-  if h.is_multicell: 
-      try: h = h.get_no_multicell()
-      except:
-          mode = "full" # multicell hamiltonians only have full mode
-          print("Changed to full mode in selfenergy")
-  d = h.dimensionality # dimensionality of the system
-  g = h.intra *0.0j # initialize green function
-  e = np.matrix(np.identity(len(g)))*(energy + delta*1j) # complex energy
-  if mode=="full":  # full integration
-    if d==1: # one dimensional
-      ks = [[k,0.,0.] for k in np.linspace(0.,1.,nk,endpoint=False)]
-    elif d==2: # two dimensional
-      ks = []
-      kk = np.linspace(0.,1.,nk,endpoint=False)  # interval 0,1
-      for ikx in kk:
-        for iky in kk:
-          ks.append([ikx,iky,0.])
-      ks = np.array(ks)  # all the kpoints
-    else: raise # raise error
-    for k in ks:  # loop in BZ
-      g += algebra.inv(e - hk_gen(k))  # add green function  
-    g = g/len(ks)  # normalize
-  #####################################################
-  #####################################################
-  if mode=="renormalization":
-    if d==1: # full renormalization
-      g,s = gr(h.intra,h.inter)  # perform renormalization
-    elif d==2: # two dimensional, loop over k's
-      ks = [[k,0.,0.] for k in np.linspace(0.,1.,nk,endpoint=False)]
-      for k in ks:  # loop over k in y direction
- # add contribution to green function
-        g += green_kchain(h,k=k,energy=energy,delta=delta,error=error) 
-      g = g/len(ks)
-    else: raise
-  #####################################################
-  #####################################################
-  if mode=="adaptive":
-    if d==1: # full renormalization
-      g,s = gr(h.intra,h.inter)  # perform renormalization
-    elif d==2: # two dimensional, loop over k's
-      ks = [[k,0.,0.] for k in np.linspace(0.,1.,nk,endpoint=False)]
-#      ks = np.linspace(0.,1.,nk,endpoint=False) 
-      from . import integration
-      def fint(k):
-        """ Function to integrate """
-        return green_kchain(h,k=[k,0.,0.],energy=energy,
-                delta=delta,error=error) 
-      # eps is error, might work....
-      g = integration.integrate_matrix(fint,xlim=[0.,1.],eps=error) 
-        # chain in the y direction
-    else: raise
-  # now calculate selfenergy
-  selfenergy = e - h.intra - algebra.inv(g)
-  return g,selfenergy
-
-
-
-
-def get1dhamiltonian(hin,k=[0.0,0.,0.],reverse=False):
-  """Return onsite and hopping matrix for a 1D Hamiltonian"""
-  from . import multicell
-  (ons,hop) = multicell.kchain(hin,k=k)
-  if reverse: return (ons,algebra.hermitian(hop)) # return 
-  else: return (ons,hop) # return 
-  
-
-
-
-
-def green_kchain(h,k=0.,energy=0.,delta=0.01,only_bulk=True,
-                    error=0.0001,hs=None,reverse=False):
-  """ Calculates the green function of a kdependent chain for a 2d system """
-  def gr(ons,hop):
-    """ Calculates G by renormalization"""
-    gf,sf = green_renormalization(ons,hop,energy=energy,nite=None,
-                            error=error,info=False,delta=delta)
-    if hs is not None: # surface matrix provided
-      ez = (energy+1j*delta)*np.identity(h.intra.shape[0]) # energy
-      sigma = hop@sf@hop.H # selfenergy
-      if callable(hs): ons2 = hs(k)
-      else: ons2 = hs
-      sf = (ez - ons2 - sigma).I # return Dyson
-    if only_bulk:  return gf
-    else:  return gf,sf
-  (ons,hop) = get1dhamiltonian(h,k,reverse=reverse) # get 1D Hamiltonian
-  return gr(ons,hop)  # return green function
 
 
 
@@ -522,40 +348,6 @@ def green_surface_cells(gs,hop,ons,delta=1e-2,e=0.0,n=0):
 
 
 
-def green_kchain_evaluator(h,k=0.,delta=0.01,only_bulk=True,
-                    error=0.0001,hs=None,reverse=False):
-  """ Calculates the green function of a kdependent chain for a 2d system """
-  def gr(ons,hop,energy):
-    """ Calculates G by renormalization"""
-    gf,sf = green_renormalization(ons,hop,energy=energy,nite=None,
-                            error=error,info=False,delta=delta)
-#    print(hs)
-    if hs is not None: # surface matrix provided
-      ez = (energy+1j*delta)*np.identity(h.intra.shape[0]) # energy
-      sigma = hop@sf@algebra.dagger(hop) # selfenergy
-      if callable(hs): ons2 = ons + hs(k)
-      else: ons2 = ons + hs
-      sf = algebra.inv(ez - ons2 - sigma) # return Dyson
-    # which green function to return
-    if only_bulk:  return gf
-    else:  return gf,sf
-  (ons,hop) = get1dhamiltonian(h,k,reverse=reverse) # get 1D Hamiltonian
-  def fun(energy): # evaluator
-    return gr(ons,hop,energy)  # return green function
-  return fun # return the function
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def interface(h1,h2,k=[0.0,0.,0.],energy=0.0,delta=0.01):
@@ -572,7 +364,7 @@ def interface(h1,h2,k=[0.0,0.,0.],energy=0.0,delta=0.01):
   # Now apply the Dyson equation
   (ons1,hop1) = get1dhamiltonian(h1,k,reverse=True) # get 1D Hamiltonian
   (ons2,hop2) = get1dhamiltonian(h2,k,reverse=False) # get 1D Hamiltonian
-  havg = (hop1.H + hop2)/2. # average hopping
+  havg = (algebra.dagger(hop1) + hop2)/2. # average hopping
   ons = bmat([[csc(ons1),csc(havg)],[csc(havg.H),csc(ons2)]]) # onsite
   self2 = bmat([[csc(ons1)*0.0,None],[None,csc(hop2@sf2@hop2.H)]])
   self1 = bmat([[csc(hop1@sf1@hop1.H),None],[None,csc(ons2)*0.0]])
@@ -602,7 +394,7 @@ def interface_multienergy(h1,h2,k=[0.0,0.,0.],energies=[0.0],delta=0.01,
     # Now apply the Dyson equation
     (ons1,hop1) = get1dhamiltonian(h1,k,reverse=True) # get 1D Hamiltonian
     (ons2,hop2) = get1dhamiltonian(h2,k,reverse=False) # get 1D Hamiltonian
-    havg = (hop1.H + hop2)/2. # average hopping
+    havg = (algebra.dagger(hop1) + hop2)/2. # average hopping
     if dh1 is not None: ons1 = ons1 + dh1
     if dh2 is not None: ons2 = ons2 + dh2
     ons = bmat([[csc(ons1),csc(havg)],[csc(havg.H),csc(ons2)]]) # onsite
@@ -610,7 +402,7 @@ def interface_multienergy(h1,h2,k=[0.0,0.,0.],energies=[0.0],delta=0.01,
     self1 = bmat([[csc(hop1@sf1@hop1.H),None],[None,csc(ons2)*0.0]])
     # Dyson equation
     ez = (energy+1j*delta)*np.identity(ons1.shape[0]+ons2.shape[0]) # energy
-    ginter = (ez - ons - self1 - self2).I # Green function
+    ginter = algebra.inv(ez - ons - self1 - self2) # Green function
     # now return everything, first, second and hybrid
     out.append([gs1,sf1,gs2,sf2,ginter])
   return out # return output
@@ -743,12 +535,12 @@ def green_operator(h0,operator=None,e=0.0,delta=1e-3,nk=10,
         o0 = algebra.inv(iden*(e+1j*delta) - hk) # Green's function
         if callable(operator): o1 = operator(k)
         else: o1 = operator
-        out += -(o0@o1).trace().imag # Add contribution
+        out += -np.trace(o0@o1).imag # Add contribution
       out /= len(ks) # normalize
     else:
       g = bloch_selfenergy(h,energy=e,delta=delta,mode=gmode)[0] 
-      if operator is None: out = -(np.array(g)).trace().imag
-      else: out = -(np.array(g)@operator).trace().imag
+      if operator is None: out = -np.trace(np.array(g)).imag
+      else: out = -np.trace(np.array(g)@operator).imag
     return out
 
 

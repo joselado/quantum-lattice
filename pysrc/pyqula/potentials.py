@@ -196,7 +196,7 @@ def enforce_minmax(f,a,g=None):
     minv = np.min(vs)
     maxv = np.max(vs)
     dv = maxv-minv # amplitude
-    fout = lambda r: (f(r)-minv)*a[1]/dv + a[0] # return this value
+    fout = lambda r: (f(r)-minv)/dv*a[1] + (1.-(f(r)-minv)/dv)*a[0] # return this value
     return fout # return new function
 
 
@@ -215,3 +215,15 @@ def object2potential(V,r=None):
 
 
 from .potentialtk.profiles import radial_decay
+
+
+def delta(r0,v0=1.0):
+    """Delta function potential"""
+    def f(r):
+        dr = r - r0
+        dr2 = dr.dot(dr)
+        if dr2<1e-4: return v0
+        else: return v0*0.0
+    return Potential(f) # return potential
+
+
