@@ -228,8 +228,8 @@ def twisted_matrix_jit(rs1,rs2,ii,jj,data,cutoff=5.0,ti=0.3,lambi=8.0,
     for i2 in range(len(rs2)):
       r1 = rs1[i1]
       r2 = rs2[i2]
-      rr = r1-r2 # distance
-      rr = rr[0]**2 + rr[1]**2 + rr[2]**2 # distance
+      dr = r1-r2 # distance
+      rr = dr[0]**2 + dr[1]**2 + dr[2]**2 # distance
       if rr>cutoff2: continue  # too far
       if rr<0.001: continue # same atom
       dx = r1[0]-r2[0]
