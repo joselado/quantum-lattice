@@ -1,10 +1,11 @@
-from . import operators
 import numpy as np
 
 
 def get_operator(self,name,**kwargs):
       """Return the conventional operator"""
+      from . import operators
       if type(name) is operators.Operator: return name # return operator
+      if name is None: return None # return operator
       if name=="None": return None
       elif name in ["berry","Berry"]: 
           return operators.get_berry(self,**kwargs)
@@ -16,6 +17,8 @@ def get_operator(self,name,**kwargs):
       elif name in ["sx","Sx"]: return operators.get_sx(self)
       elif name in ["sy","Sy"]: return operators.get_sy(self)
       elif name in ["sz","Sz"]: return operators.get_sz(self)
+      elif name=="location": # return a certain location
+          return operators.get_location(self,**kwargs)
       elif name=="current": return operators.get_current(self)
       elif name in ["bulk","Bulk"]: 
           return operators.get_bulk(self,**kwargs)
@@ -52,16 +55,16 @@ def get_operator(self,name,**kwargs):
       elif name=="mz":
         return self.get_operator("sz")@self.get_operator("electron")
       elif name=="layer": return operators.get_layer(self,**kwargs)
-      elif name=="valley":  return operators.get_valley(self)
+      elif name=="valley":  return operators.get_valley(self,**kwargs)
       elif name=="valley_x":  return operators.get_valley_taux(self)
       elif name=="inplane_valley": return operators.get_inplane_valley(self)
       elif name=="valley_upper" or name=="valley_top":
         return operators.get_valley_layer(self,n=-1)
-      elif name=="inplane_valley_upper":
-        print("This operator only makes sense for TBG")
-        ht = self.copy()
-        ht.geometry.sublattice = self.geometry.sublattice * (np.sign(self.geometry.z)+1.0)/2.0
-        return operators.get_inplane_valley(ht)
+#      elif name=="inplane_valley_upper":
+#        print("This operator only makes sense for TBG")
+#        ht = self.copy()
+#        ht.geometry.sublattice = self.geometry.sublattice * (np.sign(self.geometry.z)+1.0)/2.0
+#        return operators.get_inplane_valley(ht)
       elif name=="valley_lower" or name=="valley_bottom":
         return operators.get_valley_layer(self,n=0)
       elif name in ["ipr","IPR"]: return operators.ipr

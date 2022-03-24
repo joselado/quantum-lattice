@@ -181,7 +181,8 @@ def kdos_bands(h,use_kpm=False,kpath=None,scale=10.0,frand=None,
                    operator=operator,
                    ewindow=ewindow,ntries=ntries,x=energies) # compute
       return (x,y)
-  kpath = h.geometry.get_kpath(kpath,nk=nk) # generate kpath
+  if kpath is None:
+      kpath = h.geometry.get_kpath(kpath,nk=nk) # generate kpath
   ### Now compute and write in a file
   ik = 0
   out = parallel.pcall(pfun,kpath) # compute all
@@ -300,16 +301,19 @@ def interface(h1,h2,energies=np.linspace(-1.,1.,100),operator=None,
 
 
 
-def surface(h1,energies=np.linspace(-1.,1.,100),operator=None,
-                    delta=0.01,kpath=None,hs=None):
+def surface_kdos(h1,energies=np.linspace(-1.,1.,100),operator=None,
+                    delta=0.01,kpath=None,hs=None,nsuper=None):
   """Get the surface DOS of an interface"""
+  h1 = h1.get_supercell(nsuper)
   from scipy.sparse import csc_matrix,bmat
+#  kpath = h1.geometry.get_kpath(kpath,nk=len(energies)) # get kpath
   if kpath is None: 
     if h1.dimensionality==3:
       g2d = h1.geometry.copy() # copy Hamiltonian
       g2d = sculpt.set_xy_plane(g2d)
       kpath = klist.default(g2d,nk=len(energies))
     elif h1.dimensionality==2:
+#      kpath = klist.default(g2d,nk=len(energies))
       kpath = [[k,0.,0.] for k in np.linspace(0.,1.,len(energies))]
     elif h1.dimensionality==1: kpath = [[0.,0.,0.0]] # one dummy point
     else: raise
@@ -334,3 +338,7 @@ def surface(h1,energies=np.linspace(-1.,1.,100),operator=None,
       fo.write("\n") # next line
       fo.flush() # flush
   fo.close()
+
+
+
+surface = surface_kdos

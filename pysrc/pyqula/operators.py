@@ -79,7 +79,7 @@ class Operator():
     def __call__(self,v,k=None):
         """Define the call method"""
         return self.m(v,k=k) 
-    def get_matrix(self):
+    def get_matrix(self,k=None):
         """Return matrix if possible"""
         if self.matrix is not None: return self.matrix
     def braket(self,w,**kwargs):
@@ -101,7 +101,8 @@ def index(h,n=[0]):
   num = len(h.geometry.r)
   val = [1. for i in n]
   m = csc((val,(n,n)),shape=(num,num),dtype=np.complex)
-  return h.spinless2full(m) # return matrix
+  m = h.spinless2full(m) # return matrix with e-h
+  return m@m
 
 
 
@@ -133,33 +134,6 @@ def operator2list(operator):
     operator = [operator] # convert to list
   return operator
 
-
-#
-#def get_surface(h,cut = 0.5,which="both"):
-#  """Return an operator which is non-zero in the upper surface"""
-#  zmax = np.max(h.geometry.r[:,2]) # maximum z
-#  zmin = np.min(h.geometry.r[:,2]) # maximum z
-#  dind = 1 # index to which divide the positions
-#  n = len(h.geometry.r) # number of elments of the hamiltonian
-#  data = [] # epmty list
-#  for i in range(n): # loop over elements
-#    z = h.geometry.z[i]
-#    if which=="upper": # only the upper surface
-#      if np.abs(z-zmax) < cut:  data.append(1.)
-#      else: data.append(0.)
-#    elif which=="lower": # only the upper surface
-#      if np.abs(z-zmin) < cut:  data.append(1.)
-#      else: data.append(0.)
-#    elif which=="both": # only the upper surface
-#      if np.abs(z-zmax) < cut:  data.append(1.)
-#      elif np.abs(z-zmin) < cut:  data.append(1.)
-#      else: data.append(0.)
-#    else: raise
-#  row, col = range(n),range(n)
-#  m = csc((data,(row,col)),shape=(n,n),dtype=np.complex)
-#  m = h.spinless2full(m)
-#  return m # return the operator
-#
 
 
 def interface1d(h,cut = 3.):
@@ -266,8 +240,8 @@ def get_bulk(h,fac=0.8):
         dr = r[:,2] # z positions
         dr = dr - np.min(dr)
         dr = dr/np.max(dr) # to interval 0,1
-        out[fac>dr] = 0.0 # set to zero
-        out[(1.-fac)<dr] = 0.0 # set to zero
+        dr2 = dr - np.mean(dr) # minus the average
+        out[fac/2.<np.abs(dr2)] = 0.0 # set to zero
     else: return NotImplemented
     from scipy.sparse import diags
     n = len(r) # number of sites
@@ -311,29 +285,12 @@ def get_position(h,mode="z"):
 
 
 
-from .rotate_spin import sx,sy,sz # import pauli matrices
+from .spin import sx,sy,sz # import pauli matrices
  
 
-def get_si(h,i=1):
-  """Return a certain Pauli matrix for the full Hamiltonian"""
-  if not h.has_spin: return None # no spin
-  if i==1: si = sx # sx matrix
-  elif i==2: si = sy # sy matrix
-  elif i==3: si = sz # sz matrix
-  else: raise # unknown pauli matrix
-  if h.has_eh: ndim = h.intra.shape[0]//4 # half the dimension
-  else: ndim = h.intra.shape[0]//2 # dimension
-  if h.has_spin: # spinful system
-    op = [[None for i in range(ndim)] for j in range(ndim)] # initialize
-    for i in range(ndim): op[i][i] = si # store matrix
-    op = bmat(op) # create matrix
-  if h.has_eh: op = build_eh(op,is_sparse=True) # add electron and hole parts 
-  return op
-
-# define the functions for the three spin components
-get_sx = lambda h: get_si(h,i=1) # sx matrix
-get_sy = lambda h: get_si(h,i=2) # sy matrix
-get_sz = lambda h: get_si(h,i=3) # sz matrix
+from .operatortk.spin import get_sx
+from .operatortk.spin import get_sy
+from .operatortk.spin import get_sz
 
 
 
@@ -428,35 +385,7 @@ def get_spin_current(h):
 
 
 
-
-
-def get_valley(h,delta=None,**kwargs):
-  """Return a callable that calculates the valley expectation value
-  using the modified Haldane coupling"""
-  if h.dimensionality==0: projector = True # zero dimensional
-  ho = h.copy() # copy Hamiltonian
-  ho.turn_multicell()
-  ho.clean() # set to zero
-  ho.add_modified_haldane(1.0/4.5) # add modified Haldane coupling
-  hkgen = ho.get_hk_gen() # get generator for the hk Hamiltonian
-  def sharpen(m):
-    """Sharpen the eigenvalues of a matrix"""
-#    return m
-    if delta is None: return m # do nothing
-    if issparse(m): return m # temporal workaround
-    (es,vs) = algebra.eigh(m) # diagonalize
-    es = es/(np.abs(es)+delta) # renormalize the valley eigenvalues
-    vs = np.matrix(vs) # convert
-    m0 = np.matrix(np.diag(es)) # build new hamiltonian
-    return vs@m0@vs.H # return renormalized operator
-  def fun(m=None,k=None):
-      if h.dimensionality>0 and k is None: raise # requires a kpoint
-      hk = hkgen(k) # evaluate Hamiltonian
-      hk = sharpen(hk) # sharpen the valley
-      if m is None: return hk # just return the valley operator
-      else: return hk@m # return the projector
-  if h.dimensionality==0: return fun() # return a matrix
-  return fun # return function
+from .operatortk.valley import get_valley
 
 
 
@@ -473,8 +402,8 @@ def get_inplane_valley(h):
     if h.dimensionality>0 and k is None: raise # requires a kpoint
     hk = hkgen(k) # evaluate Hamiltonian
     hk0 = hkgen0(k) # evaluate Hamiltonian
-    A = hk*hk0 - hk0*hk # commutator
-    A = -A*A
+    A = hk@hk0 - hk0@hk # commutator
+    A = -A@A
     return abs(braket_wAw(w,A)) # return the braket
   return fun # return function
 
@@ -670,5 +599,14 @@ def get_potential(self,**kwargs):
     f = potentials.commensurate_potential(h.geometry,amplitude=1.0,**kwargs)
     h.add_onsite(f)
     return Operator(h.intra) # return the operator
+
+
+
+def get_location(self,r=[0.,0.,0.]):
+    ir = self.geometry.closest_index(r)
+    return index(self,n=[ir])
+
+
+
 
 

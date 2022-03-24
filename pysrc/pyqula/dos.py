@@ -431,6 +431,7 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
         random=True,energies=None,info=False,
         **kwargs):
   """Calculate the KDOS bands using the KPM"""
+  operator = h.get_operator(operator)
   if energies is not None: # energies provided
       ewindow = np.max(np.abs(energies)) # true window
       ne = len(energies) # number of energies
@@ -443,8 +444,10 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
   def f(k):
     if info: print("Doing",k)
     hk = hkgen(k) # get Hamiltonian
-    if callable(operator): op = operator(k) # call the function if necessary
-    else: op = operator # take the same operator
+    if operator is None: op = None # no operator
+    else:
+        op = operator.get_matrix() # get the matrix of the operator
+        if op is None: raise # not implemented
     (x,y) = kpm.pdos(hk,scale=scale,npol=npol,ne=ne,operator=op,
                    ewindow=ewindow,**kwargs) # compute
     return (x,y)

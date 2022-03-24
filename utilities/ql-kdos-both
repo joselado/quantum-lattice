@@ -91,10 +91,10 @@ def getplot(obj):
       plt.title("Surface")
     elif i==1:
       plt.title("Bulk")
-      from matplotlib import ticker
-      cb = plt.colorbar(ticks=[0.,vmax])
-      cb.ax.set_yticklabels([0, 'Max'])
-      cb.set_label("DOS")
+    from matplotlib import ticker
+    cb = plt.colorbar(ticks=[0.,vmax])
+    cb.ax.set_yticklabels([0, 'Max'])
+    cb.set_label("DOS")
   return fig
   
 

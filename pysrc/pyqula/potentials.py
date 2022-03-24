@@ -105,16 +105,16 @@ def commensurate_potential(g,k=1,amplitude=1.0,n=None,
 
 
 def fibonacci(n,n0=0):
-  """Generate the Fibonacci sequence"""
-  a1 = [0] # first
-  a2 = [0,1] # first
-  while True:
-    a3 = a1 + a2
-    a1 = a2
-    a2 = a3
-    if len(a3)>n+n0: break
-  out = [a3[i] for i in range(n0,n0+n)] # output
-  return np.array(out)
+    """Generate the Fibonacci sequence"""
+    a1 = [0] # first
+    a2 = [0,1] # first
+    while True:
+      a3 = a1 + a2
+      a1 = a2
+      a2 = a3
+      if len(a3)>n+n0: break
+    out = [a3[i] for i in range(n0,n0+n)] # output
+    return np.array(out)
 
 
 
@@ -225,5 +225,23 @@ def delta(r0,v0=1.0):
         if dr2<1e-4: return v0
         else: return v0*0.0
     return Potential(f) # return potential
+
+
+
+def edge_potential(g):
+    """Return potential for the edge sites"""
+    cs = g.get_connections() # get the connections
+    nn = np.max([len(c) for c in cs]) # maximum number of connections
+    v = [len(c)<nn for c in cs] # check if the atom is an edge 
+    fout = 0 # output function
+    for i in range(len(v)): # loop over locations
+        if v[i]: fout = fout + delta(g.r[i],v0=1.0)
+    return Potential(fout) # return the potential
+
+
+
+
+
+
 
 

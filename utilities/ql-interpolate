@@ -60,7 +60,7 @@ def write_interpolation(centers=[[0.,0.,0.]], heights=[10.0],name=""):
       fac = 1./smooth # factor to mix the gaussians
       facx = fac
       facy = fac
-    print(facx,facy)
+#    print(facx,facy)
     def wave(x,y):
         z = x*0.0 + y*0.0
         return wave_jit(x,y,np.array(centers),np.array(heights),facx,facy,z)
@@ -70,8 +70,8 @@ def write_interpolation(centers=[[0.,0.,0.]], heights=[10.0],name=""):
     else: dx = float(args.dx)
     if args.dy=="": dy = (np.max(ys) - np.min(ys))/10
     else: dy = float(args.dy)
-    x = np.linspace(min(xs)-dx,max(xs)+dx,nx)
-    y = np.linspace(min(ys)-dy,max(ys)+dy,ny)
+    x = np.linspace(min(xs),max(xs),nx)
+    y = np.linspace(min(ys),max(ys),ny)
     fo = open(name,"w") # open output file
     for ix in x:
       z = wave(ix,y)

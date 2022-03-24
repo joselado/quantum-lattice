@@ -102,6 +102,9 @@ class Hamiltonian():
     def get_chern(h,**kwargs):
         return topology.chern(h,**kwargs)
 
+    def get_berry_curvature(h,**kwargs):
+        return topology.get_berry_curvature(h,**kwargs)
+
     def get_chi(self,**kwargs):
         from . import chi
         return chi.chiAB_trace(self,**kwargs)
@@ -117,8 +120,8 @@ class Hamiltonian():
     def set_multihopping(self,mh):
         """Set a multihopping as the Hamiltonian"""
         multicell.set_multihopping(self,mh)
-    def get_berry_curvature(self,**kwargs):
-        return topology.write_berry(self,**kwargs)
+#    def get_berry_curvature(self,**kwargs):
+#        return topology.write_berry(self,**kwargs)
     @get_docstring(spectrum.set_filling)
     def set_filling(self,filling,**kwargs):
         spectrum.set_filling(self,filling=filling,**kwargs)
@@ -167,7 +170,7 @@ class Hamiltonian():
     @get_docstring(ldos.get_ldos)
     def get_ldos(self,**kwargs):
         return ldos.get_ldos(self,**kwargs)
-    def get_gk_gen(self,delta=0.05,operator=None,canonical_phase=False):
+    def get_gk_gen(self,delta=1e-3,operator=None,canonical_phase=False):
       """Return the Green function generator"""
       hkgen = self.get_hk_gen() # Hamiltonian generator
       def f(k=[0.,0.,0.],e=0.0):
@@ -209,8 +212,14 @@ class Hamiltonian():
         from .ldostk import atomicmultildos
         return atomicmultildos.get_density(self,**kwargs)
     def get_bands(self,**kwargs):
-      """ Returns a figure with teh bandstructure"""
+      """ Returns a figure with the bandstructure"""
       return get_bands_nd(self,**kwargs)
+    def get_kdos_bands(self,**kwargs):
+        from .kdos import kdos_bands
+        return kdos_bands(self,**kwargs)
+    def get_surface_kdos(self,**kwargs):
+        from .kdos import surface_kdos
+        return surface_kdos(self,**kwargs)
     def add_sublattice_imbalance(self,mass):
       """ Adds a sublattice imbalance """
       if self.geometry.has_sublattice and self.geometry.sublattice_number==2:
@@ -244,6 +253,7 @@ class Hamiltonian():
         return hamiltonianmode.same_hamiltonian(self,*args,**kwargs)
     def get_supercell(self,nsuper,**kwargs):
       """ Creates a supercell of a one dimensional system"""
+      if nsuper is None: return self # do nothing
       if nsuper==1: return self
       if self.dimensionality==0: return self
       try: 
@@ -466,6 +476,8 @@ class Hamiltonian():
         """
         from .peierls import add_peierls
         add_peierls(self,mag_field=mag_field,**kwargs)
+    def add_orbital_magnetic_field(self,*args,**kwargs):
+        self.add_peierls(*args,**kwargs)
     def add_inplane_bfield(self,**kwargs):
         """Add in-plane magnetic field"""
         from .peierls import add_inplane_bfield
@@ -494,12 +506,8 @@ class Hamiltonian():
         """
         n = len(self.geometry.r) # number of sites
         ops = [operators.index(self,n=[i]) for i in range(n)]
-        if name=="sx": op = operators.get_sx(self)
-        elif name=="sy": op = operators.get_sy(self)
-        elif name=="sz": op = operators.get_sz(self)
-        elif name=="density": op = operators.index(self,n=range(n))
-        else: raise
-        ops = [o@op for o in ops] # define operators
+        op = self.get_operator(name) # get an operator
+        ops = [o*op for o in ops] # define operators
         return spectrum.ev(self,operator=ops,**kwargs).real
     def get_1dh(self,k=0.0):
         """Return a 1d Hamiltonian"""
@@ -545,28 +553,14 @@ class Hamiltonian():
     @get_docstring(dvector.dvector_non_unitarity_map)
     def write_non_unitarity(self,**kwargs):
         dvector.dvector_non_unitarity_map(self,**kwargs)
-    def write_magnetization(self,nrep=5):
-        """Extract the magnetization and write it in a file"""
-        mx = self.extract("mx")
-        my = self.extract("my")
-        mz = self.extract("mz")
-        g = self.geometry
-        g.write_profile(mx,name="MX.OUT",normal_order=True,nrep=nrep)
-        g.write_profile(my,name="MY.OUT",normal_order=True,nrep=nrep)
-        g.write_profile(mz,name="MZ.OUT",normal_order=True,nrep=nrep)
-        # this is just a workaround
-        m = np.genfromtxt("MX.OUT").transpose()
-        (x,y,z,mx) = m[0],m[1],m[2],m[3]
-        my = np.genfromtxt("MY.OUT").transpose()[3]
-        mz = np.genfromtxt("MZ.OUT").transpose()[3]
-        np.savetxt("MAGNETISM.OUT",np.array([x,y,z,mx,my,mz]).T)
-        return np.array([mx,my,mz])
-    def write_onsite(self,nrep=5,normal_order=False):
+    def write_magnetization(self,**kwargs):
+        from .htk.write import write_magnetization
+        write_magnetization(self,**kwargs)
+    def write_onsite(self,zero_average=False,**kwargs):
         """Extract onsite energy"""
         d = self.extract("density")
-        d = d - np.mean(d)
-        self.geometry.write_profile(d,name="ONSITE.OUT",
-                normal_order=normal_order,nrep=nrep)
+        if zero_average: d = d - np.mean(d)
+        self.geometry.write_profile(d,name="ONSITE.OUT",**kwargs)
     def write_hopping(self,**kwargs):
         groundstate.hopping(self,**kwargs)
     def write_anomalous_hopping(self,**kwargs):
@@ -630,19 +624,6 @@ def vec_chi(r1,r2):
     if z<-0.01: # anticlockwise
       return -1.0
   return 0.0
-
-
-
-
-# routine to check if two atoms arein adistance d
-def is_neigh(r1,r2,d,tol):
-  r=r1-r2
-  x=r[0]
-  y=r[1]
-  dt=abs(d*d-x*x-y*y)
-  if dt<tol:
-    return True
-  return False
 
 
 

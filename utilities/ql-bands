@@ -18,7 +18,7 @@ from interfacetk import plotpyqt
 # change the font size
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+matplotlib.rcParams['font.family'] = "Liberation Sans"
 
 
 import argparse
@@ -89,7 +89,7 @@ def getplot(obj):
     cb.update_ticks()
     cb.set_label(args.cblabel) # set the label
   plt.xlim([min(k),max(k)])   # x axis range
-  ewin = 1.01 - obj.get_slider("ewin") # energy window
+  ewin = 1.1 - obj.get_slider("ewin") # energy window
   e0 = obj.get_slider("e0")
   de = np.max(np.abs(e)) # maximum value
   eshift = de*(e0-.5)*2
