@@ -37,7 +37,7 @@ m = np.genfromtxt(args.input).transpose() # read file
 x = m[0] # x position
 y = m[1] # y position
 z = m[int(args.col)] # z position
-z = z/max(z)
+z = z/np.max(z)
 
 
 def plot(main):
@@ -56,26 +56,31 @@ def plot(main):
   ax.axis("equal")
   ax.set_xticks([])
   ax.set_yticks([])
-  sat = main.get_slider("maxsat") # saturation
-  sat = np.power(sat,4) # exponential scale
+  zscale = main.get_combobox("Scale")
   scale = np.abs(z)/np.max(np.abs(z)) # scale to 0,1 interval
-  scale = np.tanh(scale*sat)
-  ss = main.get_slider("DOSSize")
-  ss = 10*np.power(4,ss/20)
+  if zscale=="linear": pass
+  elif zscale=="logabs": scale = np.log(np.abs(scale))
+  else: raise
+  sat = main.get_slider("maxsat") # saturation
   if args.grid=="False":
+      ss = main.get_slider("DOSSize")
+      ss = 1000*ss/np.sqrt(np.max(np.abs(x)))
       cplot = ax.scatter(x,y,s=ss,c=scale,edgecolor="none",
-              cmap=main.get_combobox("cmap"),
-                   vmin=np.max(scale)*main.get_slider("minsat"))
+                   cmap=main.get_combobox("cmap"),
+                   vmin=main.get_slider("minsat"),
+                   vmax=main.get_slider("maxsat")
+                   )
+      ax.set_facecolor('black')
   else:
       nx = len(np.unique(x))
       ny = len(np.unique(x))
-      zmap = z.reshape((nx,ny))
-      zmap = np.tanh(sat*zmap) 
-      zmap = zmap/np.max(zmap)
+      zmap = scale.reshape((nx,ny))
       cplot = plt.imshow(zmap.T, aspect='auto', origin='lower',
             cmap = plt.get_cmap(main.get_combobox("cmap")),
             extent = ( min(x), max(x), min(y), max(y)),
-            vmin=0.0,vmax=1.0)
+            vmin=main.get_slider("minsat"),
+            vmax=main.get_slider("maxsat")
+            )
         #    interpolation=obj.get_combobox("Interpolation"))
   
   plt.axis("equal")
@@ -85,13 +90,15 @@ def plot(main):
 
 
 app,main = plotpyqt.get_interface(plot)
-main.add_slider(label="DOS size",key="DOSSize",
-        vs=range(1,100),v0=50) # Slider for the dots
+if args.grid=="False":
+  main.add_slider(label="DOS size",key="DOSSize",
+        vs=np.linspace(1e-3,1.0,50),v0=0.5) # Slider for the dots
 main.add_slider(label="Max saturation",v0=0.5,key="maxsat",
                              vs=np.linspace(0.,1.0,100)) # Saturation
 main.add_slider(label="Min saturation",v0=0.,key="minsat",
                              vs=np.linspace(0.,1.0,100)) # Saturation
 main.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
+main.add_combobox(["linear","logabs"],label="Scale")
 main.setWindowTitle("Local DOS")
 
 main.plot()

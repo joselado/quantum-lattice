@@ -4,8 +4,13 @@ from . import geometry
 from . import sculpt
 
 def twisted_bilayer(m0,**kwargs):
-    """Geomtry of a twisted bilayer"""
+    """Geomtry of a twisted bilayer
+    - m0 determines the supercell and twist
+    """
     return twisted_multilayer(m0=m0,rot=[1,0],**kwargs)
+
+
+tbg = twisted_bilayer
 
 #def twisted_bilayer(m0=3,rotate=True,shift=[0.,0.],center="AB/BA",
 #  sublattice=True,r=1,g=None,dz=1.5):

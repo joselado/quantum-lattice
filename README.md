@@ -45,6 +45,8 @@ executing in a terminal
 quantum-lattice
 ```
 
+You can see [here](https://youtu.be/4H1mNLYdUOU) a short video demonstrating the installation.
+
 ## Windows ##
 
 For using this program in Windows, the easiest solution is to create a virtual

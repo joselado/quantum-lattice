@@ -16,6 +16,36 @@ except:
   exit()
 
 
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="MAGNETISM.OUT",
+        help='Input file with the magnetization')
+parser.add_argument("--color",default="False",
+        help='Use color form a file')
+parser.add_argument("--bonds",default="True",
+        help='Plot the bonds')
+parser.add_argument("--arrows",default="True",
+        help='Plot the arrows')
+parser.add_argument("--arrowsize",default="1.0",
+        help='Size of the arrows')
+parser.add_argument("--bondsize",default="1.0",
+        help='Size of the arrows')
+parser.add_argument("--sitesize",default="1.0",
+        help='Size of the sites')
+
+args = parser.parse_args() # get the arguments
+
+
+
+
+
+
+
+
+
+
+
+
 lattice_color = (0,1,1) # color of the lattice
 
 os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
@@ -32,7 +62,7 @@ figure.scene.disable_render = True
 
 
 
-mag_factor = 2.0
+mag_factor = float(args.arrowsize)*2.0
 
 import numpy as np
 import sys
@@ -54,7 +84,7 @@ def read_dout():
 
 def get_mag():
   """ Get the magnetization """
-  return np.genfromtxt("MAGNETISM.OUT").transpose()[3:6]
+  return np.genfromtxt(args.input).T[3:6]
   
 
 
@@ -68,7 +98,7 @@ def read_color():
 
 def read_positions():
   """Reads the positions of the system"""
-  return np.genfromtxt("MAGNETISM.OUT").transpose()[0:3]
+  return np.genfromtxt(args.input).T[0:3]
 
 
 def get_lattice(crys):
@@ -141,7 +171,7 @@ def scale_mag(mag,threshold=0.001):
 
 
 atom_color=False
-if "-color" in sys.argv: # if draw color
+if args.color=="True" in sys.argv: # if draw color
 #if True:
   colors =  read_color() # reads the colors
   atom_color = True
@@ -153,6 +183,7 @@ def create_atom(P,col=lattice_color,rad=0.55,opa=1.0,res=10,scale='none'):
      Draws an atom (sphere) at point P
      P: array-like object
    """
+   rad = rad*float(args.sitesize)
    mlab.points3d(P[0], P[1], P[2],
                  scale_factor=rad,
                  resolution=res,
@@ -167,7 +198,6 @@ def create_lattice(xyz,dr=[0.,0.,0.],bold=False):
   """ Creates a lattice using xyz coordinates"""
   ii = 0
   dr = np.array(dr)
-  print(dr)
   xyz2 = (xyz.transpose() + dr).transpose()
   create_atom(xyz2)
 
@@ -239,7 +269,7 @@ def create_bonds(rs1,rs2):
   for (ii,jj) in bonds: # loop over bonds
     r1 = rs1[ii]
     r2 = rs2[jj]
-    crad = 0.1
+    crad = 0.1*float(args.bondsize)
     bondplt(r1,r2,rad=crad)
 
 
@@ -255,16 +285,6 @@ def plot_magnetization_cylinders(xyz,mag,dr=[0.,0.,0.]):
     pos = np.array([xyz[0][ii],xyz[1][ii],xyz[2][ii]]) + dr  # position
     axis = np.array([mag[0][ii],mag[1][ii],mag[2][ii]])  # position
     crad = 0.05*np.sqrt(axis.dot(axis)) # radius of the cone and cylinder
-#    cylinder = v.cylinder(pos=pos,axis=axis) # create arrow
-#    cone = v.cone(pos=pos+axis,axis=axis/4.0,radius = 2.0*crad ) # create arrow
-#    cylinder.color = v.color.red  # color of the arrow
-#    cone.color = v.color.red  # color of the arrow
-#    if atom_color: # if atoms have color change to green
-#      cylinder.color = v.color.green  # color of the arrow
-#      cone.color = v.color.green  # color of the arrow
-#    cylinder.radius = crad  # radius of the cone
-#    cylinders += [cylinder] # store arrow
-#    ii += 1
   return cylinders
 
 ###############################################
@@ -324,13 +344,11 @@ if crys.dimensionality == 2:
 ##############################################
 ##############################################
 #plot_magnetization_arrow(xyz,mag)   # plot the magnetization as arrows
-try:
-  if not "nomag" in sys.argv:
+if args.arrows=="True":
     mag = get_magnetization() # get the orbital index and magnetizations
     plot_magnetization(xyz,mag)   # plot the magnetization as cylinders
     for da in das: # and loop over replicas
       plot_magnetization(xyz,mag,dr=crys.a1*da[0] + crys.a2*da[1]) 
-except: pass
 ##############################################
 ##############################################
 
@@ -365,7 +383,7 @@ def tlabel(dr,crys):
 # Create bonds ############
 ############################
 rs = xyz.transpose() 
-if not "nobonds" in sys.argv:
+if args.bonds=="True":
   create_bonds(rs,rs)
   for da1 in das:
     for da2 in das:

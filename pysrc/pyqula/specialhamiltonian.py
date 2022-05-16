@@ -29,7 +29,7 @@ def multilayer_graphene(l=[0],real=False,**kwargs):
       h = g.get_hamiltonian(has_spin=False,
           mgenerator=mgenerator)
   else:
-    h = g.get_hamiltonian(has_spin=False,
+      h = g.get_hamiltonian(has_spin=False,
           tij=specialhopping.multilayer(**kwargs))
   return h
 
@@ -75,21 +75,21 @@ def SOC_TMDC(g=None,soc=0.0,**kwargs):
 def NbSe2(**kwargs):
 #    return TMDC_MX2(**kwargs,ts=[0.0263,0.0991,-0.0014,-0.0112,-0.0146,0.0025])
     return TMDC_MX2(**kwargs,
-            ts=[0.02126916,  0.08462639,  0.00504899, -0.00906057, -0.00572983])
+            tij=[0.02126916,  0.08462639,  0.00504899, -0.00906057, -0.00572983])
 #    return TMDC_MX2(**kwargs,ts=[0.3,2.,0.6,0.2,0.])
 
 def TaS2(**kwargs):
     return TMDC_MX2(**kwargs,
-             ts=[ 0.05525963, 0.08784492, -0.00185766, -0.01204535 ,0.00220995])
+             tij=[ 0.05525963, 0.08784492, -0.00185766, -0.01204535 ,0.00220995])
 
 
 def TaS2_SOC(**kwargs):
     return TMDC_MX2(**kwargs,soc=-0.5451483039554,
-             ts=[0.05901736,0.10243251,-0.00172311,-0.00993678,0.00459015])
+             tij=[0.05901736,0.10243251,-0.00172311,-0.00993678,0.00459015])
 
 
 
-def TMDC_MX2(soc=0.0,cdw=0.0,g=None,ts=[1.0],
+def TMDC_MX2(soc=0.0,cdw=0.0,g=None,tij=[1.0],
               drcdw = np.array([0.,0.,0.]), # shift in the CDW profile
               normalize=True):
     """Return the Hamiltonian of NbSe2"""
@@ -97,11 +97,11 @@ def TMDC_MX2(soc=0.0,cdw=0.0,g=None,ts=[1.0],
         g = geometry.triangular_lattice()  # triangular lattice
         if cdw!=0.0: g = g.get_supercell(3,store_primal=True)
 #    ts = [1.0,0.3,0.6]
-    ts = np.array(ts)
+    tij = np.array(tij)
 #    t = ts[0]/np.max(ts) # 1NN 
     if normalize: ts = ts/np.max(ts) # normalize
 #    fm = specialhopping.neighbor_hopping_matrix(g,ts) # function for hoppings
-    h = g.get_hamiltonian(is_multicell=True,has_spin=False,ts=ts)
+    h = g.get_hamiltonian(is_multicell=True,has_spin=False,tij=tij)
     ## Now add the SOC if necessary
     if soc!=0.0: # add the SOC
         h.turn_spinful() # turn spinful
@@ -168,15 +168,36 @@ def excitonic_bilayer(gap=0.0,g=None,**kwargs):
     gc = gc + np.array([0.,0.,1]) # conduction
     g = gv + gc # add geometries
     def tij(r1,r2):
-      dr = r1 - r2
-      dr2 = dr.dot(dr)
-      if 0.99<dr2<1.01: return np.sign(r1[2])
-      return 0.0
+        dr = r1 - r2
+        dr2 = dr.dot(dr)
+        if 0.99<dr2<1.01: return np.sign(r1[2])
+        return 0.0
     h = g.get_hamiltonian(tij=tij,has_spin=False) # no spin
     def fons(r):
-      if r[2]>0.0: return -fermiv - gap/2.
-      else: return fermiv + gap/2
+        if r[2]>0.0: return -fermiv - gap/2.
+        else: return fermiv + gap/2
     h.add_onsite(fons)
+    return h
+
+
+
+def FeSe():
+    """Return the Hamiltonian of FeSe, a bandstructure
+    displaying two pockets"""
+    g = geometry.cubic_lattice() # cubic lattice
+    g = g.supercell([1,1,2]) # create a bilayer
+    g.dimensionality = 2 # set as 2d
+    g.center()
+    def fh(r1,r2): # function for the hoppings
+        dr = r1-r2
+        dr2 = dr.dot(dr)
+        if 0.9<dr2<1.1:
+            if abs(dr[2])>0.1: return 0. # no hopping
+            if np.sign(r1[2]+r2[2])>0: return 1.0 # return hopping
+            else: return -1.0 
+        return 0.
+    h = g.get_hamiltonian(tij=fh)
+    h.add_onsite(lambda r: 3.+1*r[2])
     return h
 
 

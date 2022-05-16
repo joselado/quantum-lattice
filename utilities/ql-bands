@@ -35,6 +35,10 @@ parser.add_argument("--yscale",default="1.0",
         help='Scale of the y axis')
 parser.add_argument("--cmap",default="RGB",
         help='Color map')
+parser.add_argument("--filling",default="True",
+        help='Filling')
+parser.add_argument("--scale",default="False",
+        help='Filling')
 
 args = parser.parse_args() # get the arguments
 
@@ -48,8 +52,10 @@ def getplot(obj):
   # the color map
   import numpy as np
   cdict={'red': ((0., 0, 0),(0.6,0.0,0.0),(1, 1.0, 1.0)), 'green': ((0., 0.0, 0.0),(0.4,1.0,1.0),(0.6,1.0,1.0),(1, 0.0, 0.0)), 'blue': ((0., 1.0, 1.0),(0.4,0.0,0.0), (1, 0.0, 0.0))}
+  cdict_v2={'red': ((0., 0, 0),(0.6,0.0,0.0),(1, 1.0, 1.0)), 'green': ((0., 0.0, 0.0),(1.0,0.0,0.0),), 'blue': ((0., 1.0, 1.0),(0.4,0.0,0.0), (1, 0.0, 0.0))}
   import matplotlib
   rgb_cmap = matplotlib.colors.LinearSegmentedColormap('my_colormap',cdict,256)
+  rb_cmap = matplotlib.colors.LinearSegmentedColormap('my_colormap',cdict_v2,256)
   
   # check if plot the color
   draw_color = False
@@ -64,8 +70,18 @@ def getplot(obj):
   xlabel = "K-path" # default
   # plot a rectangle in the ocupied levels
   from matplotlib.patches import Rectangle
-  plt.fill_between(sorted(k),min(e)-3.0,0,color="yellow")
-  
+  if args.filling=="True":
+      plt.fill_between(sorted(k),min(e)-3.0,0,color="yellow")
+  scale = obj.get_slider("size") # scale
+  if args.scale=="True": # use a scale for the points
+      scale_type = obj.get_combobox("Scale") # type of scaling
+      if scale_type=="None": pass
+      elif scale_type=="Abs": scale = scale*np.abs(color)/np.max(np.abs(color))
+      elif scale_type=="1Mabs": 
+          scale = scale*(1.- np.abs(color)/np.max(np.abs(color)))
+      elif scale_type=="1Mabs2": 
+          scale = scale*(1.- (np.abs(color)/np.max(np.abs(color)))**2)
+      else: raise
   if not draw_color:  # plot without color
     col = plt.scatter(k,e, color ="black",s=obj.get_slider("size"))
     fig.subplots_adjust(0.3,0.3)
@@ -73,6 +89,7 @@ def getplot(obj):
     fig.subplots_adjust(0.3,0.1)
     args.cmap = obj.get_combobox("cmap") # get the colormap
     if args.cmap=="RGB": cmap = rgb_cmap # red-green-blue colormap
+    elif args.cmap=="RB": cmap = rb_cmap # red-green-blue colormap
     else: cmap = plt.get_cmap(args.cmap) # get the colormap
     sat = obj.get_slider("sat") # saturation
     if sat>0.:
@@ -81,7 +98,7 @@ def getplot(obj):
         color[color>zmax] = zmax
         color[color<-zmax] = -zmax
     col = plt.scatter(k,e,c=color,cmap=cmap, edgecolors='none',
-            s=obj.get_slider("size"))
+            s=scale)
     from matplotlib import ticker
     cb = plt.colorbar(orientation="horizontal")
     tick_locator = ticker.MaxNLocator(nbins=5)
@@ -107,21 +124,22 @@ def getplot(obj):
 # add the lines in the bandstructure
   if args.dim=="0": # zero dimensional
       plt.xlabel("State index")
-  elif args.dim=="1": # zero dimensional
-      plt.xticks([0.,0.5,1.],["$\Gamma$","$X$","$\Gamma$"])
-  elif args.dim=="2": # two dimensional
-    try: ll = open("BANDLINES.OUT","r").readlines()
+#  elif args.dim=="1": # zero dimensional
+#      plt.xticks([0.,0.5,1.],["$\Gamma$","$X$","$\Gamma$"])
+  elif args.dim in ["1","2"]: # two dimensional
+    try: 
+        ll = open("BANDLINES.OUT","r").readlines()
+        ik = []
+        names = []
+        for l in ll:
+          l = l.split()
+          ik.append(float(l[0]))
+          names.append("$"+l[1]+"$")
+        ik = np.array(ik)/np.max(ik)
+        plt.xticks(ik,names)
     except:
         print("BANDLINES.OUT not found")
-        ll = []
-    ik = []
-    names = []
-    for l in ll:
-      l = l.split()
-      ik.append(float(l[0]))
-      names.append("$"+l[1]+"$")
-    ik = np.array(ik)/max(ik)
-    plt.xticks(ik,names)
+        plt.xticks([0.,0.5,1.],["$\Gamma$","$X$","$\Gamma$"])
   plt.tight_layout(h_pad=0.1,w_pad=0.1) 
   return fig
 
@@ -129,7 +147,7 @@ def getplot(obj):
 app,main = plotpyqt.get_interface(getplot)
 main.setWindowTitle("Band structure")
 if len(m)>2: # has color
-  main.add_combobox(["RGB","rainbow","gist_rainbow","plasma","inferno"],
+  main.add_combobox(["RGB","RB","rainbow","gist_rainbow","plasma","inferno"],
         label="Colormap",key="cmap")
   main.add_slider(label="Saturation",key="sat",
         vs=np.linspace(0,1.,100),v0=0) # Saturation
@@ -139,6 +157,12 @@ main.add_slider(label="Offset",key="e0",
         vs=np.linspace(0.,1.,100),v0=0.5) # Energy window
 main.add_slider(label="Size",key="size",
         vs=range(1,100),v0=40) # Energy window
+
+
+if args.scale=="True": # has scale
+  main.add_combobox(["None","Abs","1Mabs","1Mabs2"],label="Scale")
+
+
 main.plot()
 main.show()
 sys.exit(app.exec_())

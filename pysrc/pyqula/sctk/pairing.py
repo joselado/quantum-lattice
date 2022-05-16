@@ -19,6 +19,8 @@ def pairing_generator(self,delta=0.0,mode="swave",d=[0.,0.,1.],
         weightf = lambda r1,r2: same_site(r1,r2)*np.identity(2)
     elif mode=="triplet": 
         weightf = lambda r1,r2: pwave(r1,r2,df,**kwargs)
+    elif mode=="pwave": 
+        weightf = lambda r1,r2: pwave(r1,r2,df,**kwargs)
     elif mode=="nodal_fwave":
         weightf = lambda r1,r2: nodal_fwave(r1,r2,df,**kwargs)
     elif mode=="antihaldane":
@@ -71,17 +73,18 @@ def swavenn(r1,r2):
     return 0.0*iden
 
 
-def dx2y2(r1,r2):
+def dx2y2(r1,r2,**kwargs):
     """Function with first neighbor dx2y2 profile"""
-    dr = r1-r2
-    dr2 = dr.dot(dr)
-    if 0.99<dr2<1.001: # first neighbor
-        return (dr[0]**2 - dr[1]**2)*iden
-    return 0.0*iden
+    return (get_singlet(r1,r2,L=2,**kwargs) + get_singlet(r1,r2,L=-2,**kwargs))/2.
+#    dr = r1-r2
+#    dr2 = dr.dot(dr)
+#    if 0.99<dr2<1.001: # first neighbor
+#        return (dr[0]**2 - dr[1]**2)*iden
+#    return 0.0*iden
 
 
 def dxy(r1,r2):
-    """Function with first neighbor dx2y2 profile"""
+    """Function with first neighbor dxy profile"""
     dr = r1-r2
     dr2 = dr.dot(dr)
     if 0.99<dr2<1.001: # first neighbor

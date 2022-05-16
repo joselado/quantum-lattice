@@ -18,8 +18,8 @@ for i in range(nfiles):
   x = m[0]
   y = m[1]
   fig.set_facecolor("white")
-#  py.plot(x,y,linewidth=3.0,label=name,color="black",marker="o")
-  py.scatter(x,y,label=name,color="black",marker="o")
+  py.plot(x,y,linewidth=3.0,label=name,color="black",marker="o")
+#  py.scatter(x,y,label=name,color="black",marker="o")
   py.xlim([min(x),max(x)])
 #py.legend()
 py.show()

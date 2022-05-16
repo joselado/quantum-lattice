@@ -8,7 +8,6 @@ from scipy.sparse import identity
 from .superconductivity import build_eh
 from scipy.sparse import issparse
 import scipy.linalg as lg
-#from bandstructure import braket_wAw
 from . import current
 from . import algebra
 from . import topology
@@ -23,6 +22,7 @@ isnumber = algebra.isnumber
 class Operator():
     def __init__(self,m,linear=True):
         """Initialization"""
+        from .hamiltonians import Hamiltonian
         self.linear = linear
         self.matrix = None
         if algebra.ismatrix(m):
@@ -35,6 +35,9 @@ class Operator():
             self.m = lambda v,k=None: m*v
         elif callable(m): 
             self.m = m # as function
+        elif type(m)==Hamiltonian: # Hamiltonian type 
+            self.m = lambda v,k=None: m.get_hk_gen()(k)@v
+            self.linear = True
         else: 
             print("Unrecognised type",type(m))
             raise
@@ -368,7 +371,7 @@ def get_velocity(h):
 #      R = algebra.inv(R) # not sure if this is ok
       v = [braket_wAw(w,vx),braket_wAw(w,vy),0]
       v = np.array(v).real
-      return R@v # return the scalar product
+      return (v@R@v)*w # return the scalar product
     return Operator(f)
   else: raise
 

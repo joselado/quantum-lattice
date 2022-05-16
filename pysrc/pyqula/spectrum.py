@@ -271,7 +271,7 @@ def ev(h,operator=None,nk=30,**kwargs):
     operator = [] # empty list
   elif not isinstance(operator,list): # if it is not a list
     operator = [operator] # convert to list
-  out = [(dm@op).trace() for op in operator] 
+  out = [np.trace(dm@op) for op in operator] 
   out = np.array(out) # return the result
   out = out.reshape(out.shape[0]) # reshape in case there are indexes
   return out # return array
@@ -529,5 +529,16 @@ def lowest_energies(h,n=4,k=None,**kwargs):
     es = [y for (x,y) in sorted(zip(np.abs(es),es))][0:n]
     es = np.sort(es)
     return es
+
+
+
+def get_bandwidth(self,**kwargs):
+    """Return the bandwidth of the Hamiltonian"""
+    from .gap import optimize_energy 
+    self.turn_dense() # dense matrix
+    emin = optimize_energy(self,mode="bottom",**kwargs)
+    emax = optimize_energy(self,mode="top",**kwargs)
+    return (emin,emax)
+
 
 

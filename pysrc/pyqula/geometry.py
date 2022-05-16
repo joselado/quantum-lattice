@@ -57,7 +57,7 @@ class Geometry:
         self.r = self.r/d
         self.r2xyz()
     def get_index(self,r,**kwargs):
-      return get_index(self,r,**kwargs)
+        return get_index(self,r,**kwargs)
     def __add__(self,g1):
         from .geometrytk.galgebra import sum_geometries
         return sum_geometries(self,g1)
@@ -161,6 +161,9 @@ class Geometry:
     def get_sublattice(self):
       """Initialize the sublattice"""
       if self.has_sublattice: self.sublattice = get_sublattice(self.r)
+      else: 
+          self.sublattice = get_sublattice(self.r)
+          self.has_sublattice = True
     def shift(self,r0):
       """Shift all the positions by r0"""
       self.x[:] -= r0[0]
@@ -233,12 +236,8 @@ class Geometry:
       Return the connections of each site
       """
       from . import neighbor
-  #    if self.dimensionality==0:
-      if True:
-        self.connections = neighbor.connections(self.r,self.r)
-        return self.connections # return list
-      else: raise
-
+      self.connections = neighbor.connections(self.r,self.r)
+      return self.connections # return list
 
 
 
@@ -432,7 +431,7 @@ def honeycomb_zigzag_ribbon(ntetramers=10):
 
 
 
-def honeycomb_lattice_zigzag_cell():
+def honeycomb_lattice_zigzag():
   """ Return a honeyomb lattice with 4 atoms per unit cell"""
   from numpy import array, sqrt
   x=array([0.0 for i in range(4)])
@@ -463,6 +462,12 @@ def honeycomb_lattice_zigzag_cell():
   g.center()
   return g
 
+def honeycomb_lattice_armchair():
+    g = honeycomb_lattice_zigzag()
+    g.a1,g.a2 = g.a2,-g.a1 # switch axis
+    from . import sculpt
+    g = sculpt.rotate_a2b(g,g.a1,np.array([1.0,0.0,0.0]))
+    return g
 
 
 def supercell1d(g,nsuper):
@@ -1166,7 +1171,7 @@ from .neighbor import neighbor_distances
 def array2function(g,v):
     r = g.r # positions
     def f(ri):
-        return array2function_jit(r,v,ri)
+        return array2function_jit(r,v,np.array(ri))
     return f # return function
 
 
@@ -1190,6 +1195,7 @@ read_xyz = readgeometry.read_xyz
 
 def get_supercell(self,nsuper,store_primal=False):
     """Creates a supercell"""
+    from .checkclass import number2array
     if store_primal: # store the primal geometry
         self.primal_geometry = self.copy() 
     if self.dimensionality==0: return self # zero dimensional
@@ -1199,26 +1205,19 @@ def get_supercell(self,nsuper,store_primal=False):
       if checkclass.is_iterable(nsuper): nsuper = nsuper[0]
       return supercell1d(self,nsuper)
     elif self.dimensionality==2:
-      try: # two numbers given
-        nsuper1 = nsuper[0]
-        nsuper2 = nsuper[1]
-      except: # one number given
-        nsuper1 = nsuper
-        nsuper2 = nsuper
+      nsuper = number2array(nsuper,d=2) # get an array
+      nsuper1 = nsuper[0] 
+      nsuper2 = nsuper[1]
       if abs(nsuper1-np.round(nsuper1))>1e-6 or abs(nsuper2-np.round(nsuper2))>1e-6:
           return supercelltk.target_angle_volume(self,angle=None,
                   volume=nsuper1*nsuper2)
       else: return supercell2d(self,n1=nsuper1,n2=nsuper2)
     elif self.dimensionality==3:
-      try: # two number given
+        nsuper = number2array(nsuper,d=3)
         nsuper1 = nsuper[0]
         nsuper2 = nsuper[1]
         nsuper3 = nsuper[2]
-      except: # one number given
-        nsuper1 = nsuper
-        nsuper2 = nsuper
-        nsuper3 = nsuper
-      s = supercell3d(self,n1=nsuper1,n2=nsuper2,n3=nsuper3)
+        s = supercell3d(self,n1=nsuper1,n2=nsuper2,n3=nsuper3)
     else: raise
     s.center()
     s.get_fractional()
@@ -1253,5 +1252,11 @@ def get_geometry(g):
         if g in gdict: return gdict[g]() # return the geometry
     elif g is None: return get_geometry("square") # default geometry
     else: raise
+
+
+def sierpinski(**kwargs):
+    from .geometrytk import fractals
+    return fractals.sierpinski(**kwargs)
+
 
 

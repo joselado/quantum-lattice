@@ -5,6 +5,7 @@ import sys
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+
 matplotlib.rcParams.update({'font.size': 18})
 matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
 
@@ -12,10 +13,13 @@ def getplot(obj):
     fig = plt.figure(obj.figure.number)
     plt.gcf().canvas.set_window_title('Momentum resolved DOS')
     fig.set_facecolor("white")
-    m = np.genfromtxt(args.input).transpose()
     x = m[0]
     y = m[1]
     z = m[2]
+    zscale = obj.get_combobox("Scale")
+    if zscale=="abs": z = np.abs(z)
+    elif zscale=="logabs": z = np.log(np.abs(z))
+    else: pass
     # get dimensions assuming uniform grid
     ux = np.unique(np.round(x,5))
     uy = np.unique(np.round(y,5))
@@ -89,6 +93,7 @@ parser.add_argument("--zlabel",default="z",help='z label')
 parser.add_argument("--show_cuts",default="False",help='Show cuts')
 parser.add_argument("--title",default="Colormap",help='Window title')
 args = parser.parse_args() # get the arguments
+m = np.genfromtxt(args.input).transpose()
 
 # now create the interface
 import os
@@ -106,6 +111,7 @@ if args.show_cuts=="True":
     window.add_combobox(["blue","red","green","black"],label="Color ycut",key="cy")
 window.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
 window.add_combobox(["bicubic","none"],label="Interpolation")
+window.add_combobox(["none","abs","logabs"],label="Scale")
 window.setWindowTitle(args.title)
 
 window.plot()

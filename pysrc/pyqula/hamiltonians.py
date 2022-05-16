@@ -199,6 +199,9 @@ class Hamiltonian():
     def check_mode(self,n):
         """Verify the type of Hamiltonian"""
         return hamiltonianmode.check_mode(self,n)
+    def get_bandwidth(self,**kwargs):
+        from .spectrum import get_bandwidth
+        return get_bandwidth(self,**kwargs)
     def diagonalize(self,nkpoints=100):
       """Return eigenvalues"""
       return diagonalize(self,nkpoints=nkpoints)
@@ -500,15 +503,18 @@ class Hamiltonian():
         my = self.extract(name="my")
         mz = self.extract(name="mz")
         return np.array([mx,my,mz]).T # return array
-    def compute_vev(self,name="sz",**kwargs):
+    def get_vev(self,operator="sz",name=None,**kwargs):
         """
         Compute a VEV of a spatially resolved operator
         """
+        if name is not None: operator=name # overwrite
         n = len(self.geometry.r) # number of sites
         ops = [operators.index(self,n=[i]) for i in range(n)]
-        op = self.get_operator(name) # get an operator
-        ops = [o*op for o in ops] # define operators
+        op = self.get_operator(operator) # get an operator
+        ops = [(o*op).get_matrix() for o in ops] # define operators
         return spectrum.ev(self,operator=ops,**kwargs).real
+    # for backwards compatibility
+    def compute_vev(self,**kwargs): return self.get_vev(**kwargs)
     def get_1dh(self,k=0.0):
         """Return a 1d Hamiltonian"""
         if self.is_multicell: # not implemented
@@ -584,6 +590,9 @@ class Hamiltonian():
     @get_docstring(superconductivity.average_hamiltonian_dvector)
     def get_average_dvector(self,**kwargs):
         return superconductivity.average_hamiltonian_dvector(self,**kwargs)
+    def didv(self,**kwargs):
+        from .transporttk.localprobe import Hamiltonian_didv
+        return Hamiltonian_didv(self,**kwargs)
 
 
 hamiltonian = Hamiltonian
@@ -775,10 +784,9 @@ def shift_fermi(h,fermi):
     return
 
 
+from .algebra import isnumber as is_number
 import numbers
 
-def is_number(s):
-    return isinstance(x, numbers.Number)
 
 def is_hermitic(m):
   mh = np.conjugate(m).T
