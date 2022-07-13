@@ -1,5 +1,4 @@
 # library to calculate topological properties
-from __future__ import print_function
 import numpy as np
 from scipy.sparse import bmat, csc_matrix
 import scipy.linalg as lg
@@ -12,9 +11,8 @@ from . import timing
 from . import algebra
 from . import parallel
 
-
-arpack_tol = 1e-5
-arpack_maxiter = 10000
+arpack_tol = algebra.arpack_tol
+arpack_maxiter = algebra.arpack_maxiter
 
 
 def write_berry(h,kpath=None,dk=0.01,window=None,max_waves=None,nk=600,
@@ -22,7 +20,7 @@ def write_berry(h,kpath=None,dk=0.01,window=None,max_waves=None,nk=600,
       silent = True):
   """Calculate and write in file the Berry curvature"""
   operator = get_operator(h,operator)
-  if kpath is None: kpath = klist.default(h.geometry,nk=nk) # take default kpath
+  kpath = klist.get_kpath(h.geometry,kpath=kpath,nk=nk) # take default kpath
   tr = timing.Testimator("BERRY CURVATURE",silent=silent)
   ik = 0
   if operator is not None: mode="Green" # Green function mode
@@ -116,36 +114,9 @@ def berry_curvature(h,k,dk=0.01,window=None,max_waves=None):
   return phi
 
 
-def occ_states_generator(h,k,window=None,max_waves=None):
-  """Return a function that generates the occupied wavefunctions"""
-  hk_gen = h.get_hk_gen() # get hamiltonian generator
-# no need of h anymore
-  return lambda k: occupied_states(hk_gen,k,window=window,max_waves=max_waves) 
-
-
-
-def occ_states2d(h,k):
-  """Input is a Hamiltonian"""
-  hk_gen = h.get_hk_gen() # get hamiltonian generator
-  return occupied_states(hk_gen,k)
-
-
-def occupied_states(hkgen,k,window=None,max_waves=None):
-  """ Returns the WF of the occupied states in a 2d hamiltonian"""
-  hk = hkgen(k) # get hamiltonian
-  if max_waves is None: es,wfs = algebra.eigh(hk) # diagonalize all waves
-  else:  es,wfs = slg.eigsh(csc_matrix(hk),k=max_waves,which="SA",
-                      sigma=0.0,tol=arpack_tol,maxiter=arpack_maxiter)
-  wfs = np.conjugate(wfs.transpose()) # wavefunctions
-  occwf = []
-  for (ie,iw) in zip(es,wfs):  # loop over states
-    if window is None: # no energy window
-      if ie < 0:  # if below fermi
-        occwf.append(iw)  # add to the list
-    else: # energy window provided
-      if -abs(window)< ie < 0:  # between energy window and fermi
-        occwf.append(iw)  # add to the list
-  return np.array(occwf)
+from .topologytk.occstates import occ_states_generator
+from .topologytk.occstates import occupied_states
+from .topologytk.occstates import occ_states2d
 
 
 
@@ -240,7 +211,7 @@ def mesh_chern(h,dk=-1,nk=10,delta=0.0001,mode="Wilson",operator=None):
 
 def get_berry_curvature(h,dk=-1,nk=100,reciprocal=True,nsuper=1,window=None,
                max_waves=None,mode="Wilson",delta=0.001,operator=None,
-               write=True):
+               write=True,verbose=0):
   """ Calculates the chern number of a 2d system """
   if operator is not None: mode="Green" # Green function mode
   c = 0.0
@@ -256,9 +227,10 @@ def get_berry_curvature(h,dk=-1,nk=100,reciprocal=True,nsuper=1,window=None,
     for y in np.linspace(-nsuper,nsuper,nk,endpoint=False):
         ks.append([x,y,0.])
   ks = np.array(ks) # convert to array
-  tr = timing.Testimator("BERRY CURVATURE",maxite=len(ks))
+  if verbose>0: tr = timing.Testimator("BERRY CURVATURE",maxite=len(ks))
   def fp(ki): # function to compute the Berry curvature
-      if parallel.cores == 1: tr.iterate()
+      if parallel.cores == 1: 
+          if verbose>0: tr.iterate()
       else: print("Doing",ki)
       k = R@ki # change of basis
       if mode=="Wilson":

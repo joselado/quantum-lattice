@@ -553,13 +553,23 @@
             </property>
            </widget>
           </item>
-          <item row="5" column="0" colspan="2">
+          <item row="6" column="0" colspan="2">
            <widget class="QPushButton" name="show_dosbands">
             <property name="toolTip">
              <string>This is equivalent to band structure calculation, but it can be applied for very large systems</string>
             </property>
             <property name="text">
              <string>Show DOS Bands</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QComboBox" name="operator_kdos"/>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>Operator</string>
             </property>
            </widget>
           </item>

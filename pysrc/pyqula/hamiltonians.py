@@ -22,6 +22,7 @@ from . import groundstate
 from . import rotate_spin
 from . import topology
 from . import ldos
+from . import bandstructure
 from . import increase_hilbert
 from .meanfield import Vinteraction
 from .sctk import dvector
@@ -77,6 +78,8 @@ class Hamiltonian():
     def add_strain(self,fs,**kwargs):
         from .strain import add_strain
         add_strain(self,fs,**kwargs) 
+    def remove_pairing(self):
+        superconductivity.remove_pairing(self)
     def remove_sites(self,store):
         from . import sculpt
         self.geometry = sculpt.remove_sites(self.geometry,store)
@@ -141,6 +144,7 @@ class Hamiltonian():
       self.hopping_dict = {} # hopping dictonary
       self.has_hopping_dict = False # has hopping dictonary
       self.non_hermitian = False # non hermitian Hamiltonian
+      self.os_gen = None # occupied states generator, for topology
       if not geometry is None:
   # dimensionality of the system
         self.dimensionality = geometry.dimensionality 
@@ -216,7 +220,10 @@ class Hamiltonian():
         return atomicmultildos.get_density(self,**kwargs)
     def get_bands(self,**kwargs):
       """ Returns a figure with the bandstructure"""
-      return get_bands_nd(self,**kwargs)
+      return bandstructure.get_bands_nd(self,**kwargs)
+    def get_bands_map(self,**kwargs):
+      """ Returns a figure with the bandstructure"""
+      return bandstructure.get_bands_map(self,**kwargs)
     def get_kdos_bands(self,**kwargs):
         from .kdos import kdos_bands
         return kdos_bands(self,**kwargs)

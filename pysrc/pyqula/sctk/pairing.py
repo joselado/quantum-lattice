@@ -16,7 +16,7 @@ def pairing_generator(self,delta=0.0,mode="swave",d=[0.,0.,1.],
     if callable(mode):
         weightf = mode # mode is a function returning a 2x2 pairing matrix
     elif mode=="swave":
-        weightf = lambda r1,r2: same_site(r1,r2)*np.identity(2)
+        weightf = lambda r1,r2: swave(r1,r2,H=self,**kwargs) #same_site(r1,r2)*np.identity(2)
     elif mode=="triplet": 
         weightf = lambda r1,r2: pwave(r1,r2,df,**kwargs)
     elif mode=="pwave": 
@@ -43,9 +43,9 @@ def pairing_generator(self,delta=0.0,mode="swave",d=[0.,0.,1.],
         def weightf(r1,r2):
           return swaveB(self.geometry,r1,r2) - swaveA(self.geometry,r1,r2)
     elif mode=="dx2y2":
-        weightf = lambda r1,r2: dx2y2(r1,r2)
+        weightf = lambda r1,r2: dx2y2(r1,r2,H=self,**kwargs)
     elif mode=="dxy":
-        weightf = lambda r1,r2: dxy(r1,r2)
+        weightf = lambda r1,r2: dxy(r1,r2,H=self,**kwargs)
     elif mode=="snn":
         weightf = lambda r1,r2: swavenn(r1,r2)
     elif mode=="C3nn":
@@ -83,8 +83,9 @@ def dx2y2(r1,r2,**kwargs):
 #    return 0.0*iden
 
 
-def dxy(r1,r2):
+def dxy(r1,r2,**kwargs):
     """Function with first neighbor dxy profile"""
+    return (get_singlet(r1,r2,L=2,**kwargs) - get_singlet(r1,r2,L=-2,**kwargs))/2.
     dr = r1-r2
     dr2 = dr.dot(dr)
     if 0.99<dr2<1.001: # first neighbor
@@ -92,7 +93,10 @@ def dxy(r1,r2):
     return 0.0*iden
 
 
-
+def swave(r1,r2,nn=0,**kwargs):
+    """Function with first neighbor dxy profile"""
+    if nn==0: return same_site(r1,r2)*np.identity(2)
+    else: return get_singlet(r1,r2,L=0,nn=nn,**kwargs)
 
 
 def C3nn(r1,r2):
@@ -179,11 +183,16 @@ def get_triplet(r1,r2,df,L=1):
     else: return 0.0*tauz
 
 
-def get_singlet(r1,r2,L=2):
+def get_singlet(r1,r2,L=2,H=None,nn=1):
     """Function for p-wave order"""
     if L%2!=0: raise
     dr = r1-r2 ; dr2 = dr.dot(dr)
-    if 0.99<dr2<1.001:
+    if nn>1: # more than first neighbor
+      dist = H.geometry.get_neighbor_distances(n=nn)[nn-1] # get this distance
+      dist2 = dist**2
+    else: dist2 = 1.0 # first neighbor
+#      print(dist2) ; exit()
+    if np.abs(dr2-dist2)<1e-4:
         phi = np.arctan2(dr[1],dr[0])
         out = np.exp(1j*phi*L)
 #        print(out)

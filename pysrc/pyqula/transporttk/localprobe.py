@@ -14,9 +14,12 @@ gfmode = "adaptive"
 class LocalProbe():
     def __init__(self,h,lead=None,delta=1e-5,i=0,T=1.0,**kwargs):
         self.H = h.copy() # store Hamiltonian
+        self.H.turn_dense() # dense Hamiltonian
         self.has_eh = self.H.has_eh # electron-hole
         self.delta = delta
         self.mode = "bulk"
+        self.reuse_gf = False # reuse the Green's function
+        self.gf = None
         self.bulk_delta = delta
         self.frozen_lead = True
         self.i = i # this site
@@ -49,6 +52,9 @@ class LocalProbe():
     def copy(self): return deepcopy(self)
     def set_coupling(self,c):
         self.T = c # set the coupling
+    def remove_pairing(self):
+        self.H.remove_pairing()
+        self.lead.remove_pairing()
     def get_kappa(self,T=None,**kwargs):
         from .kappa import get_kappa_ratio
         if T is None: T = self.T 
@@ -60,10 +66,14 @@ class LocalProbe():
 def generate_gf(self,energy=0.0,**kwargs):
     """Generate the specific Green's function"""
     mode = self.mode 
-    gf = self.H.get_gf(energy=energy,delta=self.bulk_delta,
-                         mode=gfmode,
-                         gtype=mode)
-    return gf
+    # just a trick to reuse the GF if needed
+    if self.reuse_gf and self.gf is not None: return self.gf 
+    else:
+        gf = self.H.get_gf(energy=energy,delta=self.bulk_delta,
+                             mode=gfmode,
+                             gtype=mode)
+        if self.reuse_gf: self.gf = gf # overwrite
+        return gf
 
 
 def lead_selfenergy(self,energy=0.0,**kwargs):

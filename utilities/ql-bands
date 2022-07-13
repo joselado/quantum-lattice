@@ -71,7 +71,7 @@ def getplot(obj):
   # plot a rectangle in the ocupied levels
   from matplotlib.patches import Rectangle
   if args.filling=="True":
-      plt.fill_between(sorted(k),min(e)-3.0,0,color="yellow")
+      plt.fill_between(sorted(k),min(e)-3.0,0,color="lightyellow")
   scale = obj.get_slider("size") # scale
   if args.scale=="True": # use a scale for the points
       scale_type = obj.get_combobox("Scale") # type of scaling
@@ -147,7 +147,7 @@ def getplot(obj):
 app,main = plotpyqt.get_interface(getplot)
 main.setWindowTitle("Band structure")
 if len(m)>2: # has color
-  main.add_combobox(["RGB","RB","rainbow","gist_rainbow","plasma","inferno"],
+  main.add_combobox(["RB","RGB","rainbow","gist_rainbow","plasma","inferno"],
         label="Colormap",key="cmap")
   main.add_slider(label="Saturation",key="sat",
         vs=np.linspace(0,1.,100),v0=0) # Saturation

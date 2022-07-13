@@ -258,7 +258,8 @@ def generate_hamiltonian(window,g=None):
     if g is None: raise
     get = window.get # function
     get_array = window.get_array # function
-    h = g.get_hamiltonian(has_spin=True,ts=get_array("hoppings"))
+    h = g.get_hamiltonian(has_spin=True,tij=get_array("hoppings"))
+    ts = get_array("hoppings")
     h.add_exchange(get_array("exchange")) # Zeeman fields
     h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
     h.add_rashba(get("rashba"))  # Rashba field

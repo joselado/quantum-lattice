@@ -88,7 +88,7 @@ def modify_geometry(g):
 def initialize():
   """ Initialize the calculation"""
   g = get_geometry() # get the geometry
-  h = g.get_hamiltonian(has_spin=True,ts=qtwrap.get_array("hoppings"))
+  h = g.get_hamiltonian(has_spin=True,tij=qtwrap.get_array("hoppings"))
   h.turn_multicell()
   h.add_zeeman(qtwrap.get_array("exchange"))
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance

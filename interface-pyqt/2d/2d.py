@@ -24,6 +24,7 @@ common.initialize(qtwrap) # do several common initializations
 
 qtwrap.set_combobox("scf_initialization",meanfield.spinful_guesses)
 qtwrap.set_combobox("bands_color",operators.operator_list)
+qtwrap.set_combobox("operator_kdos",operators.operator_list)
 
 
 def get_geometry(modify=True):
@@ -123,9 +124,14 @@ def show_bands():
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian
   nk = int(get("ne_kbands"))
-  kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
-                   ne=int(get("ne_kbands")),delta=get("delta_kbands"),
-                   ntries=int(get("nv_kbands")),nk=nk)
+  op = getbox("operator_kdos")
+  ewindow=get("window_kbands")
+  ne=int(get("ne_kbands"))
+  es = np.linspace(-ewindow,ewindow,ne)
+  kdos.kdos_bands(h,scale=get("scale_kbands"),
+                   energies = es,
+                   delta=get("delta_kbands"),
+                   ntries=int(get("nv_kbands")),nk=nk,operator=op)
   execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
 #  execute_script("ql-map2d --input KDOS_BANDS.OUT --xlabel k --ylabel E/t --zlabel A --show_cuts False --title 'Spectral function'")
 

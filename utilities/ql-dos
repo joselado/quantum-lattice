@@ -74,7 +74,7 @@ def getplot(obj):
       efill.append(ie) 
       dfill.append(idos) 
   splot.fill_between(efill,0,dfill,color="yellow")
-  splot.set_ylim([0.,max(d[abs(e)<ewin])])  
+  splot.set_ylim([0.,np.max(d[abs(e)<ewin])*obj.get_slider("dwin")])  
   splot.set_xlim([-ewin,ewin])  
   plt.locator_params(nbins=4)
   # now the integral of the DOS
@@ -102,6 +102,7 @@ app,main = plotpyqt.get_interface(getplot)
 main.setWindowTitle("Density of states")
 main.add_slider(label="Smoothness",vs=np.linspace(0.,1.,100)) # Saturation
 main.add_slider(label="Energy window",key="ewin",vs=np.linspace(0.,1.,100)) 
+main.add_slider(label="DOS window",key="dwin",v0=1,vs=np.linspace(0.,1.,100)) 
 main.plot()
 main.show()
 sys.exit(app.exec_())
