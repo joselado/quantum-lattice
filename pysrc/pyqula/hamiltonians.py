@@ -398,8 +398,11 @@ class Hamiltonian():
         return MultiHopping(self.get_dict())
 
     @get_docstring(Vinteraction)
-    def get_mean_field_hamiltonian(self,**kwargs):
-        return Vinteraction(self,**kwargs).hamiltonian
+    def get_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
+        scf = Vinteraction(self,**kwargs)
+        if return_total_energy:
+            return (scf.hamiltonian,scf.total_energy)
+        else: return scf.hamiltonian
     def copy(self):
         """
         Return a copy of the hamiltonian
@@ -560,9 +563,9 @@ class Hamiltonian():
         from . import operatorlist
         return operators.object2operator(operatorlist.get_operator(self,name,
             **kwargs))
-    def extract(self,name): 
+    def extract(self,name,**kwargs): 
         """Extract something from the Hamiltonian"""
-        return extract.extract_from_hamiltonian(self,name)
+        return extract.extract_from_hamiltonian(self,name,**kwargs)
     @get_docstring(dvector.dvector_non_unitarity_map)
     def write_non_unitarity(self,**kwargs):
         dvector.dvector_non_unitarity_map(self,**kwargs)

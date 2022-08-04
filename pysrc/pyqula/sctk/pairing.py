@@ -17,12 +17,23 @@ def pairing_generator(self,delta=0.0,mode="swave",d=[0.,0.,1.],
         weightf = mode # mode is a function returning a 2x2 pairing matrix
     elif mode=="swave":
         weightf = lambda r1,r2: swave(r1,r2,H=self,**kwargs) #same_site(r1,r2)*np.identity(2)
+    elif mode=="extended_swave":
+        weightf = lambda r1,r2: swave(r1,r2,H=self,nn=1,
+                     **kwargs) #same_site(r1,r2)*np.identity(2)
     elif mode=="triplet": 
         weightf = lambda r1,r2: pwave(r1,r2,df,**kwargs)
     elif mode=="pwave": 
         weightf = lambda r1,r2: pwave(r1,r2,df,**kwargs)
     elif mode=="nodal_fwave":
         weightf = lambda r1,r2: nodal_fwave(r1,r2,df,**kwargs)
+#    elif mode=="chiral_fwave": 
+#        weightf = lambda r1,r2: get_triplet(r1,r2,df,L=3)
+    elif mode=="chiral_pwave": 
+        weightf = lambda r1,r2: get_triplet(r1,r2,df,L=1)
+    elif mode=="chiral_dwave": 
+        weightf = lambda r1,r2: get_singlet(r1,r2,L=2,**kwargs)
+    elif mode=="chiral_gwave": 
+        weightf = lambda r1,r2: get_singlet(r1,r2,L=4,**kwargs)
     elif mode=="antihaldane":
         f = get_haldane_function(self.geometry,stagger=True)
         weightf = lambda r1,r2: f(r1,r2)*np.identity(2)
@@ -42,7 +53,7 @@ def pairing_generator(self,delta=0.0,mode="swave",d=[0.,0.,1.],
     elif mode=="swavesublattice":
         def weightf(r1,r2):
           return swaveB(self.geometry,r1,r2) - swaveA(self.geometry,r1,r2)
-    elif mode=="dx2y2":
+    elif mode in ["dx2y2","nodal_dwave"]:
         weightf = lambda r1,r2: dx2y2(r1,r2,H=self,**kwargs)
     elif mode=="dxy":
         weightf = lambda r1,r2: dxy(r1,r2,H=self,**kwargs)
@@ -179,7 +190,7 @@ def get_triplet(r1,r2,df,L=1):
         d = df((r1+r2)/2.) # evaluate dvector
         delta = dvector2delta(d) # compute the local deltas
         ms = np.array([[delta[2],delta[0]],[delta[1],-delta[2]]])
-        return np.exp(1j*phi*L)*ms
+        return np.exp(1j*phi*L)*np.array(ms,dtype=np.complex)
     else: return 0.0*tauz
 
 

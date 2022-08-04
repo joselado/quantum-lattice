@@ -4,7 +4,7 @@ import numpy as np
 from . import geometry
 
 
-def twisted_bilayer(n=7,ti=0.12,lambi=3.0,lamb=3.0,is_sparse=True,
+def twisted_multilayer_graphene(n=7,ti=0.12,lambi=3.0,lamb=3.0,is_sparse=True,
         g=None,g0=None,has_spin=False,dl=3.0,**kwargs):
     """
     Return the Hamiltonian of twisted bilayer graphene
@@ -16,8 +16,15 @@ def twisted_bilayer(n=7,ti=0.12,lambi=3.0,lamb=3.0,is_sparse=True,
             is_multicell=True,mgenerator=mgenerator)
     return h
 
+# some aliases
+twisted_bilayer = twisted_multilayer_graphene
 tbg = twisted_bilayer
 twisted_bilayer_graphene = tbg
+
+def tdbg(n=4,**kwargs): 
+    """Twisted double bilayer Hamiltonian"""
+    g = specialgeometry.tdbg(n) # TBDG geometry
+    return twisted_multilayer_graphene(g=g,**kwargs) # return Hamiltonian
 
 
 def multilayer_graphene(l=[0],real=False,**kwargs):
@@ -73,10 +80,8 @@ def SOC_TMDC(g=None,soc=0.0,**kwargs):
 
 
 def NbSe2(**kwargs):
-#    return TMDC_MX2(**kwargs,ts=[0.0263,0.0991,-0.0014,-0.0112,-0.0146,0.0025])
     return TMDC_MX2(**kwargs,
             tij=[0.02126916,  0.08462639,  0.00504899, -0.00906057, -0.00572983])
-#    return TMDC_MX2(**kwargs,ts=[0.3,2.,0.6,0.2,0.])
 
 def TaS2(**kwargs):
     return TMDC_MX2(**kwargs,
@@ -178,14 +183,24 @@ def excitonic_bilayer(gap=0.0,g=None,**kwargs):
 
 
 
-def FeSe(**kwargs):
+def FeSe(nem=0.,**kwargs):
     """Return the Hamiltonian of FeSe, a bandstructure
     displaying two pockets"""
     g = geometry.square_lattice() # cubic lattice
-#    h = g.get_hamiltonian(tij=[1.,3.],**kwargs) 
-    h = g.get_hamiltonian(tij=[1.,-0.4,0.4],**kwargs) 
-#    h.add_onsite(-5.)
-    h.add_onsite(-2.5)
+    h = g.get_hamiltonian(tij=[1.,3.],**kwargs) 
+#    h = g.get_hamiltonian(tij=[1.,-0.4,0.4],**kwargs) 
+    h.add_onsite(-5.)
+#    h.add_onsite(-2.5)
+    v = np.array([1.,0.,0.]) # nematic vector
+    v = v/np.sqrt(v.dot(v))
+#    h.remove_spin()
+    def fnem(dr):
+        if dr.dot(dr)>1e-2: dr = dr/np.sqrt(dr.dot(dr)) # unitary vector
+        else: return 1.0 # same site
+        o = 1. - nem*(dr.dot(v)**2-0.5) # return 
+        return o
+    if np.abs(nem)>0.:
+      h.add_strain(fnem, mode="directional")
     h.turn_dense()
     return h
 #    g = geometry.cubic_lattice() # cubic lattice

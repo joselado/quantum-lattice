@@ -12,7 +12,8 @@ srcpath = os.path.dirname(os.path.realpath(__file__))+"/.."
 
 def pcall(fin,xs,batch_size=1,**kwargs):
     """Wrapper to allow for a batch size"""
-    if batch_size==1: return pcall_killproof(fin,xs,**kwargs)
+    #if batch_size==1: return pcall_killproof(fin,xs,**kwargs)
+    if batch_size==1: return pcall_single(fin,xs,**kwargs)
     else: 
         nx = len(xs) # number of xs
         xsn = [] # empty list
@@ -23,8 +24,8 @@ def pcall(fin,xs,batch_size=1,**kwargs):
                 xsn.append(o) # store
                 o = [] # reset
         def fnew(y): return [fin(x) for x in y] # call this batch
-        #outs = pcall_single(fnew,xsn,**kwargs) # call the inputs
-        outs = pcall_killproof(fnew,xsn,**kwargs) # call the inputs
+        outs = pcall_single(fnew,xsn,**kwargs) # call the inputs
+        #outs = pcall_killproof(fnew,xsn,**kwargs) # call the inputs
         out = []
         for o in outs: out += o # add
         return out
