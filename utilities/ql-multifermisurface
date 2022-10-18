@@ -99,7 +99,7 @@ def plot(main):
   xxs = np.array([float(energy),float(energy)]) # energy
   axd.plot(xxs,yys,linewidth=3,c="red") # energy checked
   print("Energy",energy)
-  axd.set_ylim([0,max(md[1])]) # ylim
+  axd.set_ylim([min(md[1]),max(md[1])]) # ylim
   axd.set_xlim([min(md[0]),max(md[0])]) # xlim
   axd.set_xticks(np.linspace(min(md[0]),max(md[0]),5,endpoint=True)) # xlim
   axd.set_ylabel("DOS")

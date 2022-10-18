@@ -4,7 +4,7 @@ import numpy as np
 from . import geometry
 
 
-def twisted_multilayer_graphene(n=7,ti=0.12,lambi=3.0,lamb=3.0,is_sparse=True,
+def twisted_multilayer_graphene(n=7,ti=0.12,lambi=8.0,lamb=12.0,is_sparse=True,
         g=None,g0=None,has_spin=False,dl=3.0,**kwargs):
     """
     Return the Hamiltonian of twisted bilayer graphene
@@ -75,6 +75,10 @@ def SOC_TMDC(g=None,soc=0.0,**kwargs):
     h = g.get_hamiltonian(tij=ft,is_multicell=True,has_spin=False)
     h.turn_spinful(enforce_tr=True)
     return h # return the Hamiltonian
+
+
+from .specialhamiltoniantk.tmdc import doped_MoS2
+from .specialhamiltoniantk.heavyfermion import H2HFH
 
 
 

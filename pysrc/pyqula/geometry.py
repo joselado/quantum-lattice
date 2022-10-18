@@ -203,6 +203,7 @@ class Geometry:
         """
         Remove one site
         """
+        if callable(i): return sculpt.intersec(self,lambda r: not i(r))
         if type(i)==list: pass
         else: i = [i]
         return sculpt.remove(self,i)
@@ -755,6 +756,7 @@ def kagome_lattice(n=1):
   g.sublattice = [0,1,2] # the three sublattices
   if n>1: return supercelltk.target_angle(g,angle=1./3.,volume=int(n),
           same_length=True) 
+  g.update_reciprocal()
   return g
 
 
@@ -906,7 +908,7 @@ def remove_duplicated_positions(r):
        if dr<0.01: store = False
      if store: # store this atom
        rs.append(ir.copy())
-  return rs # return unrepeated atoms
+  return np.array(rs) # return unrepeated atoms
 
 
 
@@ -1201,26 +1203,27 @@ def get_supercell(self,nsuper,store_primal=False):
     if store_primal: # store the primal geometry
         self.primal_geometry = self.copy() 
     if self.dimensionality==0: return self # zero dimensional
-    if np.array(nsuper).shape==(3,3):
-      return supercelltk.non_orthogonal_supercell(self,nsuper)
+    if np.array(nsuper).shape==(3,3): # if a matrix is given
+        return supercelltk.non_orthogonal_supercell(self,nsuper)
     if self.dimensionality==1:
-      if checkclass.is_iterable(nsuper): nsuper = nsuper[0]
-      return supercell1d(self,nsuper)
+        if checkclass.is_iterable(nsuper): nsuper = nsuper[0]
+        return supercell1d(self,nsuper)
     elif self.dimensionality==2:
-      nsuper = number2array(nsuper,d=2) # get an array
-      nsuper1 = nsuper[0] 
-      nsuper2 = nsuper[1]
-      if abs(nsuper1-np.round(nsuper1))>1e-6 or abs(nsuper2-np.round(nsuper2))>1e-6:
-          return supercelltk.target_angle_volume(self,angle=None,
-                  volume=nsuper1*nsuper2)
-      else: return supercell2d(self,n1=nsuper1,n2=nsuper2)
+        nsuper = number2array(nsuper,d=2) # get an array
+        nsuper1 = nsuper[0] 
+        nsuper2 = nsuper[1]
+        if np.max(np.abs(nsuper-np.round(nsuper)))>1e-5:
+            return supercelltk.target_angle_volume(self,angle=None,
+                    volume=nsuper1*nsuper2)
+        else: return supercell2d(self,n1=nsuper1,n2=nsuper2)
     elif self.dimensionality==3:
         nsuper = number2array(nsuper,d=3)
+        if np.max(np.abs(nsuper-np.round(nsuper)))>1e-5: raise # not implementet
         nsuper1 = nsuper[0]
         nsuper2 = nsuper[1]
         nsuper3 = nsuper[2]
         s = supercell3d(self,n1=nsuper1,n2=nsuper2,n3=nsuper3)
-    else: raise
+    else: raise # not implemented
     s.center()
     s.get_fractional()
     return s

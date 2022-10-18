@@ -126,9 +126,10 @@ def get_fermi_surface(h,window):
     nk = int(window.get("fs_nk")) # number of kpoints
     numw = int(window.get("fs_numw")) # number of waves for sparse
     delta = window.get("fs_delta")
+    operator = window.getbox("fs_operator")
     h = h.reduce() # reduce dimensionality if possible
     spectrum.multi_fermi_surface(h,nk=nk,energies=energies,
-        delta=delta,nsuper=1,numw=numw)
+        delta=delta,nsuper=1,numw=numw,operator=operator)
     execute_script("ql-multifermisurface")
 
 

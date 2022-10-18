@@ -828,11 +828,42 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="0" colspan="2">
+          <item row="4" column="0" colspan="2">
            <widget class="QPushButton" name="show_fermi_surface">
             <property name="text">
              <string>Show Fermi surface</string>
             </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_5">
+            <property name="text">
+             <string>Operator</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="fs_operator">
+            <item>
+             <property name="text">
+              <string>None</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>sz</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>sy</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>sx</string>
+             </property>
+            </item>
            </widget>
           </item>
          </layout>

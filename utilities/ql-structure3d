@@ -94,7 +94,7 @@ xyz = read_positions().transpose()
 create_atoms(xyz)    # plot the atoms
 rs = xyz.transpose() 
 
-if len(rs)<200:
+if len(rs)<250:
   create_bonds(rs,rs,tube_sides=10)
 
 
