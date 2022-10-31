@@ -1,4 +1,4 @@
-#!/mnt/extradrive/apps/anaconda3/bin/python
+#!/home/joselado/apps/anaconda3/bin/python
 
 import argparse
 parser = argparse.ArgumentParser()

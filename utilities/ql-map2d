@@ -1,4 +1,4 @@
-#!/mnt/extradrive/apps/anaconda3/bin/python
+#!/home/joselado/apps/anaconda3/bin/python
 
 
 import sys
@@ -11,7 +11,6 @@ matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
 
 def getplot(obj):
     fig = plt.figure(obj.figure.number)
-    plt.gcf().canvas.set_window_title('Momentum resolved DOS')
     fig.set_facecolor("white")
     x = m[0]
     y = m[1]

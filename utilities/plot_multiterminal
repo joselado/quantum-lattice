@@ -1,4 +1,4 @@
-#!/mnt/extradrive/apps/anaconda3/bin/python
+#!/home/joselado/apps/anaconda3/bin/python
 
 from __future__ import print_function
 import sys
