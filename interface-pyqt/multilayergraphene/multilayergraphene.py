@@ -82,7 +82,7 @@ def initialize():
   """ Initialize the calculation"""
   g = get_geometry() # get the geometry
   ti = get("interlayer")
-  h = g.get_hamiltonian(has_spin=True,fun=specialhopping.multilayer(ti=ti))
+  h = g.get_hamiltonian(has_spin=True,tij=specialhopping.multilayer(ti=ti))
   h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field
