@@ -6,6 +6,7 @@ import numpy
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--input",default="")
+parser.add_argument("--output",default="")
 parser.add_argument("--nx",default=4)
 parser.add_argument("--ny",default=4)
 parser.add_argument("--reflecty",default="False")
@@ -68,7 +69,11 @@ def refine(i):
 
 out = [xn2d,yn2d] + [refine(i) for i in range(len(m)-2)]
 
-np.savetxt("INTERPOLATED_"+name,np.array(out).T)
+if args.output=="":
+  outname = "INTERPOLATED_"+name
+else:
+  outname = args.output
+np.savetxt(outname,np.array(out).T)
 
 
 

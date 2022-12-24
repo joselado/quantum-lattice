@@ -3,7 +3,7 @@
 
 
 import os
-#os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
+os.system("export ETS_TOOLKIT=wx") # this is to fix possible problems
 import numpy as np
 
 

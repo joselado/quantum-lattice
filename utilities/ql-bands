@@ -18,7 +18,6 @@ from interfacetk import plotpyqt
 # change the font size
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Liberation Sans"
 
 
 import argparse
