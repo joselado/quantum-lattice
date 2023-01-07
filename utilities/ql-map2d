@@ -76,6 +76,9 @@ def getplot(obj):
         if args.save_cuts=="True":
             np.savetxt("XCUT_"+args.input,np.array([ya,z2d[iy,:]]).T)
             np.savetxt("YCUT_"+args.input,np.array([xa,z2d[:,ix]]).T)
+    plt.tight_layout()
+    if args.save=="True":
+        plt.savefig("map.png",dpi=300)
     return fig
 
 
@@ -88,6 +91,7 @@ parser.add_argument("--input",default="2D.OUT",help='Input file')
 parser.add_argument("--xlabel",default="x",help='x label')
 parser.add_argument("--ylabel",default="y",help='y label')
 parser.add_argument("--save_cuts",default="False",help='Save the cuts')
+parser.add_argument("--save",default="False",help='Save image')
 parser.add_argument("--zlabel",default="z",help='z label')
 parser.add_argument("--show_cuts",default="False",help='Show cuts')
 parser.add_argument("--title",default="Colormap",help='Window title')
