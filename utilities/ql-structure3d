@@ -73,7 +73,7 @@ def get_bonds(rs1,rs2):
       ri = rs1[i]
       rj = rs2[j]
       dr = ri  - rj
-      if 0.8<dr.dot(dr)<1.2: # result
+      if 0.8<np.sqrt(dr.dot(dr))<1.2: # result
         bonds += [(i,j)] 
   bonds = np.array(bonds) # transform to int array
   return bonds

@@ -1,14 +1,14 @@
 ###############################################
 ###############################################
 ###############################################
-#### This file has simple wrappers to qt4  ####
+#### This file has simple wrappers to qt5  ####
 ###############################################
 ###############################################
 ###############################################
 
 
 
-from PyQt5 import QtGui,QtWidgets  # Import the PyQt5 module we'll need
+from PyQt5 import QtWidgets  # Import the PyQt5 module we'll need
 from PyQt5.QtGui import QPixmap
 #from PyQt5.QtCore import Signal
 import sys  # We need sys so that we can pass argv to QApplication
@@ -43,6 +43,8 @@ class App(QtGui.QMainWindow, interface.Ui_MainWindow):
         super(self.__class__, self).__init__()
         self.setupUi(self)  # This is defined in interface.py file automatically
         # It sets up layout and widgets that are defined
+        from .labels import set_labels
+        set_labels(self) # set more sophisticated labels
     def save_interface(self,**kwargs):
         save_interface(self,**kwargs)
     def run(self):
@@ -94,6 +96,7 @@ def array2string(v):
 
 
 def get_array(name,v0=[0.,0.,0.],**kwargs):
+    """Get an array from a cell"""
     v = getattr(form,name).text() # get the text
     v = string2array(v) # convert to array
     if v is not None: return v # return the array

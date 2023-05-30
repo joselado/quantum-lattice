@@ -169,7 +169,9 @@ def solve_scf(h,window):
   filling += extrae/h.intra.shape[0] # extra electron
   scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                 mf=mf,load_mf=False,#T=get("smearing_scf"),
-                mix = get("mix_scf"))
+                mix = get("mix_scf"),
+                verbose=1
+                )
   scf.hamiltonian.save() # save in a file
 
 

@@ -189,18 +189,8 @@ def show_structure_3d():
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
-  scfin = getbox("scf_initialization")
-  h = initialize() # initialize the Hamiltonian
-  mf = scftypes.guess(h,mode=scfin)
-  nk = int(get("nk_scf"))
-  U = get("hubbard")
-  filling = get("filling_scf")
-  filling = filling%1.
-  scf = scftypes.hubbardscf(h,nkp=nk,filling=filling,g=U,
-                mf=mf,T=get("smearing_scf"),
-                mix = get("mix_scf"))
-  scf.hamiltonian.save() # save in a file
-
+  h = initialize()
+  common.solve_scf(h,qtwrap)
 
 
 
