@@ -24,7 +24,7 @@ from matplotlib.widgets import Slider, Button, RadioButtons
 
 def plot(main):
   fig = plt.gcf()
-  plt.gcf().canvas.set_window_title('Local DOS')
+  plt.gcf().canvas.setWindowTitle('Local DOS')
   ax = fig.add_subplot(111) # axis for the LDOS
   plt.subplots_adjust(left=0.1, bottom=0.25)
   t = np.arange(0.0, 1.0, 0.001)

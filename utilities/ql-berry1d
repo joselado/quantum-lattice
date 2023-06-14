@@ -22,7 +22,7 @@ matplotlib.rcParams.update({'font.size': 18})
 
 fig = py.figure()
 currentfig = plt.gcf()
-currentfig.canvas.set_window_title('Berry curvature')
+currentfig.canvas.setWindowTitle('Berry curvature')
 fig.subplots_adjust(0.3,0.2)
 fig.set_facecolor("white") # white face
 

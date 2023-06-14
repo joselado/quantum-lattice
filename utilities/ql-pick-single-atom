@@ -34,7 +34,7 @@ isred = [False for ix in x] # if selected
 plt.ion()
 
 fig, ax = plt.subplots()
-fig.canvas.set_window_title('Site selection')
+fig.canvas.setWindowTitle('Site selection')
 
 def onpick(event):
         ind = event.ind

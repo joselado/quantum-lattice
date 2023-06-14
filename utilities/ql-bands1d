@@ -75,7 +75,7 @@ def plot_bands():
   xlab.set_fontsize(30) # label of the y xis
   fig.set_facecolor("white")  # set the layout in white
   bandstructure = plt.gcf()
-  bandstructure.canvas.set_window_title('Bandstructure')
+  bandstructure.canvas.setWindowTitle('Bandstructure')
 # add the lines in the bandstructure
   plt.xticks([0.,0.5,1.],["$\Gamma$","$X$","$\Gamma$"])
 

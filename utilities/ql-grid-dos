@@ -66,7 +66,7 @@ def getplot(obj):
   fig.clear()
   fig.subplots_adjust(0.2,0.2)
   currentfig = plt.gcf()
-  currentfig.canvas.set_window_title('Density of states')
+  currentfig.canvas.setWindowTitle('Density of states')
   e = obj.get_slider("Energy") # energy
   z = evaluate(e) # get the height
   plt.scatter(x,y,c="black")

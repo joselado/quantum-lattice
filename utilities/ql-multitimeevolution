@@ -51,7 +51,7 @@ for name in names: datadict[name] = np.genfromtxt(folder+name).transpose()
 def plot(main):
   """Plotting function"""
   fig = plt.gcf()
-  plt.gcf().canvas.set_window_title('Spatially resolved DOS')
+  plt.gcf().canvas.setWindowTitle('Spatially resolved DOS')
   ax = fig.add_subplot(121) # axis for the LDOS
   axd = fig.add_subplot(122) # axis for the DOS
   plt.subplots_adjust(left=0.1, bottom=0.25)

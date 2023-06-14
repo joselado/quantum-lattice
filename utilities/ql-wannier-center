@@ -13,7 +13,7 @@ matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
 fig = py.figure()
 fig.subplots_adjust(.2,.2)
 currentfig = plt.gcf()
-currentfig.canvas.set_window_title('Z2 invariant')
+currentfig.canvas.setWindowTitle('Z2 invariant')
 
 name = "WANNIER_CENTERS.OUT"
 m = np.genfromtxt(name).transpose()

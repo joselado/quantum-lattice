@@ -34,7 +34,7 @@ plt.ion()
 
 fig, ax = plt.subplots()
 currentfig = plt.gcf()
-currentfig.canvas.set_window_title('Structure')
+currentfig.canvas.setWindowTitle('Structure')
 plt.title("Number of atoms "+str(len(x)))
 fig.set_facecolor("white") # white
 if args.color=="True":

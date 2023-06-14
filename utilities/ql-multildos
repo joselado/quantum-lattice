@@ -26,9 +26,8 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--input",default="MULTILDOS",help='Input folder')
 parser.add_argument("--grid",default="False",help='Use grid mode')
+parser.add_argument("--site",default="-1",help='Plot also the DOS in a specific site')
 args = parser.parse_args() # get the arguments
-
-
 
 #fig.set_facecolor("white") # white
 
@@ -48,9 +47,16 @@ md = np.genfromtxt(folder+"DOS.OUT").transpose()
 def plot(main):
   """Plotting function"""
   fig = plt.gcf()
-  plt.gcf().canvas.set_window_title('Spatially resolved DOS')
-  ax = fig.add_subplot(121) # axis for the LDOS
-  axd = fig.add_subplot(122) # axis for the DOS
+  plt.gcf().canvas.setWindowTitle('Spatially resolved DOS')
+ # site = int(main.get_slider("Site")) # get the site to plot, if any
+  site = -1 # this needs to be fixed
+  if site>=0:
+      ax = fig.add_subplot(131) # axis for the LDOS
+      axd = fig.add_subplot(132) # axis for the DOS
+      axldos = fig.add_subplot(133) # axis for the LDOS
+  else:
+      ax = fig.add_subplot(121) # axis for the LDOS
+      axd = fig.add_subplot(122) # axis for the DOS
   plt.subplots_adjust(left=0.1, bottom=0.25)
   t = np.arange(0.0, 1.0, 0.001)
   a0 = 5
