@@ -17,7 +17,7 @@ window = qtwrap.main() # this is the main interface
 
 
 
-from interfacetk.qh_interface import * # import all the libraries needed
+from interfacetk.ql_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # do several common initializations
 
@@ -111,6 +111,13 @@ def initialize():
 def show_bands():
   h = pickup_hamiltonian() # get hamiltonian
   common.get_bands(h,qtwrap) # wrapper
+
+
+
+def show_edge_dos():
+  h = pickup_hamiltonian() # get hamiltonian
+  common.get_surface_dos(h,qtwrap) # wrapper
+
 
 
 def show_dosbands():
@@ -208,6 +215,7 @@ signals["show_dos"] = show_dos  # show DOS
 signals["show_dosbands"] = show_dosbands  # show DOS
 signals["show_multildos"] = show_multildos  # show DOS
 signals["show_ldos"] = show_ldos  # show DOS
+signals["show_edge_dos"] = show_edge_dos  # show DOS
 signals["show_structure_3d"] = show_structure_3d
 signals["show_magnetism"] = show_magnetism 
 signals["solve_scf"] = solve_scf

@@ -1,0 +1,75 @@
+#!/home/joselado/apps/anaconda3/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+
+
+### script for ploting DOS.OUT ###
+
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="DOS.OUT",
+        help='Input file with the dos')
+parser.add_argument("--integrated",default="False",
+        help='Integrated DOS')
+args = parser.parse_args() # get the arguments
+name = args.input
+m = np.genfromtxt(name).transpose()
+
+
+from scipy.signal import savgol_filter
+
+def getplot(obj):
+  # cretae figure and adjust subplot
+  fig = plt.figure(obj.figure.number)
+  fig.clear()
+  fig.subplots_adjust(0.2,0.2)
+  currentfig = plt.gcf()
+  currentfig.canvas.setWindowTitle('Density of states')
+  import sys
+  num_dos = len(m) - 1
+  e = m[0]
+  d = m[1]
+  plt.plot(m[0],m[1],label="Edge")
+  plt.plot(m[0],m[2],label="Bulk")
+  ewin = (1.01 - obj.get_slider("ewin")) # energy window
+  dwin = (1.01 - obj.get_slider("dwin")) # energy window
+  # first subplot
+  plt.title("DOS")
+  plt.xlim([ewin*min(e),ewin*max(e)])
+  ymax = max([max(m[1]),max(m[2])])
+  plt.ylim([0.,dwin*ymax])
+  plt.xlabel("Energy [t]")
+  plt.ylabel("$DOS$")
+  plt.legend()
+  return fig
+
+
+
+# create the interface
+app,main = plotpyqt.get_interface(getplot)
+main.setWindowTitle("Density of states")
+main.add_slider(label="Energy window",key="ewin",vs=np.linspace(0.,1.,100)) 
+main.add_slider(label="DOS window",key="dwin",v0=0.,vs=np.linspace(0.,1.,100)) 
+main.plot()
+main.show()
+sys.exit(app.exec_())
+
+
+

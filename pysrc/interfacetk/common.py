@@ -54,6 +54,21 @@ def get_kdos(h,window):
 
 
 
+
+def get_surface_dos(h,window):
+    """Show the KDOS"""
+    ew = window.get("sdos_ewindow")
+    delta = window.get("sdos_delta")
+    new = int(4*ew/delta) # scale as kpoints
+    energies = np.linspace(-ew,ew,new) # number of ene
+    kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
+    h = h.reduce() # reduce dimensionality if possible
+    kdos.surface(h,energies=energies,delta=delta)
+    command = "ql-sdos --input KDOS.OUT"
+    execute_script(command) # execute the script
+
+
+
 def show_exchange(h,window):
     """Show the exchange field"""
     nrep = max([int(window.get("magnetization_nrep")),1]) # replicas
