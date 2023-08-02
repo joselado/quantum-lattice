@@ -30,16 +30,14 @@ def extract_normal_dict(dd):
 
 
 def get_anomalous_hamiltonian(self):
-    """Turn a Hamiltonian into a Nambu Hamiltonian"""
-    self = self.copy() # copy Hamiltonian
-    self.turn_nambu() # setup electron-hole if not present
-    dd = self.get_multihopping().get_dict() # return the dictionary
-    dd = extract_anomalous_dict(dd)
-    self.set_multihopping(MultiHopping(dd))
-    return self
+    """Return anomalous part of a Hamiltonian"""
+    h0 = self.copy() ; h0.remove_nambu() ; h0.setup_nambu_spinor()
+    h = self - h0
+    return h
 
 
 def get_singlet_hamiltonian(self):
+    """Return only the anomalous spin singlet superconducting state"""
     self = self.copy()
     dd = self.get_multihopping().get_dict() # return the dictionary
     dd = extract_singlet_dict(dd)
@@ -48,6 +46,7 @@ def get_singlet_hamiltonian(self):
 
 
 def get_triplet_hamiltonian(self):
+    """Return only the anomalous spin singlet superconducting state"""
     h = get_anomalous_hamiltonian(self)
     return h - get_singlet_hamiltonian(h)
 
@@ -122,8 +121,27 @@ def extract_singlet_pairing(m):
 
 
 
+
+def extract_singlet_hamiltonian(h):
+    """Given a Hamiltonian, return only the superconducting singlet term"""
+    h = h.copy() # copy Hamiltonian
+    dd = h.get_dict() # extract dictionary
+    dd = extract_singlet_dict(dd) # extract the singlet
+    from ..multicell import set_dictionary
+    h = set_dictionary(h,dd) # set the dictionary
+    return h # return the singlet Hamiltonian
+
+
+def extract_triplet_hamiltonian(h):
+    """Given a Hamiltonian, return only the superconducting triplet term"""
+    h = get_anomalous_hamiltonian(h)
+    return h - extract_singlet_hamiltonian(h) # return the triplet
+
+
+
 def extract_custom_pairing(m,mode="all"):
     """Given a matrix, extract the pairing matrix according to some rule"""
+    raise # this may be buggy
     if mode=="singlet": # singlet, with sign
         m = extract_singlet_pairing(m) # matrix with pairings 
         return m
@@ -137,6 +155,11 @@ def extract_custom_pairing(m,mode="all"):
         m = extract_singlet_pairing(m) # matrix with pairings 
         m = mt + np.abs(np.array(m))**2 # singlet plus triplet
         return m
+    elif mode=="both": # singlet and triplet with interference effects
+        if m.shape[0]==4: # this is a quick fix for single site models
+            m = m@np.conjugate(m.T)
+            return np.array([[np.trace(m)]])
+        else: raise
     else: raise
 
 
@@ -144,23 +167,67 @@ def extract_custom_pairing(m,mode="all"):
 def extract_pairing_kmap(h,write=False,i=None,j=None,mode="all",**kwargs):
     """Extract the pairing in reciprocal space"""
     if not h.has_eh: raise # not implemented
+    h = get_anomalous_hamiltonian(h)
     if j is None: j = i # same site is the default
+    if mode=="all": pass # do nothing 
+    elif mode=="singlet": h = extract_singlet_hamiltonian(h) # singlet
+    elif mode=="triplet": h = extract_triplet_hamiltonian(h) # triplet
+    else: raise
     fk = h.get_hk_gen() # Bloch Hamiltonian generator
     def f0(k):
         m = fk(k) # full k-dependent Hamiltonian
-        m = extract_custom_pairing(m,mode=mode)
-        if i is None: return np.sqrt(np.trace(m@np.conjugate(m.T)))
-        else: return m[i,j] # return pairing
-    dref = f0(np.random.random(3)) ; dref = dref/np.abs(dref) # reference
-    fr = lambda k: (f0(k)/dref).real # reference
-    fi = lambda k: (f0(k)/dref).imag # reference
+        if i is None: return np.trace(m@np.conjugate(m.T))/m.shape[0]
+        else: raise # not implemented
+        # return m[i,j] # return pairing
     from .. import spectrum
-    (ks,dsr) = spectrum.reciprocal_map(h,fr,write=write,**kwargs)
-    (ks,dsi) = spectrum.reciprocal_map(h,fi,write=write,**kwargs)
-    return ks[:,0],ks[:,1],dsr+1j*dsi
+    (ks,ds) = spectrum.reciprocal_map(h,f0,write=write,**kwargs)
+    return ks[:,0],ks[:,1],ds
+#    dref = f0(np.random.random(3)) ; dref = dref/np.abs(dref) # reference
+#    fr = lambda k: (f0(k)/dref).real # reference
+#    fi = lambda k: (f0(k)/dref).imag # reference
+#    from .. import spectrum
+#    (ks,dsr) = spectrum.reciprocal_map(h,fr,write=write,**kwargs)
+#    (ks,dsi) = spectrum.reciprocal_map(h,fi,write=write,**kwargs)
+#    return ks[:,0],ks[:,1],dsr+1j*dsi
+
+
+def extract_absolute_pairing(h,mode="singlet",**kwargs):
+    """Extract the absolute value of the SC order in the BZ"""
+    h = get_anomalous_hamiltonian(h)
+    if mode=="all" or mode=="both": pass # do nothing 
+    elif mode=="singlet": h = extract_singlet_hamiltonian(h) # singlet
+    elif mode=="triplet": h = extract_triplet_hamiltonian(h) # triplet
+    else: raise # do nothing
+    fk = h.get_hk_gen() # Bloch Hamiltonian generator
+    from ..klist import kmesh
+    ks = kmesh(h.dimensionality,**kwargs) # kpoints
+    def f(k):
+        m = fk(k) # return Bloch Hamiltonian
+        return np.trace(m@m)/m.shape[0]
+    return np.sqrt(np.mean([f(k) for k in ks])) # return mean value
 
 
 
+
+def extract_absolute_spatial_pairing(h,mode="singlet",**kwargs):
+    """Extract the absolute value of the SC order in the BZ"""
+    h = get_anomalous_hamiltonian(h) # overwrite Hamiltonian
+    if mode=="all" or mode=="both": pass # do nothing
+    elif mode=="singlet": h = extract_singlet_hamiltonian(h) # singlet
+    elif mode=="triplet": h = extract_triplet_hamiltonian(h) # triplet
+    else: raise # do nothing
+    fk = h.get_hk_gen() # Bloch Hamiltonian generator
+    from ..klist import kmesh
+    ks = kmesh(h.dimensionality,**kwargs) # kpoints
+    def f(k):
+        m = fk(k) # return Bloch Hamiltonian
+        m2 = m@m # compute H**2
+        out = np.diag(m2) # return the diagonal
+        return out
+    out = np.mean([f(k) for k in ks],axis=0) # return mean value
+    from ..increase_hilbert import full2profile
+    out = full2profile(h,out) # resum
+    return np.sqrt(out.real/2.) # return the spatial profile
 
 
 

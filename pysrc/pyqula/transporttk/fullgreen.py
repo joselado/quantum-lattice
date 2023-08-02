@@ -3,6 +3,7 @@ from ..green import gauss_inverse # calculate the desired green functions
 from ..algebra import dagger,sqrtm
 from .smatrix import enlarge_hlist,effective_tridiagonal_hamiltonian
 from .smatrix import build_effective_hlist
+from ..checkclass import is_iterable
 
 def get_full_green(ht,energy,mode="right",delta=None,ic=0):
     """Build effective Hamiltonian at a certain energy"""
@@ -26,14 +27,20 @@ def get_full_green(ht,energy,mode="right",delta=None,ic=0):
     if mode=="left": g = gauss_inverse(gmatrix,0,0,test=test_gauss)
     elif mode=="right": g = gauss_inverse(gmatrix,-1,-1,test=test_gauss)
     elif mode=="central": 
-        if ic is not None: # well implemented way
-          ii = 1+ic
-          g = gauss_inverse(gmatrix,i=ii,j=ii,test=test_gauss)
-        elif ic is None: # provide a list of all the Green's functions
+        if ic is None: # provide a list of all the Green's functions
             out = [] # empty list
             for ii in range(len(gmatrix)):
               g = gauss_inverse(gmatrix,i=ii,j=ii,test=test_gauss)
               out.append(g)
             return out
+        elif is_iterable(ic): # an iterable  
+            out = [] # empty list
+            for ii in ic:
+              g = gauss_inverse(gmatrix,i=ii+1,j=ii+1,test=test_gauss)
+              out.append(g)
+            return out
+        else: # well implemented way, assume it is a number
+          ii = 1+ic
+          g = gauss_inverse(gmatrix,i=ii,j=ii,test=test_gauss)
     else: raise
     return g

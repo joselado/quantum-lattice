@@ -395,10 +395,9 @@ class Hamiltonian():
             self = self.get_multicell()
         hop = dict()
         hop[(0,0,0)] = self.intra
-        for t in self.hopping: hop[tuple(np.array(t.dir))] = t.m
-        for t in self.hopping: hop[tuple(-np.array(t.dir))] = np.conjugate(t.m).T
+        for t in self.hopping: 
+            hop[tuple(np.array(t.dir))] = t.m
         return hop # return dictionary
-
     @get_docstring(ldos.multi_ldos)
     def get_multildos(self,**kwargs):
         return ldos.multi_ldos(self,**kwargs)
@@ -406,7 +405,6 @@ class Hamiltonian():
         """Return a multihopping object"""
         from .multihopping import MultiHopping
         return MultiHopping(self.get_dict())
-
     @get_docstring(Vinteraction)
     def get_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
         scf = Vinteraction(self,**kwargs)
@@ -420,6 +418,7 @@ class Hamiltonian():
         """
         from copy import deepcopy
         return deepcopy(self)
+    def is_zero(self): return self.get_multihopping().is_zero()
     def check(self,**kwargs):
         """
         Check if the Hamiltonian is OK
@@ -524,15 +523,19 @@ class Hamiltonian():
         my = self.extract(name="my")
         mz = self.extract(name="mz")
         return np.array([mx,my,mz]).T # return array
-    def get_vev(self,operator="sz",name=None,**kwargs):
+    def get_vev(self,operator=None,**kwargs):
         """
         Compute a VEV of a spatially resolved operator
         """
-        if name is not None: operator=name # overwrite
         n = len(self.geometry.r) # number of sites
         ops = [operators.index(self,n=[i]) for i in range(n)]
         op = self.get_operator(operator) # get an operator
-        ops = [(o*op).get_matrix() for o in ops] # define operators
+        if op is not None:
+          print(ops[0].matrix)
+          print(op.matrix)
+          ops = [(o*op).get_matrix() for o in ops] # define operators
+        else:
+          ops = [o.get_matrix() for o in ops] # define operators
         return spectrum.ev(self,operator=ops,**kwargs).real
     # for backwards compatibility
     def compute_vev(self,**kwargs): return self.get_vev(**kwargs)
