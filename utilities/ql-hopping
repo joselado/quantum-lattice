@@ -48,7 +48,7 @@ def getfig(main):
     x = [x1[i],x2[i]]
     y = [y1[i],y2[i]]
     if cs[i]>1e-5:
-      plt.plot(x,y,c=cmap(cs[i]),linewidth=abs(ls[i])*4)
+      plt.plot(x,y,c=cmap(cs[i]),linewidth=np.abs(ls[i])*4)
   plt.scatter(np.mean([x1,x2],axis=0),np.mean([y1,y2],axis=0),s=0,c=ls,
           cmap=cmap,vmin=0.0,vmax=np.max(ts))
   plt.colorbar(format='%.2f')

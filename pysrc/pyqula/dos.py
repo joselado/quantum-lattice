@@ -12,34 +12,22 @@ from . import parallel
 from numba import jit
 from .klist import kmesh
 
-try:
-#  raise
-  from . import dosf90 
-  use_fortran = True
-except:
-#  print("Something wrong with FORTRAN in DOS")
-  use_fortran = False
-
-
-def calculate_dos(es,xs,d,use_fortran=use_fortran,w=None):
-  if w is None: w = np.zeros(len(es)) + 1.0 # initialize
-  if use_fortran: # use fortran routine
-    from . import dosf90 
-    return dosf90.calculate_dos(es,xs,d,w) # use the Fortran routine
-  else:
-      es = np.array(es)
-      xs = np.array(xs)
-      d = np.array(d)
-      ys = np.zeros(np.array(xs.shape[0])) # initialize
-      ys = calculate_dos_jit(es,xs,d,w,ys) # compute
-      return ys
+def calculate_dos(es,xs,d,w=None):
+    if w is None: w = np.zeros(len(es)) + 1.0 # initialize
+    else: w = w.real # make it real just in case
+    es = np.array(es)
+    xs = np.array(xs)
+    d = np.array(d)
+    ys = np.zeros(np.array(xs.shape[0])) # initialize
+    ys = calculate_dos_jit(es,xs,d,w,ys) # compute
+    return ys
 
 @jit(nopython=True)
 def calculate_dos_jit(es,xs,d,w,ys):
       for i in range(len(es)): # loop over energies
           e = es[i]
           iw = w[i]
-          de = xs - e # E - Ei
+          de = np.abs(xs - e) # E - Ei
           de = d/(d*d + de*de) # 1/(delta^2 + (E-Ei)^2)
           ys += de*iw # times the weight
       return ys
@@ -69,21 +57,6 @@ def dos0d(h,energies=np.linspace(-4,4,500),delta=0.01):
   hkgen = h.get_hk_gen() # get generator
   calculate_dos_hkgen(hkgen,[0],
             delta=delta,energies=energies) # conventiona algorithm
-#  ds = [] # empty list
-#  if h.dimensionality==0:  # only for 0d
-#    iden = np.identity(h.intra.shape[0],dtype=np.complex_) # create identity
-#    for e in es: # loop over energies
-#      g = ( (e+1j*delta)*iden -h.intra ).I # calculate green function
-#      if i is None: d = -g.trace()[0,0].imag
-#      elif checkclass.is_iterable(i): # iterable list 
-#          d = sum([-g[ii,ii].imag for ii in i])
-#      else: d = -g[i,i].imag # assume an integer
-#      ds.append(d)  # add this dos
-#  else: raise # not implemented...
-#  write_dos(es,ds)
-#  return ds
-
-
 
 
 
@@ -240,8 +213,8 @@ def dos_kmesh(h,nk=100,delta=None,random=False,ks=None,
     if random: ks = [np.random.random(3) for k in ks]
     # compute band structure
     out = h.get_bands(kpath=ks,write=False,**kwargs) 
-    if len(out)==2: w = None
-    else: w = out[2]
+    if len(out)==2: w = None # use no weight
+    else: w = out[2] # use weight of the bands
     ys = calculate_dos(out[1],energies,delta,w=w)/len(ks)
     ys *= 1./np.pi # normalization of the Lorentzian
     if write: write_dos(energies,ys) # write in file
@@ -457,9 +430,9 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
   from . import parallel
   numk = len(ks)
   if parallel.cores==1:
-    tr = timing.Testimator("DOS",maxite=numk) # generate object
+    if info: tr = timing.Testimator("DOS",maxite=numk) # generate object
     for ik in range(len(ks)): # loop over kpoints
-      tr.iterate()
+      if info: tr.iterate()
       k = ks[ik]
       (x,y) = f(k) # compute
       ytot += y # add contribution
@@ -480,7 +453,17 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
 
 
 
-def get_dos(h,energies=np.linspace(-4.0,4.0,400),
+def get_dos(self,**kwargs):
+    """General method to compute the density of states"""
+    if self.non_hermitian: # non-Hermitian hamiltonian
+        from .nonhermitiantk.nhmethods import get_dos as get_dos_NH
+        return get_dos_NH(self,**kwargs)
+    else: # Hermitian Hamiltonian
+        return get_dos_general(self,**kwargs)
+
+
+
+def get_dos_general(h,energies=np.linspace(-4.0,4.0,400),
             use_kpm=False,mode="ED",**kwargs):
   """Calculate the density of states"""
   if use_kpm: # KPM

@@ -1,3 +1,7 @@
+
+# TODO
+# - renormalization algorithm for long range intercell (2nd at least)
+
 from __future__ import print_function
 import numpy as np
 import scipy.linalg as lg
@@ -270,8 +274,9 @@ def read_sparse(f,sparse=True):
 
 
 def gauss_inverse(m,i=0,j=0,test=False):
-    """ Calculates the inverso of a block diagonal
-        matrix """
+    """ Calculates the inverse of a block diagonal
+        matrix. This uses brute force inversion,
+        so very demanding for large matrices."""
     return block_inverse(m,i=i,j=j)
 #  try: from .gauss_invf90 import gauss_inv as ginv
 #  except: 
@@ -299,18 +304,21 @@ def gauss_inverse(m,i=0,j=0,test=False):
 
 
 def block_inverse(m,i=0,j=0):
-    """ Calculate a certain element of the inverse of a block matrix"""
+    """ Calculate a certain element of the inverse of a block matrix
+    using full inversion of the matrix. Very demanding for large systems."""
     from scipy.sparse import csc_matrix,bmat
     nb = len(m) # number of blocks
-    if i<0: i += nb 
-    if j<0: j += nb 
+#    if i<0: i += nb 
+#    if j<0: j += nb 
+    i = i%nb # periodic boundaries
+    j = j%nb # periodic boundaries
     mt = [[None for ii in range(nb)] for jj in range(nb)]
     for ii in range(nb): # diagonal part
       mt[ii][ii] = csc_matrix(m[ii][ii])
-    for ii in range(nb-1):
+    for ii in range(nb-1): # first off diagonal
       mt[ii][ii+1] = csc_matrix(m[ii][ii+1])
       mt[ii+1][ii] = csc_matrix(m[ii+1][ii])
-    mt = bmat(mt).todense() # create dense matrix
+    mt = algebra.bmat(mt) # convert to dense matrix
     # select which elements you need
     ilist = [m[ii][ii].shape[0] for ii in range(i)] 
     jlist = [m[jj][jj].shape[1] for jj in range(j)] 

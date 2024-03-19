@@ -22,8 +22,11 @@ def collect_hopping(h):
 
 class Hopping(): 
   def __init__(self,d=None,m=None):
-    self.dir = np.array(d)
-    self.m = m
+      self.dir = np.array(d)
+      self.m = m
+  def copy(self):
+      from copy import deepcopy
+      return deepcopy(self)
 
 
 def turn_multicell(h):
@@ -154,51 +157,8 @@ def turn_spinful(h,enforce_tr=False):
     h.hopping[i].m = fun(h.hopping[i].m) # spinful hopping
 
 
-
-
-def bulk2ribbon(hin,n=10,sparse=True,nxt=6,ncut=6):
-  """ Create a ribbon hamiltonian object"""
-  if not hin.is_multicell: h = turn_multicell(hin)
-  else: h = hin # nothing othrwise
-  hr = h.copy() # copy hamiltonian
-  if sparse: hr.is_sparse = True # sparse output
-  hr.dimensionality = 1 # reduce dimensionality
-  # stuff about geometry
-  hr.geometry = h.geometry.supercell((1,n)) # create supercell
-  hr.geometry.dimensionality = 1
-  hr.geometry.a1 = h.geometry.a1 # add the unit cell vector
-  from . import sculpt # rotate the geometry
-  hr.geometry = sculpt.rotate_a2b(hr.geometry,hr.geometry.a1,np.array([1.,0.,0.]))
-  hr.geometry.celldis = hr.geometry.a1[0]
-  get_tij = generate_get_tij(h) # return a function to abtain the hoppings
-  def superhopping(dr=[0,0,0]): 
-    """ Return a matrix with the hopping of the supercell"""
-    intra = [[None for i in range(n)] for j in range(n)] # intracell term
-    for ii in range(n): # loop over ii
-      for jj in range(n): # loop over jj
-        d = np.array([dr[0],ii-jj+dr[1],dr[2]])
-        if d.dot(d)>ncut*ncut: continue # skip iteration
-        m = get_tij(rij=d) # get the matrix
-        if m is not None: intra[ii][jj] = csc_matrix(m) # store
-        else: 
-          if ii==jj: intra[ii][jj] = csc_matrix(h.intra*0.)
-    intra = bmat(intra) # convert to matrix
-    if not sparse: intra = intra.todense() # dense matrix
-    return intra
-  # get the intra matrix
-  hr.intra = superhopping()
-  # now do the same for the interterm
-  hoppings = [] # list of hopings
-  for i in range(-nxt,nxt+1): # loop over hoppings
-    if i==0: continue # skip the 0
-    d = np.array([i,0.,0.])
-    hopp = Hopping() # create object
-    hopp.m = superhopping(dr=d) # get hopping of the supercell
-    hopp.dir = d
-    hoppings.append(hopp)
-  hr.hopping = hoppings # store the list
-  hr.dimensionality = 1
-  return hr 
+from .htk.supercell import bulk2ribbon
+from .htk.supercell import bulk2film
 
 
 
@@ -463,7 +423,7 @@ def close_enough(rs1,rs2,rcut=2.0):
 
 
 
-def turn_no_multicell(h):
+def turn_no_multicell(h,tol=1e-5):
   """Converts a Hamiltonian into the non multicell form"""
   if not h.is_multicell: return h # Hamiltonian is already fine
   ho = h.copy() # copy Hamiltonian
@@ -482,7 +442,7 @@ def turn_no_multicell(h):
     elif h.dimensionality==1: # one dimensional
       if t.dir[0]==1 and t.dir[1]==0 and t.dir[2]==0: # 
         ho.inter = t.m # store
-      elif np.sum(np.abs(t.m))>0.0001 and np.max(np.abs(t.dir))>1: raise # Uppps, not possible
+      elif np.sum(np.abs(t.m))>tol and np.max(np.abs(t.dir))>1: raise # Uppps, not possible
     elif h.dimensionality==2: # two dimensional
       if t.dir[0]==1 and t.dir[1]==0 and t.dir[2]==0: # 
         ho.tx = t.m # store
@@ -492,33 +452,42 @@ def turn_no_multicell(h):
         ho.txy = t.m # store
       elif t.dir[0]==1 and t.dir[1]==-1 and t.dir[2]==0: # 
         ho.txmy = t.m # store
-      elif np.sum(np.abs(t.m))>0.0001 and np.max(np.abs(t.dir))>1: raise # Uppps, not possible
+      elif np.sum(np.abs(t.m))>tol and np.max(np.abs(t.dir))>1: raise # Uppps, not possible
     else: raise
   ho.hopping = [] # empty list
   return ho
 
 
 
-def kchain(h,k=[0.,0.,0.]):
-  """Return the onsite and hopping for a particular k"""
-  if not h.is_multicell: h = h.get_multicell()
-  dim = h.dimensionality # dimensionality
-  if dim==1: # 1D
-      for t in h.hopping:
-          if t.dir[0]==1: return h.intra,t.m
-      raise
-  elif dim>1: # 2D or 3D
-    intra = np.zeros(h.intra.shape) # zero amtrix
-    inter = np.zeros(h.intra.shape) # zero amtrix
-    intra = h.intra # initialize
-    for t in h.hopping: # loop over hoppings
-      tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
-      if t.dir[dim-1]==0: intra = intra + tk # add contribution 
-      if t.dir[dim-1]==1: inter = inter + tk # add contribution 
-    return intra,inter 
-  else: raise
+from .htk.kchain import kchain
 
-
+#
+#def kchain(h,k=[0.,0.,0.]):
+#    """Return the onsite and hopping for a particular k"""
+#    if not h.is_multicell: h = h.get_multicell()
+#    # make a check that only NN matters
+#    try:
+#        hnn = h.get_no_multicell() # no multicell Hamiltonian
+#    except:
+#        print("Hopping beyong NN unit cells in kchain, stopping")
+#        exit()
+#    dim = h.dimensionality # dimensionality
+#    if dim==1: # 1D
+#        for t in h.hopping:
+#            if t.dir[0]==1: return h.intra,t.m
+#        raise
+#    elif dim>1: # 2D or 3D
+#      intra = np.zeros(h.intra.shape) # zero amtrix
+#      inter = np.zeros(h.intra.shape) # zero amtrix
+#      intra = h.intra # initialize
+#      for t in h.hopping: # loop over hoppings
+#        tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
+#        if t.dir[dim-1]==0: intra = intra + tk # add contribution 
+#        if t.dir[dim-1]==1: inter = inter + tk # add contribution 
+#      return intra,inter 
+#    else: raise
+#
+#
 
 
 def get_hopping_dict(h):

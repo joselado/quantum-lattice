@@ -150,7 +150,8 @@ def todouble_jit(vs,ind,vout,nv,dim):
         vout[2*i+ind,:] = vs[i,:]
     return vout
 
-
+eig = dlg.eig # non Hermitian diagonalization
+eigvals = dlg.eigvals # non Hermitian diagonalization
 
 accelerate = False 
 
@@ -273,8 +274,8 @@ def sqrtm_rotated(M,positive=True):
     (evals,evecs) = dlg.eigh(M) # eigenvals and eigenvecs
     if positive:
         if np.min(evals)<0.:
-            print("Matrix is not positive defined")
-            evals[evals<0.] = 1e-7
+#            print("Matrix is not positive defined",print(evals[evals<0.]))
+            evals[evals<0.] = 0.
     evecs = dagger(np.matrix(evecs)) # change of basis
     m2 = np.matrix([[0.0j for i in evals] for j in evals]) # create matrix
     for i in range(len(evals)):
@@ -322,3 +323,12 @@ def is_zero(m):
     return np.max(np.abs(m))<1e-6
 
 
+def bmat(M):
+    from scipy.sparse import bmat
+    if len(M)==1: 
+        return todense(M[0][0])
+    else: return todense(bmat(M))
+
+def expm(M):
+    M = todense(M)
+    return dlg.expm(M)

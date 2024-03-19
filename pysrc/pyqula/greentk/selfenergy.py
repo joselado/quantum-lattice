@@ -14,19 +14,37 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
   """ Calculates the selfenergy of a cell defect,
       input is a hamiltonian class"""
   if mode=="adaptative": mode = "adaptive"
-  def gr(ons,hop):
-    """ Calculates G by renormalization"""
-    gf,sf = green_renormalization(ons,hop,energy=energy,nite=None,
-                            error=error,info=False,delta=delta)
-    return gf,sf
+  from ..htk.kchain import detect_longest_hopping
+  if detect_longest_hopping(h)==1:
+      def gr(h):
+        """ Calculates G by renormalization"""
+        h = h.get_no_multicell()
+        ons,hop = h.intra,h.inter
+        gf,sf = green_renormalization(ons,hop,energy=energy,nite=None,
+                                error=error,info=False,delta=delta)
+        return gf,sf
+  elif detect_longest_hopping(h)==2:
+      from ..htk.kchain import kchain_NNN # extract up to NNN
+      def gr(h):
+          (ons,t1,t2) = kchain_NNN(h) # return the three matrices
+          from ..greentk.dyson import dysonNNN
+          gf,sf = dysonNNN(ons,t1,t2,energy=energy,delta=delta,
+                  error=error)
+          return gf,sf
+  else:
+      from ..htk.kchain import kchain_LR # extract all
+      def gr(h):
+          hops = kchain_LR(h) # return all matrices
+          from ..greentk.dyson import dysonLR
+          gf,sf = dysonLR(hops,energy=energy,delta=delta,
+                  error=error)
+          return gf,sf
+#  else: # too long range hoppings for RG, use full integration
+#      mode = "full_adaptive" 
+#      print("Changed to full adaptive mode in selfenergy")
   h = h.copy() # make a copy
   h.turn_dense() # dense Hamiltonian
   hk_gen = h.get_hk_gen()  # generator of k dependent hamiltonian
-  if h.is_multicell:
-      try: h = h.get_no_multicell()
-      except:
-          mode = "full_adaptive" # multicell hamiltonians only have full mode
-          print("Changed to full adaptive mode in selfenergy")
   # sanity check for surface mode
   if gtype=="surface": mode = "adaptive" # only the adaptive mode
   #######################################
@@ -51,7 +69,7 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
   #####################################################
   elif mode=="renormalization":
     if d==1: # full renormalization
-      g,s = gr(h.intra,h.inter)  # perform renormalization
+      g,s = gr(h)  # perform renormalization
     elif d==2: # two dimensional, loop over k's
       ks = [[k,0.,0.] for k in np.linspace(0.,1.,nk,endpoint=False)]
 #      from ..multicell import rotate90
@@ -66,7 +84,7 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
   #####################################################
   elif mode=="adaptive":
     if d==1: # full renormalization
-      g,s = gr(h.intra,h.inter)  # perform renormalization
+      g,s = gr(h)  # perform renormalization
       if gtype=="surface": g = s.copy() # take the surface one
       elif gtype=="bulk": pass # do nothing
       else: raise

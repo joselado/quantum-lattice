@@ -13,13 +13,6 @@ from numba import jit
 from .htk.g2h import get_hamiltonian
 from .helptk import get_docstring
 
-
-try:
-  from . import supercellf90
-  use_fortran = True
-except: 
-  use_fortran = False
-#  print("FORTRAN routines not present in geometry.py")
 use_fortran = False
 
 class Geometry:
@@ -128,9 +121,9 @@ class Geometry:
         self.xyz2r() # update r
     def center(self):
         """ Centers the geometry in (0,0,0)"""
-        self.x = self.x - sum(self.x)/len(self.x)
-        self.y = self.y - sum(self.y)/len(self.y)
-        self.z = self.z - sum(self.z)/len(self.z)
+        self.x = self.x - np.sum(self.x)/len(self.x)
+        self.y = self.y - np.sum(self.y)/len(self.y)
+        self.z = self.z - np.sum(self.z)/len(self.z)
         self.xyz2r() # update r
     def get_lattice_name(self):
         if self.dimensionality==2:
@@ -197,6 +190,7 @@ class Geometry:
         from .geometrytk.replicas import multireplicas
         return multireplicas(self,n)
     def bloch_phase(self,d,k):
+        """Return the Bloch's phase for a specific k-vector"""
         from .geometrytk.bloch import bloch_phase
         return bloch_phase(self,d,k)
     def remove(self,i=0):
@@ -836,7 +830,9 @@ def read(input_file="POSITIONS.OUT"):
     if len(g.sublattice) != len(g.r): raise
     print("Read sublattice from SUBLATTICE.OUT")
   except: g.has_sublattice = False
-  dim = int(open("DIMENSIONALITY.OUT").read())
+  try:
+    dim = int(open("DIMENSIONALITY.OUT").read())
+  except: dim = 0
   g.dimensionality = dim # store
   if dim>0: # if it has lattice
     lat = np.genfromtxt("LATTICE.OUT")   # read lattice

@@ -1,7 +1,6 @@
 from __future__ import print_function
 from __future__ import division
 from .helptk import get_docstring
-import numpy as np
 from scipy.sparse import csc_matrix,bmat,csr_matrix
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
@@ -45,10 +44,6 @@ optimal = False
 
 class Hamiltonian():
     """ Class for a hamiltonian """
-    def get_tails(self,discard=None):
-      """Write the tails of the wavefunctions"""
-      if self.dimensionality!=0: raise
-      else: return tails.matrix_tails(self.intra,discard=discard)
     def __add__(self,h):  return hamiltonianalgebra.add(self,h)
     def __rmul__(self,h):  return hamiltonianalgebra.rmul(self,h)
     def __mul__(self,h):  return hamiltonianalgebra.mul(self,h)
@@ -90,6 +85,9 @@ class Hamiltonian():
     def get_filling(self,**kwargs):
         """Get the filling of a Hamiltonian at this energy"""
         return spectrum.get_filling(self,**kwargs) # eigenvalues
+    def get_kdos(self,**kwargs):
+        from . import kdos
+        return kdos.surface_kdos(self,**kwargs)
     def project_interactions(self,**kwargs):
         """Project interactions"""
         from .interactions.vijkl import Vijkl
@@ -123,34 +121,32 @@ class Hamiltonian():
     def set_multihopping(self,mh):
         """Set a multihopping as the Hamiltonian"""
         multicell.set_multihopping(self,mh)
-#    def get_berry_curvature(self,**kwargs):
-#        return topology.write_berry(self,**kwargs)
     @get_docstring(spectrum.set_filling)
     def set_filling(self,filling,**kwargs):
         spectrum.set_filling(self,filling=filling,**kwargs)
 
     def __init__(self,geometry=None):
-      self.data = dict() # empty dictionary with various data
-      self.has_spin = True # has spin degree of freedom
-      self.has_kondo = False # has Kondo sites
-      self.prefix = "" # a string used a prefix for different files
-      self.path = "" # a path used for different files
-      self.has_eh = False # has electron hole pairs
-      self.get_eh_sector = None # no function for getting electrons
-      self.fermi_energy = 0.0 # fermi energy at zero
-      self.dimensionality = 0 # dimensionality of the Hamiltonian
-      self.temperature = 0.0 # temperature of the Hamiltonian
-      self.is_sparse = False
-      self.is_multicell = False # for hamiltonians with hoppings to several neighbors
-      self.hopping_dict = {} # hopping dictonary
-      self.has_hopping_dict = False # has hopping dictonary
-      self.non_hermitian = False # non hermitian Hamiltonian
-      self.os_gen = None # occupied states generator, for topology
-      if not geometry is None:
-  # dimensionality of the system
-        self.dimensionality = geometry.dimensionality 
-        self.geometry = geometry # add geometry object
-        self.num_orbitals = len(geometry.x)
+        self.data = dict() # empty dictionary with various data
+        self.has_spin = True # has spin degree of freedom
+        self.has_kondo = False # has Kondo sites
+        self.prefix = "" # a string used a prefix for different files
+        self.path = "" # a path used for different files
+        self.has_eh = False # has electron hole pairs
+        self.get_eh_sector = None # no function for getting electrons
+        self.fermi_energy = 0.0 # fermi energy at zero
+        self.dimensionality = 0 # dimensionality of the Hamiltonian
+        self.temperature = 0.0 # temperature of the Hamiltonian
+        self.is_sparse = False
+        self.is_multicell = False # for hamiltonians with hoppings to several neighbors
+        self.hopping_dict = {} # hopping dictonary
+        self.has_hopping_dict = False # has hopping dictonary
+        self.non_hermitian = False # non hermitian Hamiltonian
+        self.os_gen = None # occupied states generator, for topology
+        if not geometry is None:
+    # dimensionality of the system
+          self.dimensionality = geometry.dimensionality 
+          self.geometry = geometry # add geometry object
+          self.num_orbitals = len(geometry.x)
     def get_hk_gen(self):
         """ Generate kdependent hamiltonian"""
         #if self.is_multicell:
@@ -229,11 +225,11 @@ class Hamiltonian():
         from .ldostk import atomicmultildos
         return atomicmultildos.get_density(self,**kwargs)
     def get_bands(self,**kwargs):
-      """ Returns a figure with the bandstructure"""
-      return bandstructure.get_bands_nd(self,**kwargs)
+        """ Returns a figure with the bandstructure"""
+        return bandstructure.get_bands(self,**kwargs)
     def get_bands_map(self,**kwargs):
-      """ Returns a figure with the bandstructure"""
-      return bandstructure.get_bands_map(self,**kwargs)
+        """ Returns a figure with the bandstructure"""
+        return bandstructure.get_bands_map(self,**kwargs)
     def get_kdos_bands(self,**kwargs):
         from .kdos import kdos_bands
         return kdos_bands(self,**kwargs)
@@ -277,7 +273,7 @@ class Hamiltonian():
       if nsuper==1: return self
       if self.dimensionality==0: return self
       try: 
-          nsuper[2] 
+          nsuper[0] # check if it is a tuple 
           ns = nsuper # array as input
       except:
           if self.dimensionality==1: ns = [nsuper,1,1]
@@ -287,9 +283,9 @@ class Hamiltonian():
       return multicell.supercell_hamiltonian(self,nsuper=ns,**kwargs)
     def supercell(self,*args,**kwargs):
       return self.get_supercell(*args,**kwargs)
-    def set_finite_system(self,periodic=True):
+    def set_finite_system(self,**kwargs):
       """ Transforms the system into a finite system"""
-      return set_finite_system(self,periodic=periodic) 
+      return set_finite_system(self,**kwargs) 
     def get_gap(self,**kwargs):
       """Returns the gap of the Hamiltonian"""
       from . import gap
@@ -412,6 +408,10 @@ class Hamiltonian():
         if return_total_energy:
             return (scf.hamiltonian,scf.total_energy)
         else: return scf.hamiltonian
+    def get_tails(self,discard=None):
+        """Write the tails of the wavefunctions"""
+        if self.dimensionality!=0: raise
+        else: return tails.matrix_tails(self.intra,discard=discard)
     def copy(self):
         """
         Return a copy of the hamiltonian
@@ -441,23 +441,23 @@ class Hamiltonian():
         self.modify_hamiltonian_matrices(f) # modify the matrices
         self.is_sparse = True # sparse flag to true
     def turn_dense(self):
-      """ Transforms the hamiltonian into a sparse hamiltonian"""
-      def f(m):
-          return algebra.todense(m)
-      self.modify_hamiltonian_matrices(f) # modify the matrices
-      self.is_sparse = False # sparse flag to true
+        """ Transforms the hamiltonian into a sparse hamiltonian"""
+        def f(m):
+            return algebra.todense(m)
+        self.modify_hamiltonian_matrices(f) # modify the matrices
+        self.is_sparse = False # sparse flag to true
     def add_rashba(self,c):
-      """Adds Rashba coupling"""
-      from . import rashba
-      rashba.add_rashba(self,c)
+        """Adds Rashba coupling"""
+        from . import rashba
+        rashba.add_rashba(self,c)
     def add_soc(self,t,**kwargs):
-      self.add_kane_mele(t,**kwargs)
+        self.add_kane_mele(t,**kwargs)
     def add_kane_mele(self,t,**kwargs):
-      """ Adds a Kane-Mele SOC term"""  
-      kanemele.add_kane_mele(self,t,**kwargs) # return kane-mele SOC
+        """ Adds a Kane-Mele SOC term"""  
+        kanemele.add_kane_mele(self,t,**kwargs) # return kane-mele SOC
     def add_haldane(self,t):
-      """ Adds a Haldane term"""  
-      kanemele.add_haldane(self,t) # return Haldane SOC
+        """ Adds a Haldane term"""  
+        kanemele.add_haldane(self,t) # return Haldane SOC
     def add_kekule(self,t):
         """
         Add Kekule coupling
@@ -531,14 +531,13 @@ class Hamiltonian():
         ops = [operators.index(self,n=[i]) for i in range(n)]
         op = self.get_operator(operator) # get an operator
         if op is not None:
-          print(ops[0].matrix)
-          print(op.matrix)
           ops = [(o*op).get_matrix() for o in ops] # define operators
         else:
           ops = [o.get_matrix() for o in ops] # define operators
         return spectrum.ev(self,operator=ops,**kwargs).real
     # for backwards compatibility
-    def compute_vev(self,**kwargs): return self.get_vev(**kwargs)
+    def compute_vev(self,**kwargs): 
+        return self.get_vev(**kwargs)
     def get_1dh(self,k=0.0):
         """Return a 1d Hamiltonian"""
         if self.is_multicell: # not implemented
@@ -565,7 +564,13 @@ class Hamiltonian():
         h0 = h1.get_multicell() # turn multicell again
         diff = (self.get_multihopping() - h0.get_multihopping()).norm()
         if diff>1e-6: 
-            print("Hamiltonain cannot be made no multicell")
+            for t in self.hopping:
+                print(t.m)
+                print(t.dir)
+            for t in h0.hopping:
+                print(t.m)
+                print(t.dir)
+            print("Hamiltonian cannot be made no multicell")
             raise
         else: return h1 # return the Hamiltonian
     def clean(self):
@@ -617,6 +622,15 @@ class Hamiltonian():
     def didv(self,**kwargs):
         from .transporttk.localprobe import Hamiltonian_didv
         return Hamiltonian_didv(self,**kwargs)
+    def get_dm_vev(self,A,**kwargs):
+        from . import get_dm_vev
+        return get_dm_vev(self,A,**kwargs)
+    def get_single_vev(self,A,**kwargs):
+        A = self.get_operator(A) # get an operator
+        return spectrum.ev(self,operator=A.get_matrix(),**kwargs).real
+    def get_several_vev(self,As,**kwargs):
+        As = [self.get_operator(A).get_matrix() for A in As] # get an operator
+        return spectrum.ev(self,operator=As,**kwargs).real
 
 
 hamiltonian = Hamiltonian
@@ -767,12 +781,15 @@ def build_eh_nonh(hin,c1=None,c2=None):
 
 
 
-def set_finite_system(hin,periodic=True):
+def set_finite_system(hin,n=1,periodic=False):
   """ Transforms the hamiltonian into a finite system,
   removing the hoppings """
   from copy import deepcopy
   h = hin.copy() # copy Hamiltonian
+  h = h.get_supercell(n) # make the supercell
+  h = h.get_no_multicell()
   h.dimensionality = 0 # put dimensionality = 0
+  h.geometry.dimensionality = 0 # put dimensionality = 0
   if periodic: # periodic boundary conditions
     if h.dimensionality == 1:
       h.intra = h.intra + h.inter + h.inter.H 
@@ -790,10 +807,6 @@ des_spin = increase_hilbert.des_spin
 
 def shift_fermi(h,fermi):
     """ Moves the fermi energy of the system, the new value is at zero"""
-#    if h.has_kondo: raise # not implemented
-#        from .specialhamiltoniantk import heavyfermion
-#        heavyfermion.add_onsite(h,fermi)
-#        return
     r = h.geometry.r # positions
     n = len(r) # number of sites
     if checkclass.is_iterable(fermi): # iterable

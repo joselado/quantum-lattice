@@ -1,3 +1,8 @@
+
+
+# TODO
+# - twisted boundary conditions (only Gamma now)
+
 import numpy as np
 from . import neighbor
 from scipy.sparse import csr_matrix,csc_matrix,coo_matrix
@@ -23,7 +28,7 @@ class SpinModel(): # class for a spin Hamiltonian
   def add_heisenberg(self,Jij=None,Jm=[1.,1.,1.],**kwargs):
     h = self.geometry.get_hamiltonian(has_spin=False,tij=Jij)
     m = coo_matrix(h.get_hk_gen()([0.,0.,0.])) # get onsite matrix
-    (pairs,js) = add_heisenberg(self.geometry.r)
+#    (pairs,js) = add_heisenberg(self.geometry.r)
     pairs = np.array([m.row,m.col]).transpose() # convert to array
     self.pairs = np.concatenate([self.pairs,pairs])
     jmat = np.zeros((3,3))
@@ -35,6 +40,8 @@ class SpinModel(): # class for a spin Hamiltonian
   def add_field(self,v):
     """Add magnetic field"""
     self.b += np.array([v for i in range(self.nspin)])
+  def get_energy(self,**kwargs): 
+      return self.energy(**kwargs)
   def energy(self,**kwargs):
     """ Calculate the energy"""
     eout = energy(self.theta,self.phi,self.b,self.j,self.pairs)
@@ -42,6 +49,12 @@ class SpinModel(): # class for a spin Hamiltonian
    #            self.pairs)
 
     return eout
+  def get_local_energy(self):
+      from .classicalspintk.localenergy import get_local_energy
+      return get_local_energy(self)
+  def copy(self):
+      from copy import deepcopy
+      return deepcopy(self)
   def get_magnetization(self):
       return get_magnetization(self)
   def minimize_energy(self,theta0=None,phi0=None,tries=10,calle=None):
@@ -50,13 +63,13 @@ class SpinModel(): # class for a spin Hamiltonian
     phis = [None for i in range(tries)]
     es = [None for i in range(tries)]
     for i in range(tries): # loop over tries
-      theta,phi = minimize_energy(self,theta0=theta0,phi0=phi0,calle=calle)
-      self.theta = theta.copy()
-      self.phi = phi.copy()
-      e = self.energy() # calculate energy
-      thetas[i] = theta.copy()
-      phis[i] = phi.copy()
-      es[i] = e
+        theta,phi = minimize_energy(self,theta0=theta0,phi0=phi0,calle=calle)
+        self.theta = theta.copy()
+        self.phi = phi.copy()
+        e = self.energy() # calculate energy
+        thetas[i] = theta.copy()
+        phis[i] = phi.copy()
+        es[i] = e
     imin = es.index(min(es)) # minimum
     print("Minimum energy",es[imin])
     print("Minimum energy per spin",es[imin]/len(self.phi))
@@ -89,9 +102,9 @@ class SpinModel(): # class for a spin Hamiltonian
     self.phi = np.arctan2(m[2],m[1]) # theta angle
   def regroup(self):
     """Regroups the terms in the Hamiltonian"""
-    print(len(self.pairs))
+#    print(len(self.pairs))
     self.pairs,self.j = regroup(self.pairs,self.j) 
-    print(len(self.pairs))
+#    print(len(self.pairs))
   def update_magnetization(self):
     """Update the magnetization"""
     mx = np.sin(self.theta)*np.cos(self.phi)
@@ -104,11 +117,11 @@ class SpinModel(): # class for a spin Hamiltonian
 
 
 
-def add_heisenberg(r):
-  """Return pairs and js for a Heisenberg interaction"""
-  pairs = neighbor.find_first_neighbor(r,r)
-  js = np.array([iden for p in pairs]) # array
-  return (pairs,js) # return pairs 
+#def add_heisenberg(r):
+#  """Return pairs and js for a Heisenberg interaction"""
+#  pairs = neighbor.find_first_neighbor(r,r)
+#  js = np.array([iden for p in pairs]) # array
+#  return (pairs,js) # return pairs 
 
 
 def energy(thetas,phis,bs,js,indsjs):
