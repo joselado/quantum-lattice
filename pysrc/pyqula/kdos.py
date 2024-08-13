@@ -10,6 +10,7 @@ from . import kpm
 from . import sculpt
 from . import parallel
 from . import algebra
+from . import operators
 
 def write_kdos(k=0.,es=[],ds=[],new=True):
   """ Write KDOS in a file"""
@@ -303,6 +304,7 @@ def interface(h1,h2,energies=np.linspace(-1.,1.,100),operator=None,
 
 def surface_kdos(h1,energies=np.linspace(-1.,1.,100),operator=None,
                     delta=0.01,kpath=None,hs=None,nsuper=None,
+                    info = False,
                     write=True,nk=None,**kwargs):
     """Get the surface DOS of an interface"""
     if nk is None: nk = len(energies)
@@ -319,7 +321,7 @@ def surface_kdos(h1,energies=np.linspace(-1.,1.,100),operator=None,
         else: raise
     if write: fo = open("KDOS.OUT","w")
     if write: fo.write("# k, E, Surface, Bulk\n")
-    tr = timing.Testimator("KDOS") # generate object
+    if info: tr = timing.Testimator("KDOS") # generate object
     ik = 0
     h1 = h1.get_multicell() # multicell Hamiltonian
     kout = [] # storage
@@ -327,7 +329,7 @@ def surface_kdos(h1,energies=np.linspace(-1.,1.,100),operator=None,
     dsout = [] # storage
     dbout = [] # storage
     for k in kpath:
-      tr.remaining(ik,len(kpath)) # generate object
+      if info: tr.remaining(ik,len(kpath)) # generate object
       ik += 1
       outs = green.surface_multienergy(h1,k=k,energies=energies,
                            delta=delta,hs=hs,**kwargs)
@@ -341,6 +343,8 @@ def surface_kdos(h1,energies=np.linspace(-1.,1.,100),operator=None,
         do = []
         for g in out: # loop
           if operator is None: d = -algebra.trace(g).imag # only the trace 
+          elif type(operator)==operators.Operator:
+              d = -(operators.Operator(g)*operator).trace().imag
           elif callable(operator): d = operator(g,k=k) # call the operator
           else:  d = -algebra.trace(g@operator).imag # assume it is a matrix
           if write: fo.write(str(d)+"   ") # write in a file

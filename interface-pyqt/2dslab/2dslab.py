@@ -34,7 +34,7 @@ def select_atoms_removal():
 #  """Modify the geometry according to the interface"""
 #  if qtwrap.is_checked("remove_selected"): # remove some atoms
 #      try:
-#        inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int))
+#        inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int_))
 #        if inds.shape==(): inds = [inds]
 #      except: inds = [] # Nothing
 #      print(inds)
