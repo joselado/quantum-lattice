@@ -6,6 +6,8 @@ from . import neighbor
 import numpy as np
 from scipy.sparse import csc_matrix,coo_matrix
 from scipy.sparse import identity as sparseiden
+from .algebra import dagger
+
 
 class SpinModel():
   def __init__(self,g):
@@ -87,7 +89,7 @@ def hp_heisenberg(sm,fun=None,d=None,k=None):
   elif sm.dimensionality == 2: # one dimensional
     for name in ["tx","ty","txy","txmy"]: # loop over attributes
       (mons,mhop) = c2h(getattr(sm.hamiltonian,name))
-      (mons2,mhop2) = c2h(getattr(sm.hamiltonian,name).H)
+      (mons2,mhop2) = c2h(dagger(getattr(sm.hamiltonian,name)))
       setattr(sm.hamiltonian,name,mhop) # set hopping
       sm.hamiltonian.intra += mons + mons2 # add to onsite
   else: raise
@@ -102,9 +104,9 @@ def sites2coupling(genij,spins):
   # There are two matrices, one that renormalizes onsite energies
   # and another one that creates hoppings
   n = len(spins)
-  ons = np.zeros((n,n),dtype=np.complex_) # initial
-  hop = np.zeros((n,n),dtype=np.complex_) # initial
-  iden = np.identity(n,dtype=np.complex_) # identity
+  ons = np.zeros((n,n),dtype=np.complex128) # initial
+  hop = np.zeros((n,n),dtype=np.complex128) # initial
+  iden = np.identity(n,dtype=np.complex128) # identity
   for i in range(n): # loop over spins
     for j in range(n): # loop over spins
       cij = genij(i,j) # matrix with the couplings SiSj
@@ -147,7 +149,7 @@ def szsz(sm,fun=None):
   elif sm.dimensionality == 2: # one dimensional
     for name in ["tx","ty","txy","txmy"]: # loop over attributes
       (mons,mhop) = c2h(getattr(sm.hamiltonian,name))
-      (mons2,mhop2) = c2h(getattr(sm.hamiltonian,name).H)
+      (mons2,mhop2) = c2h(dagger(getattr(sm.hamiltonian,name)))
       mout += mons + mons2
   else: raise
   return mout  # return onsite matrix
@@ -163,9 +165,9 @@ def sites2coupling_sparse(mij,spins):
   # There are two matrices, one that renormalizes onsite energies
   # and another one that creates hoppings
   n = len(spins)
-  ons = coo_matrix(([],([],[])),shape=(n,n),dtype=np.complex_)
-  hop = coo_matrix(([],([],[])),shape=(n,n),dtype=np.complex_)
-  iden = sparseiden(n,dtype=np.complex_) # identity matrix
+  ons = coo_matrix(([],([],[])),shape=(n,n),dtype=np.complex128)
+  hop = coo_matrix(([],([],[])),shape=(n,n),dtype=np.complex128)
+  iden = sparseiden(n,dtype=np.complex128) # identity matrix
   raise # not finished
   
   for i in range(n): # loop over spins

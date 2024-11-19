@@ -59,6 +59,8 @@ class LocalProbe():
         from .kappa import get_kappa_ratio
         if T is None: T = self.T 
         return get_kappa_ratio(self,T=T,**kwargs)
+    def get_dos(self,**kwargs):
+        return get_dos_bulk(self,**kwargs)
 
 
 
@@ -97,14 +99,14 @@ def local_selfenergy(h,g,energy=0.0,i=0,delta=1e-5,**kwargs):
     M = get_intra(h) # get intracell matrix
     gi = local_hamiltonian(h,g,i=i) # local Green's function
     oi = local_hamiltonian(h,M,i=i) # local Hamiltonian
-    iden = np.identity(gi.shape[0],dtype=np.complex_)
+    iden = np.identity(gi.shape[0],dtype=np.complex128)
     out = algebra.inv(gi) - (energy+1j*delta)*iden + oi # local selfenergy
     return -out
 
 
 
 def get_central_gmatrix(P,selfl=None,selfr=None,energy=0.0):
-    """Return the central Green's function"""
+    """Return the (inverse) central Green's function"""
     delta = P.delta # imaginary part
     if selfl is None: selfl = P.get_selfenergy(lead=0,energy=energy)
     if selfr is None: selfr = P.get_selfenergy(lead=1,energy=energy)
@@ -124,6 +126,23 @@ def get_central_gmatrix(P,selfl=None,selfr=None,energy=0.0):
     hlist[0][1] = -P.lead.inter*P.T # coupling times transparency
     hlist[1][0] = dagger(hlist[0][1]) # Hermitian conjugate
     return hlist
+
+
+
+def get_dos_bulk(self,operator="electron",**kwargs):
+    """Return the DOS of the bulk of a local probe object"""
+    g = self.get_central_gmatrix(**kwargs) # return Green's function
+    from ..green import gauss_inverse
+    g11 = gauss_inverse(g,1,1)
+    O = self.H.get_operator(operator)
+    if O is not None:
+        O = O*self.H.get_operator("site",index=0) # on a single site
+        O = O.get_matrix() # get the matrix
+        g11 = O@g11
+    return -np.trace(g11.imag)/np.pi
+
+
+
 
 
 def get_reflection_normal_lead(P,s):

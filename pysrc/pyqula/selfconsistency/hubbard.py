@@ -124,7 +124,7 @@ def selective_U_matrix(Us,m):
   except: return Us*m # return
   if len(Us)!=len(m)//2: raise
   mout = m.copy()
-  fac = np.matrix(np.identity(len(Us)*2),dtype=np.complex_)
+  fac = np.matrix(np.identity(len(Us)*2),dtype=np.complex128)
   for i in range(len(Us)):
     fac[2*i,2*i] = Us[i]
     fac[2*i+1,2*i+1] = Us[i]
@@ -174,6 +174,7 @@ def spinless_mean_field(wf,U,collinear=False,totkp=1):
 
 def get_udxc(voccs,weight=None,totkp=1):
   """Get up/down densities and corresponding mean field matrices"""
+  raise # nor working anymore
   ndim = voccs.shape[1] # dimension of the matrix
   if weight is not None:
     if len(weight)!=voccs.shape[0]: raise # inconsistent dimensions

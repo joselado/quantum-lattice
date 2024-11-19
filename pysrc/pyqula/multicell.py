@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.sparse import csc_matrix,bmat,coo_matrix
 from . import parallel
+from .algebra import dagger
 
 
 def collect_hopping(h):
@@ -194,14 +195,14 @@ def basis_change(h,R):
   R = np.matrix(R) # convert to matrix
   for i in range(len(h.hopping)):
     m = h.hopping[i].m # rotation of the direction
-    ho.hopping[i].m = R.H*m*R # Hamiltonian in new basis
+    ho.hopping[i].m = dagger(R)@m@R # Hamiltonian in new basis
   return ho
 
 
 
 
 
-def clean(h,cutoff=0.0001):
+def clean(h,cutoff=1e-4):
   """Remove hoppings smaller than a certain quantity"""
   ho = h.copy() # copy hamiltonian
   raise 
@@ -225,7 +226,7 @@ def supercell_hamiltonian(hin,nsuper=[1,1,1],sparse=True,ncut=3,
     for j in range(nsuper[1]):
       for k in range(nsuper[2]):
         pos.append(np.array([i,j,k])) # store position inside the supercell
-  zero = csc_matrix(np.zeros(h.intra.shape,dtype=np.complex_)) # zero matrix
+  zero = csc_matrix(np.zeros(h.intra.shape,dtype=np.complex128)) # zero matrix
   get_tij = generate_get_tij(h) # return a function to obtain the hoppings
   def superhopping(dr=[0,0,0]): 
     """ Return a matrix with the hopping of the supercell"""
@@ -357,7 +358,7 @@ def read_from_file(input_file="hamiltonian.wan"):
   tlist = []
   norb = np.max([np.max(np.abs(m[3])),np.max(np.abs(m[4]))])
   norb = int(norb)
-  zeros = np.matrix(np.zeros((norb,norb),dtype=np.complex_)) # zero matrix
+  zeros = np.matrix(np.zeros((norb,norb),dtype=np.complex128)) # zero matrix
   def get_t(i,j,k):
     mo = zeros.copy() # copy matrix
     found = False
@@ -384,7 +385,7 @@ def read_from_file(input_file="hamiltonian.wan"):
   for i in range(-ncells[0],ncells[0]+1):
     for j in range(-ncells[1],ncells[1]+1):
       for k in range(-ncells[2],ncells[2]+1):
-        dm = get_hopping(i,j,k) - get_hopping(-i,-j,-k).H
+        dm = get_hopping(i,j,k) - dagger(get_hopping(-i,-j,-k))
         if np.sum(np.abs(dm))>0.0001: raise
   print("Hopping generator is Hermitian")
   return get_hopping # return the function

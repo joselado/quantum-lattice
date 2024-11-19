@@ -2,7 +2,7 @@ import numpy as np
 from .. import algebra
 
 
-def berry_green_generator(f,k=[0.,0.,0.],dk=0.05,operator=None,
+def berry_green_generator(f,k=[0.,0.,0.],dk=1e-4,operator=None,
               full=False):
   """Function that returns the energy resolved Berry curvature"""
   k = np.array(k) # set as array
@@ -29,7 +29,7 @@ def berry_green_generator(f,k=[0.,0.,0.],dk=0.05,operator=None,
 
 
 
-def berry_green(f,emin=-10.0,k=[0.,0.,0.],ne=100,dk=0.0001,operator=None):
+def berry_green(f,emin=-10.0,k=[0.,0.,0.],ne=100,dk=1e-4,operator=None):
   """Return the Berry curvature using Green functions"""
   import scipy.integrate as integrate
   fint = berry_green_generator(f,k=k,dk=dk,operator=operator)
@@ -56,12 +56,18 @@ def berry_operator(h,delta=1e-1,**kwargs):
     h = h.copy()
     hk = h.get_hk_gen() # get generator
     gk = h.get_gk_gen(delta=delta) # get generator
+    # The Green mode has some numerical instability,
+    # this should be further checked later
     if not h.is_sparse: # dense Hamiltonians
-        def bk(k): return berry_green_generator(gk,k=k,full=True,**kwargs)
+        def bk(k): 
+            return berry_green_generator(gk,k=k,dk=delta/100,
+                    full=True,**kwargs)
         def outf(w,k=[0.,0.,0.]):
             m = hk(k) # bloch Hamiltonian
             e = algebra.braket_wAw(w,m) # energy
-            o = bk(k)(e)@(delta*w) # Berry curvature
+            Be = bk(k)(e)
+            Be = (Be + algebra.dagger(Be))/2. # Hermitian
+            o = Be@(delta*w) # Berry curvature
             return o # return a vector
         return outf
     else:
@@ -82,7 +88,7 @@ def berry_operator(h,delta=1e-1,**kwargs):
 
 
 def berry_green_generator_sparse(f,k=[0.,0.,0.],
-        dk=0.05,gI=None):
+        dk=1e-4,gI=None):
   """Function that returns the energy resolved Berry curvature"""
   k = np.array(k) # set as array
   dx = np.array([dk,0.,0.])

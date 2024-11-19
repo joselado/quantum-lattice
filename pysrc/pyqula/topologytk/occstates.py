@@ -65,8 +65,9 @@ def occupied_states(hkgen,k,window=None,max_waves=None):
         if ie < 0.:  # if below fermi
           occwf.append(iw)  # add to the list
       else: # energy window provided
-        if -abs(window)< ie < 0:  # between energy window and fermi
-          occwf.append(iw)  # add to the list
+#        if -np.abs(window)< ie < 0:  # between energy window and fermi
+        if window[0] < ie < window[1]:  # between the energy window
+            occwf.append(iw)  # add to the list
     return np.array(occwf)
 
 
@@ -95,7 +96,7 @@ def filter_state(opk,accept=lambda r: True, nmax = None):
    """Flter certain states according to their eigenvalues"""
    def filt(wfs,k=None):
        n = wfs[0].shape[0]
-       iden = np.identity(n,dtype=np.complex_)
+       iden = np.identity(n,dtype=np.complex128)
        op = opk(iden,k=k) # evaluate at a kpoint if needed
        wfs = algebra.disentangle_manifold(wfs,op) # disentangle
        ls = algebra.get_representation(wfs,op) # get their eigenvalue
@@ -114,7 +115,7 @@ def max_valence_states(h,n=2):
     opk = h.get_operator("energy") # energy operator
     def filt(wfs,k=None):
        ni = wfs[0].shape[0]
-       iden = np.identity(ni,dtype=np.complex_)
+       iden = np.identity(ni,dtype=np.complex128)
        op = opk(iden,k=k) # evaluate at a kpoint if needed
        wfs = algebra.disentangle_manifold(wfs,op) # disentangle
        ls = algebra.get_representation(wfs,op) # get their eigenvalue

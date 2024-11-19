@@ -242,7 +242,7 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
     for i in range(num_central-1): # interterm of the central blocks
       r = float(i+1)/float(num_central+1)   # 
       hc[i][i+1] = tr*r + tl*(1.-r)
-      hc[i+1][i] = (tr*r + tl*(1.-r)).H
+      hc[i+1][i] = dagger(tr*r + tl*(1.-r))
 
 
   else:
@@ -272,6 +272,8 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
   ht.central_intra = hc
   # and modify the geometry
   ht.central_geometry.supercell(num_central) 
+  ht.Hr = h_right.copy()
+  ht.Hl = h_left.copy()
   return ht
 
 HTstructure = Heterostructure
