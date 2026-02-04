@@ -153,11 +153,12 @@ class Geometry:
       return get_diameter(self)  
     def periodic_vector(self):
       return periodic_vector(self)
-    def get_sublattice(self):
+    def get_sublattice(self,**kwargs):
       """Initialize the sublattice"""
-      if self.has_sublattice: self.sublattice = get_sublattice(self.r)
+      if self.has_sublattice: 
+          self.sublattice = get_sublattice(self.r,**kwargs)
       else: 
-          self.sublattice = get_sublattice(self.r)
+          self.sublattice = get_sublattice(self.r,**kwargs)
           self.has_sublattice = True
     def shift(self,r0):
       """Shift all the positions by r0"""
@@ -574,9 +575,23 @@ def triangular_lattice_tripartite():
   """
   Creates a triangular lattice with three sites per unit cell
   """
-  g = triangular_lattice()
-  return supercelltk.target_angle_volume(g,angle=1./3.,volume=3,
-          same_length=True)
+  rs = [] # empty list
+  rs.append([0.,0.,0.]) # first position
+  rs.append([1.,0.,0.]) # second position
+  rs.append([1./2.,np.sqrt(3.)/2.,0.]) # third position
+  rs = np.array(rs)
+  g = Geometry() # create geometry
+  g.r = np.array(rs) # store array
+  g.r2xyz() # tranform
+  g.has_sublattice = False # has sublattice index
+  g.a1 = np.array(rs[1]+rs[2])
+  g.a2 = np.array(-rs[1]+2*rs[2])
+  g.dimensionality = 2 # two dimensional system
+  g.get_fractional() # update reciprocal lattice vectors
+  return g
+#  g = triangular_lattice()
+#  return supercelltk.target_angle_volume(g,angle=1./3.,volume=3,
+#          same_length=True)
 
 
 
@@ -754,6 +769,7 @@ def kagome_lattice(n=1):
   if n>1: return supercelltk.target_angle(g,angle=1./3.,volume=int(n),
           same_length=True) 
   g.update_reciprocal()
+  g.get_fractional()
   return g
 
 

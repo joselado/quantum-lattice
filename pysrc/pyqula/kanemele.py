@@ -8,26 +8,35 @@ from . import parallel
 from .algebra import isnumber 
 
 def generalized_kane_mele(r1,r2,rm,fun=0.0,tol=1e-5):
-  """Return the Kane-Mele generalized Hamiltonian"""
-  if fun==0.0: return 0
-  if isnumber(fun): kmfun = lambda r: fun # function that always returns fun
-  elif callable(fun): kmfun = fun # callable function
-  else: raise # no idea
-  nsites = len(r1) # number of sites
-  mout = [[None for i in range(nsites)] for j in range(nsites)]
-  for i in range(nsites):
-    mout[i][i] = csc_matrix(np.zeros((2,2))) 
-  for i in range(nsites): # loop over initial site
-    for j in range(nsites): # loop over final site
-      dr = r1[i]-r2[j] # difference
-      if dr.dot(dr)>4.1:
-        continue # if too far away, next iteration
-      ur = km_vector(r1[i],r2[j],rm,tol=tol) # kane mele vector
-      r3 = (r1[i] + r2[j])/2.0
-      sm = (sx*ur[0] + sy*ur[1] + sz*ur[2])*kmfun(r3) # contribution
-      if mout[i][j] is None: mout[i][j] = csc_matrix(1j*sm) # add contribution
-      else: mout[i][j] += csc_matrix(1j*sm) # add contribution
-  return bmat(mout) # return matrix
+    """Return the Kane-Mele generalized Hamiltonian"""
+    if fun==0.0: return 0
+    if isnumber(fun): kmfun = lambda r: fun # function that always returns fun
+    elif callable(fun): kmfun = fun # callable function
+    else: raise # no idea
+    nsites = len(r1) # number of sites
+    mout = [[None for i in range(nsites)] for j in range(nsites)]
+    for i in range(nsites):
+        mout[i][i] = csc_matrix(np.zeros((2,2))) 
+    from .neighbor import find_first_neighbor,find_close_neighbors
+    rm = np.array(rm)
+    r1 = np.array(r1)
+    r2 = np.array(r2)
+    for i in range(nsites): # loop over initial site
+        indsim = find_close_neighbors(r1[i],rm,d=1.1) # get close enough
+        rmi = [rm[im] for im in indsim] # retain only those sites for the loop
+        indsj = find_close_neighbors(r1[i],r2,d=4.1) # get close enough
+        # this can (and should) be done more efficiently
+        for j in indsj: # loop over final site
+            dr = r1[i]-r2[j] # difference
+            if dr.dot(dr)<4.1: # if close enough
+                ur = km_vector(r1[i],r2[j],rmi,tol=tol) # kane mele vector
+                r3 = (r1[i] + r2[j])/2.0
+                sm = (sx*ur[0] + sy*ur[1] + sz*ur[2])*kmfun(r3) # contribution
+                if mout[i][j] is None: 
+                    mout[i][j] = csc_matrix(1j*sm) # add contribution
+                else: 
+                    mout[i][j] += csc_matrix(1j*sm) # add contribution
+    return bmat(mout) # return matrix
 
 
 def km_vector(ri,rj,rm,tol=1e-5):
@@ -70,16 +79,14 @@ def haldane(r1,r2,rm,fun=0.0,sublattice=None):
     for i in range(nsites): # loop over initial site
       rijs = [rm[kk] for kk in neighs[i]] # loop over first neighbors
       if len(rijs)==0: continue
-      for j in range(nsites): # loop over final site
+      indsj = neighbor.find_close_neighbors(r1[i],r2,d=1.9) # get close enough
+      for j in indsj: # loop over final site
         dr = r1[i]-r2[j] # difference
-        if dr.dot(dr)>4.1:
-          continue # if too far away, next iteration
-  #      ur = km_vector(r1[i],r2[j],rm) # kane mele vector
-  #      print(rijs)
-        ur = km_vector(r1[i],r2[j],rijs) # kane mele vector
-        r3 = (r1[i] + r2[j])/2.0
-        sm = ur[2]*kmfun(r3) # clockwise or anticlockwise
-        mout[i,j] = 1j*sm*(sublattice[i]+sublattice[j])/2. # store
+        if dr.dot(dr)<4.1:
+            ur = km_vector(r1[i],r2[j],rijs) # kane mele vector
+            r3 = (r1[i] + r2[j])/2.0
+            sm = ur[2]*kmfun(r3) # clockwise or anticlockwise
+            mout[i,j] = 1j*sm*(sublattice[i]+sublattice[j])/2. # store
     return csc_matrix(mout) # return matrix
 
 

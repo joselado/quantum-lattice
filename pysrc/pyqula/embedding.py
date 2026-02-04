@@ -51,33 +51,22 @@ class Embedding():
         return get_dm(self,**kwargs)
     def get_ldos(self,**kwargs):
         return get_ldos(self,**kwargs)
-    def ldos(self,**kwargs): return self.get_ldos(**kwargs)
-    def dos(self,**kwargs):
-        (x,y,d) = self.ldos(**kwargs)
+    def ldos(self,**kwargs): 
+        return self.get_ldos(**kwargs)
+    def get_dos(self,**kwargs):
+        (x,y,d) = self.get_ldos(**kwargs)
         return np.sum(d) # sum the DOS
-    def get_dos(self,**kwargs): return self.dos(**kwargs)
+    def dos(self,**kwargs): 
+        return self.get_dos(**kwargs)
     def multidos(self,es=np.linspace(-1.0,1.0,30),
                    energies=None,**kwargs):
         if energies is not None: es = energies # overwrite
         ds = parallel.pcall(lambda e: self.dos(energy=e,**kwargs),es)
         return (es,np.array(ds))
-    def multildos(self,es=np.linspace(-2.,2.,20),**kwargs):
+    def multildos(self,**kwargs):
         """Compute the ldos at different energies"""
-        fs.rmdir("MULTILDOS")
-        fs.mkdir("MULTILDOS")
-        ds = [] # total DOS
-        fo = open("MULTILDOS/MULTILDOS.TXT","w")
-        # parallel execution
-        out = parallel.pcall(lambda x: self.ldos(energy=x,**kwargs),es) 
-        for (e,o) in zip(es,out):
-            (x,y,d) = o # extract
-#            (x,y,d) = self.ldos(e=e,**kwargs) # compute LDOS
-            ds.append(np.mean(d)) # total DOS
-            name0 = "LDOS_"+str(e)+"_.OUT" # name
-            name = "MULTILDOS/"+name0
-            fo.write(name0+"\n") # name of the file
-            np.savetxt(name,np.array([x,y,d]).T) # save data
-        np.savetxt("MULTILDOS/DOS.OUT",np.array([es,ds]).T)
+        from .embeddingtk.ldos import multildos
+        return multildos(self,**kwargs)
     def set_multihopping(self,mh):
         """Set a multihopping as the impurity"""
         dd = mh.get_dict() # get the dictionary
@@ -94,7 +83,8 @@ class Embedding():
     # dummy methods for compatibility
     def turn_multicell(self): pass
     def get_multicell(self): return self
-    def turn_dense(self): pass
+#    def turn_dense(self): pass
+    def get_dense(self): return self
     def get_dict(self): return self.H.get_dict()
     def shift_fermi(self,mu): self.H.shift_fermi(mu)
     def get_total_energy(self,**kwargs): return 0.0
@@ -179,12 +169,58 @@ def onsite_defective_central(h,m,nsuper):
     return onsite_supercell(h,nsuper,mc=m)
 
 
-def onsite_supercell(h,nsuper,mc=None):
-    if nsuper==1: return h.intra
+
+def onsite_supercell_multicell(h,nsuper,mc=None):
+    """Compute the onsite matrix of a supercell, with a defect mc"""
+    if nsuper==1: hs = h.copy() # just make a copy
+    else: hs = h.get_supercell(nsuper) # get a supercell of the Hamiltonian
+    # new lets replace the onsite matrix of the defective cell
+    ni = h.intra.shape[0] # dimension of minimal cell
+    nis = hs.intra.shape[0] # dimension of supercell
+    if mc is None: return hs.intra
+    ### setup the central (defective) cell
+    if h.dimensionality==1: n = nsuper # number of unit cells
+    elif h.dimensionality==2: n = nsuper**2 # number of unit cells
+    else: raise
+    if h.dimensionality==1:
+        ic=int(n//2) # central site
+    elif h.dimensionality==2:
+        if nsuper%2==1: # odd supercell
+            ic=int(n//2)
+        else: # even supercell
+            ic=int(n//2) # central
+            ic = ic - int(nsuper//2)
+    ii = ic*ni # first index
+    jj = (ic+1)*ni # last index
+    hs.intra[ii:jj,ii:jj] = mc[:,:] # replace
+    return hs.intra # return intracell
+
+# redefine
+def onsite_supercell(h0,nsuper,**kwargs):
+    """Generic function for supercell"""
+    try: # try to use the non multicell method
+        h = h0.get_no_multicell()
+        multicell_mode = False
+    except: # if not possible, try the multicell one (not well tested yet)
+        h = h0.copy()
+        multicell_mode = True
+    if multicell_mode:
+        print("WARNING, Multicell function in onsite_supercell")
+        return onsite_supercell_multicell(h,nsuper,**kwargs)
+    else:
+        return onsite_supercell_no_multicell(h,nsuper,**kwargs)
+
+
+
+def onsite_supercell_no_multicell(h,nsuper,mc=None):
+    """Compute the onsite matrix of a supercell, with a defect mc"""
+    if nsuper==1: 
+        if mc is None: return h.intra # pristine
+        else: return mc # defective
     if h.is_multicell: # try to make it multicell 
         from .htk.kchain import detect_longest_hopping
         if detect_longest_hopping(h)>1:
-            print("This requires short-range hopping, stopping")
+            print("This function requires short-range hopping, stopping")
             raise # up to NN
         h = h.get_no_multicell() # redefine
     from .checkclass import is_iterable
@@ -293,29 +329,10 @@ def get_onsite(self,nsuper=1,**kwargs):
 from .embeddingtk.embedded import get_dm
 from .embeddingtk.embedded import embed_hamiltonian
 from .embeddingtk.selfenergies import get_selfenergy_from_potential
+from .embeddingtk.ldos import get_ldos
 
 
 
-def get_ldos(self,energy=0.0,delta=1e-2,nsuper=1,nk=100,
-                    write = True,return_rd = False,
-                    operator=None,**kwargs):
-    """Compute the local density of states"""
-    h = self.H
-    # get the Green's function
-    gv = self.get_gf(energy=energy,delta=delta,nsuper=nsuper,nk=nk)
-    if operator is not None:
-        operator = h.get_operator(operator) # overwrite
-        gv = operator*gv # multiply
-    ds = [-gv[i,i].imag/np.pi for i in range(gv.shape[0])] # LDOS
-    ds = full2profile(h,ds,check=False) # resum if necessary
-    ds = np.array(ds) # convert to array
-    gs = h.geometry.supercell(nsuper)
-    x,y,z,r = gs.x,gs.y,gs.z,gs.r
-    if write: np.savetxt("LDOS.OUT",np.array([x,y,ds]).T)
-    if return_rd:
-        return r,ds
-    else:
-        return x,y,ds
 
 
 

@@ -20,7 +20,7 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
                     e=0.0,nk=50,nsuper=1,reciprocal=True,
                     k0 = np.array([0.,0.]),
                     delta=None,refine_delta=1.0,operator=None,
-                    mode='eigen',num_waves=2,info=False):
+                    mode='eigen',num_waves=10,info=False):
     """Calculates the Fermi surface of a 2d system"""
     operator = h.get_operator(operator) # get the operator
     if operator is not None: # operator given
@@ -56,13 +56,24 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
             return np.sum(delta/((e-es)**2+delta**2)) # return weight
         else: # using an operator
             tmp,ds = h.get_dos(ks=[k],operator=operator,
+                        write=False,
                         energies=[e],delta=delta)
             return ds[0] # return weight
     elif mode=='lowest': # use sparse diagonalization
-      def get_weight(hk,**kwargs):
-        es,waves = slg.eigsh(hk,k=num_waves,sigma=e,tol=arpack_tol,which="LM",
+      def get_weight(hk,k=None,**kwargs):
+        if operator is None: # without operator
+            es,waves = slg.eigsh(hk,k=num_waves,sigma=e,
+                    tol=arpack_tol,which="LM",
                               maxiter = arpack_maxiter)
-        return np.sum(delta/((e-es)**2+delta**2)) # return weight
+            return np.sum(delta/((e-es)**2+delta**2)) # return weight
+        else: # using an operator
+            htmp = h.copy() # make a dummy copy
+            htmp.shift_fermi(-e) # shift the Fermi energy
+            tmp,ds = htmp.get_dos(ks=[k],operator=operator,
+                        write=False,
+                        energies=[0.],delta=delta,
+                        num_bands=num_waves)
+            return ds[0] # return weight
     else: raise
   
   ##############################################
@@ -304,7 +315,7 @@ def real_space_vev(h,operator=None,nk=1,nrep=3,name="REAL_SPACE_VEV.OUT",
 def total_energy(h,nk=10,nbands=None,use_kpm=False,random=False,
         kp=None,mode="mesh",tol=1e-1,fermi=0.0):
   """Return the total energy"""
-  if nbands is None: h.turn_dense()
+  if nbands is None: h = h.get_dense()
   if h.is_sparse and not use_kpm: 
       if nbands is None:
         print("Sparse Hamiltonian but no bands given, taking 20")
@@ -345,29 +356,7 @@ def total_energy(h,nk=10,nbands=None,use_kpm=False,random=False,
 
 
 
-
-
-
-def eigenvalues(h0,nk=10,notime=True):
-    """Return all the eigenvalues of a Hamiltonian"""
-    from . import klist
-    h = h0.copy() # copy hamiltonian
-    h.turn_dense()
-    ks = klist.kmesh(h.dimensionality,nk=nk) # get grid
-    hkgen = h.get_hk_gen() # get generator
-    if parallel.cores==1:
-      es = [] # empty list
-      if not notime: est = timing.Testimator(maxite=len(ks))
-      for k in ks: # loop
-          if not notime: est.iterate()
-          es += algebra.eigvalsh(hkgen(k)).tolist() # add
-    else:
-        f = lambda k: algebra.eigvalsh(hkgen(k)) # add
-        es = parallel.pcall(f,ks) # call in parallel
-        es = np.array(es)
-        es = es.reshape(es.shape[0]*es.shape[1])
-    return es # return all the eigenvalues
-
+from .filling import eigenvalues
 
 
 
@@ -442,53 +431,9 @@ def pairing_map(h,**kwargs):
 
 
 
+from .filling import set_filling
+from .filling import get_fermi_energy
 
-def set_filling(h,filling=0.5,nk=10,extrae=0.,
-    mode="ED",**kwargs):
-    """
-    Set the filling of a Hamiltonian
-    - nk = 10, number of kpoints in each direction
-    - filling = 0.5, filling of the lattice
-    - extrae = 0.0, number of extra electrons
-    """
-    if h.has_eh: # quick workaround
-        ef = h.get_fermi4filling(filling,nk=nk) # fermi energy
-        h.add_onsite(-ef)
-        return
-    fill = filling + extrae/h.intra.shape[0] # filling
-    n = h.intra.shape[0]
-    use_kpm = False
-    if n>algebra.maxsize: # use the KPM method
-        mode="KPM"
-        print("Using KPM in set_filling")
-    if mode=="KPM": # use KPM
-        es,ds = h.get_dos(energies=np.linspace(-5.0,5.0,1000),
-                mode="KPM",nk=nk,**kwargs)
-        from scipy.integrate import cumtrapz
-        di = cumtrapz(ds,es)
-        ei = (es[0:len(es)-1] + es[1:len(es)])/2.
-        di /= di[len(di)-1] # normalize
-        from scipy.interpolate import interp1d
-        f = interp1d(di,ei) # interpolating function
-        efermi = f(fill) # get the fermi energy
-    elif mode=="ED": # dense Hamiltonian, use ED
-        es = eigenvalues(h,nk=nk,notime=True)
-        efermi = get_fermi_energy(es,fill)
-    else: raise
-    h.shift_fermi(-efermi) # shift the fermi energy
-
-
-def get_fermi_energy(es,filling,fermi_shift=0.0,
-        e_reg = 1e-5 # energy regularization for fully filled/empty
-        ):
-  """Return the Fermi energy"""
-  ne = len(es) ; ifermi = int(round(ne*filling)) # index for fermi
-  sorte = np.sort(es) # sorted eigenvalues
-  if ifermi>=ne: return sorte[-1] + fermi_shift + e_reg
-  elif ifermi==0: return sorte[0] + fermi_shift - e_reg
-  else:
-      fermi = (sorte[ifermi-1] + sorte[ifermi])/2.+fermi_shift # fermi energy
-      return fermi
 
 
 def get_fermi4filling(h,filling,nk=8):
@@ -550,7 +495,7 @@ def lowest_energies(h,n=4,k=None,**kwargs):
 def get_bandwidth(self,**kwargs):
     """Return the bandwidth of the Hamiltonian"""
     from .gap import optimize_energy 
-    self.turn_dense() # dense matrix
+    self = self.get_dense() # dense matrix
     emin = optimize_energy(self,mode="bottom",**kwargs)
     emax = optimize_energy(self,mode="top",**kwargs)
     return (emin,emax)

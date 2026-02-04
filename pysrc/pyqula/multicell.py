@@ -2,6 +2,7 @@ import numpy as np
 from scipy.sparse import csc_matrix,bmat,coo_matrix
 from . import parallel
 from .algebra import dagger
+from numba import jit
 
 
 def collect_hopping(h):
@@ -51,7 +52,8 @@ def turn_multicell(h):
       del ho.ty
       del ho.txy
       del ho.txmy
-    else: raise
+    else: 
+        return h # 3d is always multicell
     dd = dict() # dictionary
     dd[(0,0,0)] = h.intra
     for (d,t) in zip(dirs,ts): 
@@ -98,45 +100,52 @@ def generate_get_tij(h):
     return fun
 
 def hk_gen(h):
-  """Generate a k dependent hamiltonian"""
-  if not h.is_multicell:
-      h = h.get_multicell()
-  # get the non zero hoppings
-  hopping = [] # empty list
-  for t in h.hopping: # loop
-    if h.is_sparse:
-      if np.sum(np.abs(coo_matrix(t.m).data))>1e-7: hopping.append(t) # store this hopping
-    else:
-      if np.sum(np.abs(t.m))>1e-7: hopping.append(t) # store this hopping
-  if h.dimensionality == 0: return lambda k: h.intra
-  elif h.dimensionality == 1: # one dimensional
-    def hk(k):
-      """k dependent hamiltonian, k goes from 0 to 1"""
-      mout = h.intra.copy() # intracell term
-      for t in hopping: # loop over matrices
-        tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
-        mout = mout + tk 
-      return mout
-    return hk  # return the function
-  elif h.dimensionality == 2: # two dimensional
-    def hk(k):
-      """k dependent hamiltonian, k goes from 0 to 1"""
-      mout = h.intra.copy() # intracell term
-      for t in hopping: # loop over matrices
-        tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
-        mout = mout + tk 
-      return mout
-    return hk  # return the function
-  elif h.dimensionality == 3: # three dimensional
-    def hk(k):
-      """k dependent hamiltonian, k goes from 0 to 1"""
-      mout = h.intra.copy() # intracell term
-      for t in h.hopping: # loop over matrices
-        tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
-        mout = mout + tk 
-      return mout
-    return hk  # return the function
-  else: raise
+    """Generate a k dependent hamiltonian"""
+    if not h.is_multicell:
+        h = h.get_multicell()
+    # get the non zero hoppings
+    hopping = [] # empty list
+    for t in h.hopping: # loop
+      if h.is_sparse:
+        if np.sum(np.abs(coo_matrix(t.m).data))>1e-7: hopping.append(t) # store this hopping
+      else:
+        if np.sum(np.abs(t.m))>1e-7: hopping.append(t) # store this hopping
+    ## dense Hamiltonians, accelerated function ##
+    if not h.is_sparse: # for dense Hamiltonians
+        from .htk.bloch import bloch_hamiltonian_generator_dense
+        return bloch_hamiltonian_generator_dense(h,hopping)
+    ## sparse Hamiltonians, explicit function ##
+    else: # sparse Hamiltonians
+        if h.dimensionality == 0: 
+            return lambda k: h.intra
+        elif h.dimensionality == 1: # one dimensional
+          def hk(k):
+            """k dependent hamiltonian, k goes from 0 to 1"""
+            mout = h.intra.copy() # intracell term
+            for t in hopping: # loop over matrices
+              tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
+              mout = mout + tk 
+            return mout
+          return hk  # return the function
+        elif h.dimensionality == 2: # two dimensional
+          def hk(k):
+            """k dependent hamiltonian, k goes from 0 to 1"""
+            mout = h.intra.copy() # intracell term
+            for t in hopping: # loop over matrices
+              tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
+              mout = mout + tk 
+            return mout
+          return hk  # return the function
+        elif h.dimensionality == 3: # three dimensional
+          def hk(k):
+            """k dependent hamiltonian, k goes from 0 to 1"""
+            mout = h.intra.copy() # intracell term
+            for t in h.hopping: # loop over matrices
+              tk = t.m * h.geometry.bloch_phase(t.dir,k) # k hopping
+              mout = mout + tk 
+            return mout
+          return hk  # return the function
+        else: raise
 
 
 
@@ -415,22 +424,26 @@ def pairs2hopping(ps):
 
 
 
+@jit(nopython=True)
 def close_enough(rs1,rs2,rcut=2.0):
-  """CHeck if two sets of positions are at a distance
-  at least rcut"""
-  rcut2 = rcut*rcut # square of the distance
-  for ri in rs1:
-    for rj in rs2:
-      dr = ri - rj # vector
-      dr = dr.dot(dr) # distance
-      if dr<rcut2: return True
-  return False
+    """Check if two sets of positions are at a distance
+    at least rcut"""
+    rcut2 = rcut*rcut # square of the distance
+    for ri in rs1:
+      for rj in rs2:
+        dr = ri - rj # vector
+        dr = dr.dot(dr) # distance
+        if dr<rcut2: return True
+    return False
 
 
 
 def turn_no_multicell(h,tol=1e-5):
   """Converts a Hamiltonian into the non multicell form"""
+  from .htk.kchain import detect_longest_hopping
   if not h.is_multicell: return h # Hamiltonian is already fine
+  if detect_longest_hopping(h)>1: raise # error
+  if h.dimensionality>2: return h # too high dimensionality
   ho = h.copy() # copy Hamiltonian
   ho.is_multicell = False
   if ho.dimensionality==0: pass
@@ -441,7 +454,8 @@ def turn_no_multicell(h,tol=1e-5):
     ho.txy = ho.intra*0.
     ho.txmy = ho.intra*0.
     ho.ty = ho.intra*0.
-  else: raise
+  else: 
+      raise # just in case
   for t in h.hopping: # loop over hoppings
     if h.dimensionality==0: pass # one dimensional
     elif h.dimensionality==1: # one dimensional
@@ -458,7 +472,8 @@ def turn_no_multicell(h,tol=1e-5):
       elif t.dir[0]==1 and t.dir[1]==-1 and t.dir[2]==0: # 
         ho.txmy = t.m # store
       elif np.sum(np.abs(t.m))>tol and np.max(np.abs(t.dir))>1: raise # Uppps, not possible
-    else: raise
+    else: 
+        raise # just in case
   ho.hopping = [] # empty list
   return ho
 

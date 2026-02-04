@@ -266,7 +266,7 @@ def get_ldos_tb(h,e=0.0,delta=0.001,nrep=5,nk=None,ks=None,mode="arpack",
       from . import green
       if h.dimensionality!=2: raise # only for 2d
       h = h.copy()
-      h.turn_dense()
+      h = h.get_dense()
       if nk is not None:
         print("LDOS using normal integration with nkpoints",nk)
         gb,gs = green.bloch_selfenergy(h,energy=e,delta=delta,mode="full",nk=nk)
@@ -350,7 +350,7 @@ def multi_ldos_tb(h,es=np.linspace(-1.0,1.0,100),delta=0.01,
       if random:
         k = np.random.random(3) # random vector
         print("RANDOM vector in LDOS")
-      e,w = smalleig(hk(k),numw=num_bands,evecs=True)
+      e,w = smalleig(hk(k),numw=num_bands,evecs=True,e0=np.mean(es))
       evals += [ie for ie in e]
       ws += [iw for iw in w]
       ps += [op(iw,k=k) for iw in w] # weights
