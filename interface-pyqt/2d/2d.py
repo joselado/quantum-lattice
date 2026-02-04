@@ -24,6 +24,7 @@ common.initialize(qtwrap) # do several common initializations
 
 qtwrap.set_combobox("scf_initialization",meanfield.spinful_guesses)
 qtwrap.set_combobox("bands_color",operators.operator_list)
+qtwrap.set_combobox("fs_operator",operators.operator_list)
 qtwrap.set_combobox("operator_kdos",operators.operator_list)
 
 
@@ -51,7 +52,7 @@ def get_geometry(modify=True):
   else: raise
   g = geometry_builder() # call the geometry
   nsuper = int(get("nsuper"))
-  g = g.supercell(nsuper)
+  g = g.supercell(nsuper,store_primal=True)
   if modify: g = modify_geometry(g) # modify the geometry
   return g
 

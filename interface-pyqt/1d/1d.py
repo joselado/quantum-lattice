@@ -53,7 +53,7 @@ def get_geometry(modify=True):
   if g.dimensionality==2: # original is a 2d geometry
     g = ribbon.bulk2ribbon(g,n=n)
   nsuper = int(get("nsuper"))
-  g = g.supercell(nsuper)
+  g = g.supercell(nsuper,store_primal=True)
   if modify: g = modify_geometry(g) # modify the geometry
   return g
 

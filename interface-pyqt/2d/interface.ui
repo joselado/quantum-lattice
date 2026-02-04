@@ -456,6 +456,11 @@
               <string>IPR</string>
              </property>
             </item>
+            <item>
+             <property name="text">
+              <string>unfolding</string>
+             </property>
+            </item>
            </widget>
           </item>
           <item row="1" column="0">
@@ -1510,7 +1515,7 @@
      <x>0</x>
      <y>0</y>
      <width>1308</width>
-     <height>20</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
