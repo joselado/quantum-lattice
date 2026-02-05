@@ -154,7 +154,6 @@ def show_ldos():
 
 
 
-show_dosbands = common.get_kdos_bands
 
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian

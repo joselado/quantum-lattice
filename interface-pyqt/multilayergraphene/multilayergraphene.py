@@ -107,13 +107,10 @@ def show_bands():
   common.get_bands(h,qtwrap)
 
 
+
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian
-  kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
-                   ne=int(get("ne_kbands")),delta=get("delta_kbands"),
-                   ntries=int(get("nv_kbands")))
-  execute_script("ql-dosbands --input  KDOS_BANDS.OUT ")
-
+  common.get_kdos_bands(h,qtwrap) # compute DOS
 
 def show_fermi_surface(silent=False):
   h = pickup_hamiltonian() # get hamiltonian
