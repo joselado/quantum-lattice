@@ -22,7 +22,7 @@ from qh_interface import * # import all the libraries needed
 
 
 
-def get_(modify=True):
+def get_geometry(modify=True):
   """ Create a 0d island"""
   g = geometry.chain()
   g = 

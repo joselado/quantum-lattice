@@ -15,6 +15,141 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_6">
+    <item row="1" column="1">
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <property name="documentMode">
+       <bool>false</bool>
+      </property>
+      <property name="tabsClosable">
+       <bool>false</bool>
+      </property>
+      <property name="movable">
+       <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="tab_2">
+       <attribute name="title">
+        <string>Geometry</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_13">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout_4">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_8">
+            <property name="text">
+             <string>Type of lattice</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="lattice">
+            <item>
+             <property name="text">
+              <string>Honeycomb</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Honeycomb 4 sites</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Honeycomb 6 sites</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Square</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Single square</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Triangular</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Triangular tripartite</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Kagome</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Lieb</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="nsuper">
+            <property name="text">
+             <string>1</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_6">
+            <property name="text">
+             <string>Supercell</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_7">
+       <attribute name="title">
+        <string>Modify geometry</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout">
+        <item>
+         <layout class="QGridLayout" name="gridLayout_25">
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="remove_single_bonded">
+            <property name="toolTip">
+             <string>Remove atoms that have a single bond in the structure</string>
+            </property>
+            <property name="text">
+             <string>Remove single bonds</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="remove_selected">
+            <property name="text">
+             <string>Remove selected atoms</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QPushButton" name="select_atoms_removal">
+            <property name="text">
+             <string>Select atoms to remove</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
     <item row="0" column="0" rowspan="2">
      <widget class="QTabWidget" name="tabWidget_2">
       <property name="currentIndex">
@@ -207,141 +342,6 @@
             </property>
             <property name="text">
              <string>0.0, 0.0, 0.0</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </widget>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QTabWidget" name="tabWidget">
-      <property name="currentIndex">
-       <number>0</number>
-      </property>
-      <property name="documentMode">
-       <bool>false</bool>
-      </property>
-      <property name="tabsClosable">
-       <bool>false</bool>
-      </property>
-      <property name="movable">
-       <bool>false</bool>
-      </property>
-      <widget class="QWidget" name="tab_2">
-       <attribute name="title">
-        <string>Geometry</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_13">
-        <item row="0" column="0">
-         <layout class="QGridLayout" name="gridLayout_4">
-          <item row="0" column="0">
-           <widget class="QLabel" name="label_8">
-            <property name="text">
-             <string>Type of lattice</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QComboBox" name="lattice">
-            <item>
-             <property name="text">
-              <string>Honeycomb</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Honeycomb 4 sites</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Honeycomb 6 sites</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Square</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Single square</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Triangular</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Triangular tripartite</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Kagome</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Lieb</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QLineEdit" name="nsuper">
-            <property name="text">
-             <string>1</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label_6">
-            <property name="text">
-             <string>Supercell</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="tab_7">
-       <attribute name="title">
-        <string>Modify geometry</string>
-       </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout">
-        <item>
-         <layout class="QGridLayout" name="gridLayout_25">
-          <item row="0" column="0">
-           <widget class="QCheckBox" name="remove_single_bonded">
-            <property name="toolTip">
-             <string>Remove atoms that have a single bond in the structure</string>
-            </property>
-            <property name="text">
-             <string>Remove single bonds</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QCheckBox" name="remove_selected">
-            <property name="text">
-             <string>Remove selected atoms</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QPushButton" name="select_atoms_removal">
-            <property name="text">
-             <string>Select atoms to remove</string>
             </property>
            </widget>
           </item>
@@ -1505,6 +1505,13 @@
         </item>
        </layout>
       </widget>
+     </widget>
+    </item>
+    <item row="2" column="0" colspan="2">
+     <widget class="QPushButton" name="save_results">
+      <property name="text">
+       <string>Save results</string>
+      </property>
      </widget>
     </item>
    </layout>

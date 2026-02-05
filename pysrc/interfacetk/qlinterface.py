@@ -83,7 +83,7 @@ def create_folder():
 
 def save_outputs(inipath,tmppath):
   """Save all the results in the original folder"""
-  savepath = inipath+"/QH_save" # name of the fodler where ot save
+  savepath = inipath+"/QL_save" # name of the fodler where ot save
   print("Saving results in",savepath)
   fs.rmdir(savepath) # remove the folder
   fs.cpdir(tmppath,savepath) # copy folder

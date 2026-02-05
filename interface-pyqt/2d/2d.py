@@ -316,11 +316,8 @@ def sweep_parameter():
 
 
 
-
-
-
-
-save_results = lambda x: save_outputs(inipath,tmppath) # function to save
+inipath = os.getcwd() # get the initial directory
+def save_results():  save_outputs(inipath,tmppath) # function to save
 
 
 # create signals
@@ -343,6 +340,7 @@ signals["compute_sweep"] = sweep_parameter
 signals["show_structure_3d"] = show_structure_3d
 signals["select_atoms_removal"] = select_atoms_removal
 signals["show_multildos"] = show_multildos
+signals["save_results"] = save_results
 
 
 

@@ -185,7 +185,7 @@ def set_logo(name,image):
 
 
 def save_interface(self,output=None):
-    if output is None: output = os.getcwd() + "/QH_save/interface.qh"
+    if output is None: output = os.getcwd() + "/QL_save/interface.qh"
     obs = dir(self) # all the different objects
     out = dict() # dictionary
     for obj in obs: # loop over objects
