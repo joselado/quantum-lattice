@@ -12,8 +12,7 @@ except:
   print("Mayavi is not working")
   dirname = os.path.dirname(os.path.realpath(__file__))
   sys.path.append(dirname+"/../pysrc/interpreter")
-  import pycommand
-  pyc = pycommand.get_python() # get python
+  pyc = sys.executable # get the executable
   os.system(pyc+" "+dirname+"/ql-structure --input POSITIONS.OUT --color True --colorcol 2&") # use the backup script
   exit()
 

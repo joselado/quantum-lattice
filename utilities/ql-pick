@@ -9,10 +9,10 @@ except:
   print("Mayavi is not working")
   dirname = os.path.dirname(os.path.realpath(__file__))
   sys.path.append(dirname+"/../pysrc/interpreter")
-  import pycommand
-  pyc = pycommand.get_python() # get python
-  os.system(pyc+" "+dirname+"/ql-pick &") # use the backup script
-  exit()
+#  import pycommand
+#  pyc = pycommand.get_python() # get python
+#  os.system(pyc+" "+dirname+"/ql-pick &") # use the backup script
+#  exit()
 
 
 ################################################################################
