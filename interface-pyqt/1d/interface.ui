@@ -524,52 +524,10 @@
        <layout class="QVBoxLayout" name="verticalLayout_2">
         <item>
          <layout class="QGridLayout" name="gridLayout_11">
-          <item row="0" column="1">
-           <widget class="QLineEdit" name="delta_kbands">
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_31">
             <property name="text">
-             <string>0.02</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="QLabel" name="label_27">
-            <property name="text">
-             <string>Smearing</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QLineEdit" name="ne_kbands">
-            <property name="text">
-             <string>400</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label_28">
-            <property name="text">
-             <string># of energies</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_29">
-            <property name="text">
-             <string>Energy window</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QLineEdit" name="window_kbands">
-            <property name="text">
-             <string>3.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QLabel" name="label_30">
-            <property name="text">
-             <string>KPM scale</string>
+             <string># vectors</string>
             </property>
            </widget>
           </item>
@@ -580,10 +538,10 @@
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
-           <widget class="QLabel" name="label_31">
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_29">
             <property name="text">
-             <string># vectors</string>
+             <string>Energy window</string>
             </property>
            </widget>
           </item>
@@ -591,6 +549,58 @@
            <widget class="QLineEdit" name="nv_kbands">
             <property name="text">
              <string>3</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_30">
+            <property name="text">
+             <string>KPM scale</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_28">
+            <property name="text">
+             <string># of energies</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_27">
+            <property name="text">
+             <string>Smearing</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="delta_kbands">
+            <property name="text">
+             <string>0.02</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="window_kbands">
+            <property name="text">
+             <string>3.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="ne_kbands">
+            <property name="text">
+             <string>400</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QComboBox" name="operator_kdos"/>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_48">
+            <property name="text">
+             <string>Operator</string>
             </property>
            </widget>
           </item>

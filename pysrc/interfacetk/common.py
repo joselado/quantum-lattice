@@ -115,14 +115,20 @@ def get_berry2d(h,window):
 
 
 def get_kdos_bands(h,window):
-    """Get the Berry curvature"""
+    """Get the kdos of the bands"""
     get = window.get
     energies = np.linspace(-get("window_kbands"),get("window_kbands"),int(get("ne_kbands")))
     nk = int(get("ne_ldos"))
+    if nk==0: nk = 100 # workaround
+    op = window.getbox("operator_kdos") # get the operator
     kdos.kdos_bands(h,scale=get("scale_kbands"),
+                 operator=op,
                 energies=energies,delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")),nk=nk)
-    execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
+    if h.dimensionality==2:
+        execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
+    if h.dimensionality==1:
+        execute_script("ql-dosbands1d --input KDOS_BANDS.OUT ")
 
 
 
@@ -304,6 +310,8 @@ def initialize(window):
     set_colormaps(window.form,"bands_colormap",cs=cs) # set the bands
     window.set_combobox("scf_initialization",meanfield.spinful_guesses)
     window.set_combobox("bands_color",operators.operator_list)
+#    window.set_combobox("fs_operator",operators.operator_list)
+    window.set_combobox("operator_kdos",operators.operator_list)
 
 
 
