@@ -59,38 +59,37 @@ def pcall_serial(fun,args):
 #def pcall_mp(fun,args,cores=1): return pcall_serial(fun,args)
 
 #try: # try to use the multiprocessing library
-#  from pathos.multiprocessing import Pool
 def pcall_mp(fun,args,cores=cores):
     """Calls a function for every input in args"""
-    mainpool = Pool(cores) # create pool
-#    print("Using",cores,"cores")
-    out = mainpool.map(fun,args) # return list
-    mainpool.terminate() # clear the pool
-    del mainpool # delete pool
-    return out
-#except:
-#  print("Multiprocessing not found, running in a single core")
-#  def pcall_mp(fun,args,cores=1): return pcall_serial(fun,args)
-  
-
-
-
+    from pathos.multiprocessing import ProcessPool
+    mainpool = ProcessPool(nodes=cores)
+    return mainpool.map(fun,args)
 
 
 def pcall(fun,args): # define the function
-  global cores,is_child
-  from multiprocessing import current_process
-  if not is_child: # if main process
-#  if current_process().name == 'MainProcess': # main process
-    is_child = True # child from now on
-    if cores==1: out = pcall_serial(fun,args) # one core, simply iterate
-    else: 
-        try: out = pcall_mp(fun,args,cores=cores) # call in parallel
-        except:
-            print("Something wrong happened in the parallel execution")
-            out = pcall_serial(fun,args) # serial execution
-    is_child = False # main from now on
-    return out
-  # child process
-  else: return pcall_serial(fun,args) # one core, simply iterate
+    global cores,is_child
+#    if cores!=1: 
+#        print("Parallelization needs to be fixed") 
+    return pcall_serial(fun,args) # one core, simply iterate
 
+    from multiprocessing import current_process
+    if not is_child: # if main process
+  #  if current_process().name == 'MainProcess': # main process
+      is_child = True # child from now on
+      if cores==1: out = pcall_serial(fun,args) # one core, simply iterate
+      else: 
+          try: out = pcall_mp(fun,args,cores=cores) # call in parallel
+          except:
+              print("Something wrong happened in the parallel execution")
+              out = pcall_serial(fun,args) # serial execution
+      is_child = False # main from now on
+      return out
+    # child process
+    else: return pcall_serial(fun,args) # one core, simply iterate
+
+
+# parallelize with MPI
+from .paralleltk.mpipcall import pcall as pcall_mpi
+
+# parallelize at the deepest level
+from .paralleltk.deepcall import pcall as pcall_deep
