@@ -69,11 +69,22 @@ def get_surface_dos(h,window):
 
 
 
+
+def show_magnetism():
+  """Show the magnetism of the system"""
+  h = pickup_hamiltonian() # get the Hamiltonian
+  h.write_magnetization() # write the magnetism
+
+
+
 def show_exchange(h,window):
     """Show the exchange field"""
     nrep = max([int(window.get("magnetization_nrep")),1]) # replicas
     h.write_magnetization(nrep=nrep) # write the magnetism
-    execute_script("ql-moments",mayavi=True)
+    if window.getbox("magnetization_plot_mode")=="2D":
+        execute_script("ql-magnetism2d")
+    else: # 3D mode
+        execute_script("ql-moments",mayavi=True)
 
 
 def get_dos(h,window,silent=False):
@@ -312,6 +323,13 @@ def initialize(window):
     window.set_combobox("bands_color",operators.operator_list)
 #    window.set_combobox("fs_operator",operators.operator_list)
     window.set_combobox("operator_kdos",operators.operator_list)
+
+
+
+
+
+
+
 
 
 

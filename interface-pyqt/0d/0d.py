@@ -187,7 +187,10 @@ def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization() # write the magnetism
-  execute_script("ql-moments",mayavi=True)
+  if getbox("magnetization_plot_mode")=="2D":
+      execute_script("ql-magnetism2d")
+  else: # 3D mode
+      execute_script("ql-moments",mayavi=True)
 
 
 def show_hoppings():

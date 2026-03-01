@@ -1,0 +1,87 @@
+#!/home/joselado/apps/anaconda3/bin/python
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+# plotpyqt
+import os
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+###
+
+
+
+# change the font size
+import matplotlib
+matplotlib.rcParams.update({'font.size': 18})
+
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="MAGNETISM.OUT",
+        help='Input file with the bands')
+parser.add_argument("--cblabel",default="",
+        help='Colorbar label')
+parser.add_argument("--show",default="True",
+        help='Show the magnetism')
+parser.add_argument("--cmap",default="RGB",
+        help='Color map')
+
+args = parser.parse_args() # get the arguments
+
+from os import system as sh
+
+m = np.genfromtxt(args.input).transpose()
+(x,y) = m[0],m[1]
+(mx,my,mz) = m[3],m[4],m[5]
+
+def getplot(obj):
+    """ Plots the bandstructure from BANDS.OUT"""
+    fig = plt.figure(obj.figure.number)
+    # the color map
+    import numpy as np
+    # decide what to plot
+    mname = obj.get_combobox("M-component")
+    if mname=="Mx": mag = mx
+    elif mname=="My": mag = my
+    elif mname=="Mz": mag = mz
+    elif mname=="|M|": mag = np.sqrt(mx**2 + my**2 + mz**2)
+    vmax = np.max(np.abs(mag))
+    # select the colormap
+    if mname in ["Mx","My","Mz"]:
+        cmap = "bwr" # Blue-white-red
+        vmin = -vmax # symmetric range
+    else: # for |M|
+        cmap = "inferno"
+        vmin = 0
+    scale = obj.get_slider("size")**2 # scale
+    scalev = scale*np.abs(mag)/np.max(np.abs(mag)+1e-8)
+    plt.scatter(x,y,c=mag,s=scalev,cmap=cmap,vmin=vmin,vmax=vmax)
+    plt.colorbar(label=mname,ticks=[])
+    if obj.get_combobox("Lattice")=="Show":
+        plt.scatter(x,y,s=scale/10,c="black")
+    plt.axis("equal")
+    return fig
+
+
+app,main = plotpyqt.get_interface(getplot)
+main.setWindowTitle("Magnetization")
+
+main.add_slider(label="Size",key="size",
+        vs=range(1,20),v0=10) # Energy window
+
+
+main.add_combobox(["Show","None"],label="Lattice")
+main.add_combobox(["Mz","Mx","My","|M|"],label="M-component")
+
+
+main.plot()
+main.show()
+sys.exit(app.exec_())
+
+
+

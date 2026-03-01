@@ -234,18 +234,13 @@ def solve_scf():
   scf.hamiltonian.save() # save in a file
 
 
-def show_magnetism_3d():
-  """Show the magnetism of the system"""
-  h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization(nrep=int(get("magnetization_nrep"))) 
-  execute_script("ql-moments",mayavi=True)
 
 
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization(nrep=int(get("magnetization_nrep"))) 
-  execute_script("ql-quiver")
+  common.show_exchange(h,qtwrap)
+
 
 
 def show_structure_3d():
@@ -335,7 +330,6 @@ signals["show_qpi"] = show_qpi
 signals["show_dosbands"] = show_dosbands  # show DOS
 signals["show_z2"] = show_z2  # show DOS
 signals["show_magnetism"] = show_magnetism  # show magnetism
-signals["show_magnetism_3d"] = show_magnetism_3d  # show magnetism
 signals["compute_sweep"] = sweep_parameter  
 signals["show_structure_3d"] = show_structure_3d
 signals["select_atoms_removal"] = select_atoms_removal
