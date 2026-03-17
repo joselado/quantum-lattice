@@ -64,6 +64,12 @@ class Hamiltonian():
     def get_eigenvectors(self,**kwargs):
         from .htk.eigenvectors import get_eigenvectors
         return get_eigenvectors(self,**kwargs)
+    def get_average_spin_splitting(self,**kwargs):
+        from .fermisurfacetk.spinsplitting import average_spin_splitting
+        return average_spin_splitting(self,**kwargs)
+    def get_spin_splitting_density(self,**kwargs):
+        from .fermisurfacetk.spinsplitting import spin_splitting_density
+        return spin_splitting_density(self,**kwargs)
     def get_gf(self,**kwargs):
         from .htk.green import get_gf
         return get_gf(self,**kwargs)
@@ -325,11 +331,14 @@ class Hamiltonian():
     def turn_spinful(self,**kwargs):
         from .htk.mode import turn_spinful
         turn_spinful(self,**kwargs)
-    def remove_spin(self):
+    def remove_spin(self,channel="up"):
       """Removes spin degree of freedom"""
       if self.check_mode("spinless"): return # do nothing
       elif self.check_mode("spinful"):
-          def f(m): return des_spin(m,component=0)
+          if channel=="up": c = 0
+          elif channel=="dn": c = 1
+          else: raise
+          def f(m): return des_spin(m,component=c)
           self.modify_hamiltonian_matrices(f) # modify the matrices
           self.has_spin = False # set to spinless
       else: raise
@@ -513,12 +522,17 @@ class Hamiltonian():
         """Add in-plane magnetic field"""
         from .peierls import add_inplane_bfield
         add_inplane_bfield(self,**kwargs)
-    def align_magnetism(self,vectors):
+    def align_magnetism(self,vectors=None):
         """ Rotate the Hamiltonian to have magnetism in the z direction"""
         if self.has_eh: raise
         from .rotate_spin import align_magnetism as align
-        self.intra = align(self.intra,vectors)
-        self.inter = align(self.inter,vectors)
+        f = lambda m: align(m,vectors) # align the matrix
+        if vectors is None: # get the magnetization
+            mx = self.get_vev("mx")
+            my = self.get_vev("my")
+            mz = self.get_vev("mz")
+            vectors = np.array([mx,my,mz]).T
+        self.modify_hamiltonian_matrices(f) # modify the matrices
     def global_spin_rotation(self,**kwargs):
         """ Perform a global spin rotation """
         return rotate_spin.hamiltonian_spin_rotation(self,**kwargs)

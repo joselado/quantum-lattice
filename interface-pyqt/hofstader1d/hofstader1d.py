@@ -192,7 +192,7 @@ def show_hofstader():
       f.write(str(d)+"\n")
     f.flush()
   f.close()
-  execute_script("ql-hofstader  HOFSTADER.OUT")
+  execute_script("ql-map2d --input HOFSTADER.OUT --xlabel 'Magnetic field' --ylabel Energy --zlabel DOS --title 'Hofstadter spectra'")
 
 
 
