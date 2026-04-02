@@ -168,19 +168,24 @@ def is_checked(name,default=False):
 
 
 
-def set_image(name,path):
+def set_image(name,path,width=None,height=None):
   """Set a certain image"""
   label = getattr(form,name) # get the object
   pixmap = QPixmap(path)
+  from PyQt5.QtCore import Qt
+  if width and height:
+        # Scale to exact size, keeping aspect ratio (optional)
+    pixmap = pixmap.scaled(width, height, 
+            Qt.KeepAspectRatio, Qt.SmoothTransformation)
   label.setPixmap(pixmap)
   label.show()
 
 
-def set_logo(name,image):
+def set_logo(name,image,**kwargs):
   """Set a certain logo"""
   qlroot = os.path.dirname(os.path.realpath(__file__))+"/../../"
   path = qlroot+"/interface-pyqt/logos/"+image
-  set_image(name,path)
+  set_image(name,path,**kwargs)
   
 
 

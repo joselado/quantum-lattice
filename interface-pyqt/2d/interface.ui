@@ -162,7 +162,7 @@
        <layout class="QGridLayout" name="gridLayout_24">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout">
-          <item row="11" column="1">
+          <item row="11" column="2">
            <widget class="QLineEdit" name="swave">
             <property name="toolTip">
              <string>spin-singlet s-wave superconducting order</string>
@@ -172,7 +172,45 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_11">
+            <property name="text">
+             <string>Kane-Mele SOC</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
+           <widget class="QLineEdit" name="kanemele">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_10">
+            <property name="text">
+             <string>Rashba SOC</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="2">
+           <widget class="QLineEdit" name="haldane">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QLineEdit" name="fermi">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="2">
            <widget class="QLineEdit" name="exchange">
             <property name="toolTip">
              <string>Exchange field in the system, taken as a vector with component Jx, Jy and Jz</string>
@@ -182,35 +220,21 @@
             </property>
            </widget>
           </item>
-          <item row="9" column="1">
-           <widget class="QLineEdit" name="mAB">
+          <item row="12" column="0">
+           <widget class="QLabel" name="label_39">
             <property name="text">
-             <string>0.0</string>
+             <string>p-wave superconductivity</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label">
+          <item row="7" column="0">
+           <widget class="QLabel" name="label_25">
             <property name="text">
-             <string>Fermi energy</string>
+             <string>Anti-Haldane</string>
             </property>
            </widget>
           </item>
-          <item row="5" column="1">
-           <widget class="QLineEdit" name="kanemele">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="label_24">
-            <property name="text">
-             <string>Haldane</string>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="1">
+          <item row="7" column="2">
            <widget class="QLineEdit" name="antihaldane">
             <property name="text">
              <string>0.0</string>
@@ -224,97 +248,10 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
-           <widget class="QLineEdit" name="fermi">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="1">
-           <widget class="QLineEdit" name="rashba">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="1">
-           <widget class="QLineEdit" name="haldane">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="10" column="1">
-           <widget class="QLineEdit" name="mAF">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
-           <widget class="QLabel" name="label_10">
-            <property name="text">
-             <string>Rashba SOC</string>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="0">
-           <widget class="QLabel" name="label_11">
-            <property name="text">
-             <string>Kane-Mele SOC</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QLabel" name="label_3">
-            <property name="text">
-             <string>Exchange field</string>
-            </property>
-           </widget>
-          </item>
-          <item row="9" column="0">
-           <widget class="QLabel" name="label_12">
-            <property name="text">
-             <string>Sublattice imbalance</string>
-            </property>
-           </widget>
-          </item>
-          <item row="10" column="0">
-           <widget class="QLabel" name="label_13">
-            <property name="text">
-             <string>Antiferromagnetism</string>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="0">
-           <widget class="QLabel" name="label_25">
-            <property name="text">
-             <string>Anti-Haldane</string>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="1">
+          <item row="8" column="2">
            <widget class="QLineEdit" name="antikanemele">
             <property name="text">
              <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="0">
-           <widget class="QLabel" name="label_16">
-            <property name="text">
-             <string>Anti Kane-Mele</string>
-            </property>
-           </widget>
-          </item>
-          <item row="12" column="0">
-           <widget class="QLabel" name="label_39">
-            <property name="text">
-             <string>p-wave superconductivity</string>
             </property>
            </widget>
           </item>
@@ -325,7 +262,49 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="9" column="0">
+           <widget class="QLabel" name="label_12">
+            <property name="text">
+             <string>Sublattice imbalance</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
+           <widget class="QLabel" name="label_24">
+            <property name="text">
+             <string>Haldane</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Exchange field</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="2">
+           <widget class="QLineEdit" name="mAF">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>Fermi energy</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="2">
+           <widget class="QLineEdit" name="rashba">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
            <widget class="QLineEdit" name="hoppings">
             <property name="toolTip">
              <string>Hoppings of the system. If you put several numbers separated by commas, the first number is the 1st NN hopping, the second number the 2nd NN hopping, etc</string>
@@ -335,13 +314,124 @@
             </property>
            </widget>
           </item>
-          <item row="12" column="1">
+          <item row="8" column="0">
+           <widget class="QLabel" name="label_16">
+            <property name="text">
+             <string>Anti Kane-Mele</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="2">
            <widget class="QLineEdit" name="pwave">
             <property name="toolTip">
              <string>d-vector of the spin triplet order p-wave order. The momentum dependence is taken of the form px + i py</string>
             </property>
             <property name="text">
              <string>0.0, 0.0, 0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="2">
+           <widget class="QLineEdit" name="mAB">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="0">
+           <widget class="QLabel" name="label_13">
+            <property name="text">
+             <string>Antiferromagnetism</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLabel" name="hopping_image">
+            <property name="minimumSize">
+             <size>
+              <width>80</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLabel" name="fermi_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLabel" name="exchange_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QLabel" name="rashba_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QLabel" name="kanemele_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QLabel" name="haldane_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QLabel" name="antihaldane_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="1">
+           <widget class="QLabel" name="antikanemele_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="1">
+           <widget class="QLabel" name="mAB_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="1">
+           <widget class="QLabel" name="mAF_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="1">
+           <widget class="QLabel" name="swave_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="1">
+           <widget class="QLabel" name="pwave_image">
+            <property name="text">
+             <string/>
             </property>
            </widget>
           </item>
