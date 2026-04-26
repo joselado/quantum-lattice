@@ -27,13 +27,30 @@
        <layout class="QGridLayout" name="gridLayout_24">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout">
-          <item row="4" column="1">
-           <widget class="QLineEdit" name="exchange">
+          <item row="3" column="2">
+           <widget class="QLineEdit" name="kondo">
             <property name="toolTip">
-             <string>d-vector of the spin triplet order p-wave order. The momentum dependence is taken of the form px + i py</string>
+             <string>spin-singlet s-wave superconducting order</string>
             </property>
             <property name="text">
              <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLineEdit" name="hoppings">
+            <property name="toolTip">
+             <string>Hoppings of the system. If you put several numbers separated by commas, the first number is the 1st NN hopping, the second number the 2nd NN hopping, etc</string>
+            </property>
+            <property name="text">
+             <string>1.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_39">
+            <property name="text">
+             <string>Spinon Kondo dispersion</string>
             </property>
            </widget>
           </item>
@@ -44,44 +61,10 @@
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
-           <widget class="QLabel" name="label_39">
-            <property name="text">
-             <string>Exchange coupling</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label">
-            <property name="text">
-             <string>Fermi energy</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
+          <item row="2" column="2">
            <widget class="QLineEdit" name="fermi">
             <property name="enabled">
              <bool>true</bool>
-            </property>
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QLineEdit" name="hoppings">
-            <property name="toolTip">
-             <string>Hoppings of the system. If you put several numbers separated by commas, the first number is the 1st NN hopping, the second number the 2nd NN hopping, etc</string>
-            </property>
-            <property name="text">
-             <string>1.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="1">
-           <widget class="QLineEdit" name="kondo">
-            <property name="toolTip">
-             <string>spin-singlet s-wave superconducting order</string>
             </property>
             <property name="text">
              <string>0.0</string>
@@ -92,6 +75,57 @@
            <widget class="QLabel" name="label_26">
             <property name="text">
              <string>Kondo hybridization</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>Fermi energy</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="2">
+           <widget class="QLineEdit" name="exchange">
+            <property name="toolTip">
+             <string>d-vector of the spin triplet order p-wave order. The momentum dependence is taken of the form px + i py</string>
+            </property>
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLabel" name="hopping_image">
+            <property name="minimumSize">
+             <size>
+              <width>20</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLabel" name="fermi_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLabel" name="kondo_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QLabel" name="kexchange_image">
+            <property name="text">
+             <string/>
             </property>
            </widget>
           </item>

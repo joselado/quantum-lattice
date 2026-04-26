@@ -239,6 +239,8 @@ signals["save_results"] = save_results
 
 
 
+# set all the formulas
+common.set_formulas(qtwrap)
 
 
 #from qh_interface import create_folder # import all the libraries needed

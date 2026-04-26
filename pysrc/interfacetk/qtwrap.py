@@ -43,8 +43,6 @@ class App(QtGui.QMainWindow, interface.Ui_MainWindow):
         super(self.__class__, self).__init__()
         self.setupUi(self)  # This is defined in interface.py file automatically
         # It sets up layout and widgets that are defined
-        from .labels import set_labels
-        set_labels(self) # set more sophisticated labels
     def save_interface(self,**kwargs):
         save_interface(self,**kwargs)
     def run(self):
@@ -170,7 +168,10 @@ def is_checked(name,default=False):
 
 def set_image(name,path,width=None,height=None):
   """Set a certain image"""
-  label = getattr(form,name) # get the object
+  label = form.findChild(QtWidgets.QLabel,name) # get the object
+  if label is None: 
+      print(name,"label not found")
+      return
   pixmap = QPixmap(path)
   from PyQt5.QtCore import Qt
   if width and height:

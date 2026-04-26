@@ -204,6 +204,8 @@ signals["save_results"] = save_results
 
 
 
+# set all the formulas
+common.set_formulas(qtwrap)
 
 
 

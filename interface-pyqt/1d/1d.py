@@ -218,6 +218,8 @@ signals["show_magnetism"] = show_magnetism
 signals["solve_scf"] = solve_scf
 signals["select_atoms_removal"] = select_atoms_removal
 
+# set all the formulas
+common.set_formulas(qtwrap)
 
 
 

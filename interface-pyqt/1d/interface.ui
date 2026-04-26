@@ -27,24 +27,45 @@
        <layout class="QGridLayout" name="gridLayout_19">
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout">
-          <item row="12" column="1">
-           <widget class="QLineEdit" name="swave">
+          <item row="12" column="0">
+           <widget class="QLabel" name="label_26">
+            <property name="text">
+             <string>swave pairing</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QLineEdit" name="crystalfield">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="1">
-           <widget class="QLineEdit" name="exchange">
+          <item row="13" column="0">
+           <widget class="QLabel" name="label_4">
             <property name="text">
-             <string>0.0,0.0,0.0</string>
+             <string>pwave pairing</string>
             </property>
            </widget>
           </item>
-          <item row="10" column="1">
-           <widget class="QLineEdit" name="mAB">
+          <item row="7" column="0">
+           <widget class="QLabel" name="label_37">
             <property name="text">
-             <string>0.0</string>
+             <string>Anti Kane-Mele</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="0">
+           <widget class="QLabel" name="label_25">
+            <property name="text">
+             <string>Anti-Haldane</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_21">
+            <property name="text">
+             <string>Hoppings</string>
             </property>
            </widget>
           </item>
@@ -55,100 +76,31 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
-           <widget class="QLineEdit" name="peierls">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
+          <item row="4" column="2">
+           <widget class="QLineEdit" name="exchange">
             <property name="text">
-             <string>0.0</string>
+             <string>0.0,0.0,0.0</string>
             </property>
            </widget>
           </item>
-          <item row="6" column="1">
+          <item row="13" column="2">
+           <widget class="QLineEdit" name="pwave">
+            <property name="text">
+             <string>0.0,0.0,0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="2">
            <widget class="QLineEdit" name="kanemele">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
-          <item row="8" column="0">
-           <widget class="QLabel" name="label_24">
-            <property name="text">
-             <string>Haldane</string>
-            </property>
-           </widget>
-          </item>
-          <item row="9" column="1">
-           <widget class="QLineEdit" name="antihaldane">
+          <item row="7" column="2">
+           <widget class="QLineEdit" name="antikanemele">
             <property name="text">
              <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="12" column="0">
-           <widget class="QLabel" name="label_26">
-            <property name="text">
-             <string>swave pairing</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QLineEdit" name="fermi">
-            <property name="enabled">
-             <bool>true</bool>
-            </property>
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="1">
-           <widget class="QLineEdit" name="rashba">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="1">
-           <widget class="QLineEdit" name="haldane">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="11" column="1">
-           <widget class="QLineEdit" name="mAF">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="0">
-           <widget class="QLabel" name="label_10">
-            <property name="text">
-             <string>Rashba</string>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="label_11">
-            <property name="text">
-             <string>Kane-Mele</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
-           <widget class="QLabel" name="label_3">
-            <property name="text">
-             <string>Exchange</string>
-            </property>
-           </widget>
-          </item>
-          <item row="10" column="0">
-           <widget class="QLabel" name="label_12">
-            <property name="text">
-             <string>Sublattice imbalance</string>
             </property>
            </widget>
           </item>
@@ -166,29 +118,8 @@
             </property>
            </widget>
           </item>
-          <item row="9" column="0">
-           <widget class="QLabel" name="label_25">
-            <property name="text">
-             <string>Anti-Haldane</string>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="1">
-           <widget class="QLineEdit" name="antikanemele">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="0">
-           <widget class="QLabel" name="label_37">
-            <property name="text">
-             <string>Anti Kane-Mele</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QLineEdit" name="crystalfield">
+          <item row="8" column="2">
+           <widget class="QLineEdit" name="haldane">
             <property name="text">
              <string>0.0</string>
             </property>
@@ -201,7 +132,45 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="1">
+          <item row="1" column="2">
+           <widget class="QLineEdit" name="fermi">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_3">
+            <property name="text">
+             <string>Exchange</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
+           <widget class="QLabel" name="label_11">
+            <property name="text">
+             <string>Kane-Mele</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="0">
+           <widget class="QLabel" name="label_24">
+            <property name="text">
+             <string>Haldane</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
+           <widget class="QLineEdit" name="rashba">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
            <widget class="QLineEdit" name="hoppings">
             <property name="toolTip">
              <string extracomment="Hoppings of the system. If you put several numbers separated by commas, the first number is the 1st NN hopping, the second number the 2nd NN hopping, etc"/>
@@ -211,24 +180,159 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="0">
-           <widget class="QLabel" name="label_21">
+          <item row="3" column="2">
+           <widget class="QLineEdit" name="peierls">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
             <property name="text">
-             <string>Hoppings</string>
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="2">
+           <widget class="QLineEdit" name="antihaldane">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="0">
+           <widget class="QLabel" name="label_12">
+            <property name="text">
+             <string>Sublattice imbalance</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="2">
+           <widget class="QLineEdit" name="mAF">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_10">
+            <property name="text">
+             <string>Rashba</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="2">
+           <widget class="QLineEdit" name="swave">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="2">
+           <widget class="QLineEdit" name="mAB">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLabel" name="hopping_image">
+            <property name="minimumSize">
+             <size>
+              <width>20</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLabel" name="fermi_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLabel" name="cf_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLabel" name="bfield_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QLabel" name="exchange_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QLabel" name="rashba_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QLabel" name="kanemele_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QLabel" name="antikanemele_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="1">
+           <widget class="QLabel" name="haldane_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="1">
+           <widget class="QLabel" name="antihaldane_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="1">
+           <widget class="QLabel" name="mAB_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="1">
+           <widget class="QLabel" name="mAF_image">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="1">
+           <widget class="QLabel" name="swave_image">
+            <property name="text">
+             <string/>
             </property>
            </widget>
           </item>
           <item row="13" column="1">
-           <widget class="QLineEdit" name="pwave">
+           <widget class="QLabel" name="pwave_image">
             <property name="text">
-             <string>0.0,0.0,0.0</string>
-            </property>
-           </widget>
-          </item>
-          <item row="13" column="0">
-           <widget class="QLabel" name="label_4">
-            <property name="text">
-             <string>pwave pairing</string>
+             <string/>
             </property>
            </widget>
           </item>
