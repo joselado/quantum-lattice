@@ -319,7 +319,7 @@ def set_formulas(qtwrap):
     """Set all the formulas in the interface"""
     terms = ["hopping","fermi","exchange","haldane","kanemele"]
     terms += ["antihaldane","antikanemele","mAB","mAF","swave","pwave"]
-    terms += ["rashba","bfield","kondo","kexchange"]
+    terms += ["rashba","bfield","kondo","kexchange","cf"]
     terms += ["exchange_impurity","fermi_impurity"]
     for t in terms:
         qtwrap.set_logo(t+"_image",t+".png",width=400,height=30)

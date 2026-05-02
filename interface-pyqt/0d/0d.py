@@ -111,7 +111,7 @@ def initialize():
     """ Initialize the calculation"""
     g = get_geometry() # get the geometry
     h = g.get_hamiltonian(has_spin=True,tij=qtwrap.get_array("hoppings"))
-    h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
+    h.add_zeeman(qtwrap.get_array("exchange"))
     h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
     h.add_rashba(get("rashba"))  # Rashba field
     h.add_antiferromagnetism(get("mAF"))  # AF order
