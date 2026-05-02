@@ -10,5 +10,4 @@ data
 pythoninterpreter.py
 *.tar
 quantum-lattice.desktop
-*.svg
 blender
