@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-from __future__ import print_function
-
 import sys
 import os
 
@@ -57,23 +55,17 @@ def get_geometry(modify=True):
 
 
 
-def select_atoms_removal():
-  g = get_geometry(modify=False) # get the unmodified geometry
-  g.write() # write geometry
-  execute_script("ql-remove-atoms-geometry") # remove the file
-
-
 def modify_geometry(g):
-  """Modify the geometry according to the interface"""
-  if qtwrap.is_checked("remove_selected"): # remove some atoms
-      try:
-        inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int_))
-        if inds.shape==(): inds = [inds]
-      except: inds = [] # Nothing
-      g = sculpt.remove(g,inds) # remove those atoms
-  if qtwrap.is_checked("remove_single_bonded"): # remove single bonds
-      g = sculpt.remove_unibonded(g,iterative=True)
-  return g # return geometry
+    """Modify the geometry according to the interface"""
+    if qtwrap.is_checked("remove_selected"): # remove some atoms
+        try:
+          inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int_))
+          if inds.shape==(): inds = [inds]
+        except: inds = [] # Nothing
+        g = sculpt.remove(g,inds) # remove those atoms
+    if qtwrap.is_checked("remove_single_bonded"): # remove single bonds
+        g = sculpt.remove_unibonded(g,iterative=True)
+    return g # return geometry
 
 
 
@@ -85,24 +77,24 @@ def modify_geometry(g):
 
 
 def initialize():
-  """ Initialize the calculation"""
-  g = get_geometry() # get the geometry
-  h = g.get_hamiltonian(has_spin=True)
-  h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
-  h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-  h.add_rashba(get("rashba"))  # Rashba field
-  h.add_antiferromagnetism(get("mAF"))  # AF order
-  h.shift_fermi(get("fermi")) # shift fermi energy
-  h.add_kane_mele(get("kanemele")) # intrinsic SOC
-  h.add_haldane(get("haldane")) # intrinsic SOC
-  h.add_antihaldane(get("antihaldane")) 
-  h.add_anti_kane_mele(get("antikanemele")) 
-  if get("swave")!=0.: h.add_swave(get("swave"))
-  p = qtwrap.get_array("pwave")
-  if np.sum(np.abs(p))>0.0:
-      h.add_pairing(d=p,mode="triplet",delta=1.0)
-  h = h.reduce() # reduce the Hamiltonian
-  return h
+    """ Initialize the calculation"""
+    g = get_geometry() # get the geometry
+    h = g.get_hamiltonian(has_spin=True)
+    h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
+    h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+    h.add_rashba(get("rashba"))  # Rashba field
+    h.add_antiferromagnetism(get("mAF"))  # AF order
+    h.shift_fermi(get("fermi")) # shift fermi energy
+    h.add_kane_mele(get("kanemele")) # intrinsic SOC
+    h.add_haldane(get("haldane")) # intrinsic SOC
+    h.add_antihaldane(get("antihaldane")) 
+    h.add_anti_kane_mele(get("antikanemele")) 
+    if get("swave")!=0.: h.add_swave(get("swave"))
+    p = qtwrap.get_array("pwave")
+    if np.sum(np.abs(p))>0.0:
+        h.add_pairing(d=p,mode="triplet",delta=1.0)
+#    h = h.reduce() # reduce the Hamiltonian
+    return h
 
 
 
@@ -148,21 +140,30 @@ def show_embedding_ldos():
     execute_script("ql-ldos --input LDOS.OUT")
 
 
-def get_impurity_matrix(h):
+def get_impurity_matrix(h0):
     """Get the impurity matrix"""
     n = int(window.get("nsuper_impurity")) # supercell for the impurities
-    if n>1: h = h.supercell(n) # create the supercell
-    h = h.copy() # copy matrix
-    v = get("impurity_potential") # potential in this site
-    ons = [0. for ir in h.geometry.r] # zero onsite
-    try:
+    if n>1: h0 = h0.supercell(n) # create the supercell
+    h = h0.copy()*0. # initialize
+    v = get("impurity_potential") # (additional) potential in this site
+    jv = qtwrap.get_array("impurity_exchange") # (additional) Zeeman field
+    from pyqula import potentials
+    pot_ons = 0. # initialize
+    pot_j = 0. # initialize
+    try: # many impurities
         inds = np.genfromtxt("IMPURITY_SITES.OUT") # read the indexes
-        for i in inds: ons[int(i)] += v # add onsite energy
-    except:
-        ons[0] = v
-    h.add_onsite(ons)
-    return h.intra
-
+        if inds.shape==(): inds = [inds] # just one number
+        print(inds)
+    except: inds = [0] # just the first site
+    for i in inds: 
+        i = int(i) # to integer
+        imp_ons = potentials.impurity(h.geometry.r[i],v=v) # onsite
+        imp_j = potentials.impurity(h.geometry.r[i],v=jv) # exchange
+        pot_ons = pot_ons + imp_ons # add contribution
+        pot_j = pot_j + imp_j # add contribution
+    h.add_onsite(pot_ons) # add the onsite
+    h.add_exchange(pot_j) # add the exchange
+    return h+h0 # return the defective Hamiltonian
 
 
 
@@ -195,9 +196,6 @@ def select_impurity_sites():
 
 
 
-#    execute_script("ql-interpolate --input LDOS.OUT --dx -2 --dy -2 --smooth 1.0")
-#    execute_script("ql-ldos --input LDOS.OUT-interpolated ")
-
 inipath = os.getcwd() # get the initial directory
 
 def save_results():
@@ -207,7 +205,6 @@ def save_results():
 # create signals
 signals = dict()
 signals["show_structure"] = show_structure  # show bandstructure
-signals["select_atoms_removal"] = select_atoms_removal
 signals["show_embedding_ldos"] = show_embedding_ldos
 signals["show_embedding_ldos_sweep"] = show_embedding_ldos_sweep
 signals["select_impurity_sites"] = select_impurity_sites
@@ -220,7 +217,7 @@ common.set_formulas(qtwrap)
 window.set("info_tab","Results will be saved to "+inipath)
 
 
-window.connect_clicks(signals)
+window.connect_clicks(signals,robust=False)
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()

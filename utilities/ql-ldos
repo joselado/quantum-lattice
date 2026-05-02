@@ -77,14 +77,14 @@ def plot(main):
       zmap = scale.reshape((nx,ny))
       cplot = plt.imshow(zmap.T, aspect='auto', origin='lower',
             cmap = plt.get_cmap(main.get_combobox("cmap")),
-            extent = ( min(x), max(x), min(y), max(y)),
+            extent = ( np.min(x), np.max(x), np.min(y), np.max(y)),
             vmin=main.get_slider("minsat"),
             vmax=main.get_slider("maxsat")
             )
         #    interpolation=obj.get_combobox("Interpolation"))
   
   plt.axis("equal")
-  cb = fig.colorbar(cplot,ticks=[0.0,1.0])
+  cb = fig.colorbar(cplot,ticks=[0,1],label="LDOS")
   cb.ax.set_yticklabels(["Min",'Max'])
   return fig
 

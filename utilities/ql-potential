@@ -1,4 +1,4 @@
-#!/home/joselado/apps/anaconda3/bin/python
+#!/u/40/ladovj1/unix/apps/anaconda3/bin/python
 
 from __future__ import print_function
 import numpy as np

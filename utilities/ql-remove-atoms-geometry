@@ -1,6 +1,4 @@
 #!/home/joselado/apps/anaconda3/bin/python
-
-from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -8,7 +6,6 @@ import sys
 # change the font size
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
 
 write = False # if have to write in a file
 remove = False # if have to write in the file to remove
@@ -32,9 +29,9 @@ isred = [False for ix in x] # if selected
 
 plt.ion()
 
-def onpick3(event):
+def pick_sites(event):
         ind = event.ind
-        print('onpick3 scatter:', ind, np.take(x, ind), np.take(y, ind))
+        print('Scatter:', ind, np.take(x, ind), np.take(y, ind))
         # replot
         try: del red
         except: pass
@@ -60,9 +57,8 @@ fig, ax = plt.subplots()
 fig.set_facecolor("white") # white
 col = ax.scatter(x, y,sorig, corig, picker=True)
 plt.axis("equal")
-fig.canvas.mpl_connect('pick_event', onpick3)
+fig.canvas.mpl_connect('pick_event', pick_sites)
 
 
-
-
+fig.canvas.manager.set_window_title('Site removal selection')
 plt.show(block=True)

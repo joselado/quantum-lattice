@@ -97,7 +97,7 @@ def plot(main):
             cmap = cmap,interpolation=main.get_combobox("Interpolation"),
             vmin=0,vmax=1,
             extent = (np.min(x), np.max(x), np.min(y), np.max(y)))
-  cb = fig.colorbar(cplot,ticks=[0,1])
+  cb = fig.colorbar(cplot,ticks=[0,1],label="LDOS")
   cb.ax.set_yticklabels([0,'Max'])
   ax.axis("equal")
   zoom = main.get_slider("Zoom")

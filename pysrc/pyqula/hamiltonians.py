@@ -158,10 +158,10 @@ class Hamiltonian():
           self.dimensionality = geometry.dimensionality 
           self.geometry = geometry # add geometry object
           self.num_orbitals = len(geometry.x)
-    def get_hk_gen(self):
+    def get_hk_gen(self,**kwargs):
         """ Generate kdependent hamiltonian"""
         #if self.is_multicell:
-        out = multicell.hk_gen(self) # for multicell
+        out = multicell.hk_gen(self,**kwargs) # for multicell
        # else: out = hk_gen(self) # for normal cells
         from .htk.canonicalphase import canonical_unitary
 #        return canonical_unitary(self,out)
@@ -188,19 +188,20 @@ class Hamiltonian():
       def f(k=[0.,0.,0.],e=0.0,inv=False):
           hk = hkgen(k) # get matrix
           if canonical_phase: # use a Bloch phase in all the sites
-            frac_r = self.geometry.frac_r # fractional coordinates
-            # start in zero
-            U = np.diag([self.geometry.bloch_phase(k,r) for r in frac_r])
-            U = np.matrix(U) # this is without .H
-            # increase the space if necessary
-            U = self.spinless2full(U,is_hamiltonian=False) 
-            Ud = algebra.dagger(U) # dagger
-            hk = Ud@hk@U
+              frac_r = self.geometry.frac_r # fractional coordinates
+              # start in zero
+              U = np.diag([self.geometry.bloch_phase(k,r) for r in frac_r])
+              U = np.matrix(U) # this is without .H
+              # increase the space if necessary
+              U = self.spinless2full(U,is_hamiltonian=False) 
+              Ud = algebra.dagger(U) # dagger
+              hk = Ud@hk@U
           if operator is not None: 
               hk = algebra.dagger(operator)@hk@operator # project
           if not self.is_sparse: # dense Hamiltonians
               out = np.identity(hk.shape[0])*(e+1j*delta) - hk
-              if not inv: out = algebra.inv(out) # Green's function
+              if not inv: 
+                  out = algebra.inv(algebra.todense(out)) # Green's function
               else: out = out # just the Hamiltonian
           else: # for sparse, use the Operator object
               from scipy.sparse import identity
@@ -807,6 +808,7 @@ def set_finite_system(hin,n=1,periodic=False):
   """ Transforms the hamiltonian into a finite system,
   removing the hoppings """
   from copy import deepcopy
+  from .algebra import dagger
   h = hin.copy() # copy Hamiltonian
   h = h.get_supercell(n) # make the supercell
   h = h.get_no_multicell()
@@ -814,12 +816,12 @@ def set_finite_system(hin,n=1,periodic=False):
   h.geometry.dimensionality = 0 # put dimensionality = 0
   if periodic: # periodic boundary conditions
     if h.dimensionality == 1:
-      h.intra = h.intra + h.inter + h.inter.H 
+      h.intra = h.intra + h.inter + dagger(h.inter)
     if h.dimensionality == 2:
-      h.intra = h.intra +  h.tx + h.tx.H 
-      h.intra = h.intra +  h.ty + h.ty.H 
-      h.intra = h.intra +  h.txy + h.txy.H 
-      h.intra = h.intra +  h.txmy + h.txmy.H 
+      h.intra = h.intra +  h.tx + dagger(h.tx) 
+      h.intra = h.intra +  h.ty + dagger(h.ty)
+      h.intra = h.intra +  h.txy + dagger(h.txy)
+      h.intra = h.intra +  h.txmy + dagger(h.txmy)
   else: pass
   return h
   

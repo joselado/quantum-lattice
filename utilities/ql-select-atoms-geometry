@@ -8,7 +8,6 @@ import sys
 # change the font size
 import matplotlib
 matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
 
 
 import argparse
@@ -57,7 +56,7 @@ plt.ion()
 
 
 
-def onpick3(event):
+def pick_sites(event):
         ind = event.ind
         # replot
         try: del red
@@ -90,9 +89,9 @@ for i in range(len(x)): # plot all
 
 
 plt.axis("equal")
-fig.canvas.mpl_connect('pick_event', onpick3)
+fig.canvas.mpl_connect('pick_event', pick_sites)
 
 
 
-
+fig.canvas.manager.set_window_title('Site selection')
 plt.show(block=True)
