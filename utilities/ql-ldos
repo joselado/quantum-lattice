@@ -54,6 +54,7 @@ def plot(main):
   ####################################################
   ax.clear() # clear LDOS
   ax.axis("equal")
+
   ax.set_xticks([])
   ax.set_yticks([])
   zscale = main.get_combobox("Scale")
@@ -84,6 +85,9 @@ def plot(main):
         #    interpolation=obj.get_combobox("Interpolation"))
   
   plt.axis("equal")
+  zoom = main.get_slider("Zoom")
+  ax.set_xlim([np.min(x)*zoom,np.max(x)*zoom])
+  ax.set_ylim([np.min(y)*zoom,np.max(y)*zoom])
   cb = fig.colorbar(cplot,ticks=[0,1],label="LDOS")
   cb.ax.set_yticklabels(["Min",'Max'])
   return fig
@@ -93,6 +97,7 @@ app,main = plotpyqt.get_interface(plot)
 if args.grid=="False":
   main.add_slider(label="DOS size",key="DOSSize",
         vs=np.linspace(1e-3,1.0,50),v0=0.5) # Slider for the dots
+main.add_slider(label="Zoom",vs=np.linspace(0.01,1.1,40),v0=1.1) # Slider for the dots
 main.add_slider(label="Max saturation",v0=0.5,key="maxsat",
                              vs=np.linspace(0.,1.0,100)) # Saturation
 main.add_slider(label="Min saturation",v0=0.,key="minsat",
