@@ -17,5 +17,5 @@ def read_positions():
 (x,y,z) = read_positions()
 
 pl = _pv3d.new_plotter()
-_pv3d.add_atoms(pl,(x,y,z),color="magenta",radius=0.5)
+_pv3d.add_atoms(pl,(x,y,z),color="magenta")
 pl.show()

@@ -20,6 +20,6 @@ s = s/np.max(s)  # normalize
 zeros = y*0.
 
 pl = _pv3d.new_plotter()
-_pv3d.add_atoms(pl,(x,y,zeros),color="black",radius=0.2)
+_pv3d.add_atoms(pl,(x,y,zeros),color="black")
 _pv3d.add_scaled_points(pl,(x,y,zeros),s,color="red",point_size=25,opacity=0.7)
 pl.show()

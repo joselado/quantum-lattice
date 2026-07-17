@@ -20,7 +20,7 @@ xyz = read_positions().transpose() # (3,n)
 rs = xyz.transpose() # (n,3)
 
 pl = _pv3d.new_plotter("Structure")
-_pv3d.add_atoms(pl,xyz,color=lattice_color,radius=0.55)
+_pv3d.add_atoms(pl,xyz,color=lattice_color)
 
 if len(rs)<250:
   _pv3d.add_bonds(pl,rs,rs,dmin=0.8,dmax=1.2,color=lattice_color,radius=0.1)

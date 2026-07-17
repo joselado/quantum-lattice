@@ -88,7 +88,7 @@ pl = _pv3d.new_plotter("Magnetism")
 
 def create_lattice(xyz):
   """ Creates a lattice using xyz coordinates"""
-  _pv3d.add_atoms(pl,xyz,color=lattice_color,radius=0.55)
+  _pv3d.add_atoms(pl,xyz,color=lattice_color)
 
 
 def create_arrow(r,v,fac=2):

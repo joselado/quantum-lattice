@@ -12,6 +12,7 @@ this directory, never launched directly.
 """
 import numpy as np
 import pyvista as pv
+from scipy.spatial import cKDTree
 
 
 def new_plotter(title=None):
@@ -20,11 +21,25 @@ def new_plotter(title=None):
     return pl
 
 
-def add_atoms(pl,xyz,color="cyan",radius=0.55,opacity=1.0):
-    """Draw atoms as shaded spheres at the given (3,n) positions"""
+def nearest_neighbor_distance(points):
+    """Median distance from each point to its nearest neighbor, used to
+    size atoms relative to the lattice instead of an arbitrary constant"""
+    points = np.asarray(points)
+    if len(points)<2: return 1.0
+    d,_ = cKDTree(points).query(points,k=2) # k=1 is the point itself (d=0)
+    return float(np.median(d[:,1]))
+
+
+def add_atoms(pl,xyz,color="cyan",radius=None,opacity=1.0):
+    """Draw atoms as true shaded spheres (in world/data coordinates, so
+    they keep a fixed physical size independent of camera zoom) at the
+    given (3,n) positions. Defaults to 1/3 of the nearest-neighbor
+    distance, which keeps neighboring atoms from overlapping."""
     points = np.asarray(xyz).T
-    pl.add_points(points,render_points_as_spheres=True,point_size=radius*80,
-                  color=color,opacity=opacity)
+    if radius is None: radius = nearest_neighbor_distance(points)/3.0
+    sphere = pv.Sphere(radius=radius,theta_resolution=12,phi_resolution=12)
+    glyph = pv.PolyData(points).glyph(geom=sphere,scale=False,orient=False)
+    pl.add_mesh(glyph,color=color,opacity=opacity)
     return points
 
 

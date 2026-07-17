@@ -18,7 +18,7 @@ xyz = np.array([m[0],m[1],m[0]*0.]) # positions (flat, z=0)
 rs = xyz.transpose()
 
 pl = _pv3d.new_plotter()
-_pv3d.add_atoms(pl,xyz,color=lattice_color,radius=0.55)
+_pv3d.add_atoms(pl,xyz,color=lattice_color)
 _pv3d.add_bonds(pl,rs,rs,dmin=1e-6,dmax=1.005,color=lattice_color,radius=0.1)
 _pv3d.add_scaled_points(pl,xyz,m[2],color=ldos_color,point_size=30,opacity=0.5)
 pl.show()

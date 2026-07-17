@@ -90,11 +90,12 @@ def scale_mag(mag,threshold=0.001):
 pl = _pv3d.new_plotter("Magnetism")
 
 
-def create_atom(P,rad=0.55):
+def create_atom(P,rad=None):
    """
      Draws an atom (sphere) at point P
      P: array-like object
    """
+   if rad is None: rad = _pv3d.nearest_neighbor_distance(np.asarray(P).T)/3.0
    rad = rad*float(args.sitesize)
    _pv3d.add_atoms(pl,P,color=lattice_color,radius=rad)
 
