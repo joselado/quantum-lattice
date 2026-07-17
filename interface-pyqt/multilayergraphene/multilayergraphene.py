@@ -21,6 +21,11 @@ from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common 
 common.initialize(qtwrap) # initilizations
 
+from interfacetk import interfacetk
+modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+
 
 
 
@@ -30,14 +35,14 @@ cs = specialgeometry.multilayer_codes(n=4)
 qtwrap.set_combobox("lattice",cs=cs)
 
 
+STACKING_OFFSETS = {"A": -1, "B": 0, "C": 1}
+
 def get_geometry(modify=True):
   """ Create a 0d island"""
   lattice = getbox("lattice") # get the option
   ns = [] # empt list
   for il in lattice:
-      if il=="A": ns += [-1]
-      elif il=="B": ns += [0]
-      elif il=="C": ns += [1]
+      if il in STACKING_OFFSETS: ns.append(STACKING_OFFSETS[il])
       else: print("Error",il)
   g = specialgeometry.multilayer_graphene(l=ns)
   nsuper = int(get("nsuper"))
@@ -49,24 +54,6 @@ def get_geometry(modify=True):
 
 
 
-def select_atoms_removal():
-  g = get_geometry(modify=False) # get the unmodified geometry
-  g.write() # write geometry
-  execute_script("ql-remove-atoms-geometry-3d") # remove the file
-
-
-def modify_geometry(g):
-  """Modify the geometry according to the interface"""
-  if qtwrap.is_checked("remove_selected"): # remove some atoms
-      try:
-        inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int))
-        if inds.shape==(): inds = [inds]
-      except: inds = [] # Nothing
-      print(inds)
-      g = sculpt.remove(g,inds) # remove those atoms
-  if qtwrap.is_checked("remove_single_bonded"): # remove single bonds
-      g = sculpt.remove_unibonded(g,iterative=True)
-  return g # return geometry
 
 
 
@@ -102,34 +89,11 @@ def initialize():
   return h
 
 
-def show_bands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_bands(h,qtwrap)
-
-
-
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_kdos_bands(h,qtwrap) # compute DOS
-
-def show_fermi_surface(silent=False):
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_fermi_surface(h,qtwrap)
-
-
-
-
-
 def show_dos(silent=False):
   h = pickup_hamiltonian() # get hamiltonian
   common.get_dos(h,qtwrap)
 
 
-def pickup_hamiltonian():
-  if qtwrap.is_checked("do_scf"):
-    return hamiltonians.load() # load the Hamiltonian
-  else: # generate from scratch
-    return initialize()
 
 
 
@@ -147,33 +111,6 @@ def show_structure():
   g = g.supercell(nsuper)
   g.write()
   execute_script("ql-structure --color True --colorcol 2")
-
-
-
-def show_kdos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_kdos(h,qtwrap)
-
-
-def show_berry1d():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_berry1d(h,qtwrap) # compute Berry 1D
-
-
-def show_z2():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_z2(h,qtwrap) # compute Berry 1D
-
-
-def show_berry2d():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_berry2d(h,qtwrap)
-
-
-def show_chern():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_chern(h,qtwrap)
-
 
 
 
@@ -288,26 +225,21 @@ def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
-# create signals
-signals = dict()
-signals["solve_scf"] = solve_scf  # initialize and run
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-signals["show_berry2d"] = show_berry2d  # show DOS
-signals["show_berry1d"] = show_berry1d  # show DOS
-signals["show_kdos"] = show_kdos  # show DOS
-signals["show_dosbands"] = show_dosbands  # show DOS
-signals["show_z2"] = show_z2  # show DOS
-signals["show_chern"] = show_chern  # show Chern number
-signals["show_magnetism"] = show_magnetism  # show magnetism
-signals["compute_sweep"] = sweep_parameter
-signals["show_structure_3d"] = show_structure_3d
-signals["select_atoms_removal"] = select_atoms_removal
-signals["show_interactive_ldos"] = show_interactive_ldos
-signals["show_fermi_surface"] = show_fermi_surface
-signals["save_results"] = save_results
-signals["load_results"] = load_results
+# create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
+# + common.get_X" buttons automatically; only the buttons with mode-specific
+# behavior need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "solve_scf": solve_scf,  # initialize and run
+  "show_structure": show_structure,  # show bandstructure
+  "show_dos": show_dos,  # also used by sweep_parameter
+  "show_magnetism": show_magnetism,  # show magnetism
+  "compute_sweep": sweep_parameter,
+  "show_structure_3d": show_structure_3d,
+  "select_atoms_removal": select_atoms_removal,
+  "show_interactive_ldos": show_interactive_ldos,
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 

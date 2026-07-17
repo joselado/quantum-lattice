@@ -24,49 +24,23 @@ from interfacetk import common # common routines for all the geometries
 
 
 
+LATTICES = {
+  "Cubic": geometry.cubic_lattice,
+  "Diamond": geometry.diamond_lattice_minimal,
+  "Pyrochlore": geometry.pyrochlore_lattice,
+  "Hyperhoneycomb": geometry.hyperhoneycomb_lattice,
+}
+
 def get_geometry():
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
-#  lattice_name = builder.get_object("lattice").get_active_text()
-  if lattice_name=="Honeycomb":
-    geometry_builder = geometry.honeycomb_lattice
-  elif lattice_name=="Square":
-    geometry_builder = geometry.square_lattice
-  elif lattice_name=="Kagome":
-    geometry_builder = geometry.kagome_lattice
-  elif lattice_name=="Lieb":
-    geometry_builder = geometry.lieb_lattice
-  elif lattice_name=="Triangular":
-    geometry_builder = geometry.triangular_lattice
-  g = geometry_builder() # call the geometry
-  nsuper = int(get("nsuper"))
-  g = g.supercell(nsuper)
-  return g
-
-
-
-def get_geometry_film():
-  """ Create a 0d island"""
-  lattice_name = getbox("lattice") # get the option
-#  lattice_name = builder.get_object("lattice").get_active_text()
-  if lattice_name=="Cubic":
-    geometry_builder = geometry.cubic_lattice
-  elif lattice_name=="Diamond":
-    geometry_builder = geometry.diamond_lattice_minimal
-  elif lattice_name=="Pyrochlore":
-    geometry_builder = geometry.pyrochlore_lattice
-  elif lattice_name=="Hyperhoneycomb":
-    geometry_builder = geometry.hyperhoneycomb_lattice
-  else: raise
-  g = geometry_builder() # call the geometry
+  g = LATTICES[lattice_name]() # call the geometry
   g = films.geometry_film(g,int(get("thickness")))
   g = g.supercell(int(get("nsuper")))
   g.real2fractional()
   g.fractional2real()
   g.center()
   return g
-
-get_geometry = get_geometry_film
 
 
 
@@ -116,11 +90,6 @@ def initialize():
   return h
 
 
-def show_bands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_bands(h,qtwrap) # wrapper
-
-
 def show_ldos():
   """Return the LDOS"""
   h = pickup_hamiltonian() # get hamiltonian
@@ -130,12 +99,6 @@ def show_ldos():
   ldos.slabldos(h,energies=energies,delta=delta,nk=int(get("nk_ldos")))
   execute_script('ql-map2d --input DOSMAP.OUT --xlabel Energy --ylabel "z-position" --zlabel DOS --title "Local DOS"')
 
-
-
-
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_kdos_bands(h,qtwrap) # compute DOS
 
 
 
@@ -153,12 +116,7 @@ def show_dos():
   execute_script("ql-dos  ")
 
 
-def pickup_hamiltonian():
-  return initialize()
-  if builder.get_object("activate_scf").get_active():
-    return read_hamiltonian()
-  else: # generate from scratch
-    return initialize()
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
 
 
@@ -182,12 +140,6 @@ def show_stm():
 #  execute_script("ql-ldos  LDOS.OUT")
   return
 
-
-def show_berry2d():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_berry2d(h,qtwrap)
-
-  
 
 def show_magnetism():
   h = pickup_hamiltonian() # get hamiltonian
@@ -217,44 +169,21 @@ def show_structure_3d():
 
 
 
-def show_kdos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_kdos(h,qtwrap) # get the KDOS
-
-
-
-def show_berry1d():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_berry1d(h,qtwrap)
-
-
-
-def show_z2():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_z2(h,qtwrap)
-
-
-
-
 def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
-# create signals
-signals = dict()
-#signals["initialize"] = initialize  # initialize and run
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_structure_3d"] = show_structure_3d  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-signals["show_berry2d"] = show_berry2d  # show DOS
-signals["show_berry1d"] = show_berry1d  # show DOS
-signals["show_kdos"] = show_kdos  # show DOS
-signals["show_dosbands"] = show_dosbands  # show DOS
-signals["show_z2"] = show_z2  # show DOS
-signals["show_ldos"] = show_ldos  # show DOS
-signals["save_results"] = save_results
-signals["load_results"] = load_results
+# create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
+# + common.get_X" buttons automatically; only the buttons with mode-specific
+# behavior need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "show_structure": show_structure,  # show bandstructure
+  "show_structure_3d": show_structure_3d,  # show bandstructure
+  "show_dos": show_dos,  # custom dimensionality-dependent DOS
+  "show_ldos": show_ldos,  # show DOS
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 

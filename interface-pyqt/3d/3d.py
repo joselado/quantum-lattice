@@ -21,21 +21,20 @@ from interfacetk import common # common routines for all the geometries
 
 common.initialize(qtwrap) # do several common initializations
 
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+
+
+LATTICES = {
+  "Cubic": geometry.cubic_lattice,
+  "Diamond": geometry.diamond_lattice_minimal,
+  "Pyrochlore": geometry.pyrochlore_lattice,
+  "Hyperhoneycomb": geometry.hyperhoneycomb_lattice,
+}
 
 def get_geometry():
   """ Create geometry"""
   lattice_name = getbox("lattice") # get the option
-#  lattice_name = builder.get_object("lattice").get_active_text()
-  if lattice_name=="Cubic":
-    geometry_builder = geometry.cubic_lattice
-  elif lattice_name=="Diamond":
-    geometry_builder = geometry.diamond_lattice_minimal
-  elif lattice_name=="Pyrochlore":
-    geometry_builder = geometry.pyrochlore_lattice
-  elif lattice_name=="Hyperhoneycomb":
-    geometry_builder = geometry.hyperhoneycomb_lattice
-  else: raise
-  g = geometry_builder() # call the geometry
+  g = LATTICES[lattice_name]() # call the geometry
   nsuper = int(get("nsuper"))
   g = g.supercell(nsuper)
   g.real2fractional()
@@ -79,12 +78,6 @@ def initialize():
   return h
 
 
-def show_bands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_bands(h,qtwrap) # wrapper
-
-
-
 def show_ldos():
   """Return the LDOS"""
   h = pickup_hamiltonian() # get hamiltonian
@@ -114,11 +107,6 @@ def show_dos():
 
 
 
-def pickup_hamiltonian():
-  if qtwrap.is_checked("do_scf"):
-    return hamiltonians.load() # load the Hamiltonian
-  else: # generate from scratch
-    return initialize()
 
 
 
@@ -161,13 +149,6 @@ def show_structure_3d():
   g = g.supercell(nsuper)
   g.write()
   execute_script("ql-structure3d POSITIONS.OUT")
-
-
-
-def show_kdos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_kdos(h,qtwrap) # get the KDOS
-
 
 
 
@@ -226,25 +207,17 @@ def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
-# create signals
-signals = dict()
-#signals["initialize"] = initialize  # initialize and run
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_structure_3d"] = show_structure_3d  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-#signals["show_berry2d"] = show_berry2d  # show DOS
-#signals["show_berry1d"] = show_berry1d  # show DOS
-signals["show_kdos"] = show_kdos  # show DOS
-#signals["show_dosbands"] = show_dosbands  # show DOS
-#signals["show_z2"] = show_z2  # show DOS
-#signals["show_ldos"] = show_ldos  # show DOS
-signals["show_magnetism"] = show_magnetism
-signals["solve_scf"] = solve_scf
-#signals["show_magnetism"] = show_magnetism  # show magnetism
-#signals["show_lattice"] = show_lattice  # show magnetism
-signals["save_results"] = save_results
-signals["load_results"] = load_results
+# create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
+# + common.get_X" buttons automatically; only the buttons with mode-specific
+# behavior need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "show_structure": show_structure,  # show bandstructure
+  "show_structure_3d": show_structure_3d,  # show bandstructure
+  "show_magnetism": show_magnetism,
+  "solve_scf": solve_scf,
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 

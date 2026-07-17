@@ -19,53 +19,36 @@ from interfacetk import common # common routines for all the geometries
 
 common.initialize(qtwrap) # do several common initializations
 
+from interfacetk import interfacetk
+modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
+
 qtwrap.set_combobox("scf_initialization",meanfield.spinful_guesses)
 qtwrap.set_combobox("bands_color",operators.operator_list)
 
 
+LATTICES = {
+  "Honeycomb": geometry.honeycomb_lattice,
+  "Honeycomb 4 sites": geometry.honeycomb_lattice_square_cell,
+  "Square": geometry.square_lattice,
+  "Single square": geometry.single_square_lattice,
+  "Kagome": geometry.kagome_lattice,
+  "Lieb": geometry.lieb_lattice,
+  "Triangular": geometry.triangular_lattice,
+  "Triangular tripartite": lambda: geometry.triangular_lattice(n=3),
+  "Honeycomb 6 sites": lambda: geometry.honeycomb_lattice(n=3),
+}
+
 def get_geometry(modify=True):
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
-  if lattice_name=="Honeycomb":
-    geometry_builder = geometry.honeycomb_lattice
-  elif lattice_name=="Honeycomb 4 sites":
-    geometry_builder = geometry.honeycomb_lattice_square_cell
-  elif lattice_name=="Square":
-    geometry_builder = geometry.square_lattice
-  elif lattice_name=="Single square":
-    geometry_builder = geometry.single_square_lattice
-  elif lattice_name=="Kagome":
-    geometry_builder = geometry.kagome_lattice
-  elif lattice_name=="Lieb":
-    geometry_builder = geometry.lieb_lattice
-  elif lattice_name=="Triangular":
-    geometry_builder = geometry.triangular_lattice
-  elif lattice_name=="Triangular tripartite":
-    geometry_builder = lambda: geometry.triangular_lattice(n=3)
-  elif lattice_name=="Honeycomb 6 sites":
-    geometry_builder = lambda: geometry.honeycomb_lattice(n=3)
-  else: raise
-  g = geometry_builder() # call the geometry
+  g = LATTICES[lattice_name]() # call the geometry
   nsuper = int(get("nsuper"))
   g = g.supercell(nsuper)
   if modify: g = modify_geometry(g) # modify the geometry
   return g
 
-
-
-
-
-def modify_geometry(g):
-    """Modify the geometry according to the interface"""
-    if qtwrap.is_checked("remove_selected"): # remove some atoms
-        try:
-          inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int_))
-          if inds.shape==(): inds = [inds]
-        except: inds = [] # Nothing
-        g = sculpt.remove(g,inds) # remove those atoms
-    if qtwrap.is_checked("remove_single_bonded"): # remove single bonds
-        g = sculpt.remove_unibonded(g,iterative=True)
-    return g # return geometry
 
 
 
@@ -96,10 +79,6 @@ def initialize():
 #    h = h.reduce() # reduce the Hamiltonian
     return h
 
-
-
-def pickup_hamiltonian():
-    return initialize()
 
 
 def show_structure():
@@ -204,6 +183,8 @@ def load_results():  load_state(inipath,tmppath,window) # function to load
 # create signals
 signals = dict()
 signals["show_structure"] = show_structure  # show bandstructure
+signals["show_structure_3d"] = show_structure_3d
+signals["select_atoms_removal"] = select_atoms_removal
 signals["show_embedding_ldos"] = show_embedding_ldos
 signals["show_embedding_ldos_sweep"] = show_embedding_ldos_sweep
 signals["select_impurity_sites"] = select_impurity_sites

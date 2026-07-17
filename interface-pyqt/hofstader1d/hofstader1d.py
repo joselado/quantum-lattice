@@ -17,6 +17,7 @@ window = qtwrap.main() # this is the main interface
 
 
 from interfacetk.qh_interface import * # import all the libraries needed
+from interfacetk import common # common routines for all the geometries
 
 
 
@@ -24,30 +25,20 @@ from interfacetk.qh_interface import * # import all the libraries needed
 def get_geometry():
   lattice_name = getbox("lattice") # get the option
   n = int(get("width")) # thickness of the system
-#  lattice_name = builder.get_object("lattice").get_active_text()
-  if lattice_name=="Chain":
-    g = geometry.chain()
-  if lattice_name=="Honeycomb":
-    g = geometry.honeycomb_lattice()
-  elif lattice_name=="Square":
-    g = geometry.square_lattice()
-  elif lattice_name=="Kagome":
-    g = geometry.kagome_lattice()
-  elif lattice_name=="Lieb":
-    g = geometry.lieb_lattice()
-  elif lattice_name=="Triangular":
-    g = geometry.triangular_lattice()
-  elif lattice_name=="Honeycomb zigzag":
-    g = geometry.honeycomb_zigzag_ribbon(n)
-  elif lattice_name=="Honeycomb armchair":
-    g = geometry.honeycomb_armchair_ribbon(n)
-  ##################
-  elif lattice_name=="Graphene":
-    g = geometry.honeycomb_lattice()
-  elif lattice_name=="Bilayer graphene AB":
-    g = multilayers.get_geometry("AB")
-  elif lattice_name=="Bilayer graphene AA":
-    g = multilayers.get_geometry("AA")
+  lattices = {
+    "Chain": geometry.chain,
+    "Honeycomb": geometry.honeycomb_lattice,
+    "Square": geometry.square_lattice,
+    "Kagome": geometry.kagome_lattice,
+    "Lieb": geometry.lieb_lattice,
+    "Triangular": geometry.triangular_lattice,
+    "Honeycomb zigzag": lambda: geometry.honeycomb_zigzag_ribbon(n),
+    "Honeycomb armchair": lambda: geometry.honeycomb_armchair_ribbon(n),
+    "Graphene": geometry.honeycomb_lattice,
+    "Bilayer graphene AB": lambda: multilayers.get_geometry("AB"),
+    "Bilayer graphene AA": lambda: multilayers.get_geometry("AA"),
+  }
+  g = lattices[lattice_name]()
   if g.dimensionality==2: # original is a 2d geometry
     g = ribbon.bulk2ribbon(g,n=n,clean=False)
   nsuper = int(get("nsuper"))
@@ -138,12 +129,7 @@ def show_dos():
   execute_script("ql-dos  ")
 
 
-def pickup_hamiltonian():
-  return initialize()
-  if builder.get_object("activate_scf").get_active():
-    return read_hamiltonian()
-  else: # generate from scratch
-    return initialize()
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
   
 

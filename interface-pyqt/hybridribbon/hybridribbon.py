@@ -28,23 +28,17 @@ def get_geometry():
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
   n = int(get("width")) # thickness of the system
-#  lattice_name = builder.get_object("lattice").get_active_text()
-  if lattice_name=="Chain":
-    g = geometry.chain()
-  if lattice_name=="Honeycomb":
-    g = geometry.honeycomb_lattice()
-  elif lattice_name=="Square":
-    g = geometry.square_lattice()
-  elif lattice_name=="Kagome":
-    g = geometry.kagome_lattice()
-  elif lattice_name=="Lieb":
-    g = geometry.lieb_lattice()
-  elif lattice_name=="Triangular":
-    g = geometry.triangular_lattice_tripartite()
-  elif lattice_name=="Honeycomb zigzag":
-    g = geometry.honeycomb_zigzag_ribbon(n)
-  elif lattice_name=="Honeycomb armchair":
-    g = geometry.honeycomb_armchair_ribbon(n)
+  lattices = {
+    "Chain": geometry.chain,
+    "Honeycomb": geometry.honeycomb_lattice,
+    "Square": geometry.square_lattice,
+    "Kagome": geometry.kagome_lattice,
+    "Lieb": geometry.lieb_lattice,
+    "Triangular": geometry.triangular_lattice_tripartite,
+    "Honeycomb zigzag": lambda: geometry.honeycomb_zigzag_ribbon(n),
+    "Honeycomb armchair": lambda: geometry.honeycomb_armchair_ribbon(n),
+  }
+  g = lattices[lattice_name]()
   if g.dimensionality==2: # original is a 2d geometry
     g = ribbon.bulk2ribbon(g,n=n)
   nsuper = int(get("nsuper"))
@@ -91,11 +85,6 @@ def initialize():
   return h
 
 
-def show_bands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_bands(h,qtwrap) # wrapper
-
-
 def show_ldos():
   """Return the LDOS"""
   h = pickup_hamiltonian() # get hamiltonian
@@ -107,26 +96,9 @@ def show_ldos():
 
 
 
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_kdos_bands(h,qtwrap) # compute DOS
 
 
-
-
-
-
-def show_dos():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_dos(h,qtwrap) # compute DOS
-
-
-def pickup_hamiltonian():
-  return initialize()
-  if builder.get_object("activate_scf").get_active():
-    return read_hamiltonian()
-  else: # generate from scratch
-    return initialize()
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
 
 
@@ -221,15 +193,15 @@ def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
-signals = dict()
-#signals["initialize"] = initialize  # initialize and run
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-signals["show_dosbands"] = show_dosbands  # show DOS
-signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
-signals["save_results"] = save_results
-signals["load_results"] = load_results
+# STANDARD_HANDLERS covers the plain "pickup_hamiltonian + common.get_X"
+# buttons automatically; only the buttons with mode-specific behavior
+# need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "show_structure": show_structure,  # show bandstructure
+  "show_interactive_ldos": show_interactive_ldos,  # show DOS
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 

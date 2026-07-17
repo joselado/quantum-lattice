@@ -23,6 +23,8 @@ from pyqula import parallel
 
 from interfacetk import interfacetk
 modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
 qtwrap.set_combobox("multilayer_type",
         cs=["Twisted bilayer",
@@ -41,35 +43,25 @@ def get_geometry(modify=True):
   """ Create a 2d honeycomb lattice"""
   n = int(qtwrap.get("cell_size")) # size of the unit cell
   name = qtwrap.getbox("multilayer_type")
-  if name=="Twisted bilayer":
-    g = specialgeometry.twisted_multilayer(n,rot=[0,1])
-    #g = specialgeometry.twisted_bilayer(n)
-  elif name=="Aligned bilayer AA":
-    g = specialgeometry.twisted_multilayer(n,rot=[0,0])
-  elif name=="Aligned bilayer AB":
+  def _aligned_bilayer_ab():
     gb = specialgeometry.multilayer_graphene(l=[0,1])
-    g = specialgeometry.twisted_multilayer(n,rot=[0],g=gb,dz=6.0)
-  elif name=="Aligned trilayer ABC":
+    return specialgeometry.twisted_multilayer(n,rot=[0],g=gb,dz=6.0)
+  def _aligned_trilayer_abc():
     gb = specialgeometry.multilayer_graphene(l=[0,1,2])
-    g = specialgeometry.twisted_multilayer(n,rot=[0],g=gb,dz=6.0)
-  elif name=="Twisted trilayer 010":
-    g = specialgeometry.twisted_multilayer(n,rot=[0,1,0])
-  elif name=="Twisted tetralayer 0101":
-    g = specialgeometry.twisted_multilayer(n,rot=[0,1,0,1])
-  elif name=="Twisted trilayer 001":
-    g = specialgeometry.twisted_multilayer(n,rot=[0,0,1])
-  elif name=="Twisted bi-bilayer AB AB":
-    ps = [["AB","AB"],[0,1]]
-    g = specialgeometry.parse_twisted_multimultilayer(ps,n=n)
-  elif name=="Twisted bi-bilayer AB BA":
-    ps = [["AB","BA"],[0,1]]
-    g = specialgeometry.parse_twisted_multimultilayer(ps,n=n)
-  elif name=="Twisted bi-trilayer ABC":
-    ps = [["ABC","ABC"],[0,1]]
-    g = specialgeometry.parse_twisted_multimultilayer(ps,n=n)
-  else: raise
-#  g = geometry.honeycomb_lattice()
-#  g = g.supercell(n)
+    return specialgeometry.twisted_multilayer(n,rot=[0],g=gb,dz=6.0)
+  lattices = {
+    "Twisted bilayer": lambda: specialgeometry.twisted_multilayer(n,rot=[0,1]),
+    "Aligned bilayer AA": lambda: specialgeometry.twisted_multilayer(n,rot=[0,0]),
+    "Aligned bilayer AB": _aligned_bilayer_ab,
+    "Aligned trilayer ABC": _aligned_trilayer_abc,
+    "Twisted trilayer 010": lambda: specialgeometry.twisted_multilayer(n,rot=[0,1,0]),
+    "Twisted tetralayer 0101": lambda: specialgeometry.twisted_multilayer(n,rot=[0,1,0,1]),
+    "Twisted trilayer 001": lambda: specialgeometry.twisted_multilayer(n,rot=[0,0,1]),
+    "Twisted bi-bilayer AB AB": lambda: specialgeometry.parse_twisted_multimultilayer([["AB","AB"],[0,1]],n=n),
+    "Twisted bi-bilayer AB BA": lambda: specialgeometry.parse_twisted_multimultilayer([["AB","BA"],[0,1]],n=n),
+    "Twisted bi-trilayer ABC": lambda: specialgeometry.parse_twisted_multimultilayer([["ABC","ABC"],[0,1]],n=n),
+  }
+  g = lattices[name]()
   if modify: g = modify_geometry(g) # remove atoms if necessary
   return g
 
@@ -99,27 +91,10 @@ def initialize():
     h.add_kane_mele(get("kanemele")) # intrinsic SOC
   h.shift_fermi(get("fermi")) # shift fermi energy
   if is_checked("set_half_filling"): h.set_filling(.5,nk=2)
-  if False:
-    h.add_swave(get("swave"))
-  if False:
-    if h.has_eh:
-        print("SCF not implemented with Nambu")
-        raise
-  if False:
-    custom_scf(h) # create the tb90.in
-#  else:
-#    h.write("hamiltonian.in")
   klist.default(g,nk=int(get("nkpoints")))  # write klist
-#  klist.tr_path(nk=int(get("nkpoints")))  # write klist
   return h
 
 
-
-def show_bands():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_bands(h,qtwrap) # wrapper
-  
-  
 
 def check_parallel():
   """Check if there is parallelization"""
@@ -158,11 +133,6 @@ def show_dos():
 
 
 
-def show_fermi_surface(silent=False):
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_fermi_surface(h,qtwrap)
-
-
 def show_structure():
   g = get_geometry() # get the geometry
   nsuper = int(get("nsuper_struct")) 
@@ -172,8 +142,6 @@ def show_structure():
 
 
 
-def pickup_hamiltonian():
-    return initialize()
 
 
 
@@ -213,12 +181,6 @@ def show_kdos():
   execute_script("ql-kdos KDOS.OUT  ")
 
 
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_kdos_bands(h,window)
-
-
-
 def show_2dband():
   h = pickup_hamiltonian()  # get the hamiltonian
   nk = get("nkpoints")/4
@@ -255,41 +217,21 @@ def show_structure_3d():
 
 
 
-def show_multildos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_multildos(h,qtwrap)
-
-
-def select_atoms_removal():
-  g = get_geometry(modify=False) # get the unmodified geometry
-  g.write() # write geometry
-  execute_script("ql-remove-atoms-geometry-3d") # remove the file
-
-
 def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
 
-# create signals
-signals = dict()
-#signals["on_window_destroy"] = gtk.main_quit  # close the window
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-#signals["show_chern"] = show_chern  # show Chern number
-#signals["show_berry_1d"] = show_berry_1d  # show Berry curvature
-#signals["show_berry_2d"] = show_berry_2d  # show Berry curvature
-signals["show_ldos_single"] = show_ldos  # show Berry curvature
-#signals["show_z2_invariant"] = show_z2_invariant  # show Berry curvature
-#signals["show_magnetism"] = show_magnetism  # show magnetism
-signals["show_structure"] = show_structure  # show magnetism
-signals["show_structure_3d"] = show_structure_3d
-signals["show_dosbands"] = show_dosbands  # show magnetism
-signals["show_fermi_surface"] = show_fermi_surface  # show magnetism
-signals["show_multildos"] = show_multildos
-signals["select_atoms_removal"] = select_atoms_removal
-#signals["show_2dband"] = show_2dband  # show magnetism
-#signals["show_kdos"] = show_kdos  # show kdos
-signals["save_results"] = save_results
-signals["load_results"] = load_results
+# create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
+# + common.get_X" buttons automatically; only the buttons with mode-specific
+# behavior need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "show_dos": show_dos,  # custom KPM/Lowest DOS modes
+  "show_ldos_single": show_ldos,  # show Berry curvature
+  "show_structure": show_structure,  # show magnetism
+  "show_structure_3d": show_structure_3d,
+  "select_atoms_removal": select_atoms_removal,
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 window.connect_clicks(signals,robust=False)

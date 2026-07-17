@@ -20,40 +20,31 @@ from interfacetk.ql_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # several initilizations
 
+from interfacetk import interfacetk
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+
 
 
 def get_geometry(modify=True):
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
   n = float(get("width")) # thickness of the system
-#  lattice_name = builder.get_object("lattice").get_active_text()
-  if lattice_name=="Chain":
-    g = geometry.chain()
-  if lattice_name=="Honeycomb":
-    g = geometry.honeycomb_lattice()
-  elif lattice_name=="Square":
-    g = geometry.single_square_lattice()
-  elif lattice_name=="Kagome":
-    g = geometry.kagome_lattice()
-  elif lattice_name=="Lieb":
-    g = geometry.lieb_lattice()
-  elif lattice_name=="Triangular":
-    g = geometry.triangular_lattice_tripartite()
-  elif lattice_name=="Honeycomb zigzag":
-    g = geometry.honeycomb_zigzag_ribbon(n)
-  elif lattice_name=="Honeycomb armchair":
-    g = geometry.honeycomb_armchair_ribbon(n)
+  lattices = {
+    "Chain": geometry.chain,
+    "Honeycomb": geometry.honeycomb_lattice,
+    "Square": geometry.single_square_lattice,
+    "Kagome": geometry.kagome_lattice,
+    "Lieb": geometry.lieb_lattice,
+    "Triangular": geometry.triangular_lattice_tripartite,
+    "Honeycomb zigzag": lambda: geometry.honeycomb_zigzag_ribbon(n),
+    "Honeycomb armchair": lambda: geometry.honeycomb_armchair_ribbon(n),
+  }
+  g = lattices[lattice_name]()
   rot = get("rotation")*np.pi/180.
   g = islands.get_geometry(n=n,nedges=int(get("nsides")),rot=rot,geo=g)
   if modify: g = modify_geometry(g) # modify the geometry
   return g
-
-
-def select_atoms_removal():
-  g = get_geometry(modify=False) # get the unmodified geometry
-  g.write() # write geometry
-  execute_script("ql-remove-atoms-geometry") # remove the file
-
 
 
 def select_atom_time_evolution():
@@ -86,15 +77,7 @@ def show_time_evolution():
 
 def modify_geometry(g):
   """Modify the geometry according to the interface"""
-  if qtwrap.is_checked("remove_selected"): # remove some atoms
-      try: 
-        inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int_)) 
-        if inds.shape==(): inds = [inds]
-      except: inds = [] # Nothing
-      print(inds)
-      g = sculpt.remove(g,inds) # remove those atoms
-  if qtwrap.is_checked("remove_single_bonded"): # remove single bonds
-      g = sculpt.remove_unibonded(g,iterative=True)
+  g = interfacetk.modify_geometry(g,qtwrap)
   g.center()
   return g # return geometry
   
@@ -127,14 +110,6 @@ def initialize():
     if np.sum(np.abs(p))>0.0:
         h.add_pairing(d=p,mode="triplet",delta=1.0)
     return h
-
-
-def show_bands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_bands(h,qtwrap) # wrapper
-
-
-
 
 
 def show_interactive_ldos():
@@ -173,11 +148,6 @@ def solve_scf():
   common.solve_scf(h,qtwrap)
 
 
-def pickup_hamiltonian():
-  if qtwrap.is_checked("do_scf"):
-    return hamiltonians.load() # load the Hamiltonian
-  else: # generate from scratch
-    return initialize()
 
 
 
@@ -200,11 +170,6 @@ def show_hoppings():
   execute_script("ql-network --input HOPPING.OUT")
 
 
-def show_dos():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_dos(h,qtwrap) # compute DOS
-
-
 def show_local_chern():
   h = pickup_hamiltonian() # get hamiltonian
   op = getbox("operator_chern")
@@ -221,23 +186,23 @@ def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
-# create signals
-signals = dict()
-#signals["initialize"] = initialize  # initialize and run
-signals["solve_scf"] = solve_scf
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-signals["show_hoppings"] = show_hoppings  # show DOS
-signals["show_structure_3d"] = show_structure_3d
-signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
-signals["show_magnetism"] = show_magnetism
-signals["select_atoms_removal"] = select_atoms_removal
-signals["select_atom_time_evolution"] = select_atom_time_evolution
-signals["show_time_evolution"] = show_time_evolution
-signals["show_local_chern"] = show_local_chern
-signals["save_results"] = save_results
-signals["load_results"] = load_results
+# create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
+# + common.get_X" buttons automatically; only the buttons with mode-specific
+# behavior need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "solve_scf": solve_scf,
+  "show_structure": show_structure,  # show bandstructure
+  "show_hoppings": show_hoppings,  # show DOS
+  "show_structure_3d": show_structure_3d,
+  "show_interactive_ldos": show_interactive_ldos,  # show DOS
+  "show_magnetism": show_magnetism,
+  "select_atoms_removal": select_atoms_removal,
+  "select_atom_time_evolution": select_atom_time_evolution,
+  "show_time_evolution": show_time_evolution,
+  "show_local_chern": show_local_chern,
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 

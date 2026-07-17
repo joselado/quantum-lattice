@@ -270,6 +270,63 @@ def get_nk(h,delta=1e-2,fac=1.0):
 
 
 
+def pickup_hamiltonian(qtwrap,initialize,do_scf=False):
+    """Return the working Hamiltonian: reload the last self-consistent
+    result if do_scf is enabled for this mode and the checkbox is
+    checked, otherwise build it fresh"""
+    if do_scf and qtwrap.is_checked("do_scf"):
+        return hamiltonians.load() # load the Hamiltonian
+    return initialize() # generate from scratch
+
+
+
+# Button name -> common.get_*(h,window) routine, for the handlers whose
+# body is nothing but "h = pickup_hamiltonian(); common.get_X(h,qtwrap)"
+# in every mode that uses them. wire_standard_signals() below only wires
+# a button through this table when the mode hasn't supplied its own
+# implementation in extra={}, so modes with a genuinely different
+# calculation behind the same button name (e.g. 3d/hybridribbon's
+# show_berry1d, which reads different UI fields) are unaffected.
+STANDARD_HANDLERS = {
+    "show_bands": get_bands,
+    "show_dos": get_dos,
+    "show_kdos": get_kdos,
+    "show_dosbands": get_kdos_bands,
+    "show_berry1d": get_berry1d,
+    "show_berry2d": get_berry2d,
+    "show_z2": get_z2,
+    "show_chern": get_chern,
+    "show_fermi_surface": get_fermi_surface,
+    "show_qpi": get_qpi,
+    "show_multildos": get_multildos,
+}
+
+
+def wire_standard_signals(qtwrap,pickup_hamiltonian,extra=None):
+    """Build a signals dict for window.connect_clicks(): every button
+    listed in STANDARD_HANDLERS that exists on this window is wired to
+    the matching common.get_*(h,qtwrap) routine, using the mode's own
+    pickup_hamiltonian to build h. extra (mode-specific handlers, e.g.
+    get_geometry-dependent ones or a button with non-standard behavior)
+    is applied last and always wins over the standard wiring."""
+    signals = dict()
+    for name,fn in STANDARD_HANDLERS.items():
+        if hasattr(qtwrap.form,name):
+            signals[name] = (lambda fn=fn: fn(pickup_hamiltonian(),qtwrap))
+    if extra: signals.update(extra)
+    return signals
+
+
+
+def select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry"):
+    """Write the unmodified geometry and launch the picker script so the
+    user can build REMOVE_ATOMS.INFO for modify_geometry to consume"""
+    g = get_geometry(modify=False) # get the unmodified geometry
+    g.write() # write geometry
+    execute_script(script)
+
+
+
 def check_parallel(qtwrap):
   """Check if there is parallelization"""
   if qtwrap.getbox("use_parallelization") =="Yes":

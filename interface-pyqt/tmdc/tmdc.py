@@ -19,6 +19,8 @@ from interfacetk import common # common routines for all the geometries
 
 common.initialize(qtwrap) # do several common initializations
 
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+
 qtwrap.set_combobox("bands_color",operators.operator_list)
 
 
@@ -42,28 +44,11 @@ def initialize():
 
 
 
-def show_bands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_bands(h,qtwrap) # get the band structure
-
-
-
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_kdos_bands(h,qtwrap) # compute DOS
-
-
-
 def show_dos(silent=False):
   h = pickup_hamiltonian() # get hamiltonian
   common.get_dos(h,qtwrap,silent=silent)
 
 
-def pickup_hamiltonian():
-  if qtwrap.is_checked("do_scf"):
-    return hamiltonians.load() # load the Hamiltonian
-  else: # generate from scratch
-    return initialize()
 
 
 
@@ -82,37 +67,6 @@ def show_structure():
   g = g.supercell(nsuper)
   g.write()
   execute_script("ql-structure-bond --input POSITIONS.OUT")
-
-
-def show_kdos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_kdos(h,qtwrap) # get the KDOS
-
-
-
-
-def show_berry1d():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_berry1d(h,qtwrap) # compute Berry 1D
-
-
-def show_z2():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_z2(h,qtwrap) # compute Berry 1D
-
-
-def show_berry2d():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_berry2d(h,qtwrap)
-
-
-def show_chern():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_chern(h,qtwrap)
-
-def show_fermi_surface():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_fermi_surface(h,qtwrap)
 
 
 def show_qpi():
@@ -142,12 +96,6 @@ def show_structure_3d():
   g = g.supercell(nsuper)
   g.write()
   execute_script("ql-structure3d POSITIONS.OUT")
-
-
-
-def show_multildos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_multildos(h,qtwrap)
 
 
 
@@ -212,21 +160,16 @@ def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
-signals = dict()
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-signals["show_berry2d"] = show_berry2d  # show DOS
-signals["show_chern"] = show_chern  # show the chern number
-signals["show_berry1d"] = show_berry1d  # show DOS
-signals["show_kdos"] = show_kdos  # show DOS
-signals["show_fermi_surface"] = show_fermi_surface
-signals["show_dosbands"] = show_dosbands  # show DOS
-signals["show_z2"] = show_z2  # show DOS
-signals["show_structure_3d"] = show_structure_3d
-signals["show_multildos"] = show_multildos
-signals["save_results"] = save_results
-signals["load_results"] = load_results
+# create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
+# + common.get_X" buttons automatically; only the buttons with mode-specific
+# behavior need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "show_structure": show_structure,  # show bandstructure
+  "show_dos": show_dos,  # also used by sweep_parameter
+  "show_structure_3d": show_structure_3d,
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 

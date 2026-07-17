@@ -24,7 +24,7 @@ quantum-lattice                    # launch the app; always runs under whichever
 
 There is no persisted "which Python has the right packages" pin anymore — `pysrc/interpreter/pycommand.py::get_python()` just returns `sys.executable`, since the running interpreter is always the one `pip install -e .` registered the console script into.
 
-There is no test suite, linter, or build step in this repo — verification is manual: launch the app (or a single sub-module, see below) and exercise the UI.
+There is no test suite, linter, or build step in this repo — verification is manual: launch the app (or a single sub-module, see below) and exercise the UI. `tools/smoke_test.py` gives a fast, scriptable first pass across all wired modes (headless, `QT_QPA_PLATFORM=offscreen`): it checks every `QPushButton` in a mode's `interface.ui` has a wired handler, and that the mode script builds its window and reaches the event loop without crashing. Run it after touching `pysrc/interfacetk/` or any `<mode>.py`; it catches import/wiring mistakes but does not replace a manual GUI pass for actual physics correctness.
 
 To run a single lattice module directly instead of going through the system-selection menu:
 
@@ -43,7 +43,7 @@ python interface-pyqt/2d/2d.py <quantum-lattice-root>
 
 ### Per-module structure (`interface-pyqt/<mode>/`)
 
-Every lattice module (`0d`, `1d`, `2d`, `2dslab`, `3d`, `tbg`, `hybridfilm`, `hybridribbon`, `hofstader1d`, `heavyfermion`, `huge_0d`, `multilayergraphene`, `impurity_embedding`, `tmdc`, `system_selection`, `timer`, `quasiperiodic`) follows the same three-file pattern:
+Every lattice module (`0d`, `1d`, `2d`, `2dslab`, `3d`, `tbg`, `hybridfilm`, `hybridribbon`, `hofstader1d`, `heavyfermion`, `multilayergraphene`, `impurity_embedding`, `tmdc`, `system_selection`, `timer`) follows the same three-file pattern (`huge_0d` and `quasiperiodic` are exceptions, see below):
 
 - **`interface.ui`** — Qt Designer form; the only file a human normally edits with a GUI tool.
 - **`interface.py`** — auto-generated from `interface.ui` via `convert.sh` (`pyuic5 interface.ui -o interface.py`). Never hand-edit; regenerate with `convert.sh` after changing the `.ui` file.
@@ -51,12 +51,14 @@ Every lattice module (`0d`, `1d`, `2d`, `2dslab`, `3d`, `tbg`, `hybridfilm`, `hy
 
 `quasiperiodic/` is the exception — it has no `interface.ui`/generated `interface.py` (not yet wired into `system_selection`'s menu).
 
+`huge_0d/` is the other exception — its business logic is large enough (KPM-based DOS/spectral calculations, image-to-island geometry construction) that it's split across three files instead of one: `islandbuild.py` (geometry/island construction), `handlers.py` (Hamiltonian building + button handlers), and a thin `huge_0d.py` (bootstrap + signal wiring). `islandbuild.py`/`handlers.py` are plain sibling modules imported with a bare `import islandbuild`/`import handlers` — this works because Python auto-adds a script's own directory to `sys.path` when it's run as `__main__`, the same mechanism `qtwrap.py`'s bare `import interface` already relies on. Their functions take `qtwrap` as an explicit argument rather than reading module-level globals, matching the `common.py` convention.
+
 ### Shared toolkit (`pysrc/interfacetk/`)
 
 - `qtwrap.py` — PyQt5 glue: `App` class (wraps the generated `interface.Ui_MainWindow`), `get`/`getbox`/`modify`/`is_checked`/`set_combobox`/`set_image` helpers for reading/writing form widgets by name, `connect_clicks`.
 - `qlinterface.py` — imports all the `pyqula` submodules used across the GUI, plus process/IO plumbing: `create_folder()` (makes a scratch dir via `tempfile.mkdtemp()` and chdirs into it — calculations run there so `.OUT` files don't clutter the user's directory; portable to Windows, unlike the hardcoded `/tmp` this used to be), `save_outputs()` (copies results back to `<original dir>/QL_save/`), `execute_script()` (parses a command string like `"ql-bands --dim 2"` with `shlex`, then runs it as a `subprocess.Popen([python, scriptpath, *args], ...)` against the `.OUT` files just written, logging stdout/stderr to `<script>.log` in the scratch dir instead of discarding them), `running()` (wraps a handler so a "computing..." timer window shows while it executes).
 - `qh_interface.py` / `ql_interface.py` — trivial re-export shims (`from .qlinterface import *`, `from .qh_interface import *`); some modules import through these instead of `qlinterface` directly.
-- `common.py` — shared business logic reused by most `<mode>.py` files: building operators from a name (`get_operator`), and computing/plotting bands, DOS, KDOS, Berry curvature/phase, Chern numbers, Fermi surfaces, QPI, magnetism, etc. by calling into `pyqula` and then `execute_script`-ing the matching `utilities/ql-*` script.
+- `common.py` — shared business logic reused by most `<mode>.py` files: building operators from a name (`get_operator`), and computing/plotting bands, DOS, KDOS, Berry curvature/phase, Chern numbers, Fermi surfaces, QPI, magnetism, etc. by calling into `pyqula` and then `execute_script`-ing the matching `utilities/ql-*` script. Also `pickup_hamiltonian`/`select_atoms_removal` (the "reload if do_scf is checked, else build fresh" / "write geometry then launch the atom-picker script" logic shared across most modes), and `STANDARD_HANDLERS`/`wire_standard_signals(qtwrap,pickup_hamiltonian,extra={...})` — a registry of button names (`show_bands`, `show_dos`, `show_chern`, ...) whose handler is nothing but `h = pickup_hamiltonian(); common.get_X(h,qtwrap)` in every mode that uses them; a `<mode>.py` only needs to list buttons whose behavior actually differs in `extra`, which always overrides the registry.
 - `interfacetk.py` — `modify_geometry` (apply atom-removal/sculpting from the UI's saved selection files, shared across modules that build geometries).
 - `labels.py`, `saveload.py`, `debugging.py`, `plotpyqt.py` — minor helpers (form label text, save/load interface state to JSON, an error-visibility toggle, matplotlib-in-Qt helpers).
 

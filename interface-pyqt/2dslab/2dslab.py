@@ -24,43 +24,23 @@ from interfacetk import common # common routines for all the geometries
 
 
 
-def select_atoms_removal():
-  g = get_geometry(modify=False) # get the unmodified geometry
-  g.write() # write geometry
-  execute_script("ql-remove-atoms-geometry-3d") # remove the file
-
-
-#def modify_geometry(g):
-#  """Modify the geometry according to the interface"""
-#  if qtwrap.is_checked("remove_selected"): # remove some atoms
-#      try:
-#        inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO",dtype=np.int_))
-#        if inds.shape==(): inds = [inds]
-#      except: inds = [] # Nothing
-#      print(inds)
-#      g = sculpt.remove(g,inds) # remove those atoms
-#  if qtwrap.is_checked("remove_single_bonded"): # remove single bonds
-#      g = sculpt.remove_unibonded(g,iterative=True)
-#  return g # return geometry
-
 from interfacetk import interfacetk
 modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
 
+
+LATTICES = {
+  "Cubic": geometry.cubic_lattice,
+  "Diamond": geometry.diamond_lattice_minimal,
+  "Pyrochlore": geometry.pyrochlore_lattice,
+  "Hyperhoneycomb": geometry.hyperhoneycomb_lattice,
+}
 
 def get_geometry(modify=True):
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
-#  lattice_name = builder.get_object("lattice").get_active_text()
-  if lattice_name=="Cubic":
-    geometry_builder = geometry.cubic_lattice
-  elif lattice_name=="Diamond":
-    geometry_builder = geometry.diamond_lattice_minimal
-  elif lattice_name=="Pyrochlore":
-    geometry_builder = geometry.pyrochlore_lattice
-  elif lattice_name=="Hyperhoneycomb":
-    geometry_builder = geometry.hyperhoneycomb_lattice
-  else: raise
-  g = geometry_builder() # call the geometry
+  g = LATTICES[lattice_name]() # call the geometry
   g = films.geometry_film(g,int(get("thickness")))
   g = g.supercell(int(get("nsuper")))
   g.real2fractional()
@@ -137,11 +117,6 @@ def special_pairing(h):
 
 
 
-def show_bands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_bands(h,qtwrap) # wrapper
-
-
 def show_ldos():
   """Return the LDOS"""
   h = pickup_hamiltonian() # get hamiltonian
@@ -155,37 +130,7 @@ def show_ldos():
 
 
 
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_kdos_bands(h,window)
 
-
-def show_dos():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_dos(h,qtwrap)
-
-
-
-
-def pickup_hamiltonian():
-  if qtwrap.is_checked("do_scf"):
-    return hamiltonians.load() # load the Hamiltonian
-  else: # generate from scratch
-    return initialize()
-
-
-
-def show_berry2d():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_berry2d(h,qtwrap)
-
-  
-
-def show_magnetism():
-  h = pickup_hamiltonian() # get hamiltonian
-  h.get_magnetization() # get the magnetization
-  execute_script("ql-magnetism  ")
-#  execute_script("ql-magnetism  ")
 
 
 def show_structure():
@@ -221,23 +166,6 @@ def show_kdos():
 
 
 
-def show_berry1d():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_berry1d(h,qtwrap)
-
-
-def show_z2():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  common.get_z2(h,qtwrap)
-
-
-def show_chern():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_chern(h,qtwrap)
-
-
-
-
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
@@ -261,41 +189,25 @@ def show_magnetism():
   h.write_magnetization() # write the magnetism
   execute_script("ql-moments")
 
-def show_fermi_surface():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_fermi_surface(h,qtwrap)
-
-
-
-
 
 def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
-# create signals
-signals = dict()
-#signals["initialize"] = initialize  # initialize and run
-signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_structure_3d"] = show_structure_3d  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-signals["show_berry2d"] = show_berry2d  # show DOS
-signals["show_chern"] = show_chern
-signals["show_berry1d"] = show_berry1d  # show DOS
-signals["show_kdos"] = show_kdos  # show DOS
-signals["show_dosbands"] = show_dosbands  # show DOS
-signals["show_z2"] = show_z2  # show DOS
-signals["show_ldos"] = show_ldos  # show DOS
-signals["show_magnetism"] = show_magnetism
-signals["solve_scf"] = solve_scf
-signals["select_atoms_removal"] = select_atoms_removal
-signals["show_fermi_surface"] = show_fermi_surface
-signals["save_results"] = save_results
-signals["load_results"] = load_results
-
-#signals["show_magnetism"] = show_magnetism  # show magnetism
-#signals["show_lattice"] = show_lattice  # show magnetism
+# create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
+# + common.get_X" buttons automatically; only the buttons with mode-specific
+# behavior need to be listed explicitly here
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "show_structure": show_structure,  # show bandstructure
+  "show_structure_3d": show_structure_3d,  # show bandstructure
+  "show_kdos": show_kdos,  # custom mesh_kdos/ewindow_kdos fields
+  "show_ldos": show_ldos,  # show DOS
+  "show_magnetism": show_magnetism,
+  "solve_scf": solve_scf,
+  "select_atoms_removal": select_atoms_removal,
+  "save_results": save_results,
+  "load_results": load_results,
+})
 
 
 
