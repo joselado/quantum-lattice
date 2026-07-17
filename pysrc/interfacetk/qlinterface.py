@@ -3,6 +3,7 @@ import subprocess
 import os
 import sys
 import shlex
+import shutil
 import tempfile
 import numpy as np
 # import the different libraries for quantum lattice
@@ -75,6 +76,36 @@ def save_outputs(inipath,tmppath):
   print("Saving results in",savepath)
   fs.rmdir(savepath) # remove the folder
   fs.cpdir(tmppath,savepath) # copy folder
+
+
+def save_state(inipath,tmppath,window):
+  """Save the interface parameters together with the results computed
+  since those parameters were last changed"""
+  savepath = inipath+"/QL_save" # name of the folder where to save
+  print("Saving state in",savepath)
+  fs.rmdir(savepath) # remove the folder
+  fs.mkdir(savepath) # create a fresh folder
+  window.save_interface(output=savepath+"/interface.json") # save parameters
+  cutoff = window.params_dirty_time() # results older than this are stale
+  for name in os.listdir(tmppath): # loop over the scratch folder
+    full = os.path.join(tmppath,name)
+    if os.path.isfile(full) and os.path.getmtime(full)>=cutoff:
+        shutil.copy(full,savepath) # only results under current parameters
+
+
+def load_state(inipath,tmppath,window):
+  """Restore the parameters and results saved by save_state()"""
+  savepath = inipath+"/QL_save" # name of the folder to load from
+  infile = savepath+"/interface.json"
+  if not os.path.isfile(infile):
+      print("No saved state found in",savepath)
+      return
+  window.load_interface(infile) # restore the parameters
+  window.reset_dirty() # the restored results are valid for these parameters
+  for name in os.listdir(savepath): # loop over the saved files
+    if name=="interface.json": continue # not a result file
+    full = os.path.join(savepath,name)
+    if os.path.isfile(full): shutil.copy(full,tmppath) # bring result back
 
 
 

@@ -185,7 +185,8 @@ def show_multildos():
 
 
 inipath = os.getcwd() # get the initial directory
-def save_results():  save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
@@ -201,6 +202,7 @@ signals["show_structure_3d"] = show_structure_3d
 signals["select_atoms_removal"] = select_atoms_removal
 signals["show_multildos"] = show_multildos
 signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 
 

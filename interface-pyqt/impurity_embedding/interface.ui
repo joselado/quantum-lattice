@@ -537,6 +537,13 @@
       </property>
      </widget>
     </item>
+    <item row="6" column="0" colspan="2">
+     <widget class="QPushButton" name="load_results">
+      <property name="text">
+       <string>Load Results</string>
+      </property>
+     </widget>
+    </item>
     <item row="0" column="1">
      <widget class="QTabWidget" name="tabWidget_3">
       <property name="enabled">

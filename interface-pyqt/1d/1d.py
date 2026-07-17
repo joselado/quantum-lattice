@@ -200,7 +200,8 @@ def solve_scf():
 
 
 
-save_results = lambda x: save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
@@ -214,9 +215,11 @@ signals["show_multildos"] = show_multildos  # show DOS
 signals["show_ldos"] = show_ldos  # show DOS
 signals["show_edge_dos"] = show_edge_dos  # show DOS
 signals["show_structure_3d"] = show_structure_3d
-signals["show_magnetism"] = show_magnetism 
+signals["show_magnetism"] = show_magnetism
 signals["solve_scf"] = solve_scf
 signals["select_atoms_removal"] = select_atoms_removal
+signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 # set all the formulas
 common.set_formulas(qtwrap)
@@ -224,6 +227,7 @@ common.set_formulas(qtwrap)
 
 
 window.connect_clicks(signals)
+inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()

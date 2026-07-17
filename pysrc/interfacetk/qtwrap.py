@@ -14,6 +14,9 @@ from PyQt5.QtGui import QPixmap
 import sys  # We need sys so that we can pass argv to QApplication
 import numpy as np
 import os
+import time
+import inspect
+import json
 
 from numpy import * # this may not be a good idea
 from .qlinterface import running
@@ -43,8 +46,31 @@ class App(QtGui.QMainWindow, interface.Ui_MainWindow):
         super(self.__class__, self).__init__()
         self.setupUi(self)  # This is defined in interface.py file automatically
         # It sets up layout and widgets that are defined
+        self._params_dirty_time = time.time() # results are stale before this
+        self._connect_dirty_tracking()
+    def _connect_dirty_tracking(self):
+        """Mark parameters as changed only on genuine user interaction,
+        never on programmatic updates (e.g. a handler writing a computed
+        value into a QLineEdit), so freshly computed results aren't
+        mistaken for stale ones."""
+        for name,obj in inspect.getmembers(self):
+            if isinstance(obj,QtWidgets.QLineEdit):
+                obj.textEdited.connect(self._mark_dirty)
+            elif isinstance(obj,QtWidgets.QComboBox):
+                obj.activated.connect(self._mark_dirty)
+            elif isinstance(obj,(QtWidgets.QCheckBox,QtWidgets.QRadioButton)):
+                obj.clicked.connect(self._mark_dirty)
+    def _mark_dirty(self,*args):
+        self._params_dirty_time = time.time()
+    def reset_dirty(self):
+        """Mark current results as valid for the current parameters"""
+        self._params_dirty_time = time.time()
+    def params_dirty_time(self):
+        return self._params_dirty_time
     def save_interface(self,**kwargs):
         save_interface(self,**kwargs)
+    def load_interface(self,*args,**kwargs):
+        load_interface(self,*args,**kwargs)
     def run(self):
         self.show()  # Show the form
         app.exec_()  # and execute the app
@@ -191,29 +217,34 @@ def set_logo(name,image,**kwargs):
 
 
 def save_interface(self,output=None):
-    if output is None: output = os.getcwd() + "/QL_save/interface.qh"
-    obs = dir(self) # all the different objects
+    """Save all the parameter widgets (text fields, comboboxes, checkboxes
+    and radio buttons) of the interface to a JSON file"""
+    if output is None: output = os.getcwd() + "/QL_save/interface.json"
     out = dict() # dictionary
-    for obj in obs: # loop over objects
-        o = getattr(self,obj) # get this object
-        if type(o)==QtWidgets.QLineEdit: # line object
-            out[obj] = o.text() # save this info
-    import json
+    for name,obj in inspect.getmembers(self): # all the different objects
+        if isinstance(obj,QtWidgets.QLineEdit):
+            out[name] = {"type":"line","value":obj.text()}
+        elif isinstance(obj,QtWidgets.QComboBox):
+            out[name] = {"type":"combo","value":obj.currentText()}
+        elif isinstance(obj,(QtWidgets.QCheckBox,QtWidgets.QRadioButton)):
+            out[name] = {"type":"check","value":obj.isChecked()}
     with open(output, 'w') as outf: # write as json file
         json.dump(out, outf)
-#    load_interface(self,output)
-        
 
 
 def load_interface(self,inputfile):
-    a_file = open(inputfile, "r")
-    # this can be a bit dangerous
-    out = eval(a_file.read()) # create a dictionary
-    for obj in out: # loop over objects
-        o = getattr(self,obj) # get this object
-        if type(o)==QtWidgets.QLineEdit: # line object
-            self.set(obj,out[obj]) # set this value in the interface
-#    print(type(out))
+    """Restore parameter widgets previously written by save_interface()"""
+    with open(inputfile, "r") as inf:
+        out = json.load(inf) # dictionary of saved widgets
+    for name in out: # loop over saved widgets
+        try: obj = getattr(self,name) # get this object
+        except AttributeError: continue # widget no longer exists
+        entry = out[name]
+        try:
+            if entry["type"]=="line": obj.setText(entry["value"])
+            elif entry["type"]=="combo": obj.setCurrentText(entry["value"])
+            elif entry["type"]=="check": obj.setChecked(entry["value"])
+        except Exception: pass # widget type changed since the save
 
 
 

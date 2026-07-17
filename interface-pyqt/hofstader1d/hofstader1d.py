@@ -197,7 +197,8 @@ def show_hofstader():
 
 
 
-save_results = lambda x: save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
@@ -209,6 +210,8 @@ signals["show_dos"] = show_dos  # show DOS
 signals["show_dosbands"] = show_dosbands  # show DOS
 signals["show_hofstader"] = show_hofstader  # show DOS
 signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
+signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 
 
@@ -216,6 +219,7 @@ signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
 
 
 window.connect_clicks(signals,robust=False)
+inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()

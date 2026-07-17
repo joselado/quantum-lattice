@@ -424,7 +424,8 @@ def calculate_path_dos():
 
 inipath = os.getcwd() # get the initial directory
 
-save_results = lambda x: save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 def clear_removal():
@@ -452,6 +453,7 @@ signals["show_eigenvalues"] = show_eigenvalues  # show the path
 signals["show_path_dos"] = show_path_dos  # show the path
 signals["show_potential"] = show_potential  # show the potential added
 signals["save_results"] = save_results  # save the results
+signals["load_results"] = load_results  # load the results
 #signals["clear_removal"] = clear_removal  # clear the file
 #signals["select_atoms"] = select_atoms  # select_atoms
 signals["select_atoms_dos"] = select_atoms_dos  # select_atoms

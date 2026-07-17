@@ -269,7 +269,8 @@ def show_fermi_surface():
 
 
 
-save_results = lambda x: save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
@@ -280,20 +281,21 @@ signals["show_structure"] = show_structure  # show bandstructure
 signals["show_structure_3d"] = show_structure_3d  # show bandstructure
 signals["show_dos"] = show_dos  # show DOS
 signals["show_berry2d"] = show_berry2d  # show DOS
-signals["show_chern"] = show_chern  
+signals["show_chern"] = show_chern
 signals["show_berry1d"] = show_berry1d  # show DOS
 signals["show_kdos"] = show_kdos  # show DOS
 signals["show_dosbands"] = show_dosbands  # show DOS
 signals["show_z2"] = show_z2  # show DOS
 signals["show_ldos"] = show_ldos  # show DOS
 signals["show_magnetism"] = show_magnetism
-signals["solve_scf"] = solve_scf 
+signals["solve_scf"] = solve_scf
 signals["select_atoms_removal"] = select_atoms_removal
 signals["show_fermi_surface"] = show_fermi_surface
+signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 #signals["show_magnetism"] = show_magnetism  # show magnetism
 #signals["show_lattice"] = show_lattice  # show magnetism
-#signals["save_results"] = save_results  # save the results
 
 
 
@@ -301,6 +303,7 @@ signals["show_fermi_surface"] = show_fermi_surface
 
 
 window.connect_clicks(signals)
+inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()

@@ -266,14 +266,15 @@ def select_atoms_removal():
   execute_script("ql-remove-atoms-geometry-3d") # remove the file
 
 
-save_results = lambda x: save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 # create signals
 signals = dict()
 #signals["on_window_destroy"] = gtk.main_quit  # close the window
 signals["show_bands"] = show_bands  # show bandstructure
 signals["show_dos"] = show_dos  # show DOS
-#signals["show_chern"] = show_chern  # show Chern number 
+#signals["show_chern"] = show_chern  # show Chern number
 #signals["show_berry_1d"] = show_berry_1d  # show Berry curvature
 #signals["show_berry_2d"] = show_berry_2d  # show Berry curvature
 signals["show_ldos_single"] = show_ldos  # show Berry curvature
@@ -283,14 +284,16 @@ signals["show_structure"] = show_structure  # show magnetism
 signals["show_structure_3d"] = show_structure_3d
 signals["show_dosbands"] = show_dosbands  # show magnetism
 signals["show_fermi_surface"] = show_fermi_surface  # show magnetism
-signals["show_multildos"] = show_multildos 
+signals["show_multildos"] = show_multildos
 signals["select_atoms_removal"] = select_atoms_removal
 #signals["show_2dband"] = show_2dband  # show magnetism
 #signals["show_kdos"] = show_kdos  # show kdos
-#signals["save_results"] = save_results  # save the results
+signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 
 window.connect_clicks(signals,robust=False)
+inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()

@@ -222,7 +222,8 @@ def solve_scf():
 
 
 
-save_results = lambda x: save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
@@ -239,10 +240,11 @@ signals["show_kdos"] = show_kdos  # show DOS
 #signals["show_z2"] = show_z2  # show DOS
 #signals["show_ldos"] = show_ldos  # show DOS
 signals["show_magnetism"] = show_magnetism
-signals["solve_scf"] = solve_scf 
+signals["solve_scf"] = solve_scf
 #signals["show_magnetism"] = show_magnetism  # show magnetism
 #signals["show_lattice"] = show_lattice  # show magnetism
-#signals["save_results"] = save_results  # save the results
+signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 
 
@@ -251,6 +253,7 @@ signals["solve_scf"] = solve_scf
 #from qh_interface import create_folder # import all the libraries needed
 
 window.connect_clicks(signals)
+inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 tmppath = os.getcwd() # get the initial directory
 window.run()

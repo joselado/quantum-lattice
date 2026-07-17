@@ -217,7 +217,8 @@ def show_local_chern():
 inipath = os.getcwd() # get the initial directory
 folder = create_folder() # create a new folder
 tmppath = os.getcwd() # get the initial directory
-save_results = lambda: save_outputs(inipath,tmppath) # function to save
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals
@@ -236,6 +237,7 @@ signals["select_atom_time_evolution"] = select_atom_time_evolution
 signals["show_time_evolution"] = show_time_evolution
 signals["show_local_chern"] = show_local_chern
 signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 
 

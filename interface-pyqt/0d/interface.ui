@@ -1146,6 +1146,16 @@
       </property>
      </widget>
     </item>
+    <item row="3" column="0" colspan="2">
+     <widget class="QPushButton" name="load_results">
+      <property name="toolTip">
+       <string>Restore the parameters and results from the last saved state</string>
+      </property>
+      <property name="text">
+       <string>Load results</string>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">

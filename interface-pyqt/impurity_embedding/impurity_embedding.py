@@ -198,9 +198,8 @@ def select_impurity_sites():
 
 inipath = os.getcwd() # get the initial directory
 
-def save_results():
-    save_outputs(inipath,tmppath) # function to save
-    window.save_interface(output=inipath+"/QH_save/interface.qh") # save 
+def save_results():  save_state(inipath,tmppath,window) # function to save
+def load_results():  load_state(inipath,tmppath,window) # function to load
 
 # create signals
 signals = dict()
@@ -209,6 +208,7 @@ signals["show_embedding_ldos"] = show_embedding_ldos
 signals["show_embedding_ldos_sweep"] = show_embedding_ldos_sweep
 signals["select_impurity_sites"] = select_impurity_sites
 signals["save_results"] = save_results
+signals["load_results"] = load_results
 
 
 # set all the formulas
