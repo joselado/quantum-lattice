@@ -478,7 +478,7 @@
         <item row="0" column="2">
          <widget class="QLineEdit" name="impurity_potential">
           <property name="text">
-           <string>1</string>
+           <string>10</string>
           </property>
          </widget>
         </item>
@@ -658,7 +658,7 @@
           <item row="3" column="1">
            <widget class="QLineEdit" name="ncells_embedding_ldos">
             <property name="text">
-             <string>31</string>
+             <string>21</string>
             </property>
            </widget>
           </item>

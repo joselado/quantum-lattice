@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import sys
 import os
@@ -135,7 +135,7 @@ def show_embedding_ldos():
     ns = int(get("ncells_embedding_ldos"))
     nks = get("nk_scaling_embedding_ldos")
     nk = common.get_nk(h,delta=delta,fac=20*nks) # number of kpoints
-    (x,y,d) = eb.ldos(nsuper=ns,e=e,delta=delta,nk=nk)
+    (x,y,d) = eb.ldos(nsuper=ns,energy=e,delta=delta,nk=nk)
     np.savetxt("LDOS.OUT",np.array([x,y,d]).T)
     execute_script("ql-ldos --input LDOS.OUT")
 
