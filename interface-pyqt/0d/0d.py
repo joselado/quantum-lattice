@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
@@ -190,7 +190,7 @@ def show_magnetism():
   if getbox("magnetization_plot_mode")=="2D":
       execute_script("ql-magnetism2d")
   else: # 3D mode
-      execute_script("ql-moments",mayavi=True)
+      execute_script("ql-moments")
 
 
 def show_hoppings():

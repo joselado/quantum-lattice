@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import sys
 import os
@@ -125,7 +125,7 @@ def show_magnetism_3d():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization(nrep=int(get("magnetization_nrep"))) 
-  execute_script("ql-moments",mayavi=True)
+  execute_script("ql-moments")
 
 
 def show_magnetism():

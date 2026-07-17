@@ -2,6 +2,8 @@ from __future__ import print_function
 import subprocess
 import os
 import sys
+import shlex
+import tempfile
 import numpy as np
 # import the different libraries for quantum lattice
 from pyqula import hamiltonians
@@ -46,35 +48,21 @@ from interpreter import pycommand
 def get_python():
   return pycommand.get_python()
 
-get_anaconda_command = get_python
-
-
-
-
-
-
 
 def get_qlroot():
   """Gets the root path of quantum lattice"""
-  return os.path.dirname(os.path.realpath(__file__))+"/../../"
+  return pycommand.get_qh_path() # single source of truth, see pycommand.py
 
 
 
 def create_folder():
   """Creates a temporal folder and goes to that one"""
-  os.chdir("/tmp")
-  # get the name of the folder
-  i = 0
-  forig = "ql-tmp-"
-  folders = os.listdir(os.getcwd()) # list all the folders 
-  while True:
-    folder = forig + str(i)
-    if not folder in folders:
-      break # stop if folder doesn't exist
-    i += 1 # increase the number
-  fs.mkdir(folder)  # create the temporal folder
+  # tempfile.mkdtemp uses the OS temp dir (respects TMPDIR/TEMP/TMP) and
+  # guarantees a unique folder name, so it works the same on Linux, Mac
+  # and Windows without a hardcoded "/tmp" or a manual naming loop
+  folder = tempfile.mkdtemp(prefix="ql-tmp-")
   fs.chdir(folder)  # go to the temporal folder
-  return folder  # return the name of the folder
+  return folder  # return the path of the folder
 
 
 
@@ -90,19 +78,22 @@ def save_outputs(inipath,tmppath):
 
 
 
-def execute_script(name,background=True,mayavi=False):
-  """Executes a certain script from the folder utilities"""
-  try: qlpath = get_qlroot() # get the main path
-  except: qlpath = "" 
-#  print("Root path",qlpath)
-  scriptpath = qlpath+"utilities/"+name # name of the script
-  try:
-    python = get_anaconda_command("python") # get the anaconda python
-  except:
-    python = get_python() # get the correct interpreter
-  python = pycommand.get_python()
-  if background: os.system(python+" "+scriptpath+" &") # execute the script
-  else: os.system(python+" "+scriptpath) # execute the script
+def execute_script(name,background=True):
+  """Executes a certain script from the folder utilities.
+  `name` may be a bare script name or a full command string with
+  arguments (e.g. "ql-bands --dim 2"), possibly quoted."""
+  qlpath = get_qlroot() # get the main path
+  args = shlex.split(name) # split into [script, *arguments], respects quoting
+  scriptpath = os.path.join(qlpath,"utilities",args[0]) # portable path, no OS-only "&"
+  python = pycommand.get_python() # get the correct interpreter
+  cmd = [python,scriptpath]+args[1:]
+  # log stdout/stderr instead of discarding them, so a failing script
+  # (e.g. missing pyvista) leaves a diagnosable trace instead of vanishing
+  logpath = os.path.join(os.getcwd(),args[0]+".log")
+  with open(logpath,"w") as logfile:
+    proc = subprocess.Popen(cmd,stdout=logfile,stderr=subprocess.STDOUT)
+  if not background: proc.wait() # block until the script finishes
+  return proc
 
 
 
@@ -110,7 +101,7 @@ def computing():
     """Return an object that shows up a window saying computing"""
     qlpath = get_qlroot()
     python = get_python()
-    name = qlpath + "interface-pyqt/timer/timer.py"
+    name = os.path.join(qlpath,"interface-pyqt","timer","timer.py")
     subp = subprocess.Popen([python,name]) # execute the command
     return subp
 

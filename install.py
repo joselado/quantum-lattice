@@ -1,27 +1,21 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-import os
 import sys
 
 from pysrc.interpreter import pycommand
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--full",default="False",help='Perform a full install')
-parser.add_argument("--python",default="",help='Python to use in the installation')
+parser.add_argument("--python",default="",
+        help='Python interpreter to install with (defaults to the one running this script)')
 
 args = parser.parse_args() # get the arguments
 
-if args.python=="": # no Python provided
-    pycommand.install_python() # install the correct python dist
-else: # python provided
-    pycommand.write_python_exec(args.python) # write this executable
+python = args.python if args.python!="" else sys.executable
 
+pycommand.install_requirements(python=python) # PyQt5/numpy/scipy/numba/matplotlib (+ best-effort pyvista/Fortran)
+pycommand.install_editable(python=python)      # registers the `quantum-lattice` console script with pip
+pycommand.create_icon()                        # Linux .desktop entry / Windows .bat launcher
 
-if args.full=="True": # full install
-    pycommand.install_dependencies() # install the dependencies
-
-
-pycommand.add_to_path() # add to the program to the path
-pycommand.create_icon() # create the icon
-pycommand.set_utility_interpreter() # set the interpreter
+print()
+print("Install complete. Run the application with: quantum-lattice")

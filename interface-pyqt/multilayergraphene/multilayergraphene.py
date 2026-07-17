@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
@@ -199,7 +199,7 @@ def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
   h.write_magnetization() # write the magnetism
-  execute_script("ql-moments",mayavi=True)
+  execute_script("ql-moments")
 
 
 

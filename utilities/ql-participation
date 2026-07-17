@@ -1,4 +1,4 @@
-#!/home/joselado/apps/anaconda3/bin/python
+#!/usr/bin/env python3
 
 
 import numpy as np
@@ -11,6 +11,6 @@ x,y,s = m[0],m[1],m[2]
 
 part = np.sum(s*s)
 
-print "Participation Ratio = ",part
+print("Participation Ratio = ",part)
 
 

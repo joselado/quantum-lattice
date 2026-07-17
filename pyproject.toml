@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantum-lattice"
+version = "26.5.3"
+description = "PyQt5 interface for tight-binding calculations with pyqula"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "PyQt5",
+    "numpy",
+    "scipy",
+    "numba",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+3d = ["pyvista"]
+
+[project.scripts]
+quantum-lattice = "quantum_lattice_launcher:main"
+
+# The rest of the codebase (pysrc/interfacetk, pysrc/pyqula, interface-pyqt/...)
+# is not packaged here: it is reached at runtime via the existing
+# sys.path.append(qlroot + "/pysrc/") bootstrap in bin/versions/quantum-lattice-pyqt
+# and friends, unchanged. This pyproject.toml exists only to give the
+# `quantum-lattice` command a real, cross-platform, pip-managed install path.
+[tool.setuptools]
+py-modules = ["quantum_lattice_launcher"]

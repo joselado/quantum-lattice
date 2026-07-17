@@ -1,7 +1,7 @@
-#!/home/joselado/apps/anaconda3/bin/python
+#!/usr/bin/env python3
 import numpy as np
 
 m = np.genfromtxt("DENSITY.OUT").transpose()
 
-print "Average density",sum(m[1])/len(m[1])
+print("Average density",sum(m[1])/len(m[1]))
 

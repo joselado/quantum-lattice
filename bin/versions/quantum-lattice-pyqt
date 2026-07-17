@@ -1,8 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import sys
 import os
 import platform
+import subprocess
 
   
 # Add path of the interface
@@ -33,7 +34,11 @@ def call_mode(mode,folder=None,pyqt=True):
   path = qlroot
   def launch():
     """Function to launch a particular calculation, passes qlroot as input"""
-    os.system(python+" "+path+"interface-pyqt/"+mode+"/"+mode+".py   "+path +"  &")
+    script = os.path.join(path,"interface-pyqt",mode,mode+".py")
+    # subprocess.Popen is non-blocking by construction (no shell "&" needed)
+    # and takes an argument list, so it works with paths containing spaces
+    # and on Windows, unlike the previous os.system(string) call
+    subprocess.Popen([python,script,path])
   return launch
 
 
@@ -59,9 +64,10 @@ signals["tmdc"] = call_mode("tmdc")
 
 def update_qh():
     os.chdir(qlroot) # go to the main directory
-    os.system("git reset --hard HEAD") # this will overwrite changes
-    os.system("git clean -f -d") # this will overwrite changes
-    os.system("git pull") # pull the directory
+    status = os.system("git pull") # pull the directory, fails loudly on local conflicts
+    if status!=0:
+        print("git pull failed, likely due to local changes; resolve manually and try again")
+        return
     pycommand.create_icon() # create the icon
     pycommand.run_qh()
     exit()

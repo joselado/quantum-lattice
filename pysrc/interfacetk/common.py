@@ -84,7 +84,7 @@ def show_exchange(h,window):
     if window.getbox("magnetization_plot_mode")=="2D":
         execute_script("ql-magnetism2d")
     else: # 3D mode
-        execute_script("ql-moments",mayavi=True)
+        execute_script("ql-moments")
 
 
 def get_dos(h,window,silent=False):

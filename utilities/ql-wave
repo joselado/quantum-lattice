@@ -1,15 +1,12 @@
-#!/home/joselado/apps/anaconda3/bin/python
+#!/usr/bin/env python3
 
-
-import numpy as np
-from mayavi import mlab
+import os
 import sys
+import numpy as np
 
-mlab.figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
-figure = mlab.gcf()
-mlab.clf()
-figure.scene.disable_render = True
-
+dirname = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0,dirname)
+import _pv3d
 
 name = sys.argv[1]
 m = np.genfromtxt(name).transpose() # read file
@@ -17,15 +14,12 @@ m = np.genfromtxt(name).transpose() # read file
 x,y,s = m[0],m[1],m[2]
 part = np.sum(s*s)
 
-print "Participation Ratio = ",part
+print("Participation Ratio = ",part)
 
 s = s/np.max(s)  # normalize
+zeros = y*0.
 
-mlab.points3d(x,y,y*0.,resolution=20,color=(0,0,0),scale_factor = 0.2) # plot pdos
-
-mlab.points3d(x,y,y*0.,s*0.1,resolution=20) # plot pdos
-
-
-
-figure.scene.disable_render = False
-mlab.show() # show figure
+pl = _pv3d.new_plotter()
+_pv3d.add_atoms(pl,(x,y,zeros),color="black",radius=0.2)
+_pv3d.add_scaled_points(pl,(x,y,zeros),s,color="red",point_size=25,opacity=0.7)
+pl.show()

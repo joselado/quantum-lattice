@@ -1,32 +1,12 @@
-#!/home/joselado/apps/anaconda3/bin/python
+#!/usr/bin/env python3
 
-from __future__ import print_function
-import numpy as np
 import os
 import sys
+import numpy as np
 
-
-try:
-  from mayavi import mlab
-except:
-  print("Mayavi is not working")
-  dirname = os.path.dirname(os.path.realpath(__file__))
-  sys.path.append(dirname+"/../pysrc/interpreter")
-  pyc = sys.executable # get the executable
-  os.system(pyc+" "+dirname+"/ql-structure --input POSITIONS.OUT --color True --colorcol 2&") # use the backup script
-  exit()
-
-
-################################################################################
-# Disable the rendering, to get bring up the figure quicker:
-mlab.figure("Structure", fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
-figure = mlab.gcf()
-mlab.clf()
-figure.scene.disable_render = True
-
-# Creates two set of points using mlab.points3d: red point and
-# white points
-
+dirname = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0,dirname)
+import _pv3d
 
 
 def read_positions():
@@ -36,39 +16,8 @@ def read_positions():
 
 (x1,y1,z1) = read_positions()
 
+ca = (z1-np.min(z1))/(np.max(z1)-np.min(z1)+1e-3) # scaled height, used for color
 
-ca = (z1 - np.min(z1))/(np.max(z1) - np.min(z1) +1e-3) # scaled width
-
-color = np.array([ca,0*ca,1-ca]).T
-#color = [tuple(c) for c in color]
-mlab.points3d(x1, y1, z1,ca,colormap="cool",scale_factor = .8,
-                scale_mode='none',
-                resolution=10)
-
-#xu,yu,zu = [],[],[]  # upper layer
-#xl,yl,zl = [],[],[]  # lower layer
-#
-#for (ix,iy,iz) in zip(x1,y1,z1): # loop
-#  if iz<0.0:
-#    xu.append(ix)
-#    yu.append(iy)
-#    zu.append(iz)
-#  else:
-#    xl.append(ix)
-#    yl.append(iy)
-#    zl.append(iz)
-#
-#
-#mlab.points3d(xu, yu, zu, color=(1, 0, 0), scale_factor = .8,
-#                resolution=10)
-#mlab.points3d(xl, yl, zl, color=(0, 0, 1), scale_factor = .8,
-#                resolution=10)
-
-
-# Every object has been created, we can reenable the rendering.
-figure.scene.disable_render = False
-################################################################################
-
-
-
-mlab.show()
+pl = _pv3d.new_plotter("Structure")
+_pv3d.add_scaled_points(pl,(x1,y1,z1),ca,cmap="cool",point_size=25,opacity=1.0)
+pl.show()

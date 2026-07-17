@@ -5,9 +5,10 @@
 __pycache__
 *.swp
 compiling.txt
-python_interpreter
 data
-pythoninterpreter.py
 *.tar
 quantum-lattice.desktop
+quantum-lattice.bat
 blender
+*.egg-info/
+build/

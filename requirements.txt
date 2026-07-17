@@ -1,0 +1,12 @@
+# Core runtime dependencies for the Quantum Lattice interface and pyqula.
+# Installed with: python -m pip install -r requirements.txt
+# (done automatically by `python install.py`)
+#
+# pyvista (optional, only needed for the 3D plotting utilities in utilities/)
+# is installed separately by install.py, best-effort, so a failure there
+# does not block the rest of the install.
+PyQt5
+numpy
+scipy
+numba
+matplotlib

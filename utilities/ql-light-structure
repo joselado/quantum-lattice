@@ -1,19 +1,21 @@
-#!/home/joselado/apps/anaconda3/bin/python
+#!/usr/bin/env python3
 
+import os
+import sys
 import numpy as np
-import numpy 
-from mayavi.mlab import *
 
-figure(1, fgcolor=(0, 0, 0), bgcolor=(1, 1, 1))
+dirname = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0,dirname)
+import _pv3d
+
 
 def read_positions():
   """Reads the positions of the system"""
   return np.genfromtxt("POSITIONS.OUT").transpose()
 
 
-(x,y,z) = read_positions() 
+(x,y,z) = read_positions()
 
-points3d(x,y,z,scale_factor=.5,color=(1,0,1))
-
-
-show()
+pl = _pv3d.new_plotter()
+_pv3d.add_atoms(pl,(x,y,z),color="magenta",radius=0.5)
+pl.show()
