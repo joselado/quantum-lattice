@@ -15,9 +15,11 @@ from interfacetk import plotpyqt
 
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 import argparse
@@ -63,7 +65,7 @@ def getplot(obj):
     plt.scatter(x,y,c=mag,s=scalev,cmap=cmap,vmin=vmin,vmax=vmax)
     plt.colorbar(label=mname,ticks=[])
     if obj.get_combobox("Lattice")=="Show":
-        plt.scatter(x,y,s=scale/10,c="black")
+        plt.scatter(x,y,s=scale/10,c=plotstyle.PRIMARY)
     plt.axis("equal")
     return fig
 

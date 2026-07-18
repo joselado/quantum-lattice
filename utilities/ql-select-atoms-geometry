@@ -5,9 +5,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 import argparse
@@ -84,7 +86,7 @@ col = ax.scatter(x, y,sorig, corig, picker=True)
 
 for i in range(len(x)): # plot all
     if isred[i]: c = "red"
-    else: c = 'black'
+    else: c=plotstyle.PRIMARY
     plt.scatter(x[i],y[i],sorig[i],c)
 
 

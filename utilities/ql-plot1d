@@ -5,7 +5,10 @@ import numpy as np
 import matplotlib.pyplot as py
 import sys
 
-
+import os
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 fig = py.figure()
 
@@ -18,8 +21,8 @@ for i in range(nfiles):
   x = m[0]
   y = m[1]
   fig.set_facecolor("white")
-  py.plot(x,y,linewidth=3.0,label=name,color="black",marker="o")
-#  py.scatter(x,y,label=name,color="black",marker="o")
+  py.plot(x,y,linewidth=3.0,label=name,color=plotstyle.PRIMARY,marker="o")
+#  py.scatter(x,y,label=name,color=plotstyle.PRIMARY,marker="o")
   py.xlim([min(x),max(x)])
 #py.legend()
 py.show()

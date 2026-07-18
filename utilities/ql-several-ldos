@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 import os
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 # cretae figure and adjust subplot
 fig = plt.figure(1)
@@ -49,7 +50,7 @@ plt.ylabel("DOS")
 # plot the total
 plt.subplot(1,2,2)
 plt.title("Sum over atoms")
-plt.plot(enet,dost/len(dosf),linewidth=3,c="black")
+plt.plot(enet,dost/len(dosf),linewidth=3,c=plotstyle.PRIMARY)
 plt.xlim([min(enet),max(enet)])
 
 plt.xlabel("Energy [t]")

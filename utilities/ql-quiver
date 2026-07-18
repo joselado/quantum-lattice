@@ -4,8 +4,11 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import sys
+import os
 
-
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -36,7 +39,7 @@ if args.color=="True":
     d = rs[:,0]**2 + rs[:,1]**2 + rs[:,2]**2
     ax.scatter(rs[:,0],rs[:,1],rs[:,2],s=120,c=d,cmap="rainbow") 
 else:
-    ax.scatter(rs[:,0],rs[:,1],rs[:,2],s=120,c="black") # scatter the points
+    ax.scatter(rs[:,0],rs[:,1],rs[:,2],s=120,c=plotstyle.PRIMARY) # scatter the points
 
 
 

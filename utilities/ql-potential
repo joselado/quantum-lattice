@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 import sys
 import os
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 def getfig(main):
@@ -23,7 +25,7 @@ def getfig(main):
   scale = 100*size
   zsign = np.sign(z) # sign
   plt.title(str(len(x))+" atoms")
-  plt.scatter(x,y,color="black",s=1)
+  plt.scatter(x,y,color=plotstyle.PRIMARY,s=1)
   color = z
   if main.get_combobox("Range")=="Default":
         minc = min(color)

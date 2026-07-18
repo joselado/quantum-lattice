@@ -15,10 +15,11 @@ from interfacetk import plotpyqt
 ### script for ploting DOS.OUT ###
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 
@@ -58,7 +59,7 @@ def getplot(obj):
   # first subplot
   splot = plt.subplot(1,1,1)
   splot.set_title("DOS")
-  splot.plot(e,d,color="black")
+  splot.plot(e,d,color=plotstyle.PRIMARY)
   np.savetxt(name+"_CONVOLVED",np.array([e,d]).T)
   splot.set_xlim([min(e),max(e)])
   splot.set_xlabel("Energy [t]")

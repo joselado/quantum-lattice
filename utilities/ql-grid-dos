@@ -15,10 +15,11 @@ from interfacetk import plotpyqt
 ### script for ploting a grid of data ###
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 
@@ -69,7 +70,7 @@ def getplot(obj):
   currentfig.canvas.setWindowTitle('Density of states')
   e = obj.get_slider("Energy") # energy
   z = evaluate(e) # get the height
-  plt.scatter(x,y,c="black")
+  plt.scatter(x,y,c=plotstyle.PRIMARY)
   plt.scatter(x,y,s=z/max(z)*100,c=z,cmap="magma")
   # first subplot
   splot = plt.subplot(1,1,1)

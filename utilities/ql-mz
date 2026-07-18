@@ -5,9 +5,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 fig = plt.figure()
 
@@ -29,7 +31,7 @@ zsign = np.sign(z) # sign
 
 
 plt.title(str(len(x))+" atoms")
-plt.scatter(x,y,color="black",s=1)
+plt.scatter(x,y,color=plotstyle.PRIMARY,s=1)
 plt.scatter(x,y,s=scale,c=zsign*scale,edgecolor="none",cmap=plt.get_cmap("bwr"))
 plt.xticks([])
 plt.yticks([])

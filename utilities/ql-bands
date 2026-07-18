@@ -15,9 +15,11 @@ from interfacetk import plotpyqt
 
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 import argparse
@@ -70,7 +72,7 @@ def getplot(obj):
   # plot a rectangle in the ocupied levels
   from matplotlib.patches import Rectangle
   if args.filling=="True":
-      plt.fill_between(sorted(k),min(e)-3.0,0,color="lightyellow")
+      plt.fill_between(sorted(k),min(e)-3.0,0,color=plotstyle.FILL)
   scale = obj.get_slider("size") # scale
   if args.scale=="True": # use a scale for the points
       scale_type = obj.get_combobox("Scale") # type of scaling
@@ -82,7 +84,7 @@ def getplot(obj):
           scale = scale*(1.- (np.abs(color)/np.max(np.abs(color)))**2)
       else: raise
   if not draw_color:  # plot without color
-    col = plt.scatter(k,e, color ="black",s=obj.get_slider("size"))
+    col = plt.scatter(k,e, color=plotstyle.PRIMARY,s=obj.get_slider("size"))
     fig.subplots_adjust(0.3,0.3)
   if draw_color: # plot with color
     fig.subplots_adjust(0.3,0.1)

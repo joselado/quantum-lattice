@@ -20,9 +20,11 @@ args = parser.parse_args() # get the arguments
 
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 fig = plt.figure()
 plt.gcf().canvas.setWindowTitle('Structure')
@@ -42,7 +44,7 @@ size = 500./np.sqrt(len(z))
 #size = 100
 
 plt.title(str(len(x))+" atoms")
-plt.scatter(x,y,color="black",s=size)
+plt.scatter(x,y,color=plotstyle.PRIMARY,s=size)
 plt.xticks([])
 plt.yticks([])
 
@@ -51,7 +53,7 @@ for i in range(len(x)):
   for j in range(i,len(x)):
     dd = (x[i] -x[j])**2 + (y[i] -y[j])**2
     if 0.8<dd<bondl:
-      plt.plot([x[i],x[j]],[y[i],y[j]],c="black")
+      plt.plot([x[i],x[j]],[y[i],y[j]],c=plotstyle.PRIMARY)
 
 
 

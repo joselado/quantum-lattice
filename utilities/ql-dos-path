@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp2d
 import sys
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 fig = plt.figure()
 plt.subplots_adjust(left=0.25, bottom=0.25)

@@ -14,10 +14,11 @@ from interfacetk import plotpyqt
 ###
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 import argparse
@@ -59,8 +60,8 @@ def getplot(obj):
     plt.scatter(np.mean([x1,x2],axis=0),np.mean([y1,y2],axis=0),s=0,c=ts,
             cmap=cmap)
     plt.colorbar(format='%.2f')
-    plt.scatter(x1,y1,color="black",s=100*size)
-    plt.scatter(x2,y2,color="black",s=100*size)
+    plt.scatter(x1,y1,color=plotstyle.PRIMARY,s=100*size)
+    plt.scatter(x2,y2,color=plotstyle.PRIMARY,s=100*size)
     
     
     

@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 import sys
 import numpy as np
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 fig = plt.figure(figsize=(8,6))
 fig.subplots_adjust(0.2,0.2)
 

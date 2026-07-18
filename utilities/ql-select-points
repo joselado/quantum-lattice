@@ -11,10 +11,11 @@ parser.add_argument("--input",default="BANDS.OUT",
         help='Input file with the bands')
 args = parser.parse_args() # get the arguments
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 write = False # if have to write in a file
 remove = False # if have to write in the file to remove

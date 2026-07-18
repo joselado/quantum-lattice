@@ -18,7 +18,10 @@ parser.add_argument("--label",default="False",
         help='Use labels')
 args = parser.parse_args() # get the arguments
 
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 fig = py.figure()
 currentfig = plt.gcf()

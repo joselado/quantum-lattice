@@ -6,9 +6,11 @@ import matplotlib.pyplot as plt
 import sys
 import os
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 path = os.path.dirname(os.path.realpath(__file__)) # current path
 path += "/../pysrc"
@@ -44,12 +46,12 @@ def plot(main):
   ax.set_yticks([])
   size = main.get_slider("Size")
   size = np.power(4,size/20)
-  ax.scatter(x,y,color="black",s=size)
+  ax.scatter(x,y,color=plotstyle.PRIMARY,s=size)
   sat = main.get_slider("Saturation")/50 # saturation
   sat = np.power(sat,4) # exponential scale
   scale = np.abs(z)/np.max(np.abs(z)) # scale to 0,1 interval
   scale = np.tanh(scale*sat)
-  ax.scatter(x,y,color="black",s=1)
+  ax.scatter(x,y,color=plotstyle.PRIMARY,s=1)
   ss = main.get_slider("DOSSize")
   ss = np.power(4,ss/20)
   try:

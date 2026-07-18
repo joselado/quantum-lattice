@@ -7,8 +7,10 @@ import matplotlib.pyplot as plt
 import sys
 
 import matplotlib
-matplotlib.rcParams.update({'font.size': 24})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 fig = py.figure()
 fig.subplots_adjust(.2,.2)
@@ -66,7 +68,7 @@ for i in range(1,len(m)): # loop over waves
  
 # now plot the different centers
 fig.set_facecolor("white")
-py.plot(x,fermis/np.pi,color="black")
+py.plot(x,fermis/np.pi,color=plotstyle.PRIMARY)
 for i in range(1,len(m)):
   y = m[i]
   py.plot(x,y/np.pi,linewidth=0.0,label=name,marker="o")

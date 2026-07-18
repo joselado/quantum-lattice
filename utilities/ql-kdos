@@ -6,8 +6,10 @@ import sys
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 fig = py.figure()
 fig.subplots_adjust(0.1,0.2)
 plt.gcf().canvas.setWindowTitle('Momentum resolved DOS')

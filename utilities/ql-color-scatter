@@ -5,9 +5,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 ### script for ploting BANDS.OUT of tb90 ###

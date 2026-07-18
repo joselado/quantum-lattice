@@ -15,10 +15,11 @@ from interfacetk import plotpyqt
 ### script for ploting DOS.OUT ###
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 
 
@@ -62,7 +63,7 @@ def getplot(obj):
   else:
       splot = plt.subplot(1,1,1)
   splot.set_title("DOS")
-  splot.plot(e,d,color="black")
+  splot.plot(e,d,color=plotstyle.PRIMARY)
   splot.set_xlim([min(e),max(e)])
   splot.set_xlabel("Energy [t]")
   splot.set_ylabel("$DOS$")
@@ -73,7 +74,7 @@ def getplot(obj):
     if ie < 0.:
       efill.append(ie) 
       dfill.append(idos) 
-  splot.fill_between(efill,0,dfill,color="yellow")
+  splot.fill_between(efill,0,dfill,color=plotstyle.FILL)
   splot.set_ylim([0.,np.max(d[abs(e)<ewin])*obj.get_slider("dwin")])  
   splot.set_xlim([-ewin,ewin])  
   plt.locator_params(nbins=4)
@@ -86,7 +87,7 @@ def getplot(obj):
       ei = np.array(e[0:len(e)-1]) # energies for integrated DOS
       imin = np.where(ei==np.min(ei[ei>0])) # minimum energy
       di = di -di[imin[0]] # set zero density in zero
-      iplot.plot(e[0:len(e)-1],di,c="black")
+      iplot.plot(e[0:len(e)-1],di,c=plotstyle.PRIMARY)
       iplot.set_xlim([-ewin,ewin])  
       iplot.set_ylim([min(di[abs(ei)<ewin]),max(di[abs(ei)<ewin])])  
       iplot.set_xlabel("Energy [t]")

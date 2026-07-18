@@ -18,10 +18,11 @@ args = parser.parse_args() # get the arguments
 
 
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 
 m = np.genfromtxt(args.input).transpose()
 x = m[0]
@@ -40,7 +41,7 @@ fig.set_facecolor("white") # white
 if args.color=="True":
   col = ax.scatter(x, y,sorig, c=z, cmap="rainbow")
 else:
-  col = ax.scatter(x, y,sorig, c="black", picker=True)
+  col = ax.scatter(x, y,sorig, c=plotstyle.PRIMARY, picker=True)
 plt.axis("equal")
 
 

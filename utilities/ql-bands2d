@@ -5,10 +5,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-# change the font size
 import matplotlib
-matplotlib.rcParams.update({'font.size': 18})
-matplotlib.rcParams['font.family'] = "Bitstream Vera Serif"
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
 fig = plt.figure()
 
 
@@ -55,10 +56,10 @@ def plot_bands():
   xlabel = "K-path" # default
   # plot a rectangle in the ocupied levels
   from matplotlib.patches import Rectangle
-  plt.fill_between(sorted(k),min(e)-3.0,0,color="yellow")
+  plt.fill_between(sorted(k),min(e)-3.0,0,color=plotstyle.FILL)
   
   if not draw_color:  # plot without color
-    col = plt.scatter(k,e, color ="black")
+    col = plt.scatter(k,e, color=plotstyle.PRIMARY)
     fig.subplots_adjust(0.3,0.3)
   if draw_color: # plot with color
     fig.subplots_adjust(0.3,0.1)
