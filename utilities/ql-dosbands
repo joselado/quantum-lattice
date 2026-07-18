@@ -53,20 +53,11 @@ def getplot(obj):
     Z = np.abs(z).reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
     Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
     T = Z.T              # transposes the matrix (Zx,Zy)
-    
-    # now interpolate to get a smooth mesh
-    from scipy.interpolate import interp2d
-    x = np.linspace(0.,1.,nx)
-    y = np.linspace(0.,1.,ny)
-    xx, yy = np.meshgrid(x, y)
-    f = interp2d(x, y, T, kind='linear')
-    
-    # 
-    x = np.linspace(0.,1.,len(np.unique(np.round(x,5))))
-    y = np.linspace(0.,1.,len(np.unique(np.round(y,5))))
-    
-    z_inter = f(x,y)
-    
+
+    # smooth mesh via imshow's own interpolation (scipy.interpolate.interp2d,
+    # used here previously, was removed in SciPy 1.14)
+    z_inter = T
+
     # now plot the data
     
     vmax = np.percentile(z_inter,100*obj.get_slider("Saturation"))

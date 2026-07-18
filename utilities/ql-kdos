@@ -48,32 +48,23 @@ Z = np.abs(z).reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
 Z = z.reshape(nx,ny) # makes a (Zy,Zx) matrix out of z
 T = Z.T              # transposes the matrix (Zx,Zy)
 
-# now interpolate to get a smooth mesh
-from scipy.interpolate import interp2d
-x = np.linspace(0.,1.,nx)
-y = np.linspace(0.,1.,ny)
-xx, yy = np.meshgrid(x, y)
-f = interp2d(x, y, T, kind='linear')
+# smooth mesh via imshow's own interpolation (scipy.interpolate.interp2d,
+# used here previously, was removed in SciPy 1.14)
+z_inter = T
 
-# 
-x = np.linspace(0.,1.,1000)
-y = np.linspace(0.,1.,1000)
-
-z_inter = f(x,y)
-
-# save interpolated data
+# save the raw grid data
 
 if "-write" in sys.argv:
-  xi = np.linspace(np.min(m[0]),np.max(m[0]),1000)
-  yi = np.linspace(np.min(m[1]),np.max(m[1]),1000)
+  xi = np.linspace(np.min(m[0]),np.max(m[0]),nx)
+  yi = np.linspace(np.min(m[1]),np.max(m[1]),ny)
   fo = open(name+"_INTERPOLATED","w")
   for i in range(len(xi)):
     for j in range(len(yi)):
         fo.write(str(xi[i])+"   ")
         fo.write(str(yi[j])+"   ")
-        fo.write(str(z_inter[i,j])+"\n")
+        fo.write(str(z_inter[j,i])+"\n")
   fo.close()
-  print("Interpolated data writen to "+name+"_INTERPOLATED")
+  print("Data writen to "+name+"_INTERPOLATED")
 
 ##################
 
@@ -87,7 +78,7 @@ minx = np.min(m[0])
 maxx = np.max(m[0])
 miny = np.min(m[1])
 maxy = np.max(m[1])
-py.imshow(z_inter, aspect='auto', origin='lower',cmap = py.get_cmap("hot"), extent = ( minx, maxx, miny, maxy),interpolation='nearest',vmax=vmax)
+py.imshow(z_inter, aspect='auto', origin='lower',cmap = py.get_cmap("hot"), extent = ( minx, maxx, miny, maxy),interpolation='bicubic',vmax=vmax)
 #py.xticks([])
 #py.yticks([])
 
