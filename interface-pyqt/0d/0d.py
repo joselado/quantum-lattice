@@ -19,6 +19,7 @@ window = qtwrap.main() # this is the main interface
 from interfacetk.ql_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # several initilizations
+qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 from interfacetk import interfacetk
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)

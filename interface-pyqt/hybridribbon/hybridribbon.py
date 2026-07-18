@@ -207,6 +207,7 @@ signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
 
 
 common.initialize(qtwrap) # initialize
+qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 window.connect_clicks(signals)
 inipath = os.getcwd() # get the initial directory

@@ -20,6 +20,7 @@ from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 
 common.initialize(qtwrap) # do several common initializations
+qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
 

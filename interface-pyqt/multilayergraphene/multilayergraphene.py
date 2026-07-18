@@ -20,6 +20,7 @@ window = qtwrap.main() # this is the main interface
 from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common 
 common.initialize(qtwrap) # initilizations
+qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 from interfacetk import interfacetk
 modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)

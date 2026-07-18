@@ -22,6 +22,7 @@ common.initialize(qtwrap) # do several common initializations
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
 
 qtwrap.set_combobox("bands_color",operators.operator_list)
+qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 
 def get_geometry():

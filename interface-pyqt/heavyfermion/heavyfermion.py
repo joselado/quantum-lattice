@@ -27,6 +27,8 @@ modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
+qtwrap.set_combobox("dos_operator",operators.operator_list)
+
 
 LATTICES = {
   "Honeycomb": geometry.honeycomb_lattice,

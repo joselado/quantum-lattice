@@ -93,10 +93,15 @@ def get_dos(h,window,silent=False):
     ewindow = abs(window.get("dos_ewindow"))
     energies = np.linspace(-ewindow,ewindow,int(ewindow/delta*5)) # get the energies
     h = h.reduce() # reduce dimensionality of possible
-    if window.getbox("dos_mode")=="Green":
-      dos.dos(h,delta=delta,nk=nk,energies=energies,mode="Green") # compute DOS
+    opname = window.getbox("dos_operator") # operator to project the DOS onto
+    op = get_operator(h,opname) if opname else None
+    mode = window.getbox("dos_mode")
+    if mode=="Green":
+      dos.dos(h,delta=delta,nk=nk,energies=energies,mode="Green",operator=op) # compute DOS
+    elif mode=="KPM":
+      dos.dos(h,delta=delta,nk=nk,energies=energies,use_kpm=True,operator=op) # compute DOS
     else:
-      dos.dos(h,delta=delta,nk=nk,energies=energies) # compute DOS
+      dos.dos(h,delta=delta,nk=nk,energies=energies,operator=op) # compute DOS
     if not silent: execute_script("ql-dos --input DOS.OUT")
 
 

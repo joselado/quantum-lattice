@@ -31,6 +31,7 @@ qtwrap.set_combobox("scf_initialization",meanfield.spinful_guesses)
 qtwrap.set_combobox("bands_color",operators.operator_list)
 qtwrap.set_combobox("fs_operator",operators.operator_list)
 qtwrap.set_combobox("operator_kdos",operators.operator_list)
+qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 
 LATTICES = {
