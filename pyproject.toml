@@ -5,11 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "quantum-lattice"
 version = "26.5.3"
-description = "PyQt5 interface for tight-binding calculations with pyqula"
+description = "PySide6 interface for tight-binding calculations with pyqula"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    "PyQt5",
+    "PySide6",
+    "PySide6-Fluent-Widgets",
     "numpy",
     "scipy",
     "numba",

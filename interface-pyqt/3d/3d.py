@@ -12,7 +12,7 @@ sys.path.append(qlroot+"/pysrc/") # python libraries
 from interfacetk import qtwrap
 get = qtwrap.get  # get the value of a certain variable
 getbox = qtwrap.getbox  # get the value of a certain variable
-window = qtwrap.main() # this is the main interface
+window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 
 
 
@@ -229,6 +229,8 @@ signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
 window.connect_clicks(signals)
 inipath = os.getcwd() # get the initial directory
 folder = create_folder()
+window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
 tmppath = os.getcwd() # get the initial directory
-window.run()
+if __name__ == "__main__":
+    window.run() # show this page as its own standalone window and block
 

@@ -16,7 +16,7 @@ def get_python():
 
     Quantum Lattice is meant to be launched through the console script
     that `pip install -e .` registers, which pip always points at the
-    interpreter it was installed into (the one with PyQt5/numpy/etc.
+    interpreter it was installed into (the one with PySide6/numpy/etc.
     already available). So the running interpreter is always the right
     one to use for spawning helper processes (a lattice-mode window, a
     ql-* plotting script, ...); there is no need to persist a separate
@@ -36,8 +36,14 @@ def _required_packages():
     return packages
 
 
-def _module_available(python,module):
-    """Check whether `module` can be imported by the given interpreter"""
+# A handful of pip package names don't match their import name
+_IMPORT_NAME = {"PySide6-Fluent-Widgets": "qfluentwidgets"}
+
+
+def _module_available(python,package):
+    """Check whether `package` (a requirements.txt/pip name) can be
+    imported by the given interpreter"""
+    module = _IMPORT_NAME.get(package,package)
     result = subprocess.run([python,"-c","import "+module],
                              stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     return result.returncode==0

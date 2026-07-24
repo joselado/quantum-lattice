@@ -13,7 +13,7 @@ from interfacetk import qtwrap
 get = qtwrap.get  # get the value of a certain variable
 modify = qtwrap.modify  # get the value of a certain variable
 getbox = qtwrap.getbox  # get the value of a certain variable
-window = qtwrap.main() # this is the main interface
+window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 
 
 from interfacetk.qh_interface import * # import all the libraries needed
@@ -92,8 +92,10 @@ def show_bands():
 
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian
-  kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
-                   ne=int(get("ne_kbands")),delta=get("delta_kbands"),
+  ew = get("window_kbands")
+  energies = np.linspace(-ew,ew,int(get("ne_kbands")))
+  kdos.kdos_bands(h,scale=get("scale_kbands"),energies=energies,
+                   delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")))
   execute_script("ql-dosbands1d --input KDOS_BANDS.OUT ")
 
@@ -121,8 +123,10 @@ def show_dos():
   if h.dimensionality==0:
     dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("DOS_smearing"))
   elif h.dimensionality==1:
-#    dos.dos1d(h,ndos=400,delta=get("DOS_smearing"))
-    dos.dos1d(h,ndos=400)
+    # dos.dos1d() hits a numba typing error inside pyqula's
+    # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
+    # dispatcher the other modes' "show_dos" already relies on instead
+    dos.dos(h,delta=get("DOS_smearing"),energies=np.linspace(-3.1,3.1,500))
   elif h.dimensionality==2:
     dos.dos2d(h,ndos=500,delta=get("DOS_smearing"))
   else: raise
@@ -207,6 +211,8 @@ signals["load_results"] = load_results
 window.connect_clicks(signals,robust=False)
 inipath = os.getcwd() # get the initial directory
 folder = create_folder()
+window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
 tmppath = os.getcwd() # get the initial directory
-window.run()
+if __name__ == "__main__":
+    window.run() # show this page as its own standalone window and block
 

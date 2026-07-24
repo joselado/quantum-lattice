@@ -12,7 +12,7 @@ sys.path.append(qhroot+"/pysrc/") # python libraries
 import qtwrap # import the library with simple wrappaers to qt4
 get = qtwrap.get  # get the value of a certain variable
 getbox = qtwrap.getbox  # get the value of a certain variable
-window = qtwrap.main() # this is the main interface
+window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 
 # PID of the process actually running the calculation (passed in by
 # qlinterface.computing()), so the kill button can stop it directly -
@@ -29,5 +29,6 @@ def kill_calculation():
 
 window.kill_button.clicked.connect(kill_calculation)
 
-window.run()
+if __name__ == "__main__":
+    window.run() # show this page as its own standalone window and block
 

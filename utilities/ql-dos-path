@@ -15,7 +15,7 @@ plotstyle.apply()
 fig = plt.figure()
 plt.subplots_adjust(left=0.25, bottom=0.25)
 
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 
 
 # read the indexes

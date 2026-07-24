@@ -57,7 +57,7 @@ def onpick3(event):
         
 
 fig, ax = plt.subplots()
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 col = ax.scatter(x, y,sorig, corig, picker=True)
 fig.canvas.mpl_connect('pick_event', onpick3)
 

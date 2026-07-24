@@ -23,7 +23,7 @@ from interfacetk import plotpyqt
 
 
 
-#fig.set_facecolor("white") # white
+#fig.set_facecolor(plotstyle.BACKGROUND) # white
 
 folder = "MULTITIMEEVOLUTION/" # folder with all the stuff
 

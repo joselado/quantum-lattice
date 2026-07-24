@@ -37,7 +37,7 @@ fig, ax = plt.subplots()
 currentfig = plt.gcf()
 currentfig.canvas.setWindowTitle('Structure')
 plt.title("Number of atoms "+str(len(x)))
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 if args.color=="True":
   col = ax.scatter(x, y,sorig, c=z, cmap="rainbow")
 else:

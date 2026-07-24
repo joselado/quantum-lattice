@@ -1,5 +1,5 @@
-from PyQt5 import QtWidgets
-import PyQt5 
+from PySide6 import QtWidgets
+import PySide6
 
 
 def set_labels(self):

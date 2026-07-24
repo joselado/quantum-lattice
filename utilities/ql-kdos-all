@@ -16,7 +16,7 @@ fig.subplots_adjust(0.2,0.2)
 
 
 
-fig.set_facecolor("white")
+fig.set_facecolor(plotstyle.BACKGROUND)
 
 name = sys.argv[1]  # name of the file
 

@@ -74,7 +74,7 @@ def plot_bands():
   # font size of the axis
   ylab.set_fontsize(30) # label of the y xis
   xlab.set_fontsize(30) # label of the y xis
-  fig.set_facecolor("white")  # set the layout in white
+  fig.set_facecolor(plotstyle.BACKGROUND)  # set the layout in white
   bandstructure = plt.gcf()
   bandstructure.canvas.setWindowTitle('Bandstructure')
 # add the lines in the bandstructure

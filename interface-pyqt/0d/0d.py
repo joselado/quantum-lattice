@@ -12,7 +12,7 @@ sys.path.append(qlroot+"/pysrc/") # python libraries
 from interfacetk import qtwrap # import the library with simple wrappaers to qt4
 get = qtwrap.get  # get the value of a certain variable
 getbox = qtwrap.getbox  # get the value of a certain variable
-window = qtwrap.main() # this is the main interface
+window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 
 
 
@@ -182,6 +182,7 @@ def show_local_chern():
 
 inipath = os.getcwd() # get the initial directory
 folder = create_folder() # create a new folder
+window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
 tmppath = os.getcwd() # get the initial directory
 def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
@@ -214,5 +215,6 @@ common.set_formulas(qtwrap)
 #from qh_interface import create_folder # import all the libraries needed
 
 window.connect_clicks(signals)
-window.run()
+if __name__ == "__main__":
+    window.run() # show this page as its own standalone window and block
 

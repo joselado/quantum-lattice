@@ -80,7 +80,7 @@ def show_ldos(qtwrap):
   for iatom in atoms: # loop over atoms
     if h.has_spin: iatom = iatom*2 # if spinful
     x = np.linspace(-ecut,ecut,int(get("num_ene_ldos")),endpoint=True) # energies
-    mus = kpm.local_dos(h.intra,n=points,i=iatom) # calculate moments
+    mus = kpm.get_moments_ij(h.intra,n=points,i=iatom,j=iatom) # calculate moments
     y = kpm.generate_profile(mus,x) # calculate DOS
     x,y = x*6.,y/6. # renormalize
     y = dos.convolve(x,y,delta=get("smearing_local_dos")) # add broadening
@@ -95,7 +95,7 @@ def show_full_spectrum():
   nmax = 10000
   if h.intra.shape[0]<nmax:
     h.get_bands()
-    execute_script("ql-bands0d ")
+    execute_script("ql-bands --dim 0")
   else:
     print("Too large Hamiltonian ",nmax)
 
@@ -231,7 +231,7 @@ def show_path_dos(qtwrap):
   for iatom in atoms: # loop over atoms
     print("Calculating DOS in ",iatom)
     if h.has_spin: iatom = iatom*2 # if spinful
-    mus = kpm.local_dos(h.intra,n=pols,i=iatom) # calculate moments
+    mus = kpm.get_moments_ij(h.intra,n=pols,i=iatom,j=iatom) # calculate moments
     x = np.linspace(-ecut,ecut,int(get("num_ene_path"))) # energies
     y = kpm.generate_profile(mus,x) # calculate DOS
     xout,yout = x*6.,y/6. #renormalize
@@ -258,7 +258,7 @@ def show_eigenvalues(qtwrap):
   else:
     ne = int(get("num_eigenvalues")) # number of eigenvalues
     h.get_bands(num_bands=ne) # get the bandstructure
-  execute_script("ql-bands0d")
+  execute_script("ql-bands --dim 0")
 
 
 def clear_removal():

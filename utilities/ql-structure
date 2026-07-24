@@ -24,7 +24,7 @@ args = parser.parse_args() # get the arguments
 
 
 fig = plt.figure()
-fig.set_facecolor("white")
+fig.set_facecolor(plotstyle.BACKGROUND)
 ax = fig.add_subplot(111, projection='3d')
 fig.subplots_adjust(.1,.1,.9,.9)
 ax.set_aspect("auto")

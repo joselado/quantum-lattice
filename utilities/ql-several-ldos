@@ -15,7 +15,7 @@ plotstyle.apply()
 fig = plt.figure(1)
 fig.subplots_adjust(0.2,0.2)
 
-fig.set_facecolor("white")
+fig.set_facecolor(plotstyle.BACKGROUND)
 
 # read all the files
 files = os.listdir(os.getcwd()) # get files

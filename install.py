@@ -13,7 +13,7 @@ args = parser.parse_args() # get the arguments
 
 python = args.python if args.python!="" else sys.executable
 
-pycommand.install_requirements(python=python) # PyQt5/numpy/scipy/numba/matplotlib (+ best-effort pyvista/Fortran)
+pycommand.install_requirements(python=python) # PySide6/numpy/scipy/numba/matplotlib (+ best-effort pyvista/Fortran)
 pycommand.install_editable(python=python)      # registers the `quantum-lattice` console script with pip
 pycommand.create_icon()                        # Linux .desktop entry / Windows .bat launcher
 

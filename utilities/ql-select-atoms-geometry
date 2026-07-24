@@ -80,7 +80,7 @@ def pick_sites(event):
         
 
 fig, ax = plt.subplots()
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 col = ax.scatter(x, y,sorig, corig, picker=True)
 
 

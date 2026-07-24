@@ -13,7 +13,7 @@ plotstyle.apply()
 
 def getplot(obj):
     fig = plt.figure(obj.figure.number)
-    fig.set_facecolor("white")
+    fig.set_facecolor(plotstyle.BACKGROUND)
     x = m[0]
     y = m[1]
     z = m[2]

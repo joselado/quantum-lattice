@@ -34,21 +34,21 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_3">
           <item row="1" column="0">
-           <widget class="QLabel" name="label_9">
+           <widget class="BodyLabel" name="label_9">
             <property name="text">
              <string>Fermi shift</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_8">
+           <widget class="BodyLabel" name="label_8">
             <property name="text">
              <string>AB imbalance</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="mAB">
+           <widget class="LineEdit" name="mAB">
             <property name="toolTip">
              <string>Sublattice imbalance in a bipartite lattice</string>
             </property>
@@ -58,7 +58,7 @@
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="peierls">
+           <widget class="LineEdit" name="peierls">
             <property name="toolTip">
              <string>Orbital magnetic field, creates Landau levels</string>
             </property>
@@ -68,7 +68,7 @@
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="fermi">
+           <widget class="LineEdit" name="fermi">
             <property name="toolTip">
              <string>Global shift of the onsite energies</string>
             </property>
@@ -78,21 +78,21 @@
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_10">
+           <widget class="BodyLabel" name="label_10">
             <property name="text">
              <string>Magnetic field</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_36">
+           <widget class="BodyLabel" name="label_36">
             <property name="text">
              <string>Haldane</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="haldane">
+           <widget class="LineEdit" name="haldane">
             <property name="toolTip">
              <string>Haldane coupling, creates a quantum anomalous Hall state</string>
             </property>
@@ -102,7 +102,7 @@
            </widget>
           </item>
           <item row="4" column="1">
-           <widget class="QLineEdit" name="crystalfield">
+           <widget class="LineEdit" name="crystalfield">
             <property name="toolTip">
              <string>Crystal field that makes the edge atoms inequivalent</string>
             </property>
@@ -112,7 +112,7 @@
            </widget>
           </item>
           <item row="4" column="0">
-           <widget class="QLabel" name="label_38">
+           <widget class="BodyLabel" name="label_38">
             <property name="text">
              <string>Crystal field</string>
             </property>
@@ -130,7 +130,7 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_14">
           <item row="0" column="1">
-           <widget class="QLineEdit" name="edge_potential">
+           <widget class="LineEdit" name="edge_potential">
             <property name="toolTip">
              <string>This term will introduce an onsite term in the edge atoms</string>
             </property>
@@ -140,7 +140,7 @@
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_35">
+           <widget class="BodyLabel" name="label_35">
             <property name="text">
              <string>Potential</string>
             </property>
@@ -149,7 +149,7 @@
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_potential">
+         <widget class="PushButton" name="show_potential">
           <property name="toolTip">
            <string>This shows in which atoms the edge potential is added</string>
           </property>
@@ -165,7 +165,7 @@
     <item row="0" column="1">
      <layout class="QGridLayout" name="gridLayout_6">
       <item row="0" column="0">
-       <widget class="QPushButton" name="show_lattice">
+       <widget class="PushButton" name="show_lattice">
         <property name="toolTip">
          <string>Show the geometry created</string>
         </property>
@@ -175,7 +175,7 @@
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="QPushButton" name="initialize">
+       <widget class="PushButton" name="initialize">
         <property name="toolTip">
          <string>Write the Hamiltonian to a file, to allow quick access for the rest of the computations</string>
         </property>
@@ -185,7 +185,7 @@
        </widget>
       </item>
       <item row="2" column="0">
-       <widget class="QPushButton" name="save_results">
+       <widget class="PushButton" name="save_results">
         <property name="toolTip">
          <string>Copy the results to a local folder</string>
         </property>
@@ -195,7 +195,7 @@
        </widget>
       </item>
       <item row="3" column="0">
-       <widget class="QPushButton" name="load_results">
+       <widget class="PushButton" name="load_results">
         <property name="toolTip">
          <string>Restore the parameters and results from the last saved state</string>
         </property>
@@ -222,7 +222,7 @@
        <item row="0" column="0">
         <layout class="QGridLayout" name="gridLayout_4">
          <item row="0" column="1">
-          <widget class="QComboBox" name="geometry_mode">
+          <widget class="ComboBox" name="geometry_mode">
            <item>
             <property name="text">
              <string>Recipe</string>
@@ -231,7 +231,7 @@
           </widget>
          </item>
          <item row="0" column="0">
-          <widget class="QLabel" name="label_11">
+          <widget class="BodyLabel" name="label_11">
            <property name="text">
             <string>Geometry generation mode</string>
            </property>
@@ -252,7 +252,7 @@
            <item row="0" column="0">
             <layout class="QGridLayout" name="gridLayout">
              <item row="0" column="1">
-              <widget class="QComboBox" name="lattice">
+              <widget class="ComboBox" name="lattice">
                <item>
                 <property name="text">
                  <string>Honeycomb</string>
@@ -281,14 +281,14 @@
               </widget>
              </item>
              <item row="1" column="0">
-              <widget class="QLabel" name="label_2">
+              <widget class="BodyLabel" name="label_2">
                <property name="text">
                 <string>Rotation</string>
                </property>
               </widget>
              </item>
              <item row="4" column="0">
-              <widget class="QLabel" name="label_5">
+              <widget class="BodyLabel" name="label_5">
                <property name="enabled">
                 <bool>false</bool>
                </property>
@@ -298,14 +298,14 @@
               </widget>
              </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="label_3">
+              <widget class="BodyLabel" name="label_3">
                <property name="text">
                 <string>Size</string>
                </property>
               </widget>
              </item>
              <item row="1" column="1">
-              <widget class="QLineEdit" name="rotation">
+              <widget class="LineEdit" name="rotation">
                <property name="toolTip">
                 <string>Global rotation of the unit cell used to build the island</string>
                </property>
@@ -315,7 +315,7 @@
               </widget>
              </item>
              <item row="4" column="1">
-              <widget class="QCheckBox" name="target_diameter">
+              <widget class="CheckBox" name="target_diameter">
                <property name="enabled">
                 <bool>false</bool>
                </property>
@@ -325,28 +325,28 @@
               </widget>
              </item>
              <item row="3" column="1">
-              <widget class="QCheckBox" name="clean_island">
+              <widget class="CheckBox" name="clean_island">
                <property name="text">
                 <string/>
                </property>
               </widget>
              </item>
              <item row="0" column="0">
-              <widget class="QLabel" name="label">
+              <widget class="BodyLabel" name="label">
                <property name="text">
                 <string>Lattice</string>
                </property>
               </widget>
              </item>
              <item row="3" column="0">
-              <widget class="QLabel" name="label_4">
+              <widget class="BodyLabel" name="label_4">
                <property name="text">
                 <string>Remove single bonded</string>
                </property>
               </widget>
              </item>
              <item row="5" column="0">
-              <widget class="QLabel" name="label_6">
+              <widget class="BodyLabel" name="label_6">
                <property name="enabled">
                 <bool>false</bool>
                </property>
@@ -356,7 +356,7 @@
               </widget>
              </item>
              <item row="5" column="1">
-              <widget class="QLineEdit" name="desired_dameter">
+              <widget class="LineEdit" name="desired_dameter">
                <property name="enabled">
                 <bool>false</bool>
                </property>
@@ -366,7 +366,7 @@
               </widget>
              </item>
              <item row="2" column="1">
-              <widget class="QLineEdit" name="size">
+              <widget class="LineEdit" name="size">
                <property name="toolTip">
                 <string>Size of the supercell used to build the island, controls the overal size of hte island</string>
                </property>
@@ -387,14 +387,14 @@
            <item row="0" column="0">
             <layout class="QGridLayout" name="gridLayout_2">
              <item row="0" column="1">
-              <widget class="QLineEdit" name="nedges">
+              <widget class="LineEdit" name="nedges">
                <property name="text">
                 <string>3</string>
                </property>
               </widget>
              </item>
              <item row="0" column="0">
-              <widget class="QLabel" name="label_7">
+              <widget class="BodyLabel" name="label_7">
                <property name="text">
                 <string>Number of edges</string>
                </property>
@@ -423,7 +423,7 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_16">
         <item row="0" column="0">
-         <widget class="QPushButton" name="show_ldos">
+         <widget class="PushButton" name="show_ldos">
           <property name="toolTip">
            <string>Shows the local density of states in specific atoms</string>
           </property>
@@ -435,70 +435,70 @@
         <item row="1" column="0">
          <layout class="QGridLayout" name="gridLayout_5">
           <item row="4" column="0">
-           <widget class="QLabel" name="label_15">
+           <widget class="BodyLabel" name="label_15">
             <property name="text">
              <string>Energy cutoff</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_14">
+           <widget class="BodyLabel" name="label_14">
             <property name="text">
              <string>Number of energies</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_13">
+           <widget class="BodyLabel" name="label_13">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QPushButton" name="select_atoms_dos">
+           <widget class="PushButton" name="select_atoms_dos">
             <property name="text">
              <string>Select atoms</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_12">
+           <widget class="BodyLabel" name="label_12">
             <property name="text">
              <string># of polynomials</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="LDOS_num_atom">
+           <widget class="LineEdit" name="LDOS_num_atom">
             <property name="text">
              <string>1</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="LDOS_polynomials">
+           <widget class="LineEdit" name="LDOS_polynomials">
             <property name="text">
              <string>1000</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="smearing_local_dos">
+           <widget class="LineEdit" name="smearing_local_dos">
             <property name="text">
              <string>0.01</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="num_ene_ldos">
+           <widget class="LineEdit" name="num_ene_ldos">
             <property name="text">
              <string>2000</string>
             </property>
            </widget>
           </item>
           <item row="4" column="1">
-           <widget class="QLineEdit" name="energy_cutoff_local_dos">
+           <widget class="LineEdit" name="energy_cutoff_local_dos">
             <property name="text">
              <string>0.8</string>
             </property>
@@ -514,7 +514,7 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_15">
         <item row="0" column="0">
-         <widget class="QPushButton" name="show_dos">
+         <widget class="PushButton" name="show_dos">
           <property name="toolTip">
            <string>Show the density of states avergaed over the whole sample</string>
           </property>
@@ -526,56 +526,56 @@
         <item row="1" column="0">
          <layout class="QGridLayout" name="gridLayout_7">
           <item row="3" column="0">
-           <widget class="QLabel" name="label_16">
+           <widget class="BodyLabel" name="label_16">
             <property name="text">
              <string># of energies</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_17">
+           <widget class="BodyLabel" name="label_17">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_19">
+           <widget class="BodyLabel" name="label_19">
             <property name="text">
              <string># of polynomials</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="DOS_polynomials">
+           <widget class="LineEdit" name="DOS_polynomials">
             <property name="text">
              <string>1000</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="DOS_iterations">
+           <widget class="LineEdit" name="DOS_iterations">
             <property name="text">
              <string>100</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="smearing_dos">
+           <widget class="LineEdit" name="smearing_dos">
             <property name="text">
              <string>0.01</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="num_ene_dos">
+           <widget class="LineEdit" name="num_ene_dos">
             <property name="text">
              <string>6000</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_18">
+           <widget class="BodyLabel" name="label_18">
             <property name="text">
              <string>Iterations</string>
             </property>
@@ -591,7 +591,7 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_17">
         <item row="0" column="0">
-         <widget class="QPushButton" name="show_spatial_dos">
+         <widget class="PushButton" name="show_spatial_dos">
           <property name="toolTip">
            <string>Show a spatial profile of the density of states at a specific energy</string>
           </property>
@@ -603,7 +603,7 @@
         <item row="1" column="0">
          <layout class="QGridLayout" name="gridLayout_11">
           <item row="0" column="1">
-           <widget class="QComboBox" name="mode_dosmap">
+           <widget class="ComboBox" name="mode_dosmap">
             <item>
              <property name="text">
               <string>Single shot</string>
@@ -617,7 +617,7 @@
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_27">
+           <widget class="BodyLabel" name="label_27">
             <property name="text">
              <string>Mode ofr spatial DOS</string>
             </property>
@@ -645,28 +645,28 @@
             </property>
             <layout class="QGridLayout" name="gridLayout_8">
              <item row="0" column="0">
-              <widget class="QLabel" name="label_20">
+              <widget class="BodyLabel" name="label_20">
                <property name="text">
                 <string>Mode</string>
                </property>
               </widget>
              </item>
              <item row="1" column="0">
-              <widget class="QLabel" name="label_21">
+              <widget class="BodyLabel" name="label_21">
                <property name="text">
                 <string>Smearing</string>
                </property>
               </widget>
              </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="label_22">
+              <widget class="BodyLabel" name="label_22">
                <property name="text">
                 <string># of waves</string>
                </property>
               </widget>
              </item>
              <item row="0" column="1">
-              <widget class="QComboBox" name="mode_stm">
+              <widget class="ComboBox" name="mode_stm">
                <item>
                 <property name="text">
                  <string>Eigen</string>
@@ -680,14 +680,14 @@
               </widget>
              </item>
              <item row="1" column="1">
-              <widget class="QLineEdit" name="smearing_spatial_DOS">
+              <widget class="LineEdit" name="smearing_spatial_DOS">
                <property name="text">
                 <string>0.01</string>
                </property>
               </widget>
              </item>
              <item row="2" column="1">
-              <widget class="QLineEdit" name="nwaves_dos">
+              <widget class="LineEdit" name="nwaves_dos">
                <property name="text">
                 <string>100</string>
                </property>
@@ -711,14 +711,14 @@
             </property>
             <layout class="QGridLayout" name="gridLayout_9">
              <item row="0" column="1">
-              <widget class="QLineEdit" name="energy_spatial_DOS">
+              <widget class="LineEdit" name="energy_spatial_DOS">
                <property name="text">
                 <string>0.0</string>
                </property>
               </widget>
              </item>
              <item row="0" column="0">
-              <widget class="QLabel" name="label_23">
+              <widget class="BodyLabel" name="label_23">
                <property name="text">
                 <string>Energy</string>
                </property>
@@ -742,42 +742,42 @@
             </property>
             <layout class="QGridLayout" name="gridLayout_10">
              <item row="0" column="0">
-              <widget class="QLabel" name="label_24">
+              <widget class="BodyLabel" name="label_24">
                <property name="text">
                 <string>Initial energy</string>
                </property>
               </widget>
              </item>
              <item row="1" column="0">
-              <widget class="QLabel" name="label_25">
+              <widget class="BodyLabel" name="label_25">
                <property name="text">
                 <string>Final energy</string>
                </property>
               </widget>
              </item>
              <item row="2" column="0">
-              <widget class="QLabel" name="label_26">
+              <widget class="BodyLabel" name="label_26">
                <property name="text">
                 <string># of energies</string>
                </property>
               </widget>
              </item>
              <item row="0" column="1">
-              <widget class="QLineEdit" name="mine_movie">
+              <widget class="LineEdit" name="mine_movie">
                <property name="text">
                 <string>-0.5</string>
                </property>
               </widget>
              </item>
              <item row="1" column="1">
-              <widget class="QLineEdit" name="maxe_movie">
+              <widget class="LineEdit" name="maxe_movie">
                <property name="text">
                 <string>0.5</string>
                </property>
               </widget>
              </item>
              <item row="2" column="1">
-              <widget class="QLineEdit" name="stepse_movie">
+              <widget class="LineEdit" name="stepse_movie">
                <property name="text">
                 <string>100</string>
                </property>
@@ -796,7 +796,7 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_18">
         <item row="0" column="0" colspan="2">
-         <widget class="QPushButton" name="show_path_dos">
+         <widget class="PushButton" name="show_path_dos">
           <property name="toolTip">
            <string>Shows the density of states in a sequence of atoms that intersect a certain line</string>
           </property>
@@ -808,56 +808,56 @@
         <item row="1" column="0" rowspan="2" colspan="2">
          <layout class="QGridLayout" name="gridLayout_13">
           <item row="2" column="0">
-           <widget class="QLabel" name="label_33">
+           <widget class="BodyLabel" name="label_33">
             <property name="text">
              <string># of energies</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_32">
+           <widget class="BodyLabel" name="label_32">
             <property name="text">
              <string>Energy cutoff</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_31">
+           <widget class="BodyLabel" name="label_31">
             <property name="text">
              <string># of polynomials</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_34">
+           <widget class="BodyLabel" name="label_34">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="pols_path">
+           <widget class="LineEdit" name="pols_path">
             <property name="text">
              <string>200</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="ecut_path">
+           <widget class="LineEdit" name="ecut_path">
             <property name="text">
              <string>0.8</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="num_ene_path">
+           <widget class="LineEdit" name="num_ene_path">
             <property name="text">
              <string>2000</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="smearing_path_dos">
+           <widget class="LineEdit" name="smearing_path_dos">
             <property name="text">
              <string>0.01</string>
             </property>
@@ -868,42 +868,42 @@
         <item row="4" column="0" colspan="2">
          <layout class="QGridLayout" name="gridLayout_12">
           <item row="1" column="0">
-           <widget class="QLabel" name="label_29">
+           <widget class="BodyLabel" name="label_29">
             <property name="text">
              <string>Final atom</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_30">
+           <widget class="BodyLabel" name="label_30">
             <property name="text">
              <string>Width accepted</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_28">
+           <widget class="BodyLabel" name="label_28">
             <property name="text">
              <string>Initial atom</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="initial_atom">
+           <widget class="LineEdit" name="initial_atom">
             <property name="text">
              <string>0</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="final_atom">
+           <widget class="LineEdit" name="final_atom">
             <property name="text">
              <string>1</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="width_path">
+           <widget class="LineEdit" name="width_path">
             <property name="text">
              <string>1.5</string>
             </property>
@@ -912,7 +912,7 @@
          </layout>
         </item>
         <item row="3" column="0">
-         <widget class="QPushButton" name="show_path">
+         <widget class="PushButton" name="show_path">
           <property name="text">
            <string>Show path</string>
           </property>
@@ -928,14 +928,14 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_25">
           <item row="0" column="0">
-           <widget class="QLabel" name="label_37">
+           <widget class="BodyLabel" name="label_37">
             <property name="text">
              <string># of eigenvalues</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="num_eigenvalues">
+           <widget class="LineEdit" name="num_eigenvalues">
             <property name="toolTip">
              <string>Minimum number of eigenvalues to compute (for small systems all of them will be computed)</string>
             </property>
@@ -947,7 +947,7 @@
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_eigenvalues">
+         <widget class="PushButton" name="show_eigenvalues">
           <property name="text">
            <string>Show eigenvalues</string>
           </property>
@@ -971,6 +971,33 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
- <resources/>
+ <customwidgets>
+ <customwidget>
+  <class>BodyLabel</class>
+  <extends>QLabel</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>CheckBox</class>
+  <extends>QCheckBox</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>ComboBox</class>
+  <extends>QComboBox</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>LineEdit</class>
+  <extends>QLineEdit</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>PushButton</class>
+  <extends>QPushButton</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+</customwidgets>
+<resources/>
  <connections/>
 </ui>

@@ -27,7 +27,7 @@ def getplot(obj):
     fig = plt.figure(obj.figure.number)
     #fig.subplots_adjust(0.2,0.2)
     
-    fig.set_facecolor("white")
+    fig.set_facecolor(plotstyle.BACKGROUND)
     
     x = m[0]
     y = m[1]

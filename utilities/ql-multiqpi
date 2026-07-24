@@ -19,7 +19,7 @@ from interfacetk import plotpyqt
 
 
 
-#fig.set_facecolor("white") # white
+#fig.set_facecolor(plotstyle.BACKGROUND) # white
 
 import argparse
 parser = argparse.ArgumentParser()

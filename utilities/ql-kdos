@@ -17,7 +17,7 @@ plt.gcf().canvas.setWindowTitle('Momentum resolved DOS')
 
 
 
-fig.set_facecolor("white")
+fig.set_facecolor(plotstyle.BACKGROUND)
 
 name = sys.argv[1]  # name of the file
 

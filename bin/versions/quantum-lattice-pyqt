@@ -2,88 +2,141 @@
 
 import sys
 import os
-import platform
-import subprocess
+import importlib.util
 
-  
 # Add path of the interface
 qlroot = os.path.dirname(os.path.realpath(__file__))+"/../../"
 
 # Add path of the wrapper
 sys.path.append(qlroot+"/pysrc/") # python libraries
-sys.path.append(qlroot+"/interface-pyqt/system_selection") # python libraries
 
-from interfacetk import qtwrap # import the library with simple wrappers to pyqt
-window = qtwrap.main() # this is the main interface
+from interfacetk import qtwrap # import the library with simple wrappers to Qt
+qtwrap.ensure_app()
+
+from qfluentwidgets import FluentWindow, FluentIcon as FIF, setTheme, Theme, NavigationItemPosition
 
 from interpreter import pycommand
 
 
-def get_command(name="python"):
-  """Return the path for Anaconda Python, which has pyqt by default"""
-  return pycommand.get_python()
+# (mode dir, nav label, icon, nav group) - replaces the old system_selection
+# .ui grid of buttons; grouping matches its former dimensionality columns
+MODES = [
+    ("0d",                  "Islands",                            FIF.TILES,     "0D systems"),
+    ("huge_0d",             "Huge islands",                       FIF.ZOOM_IN,   "0D systems"),
+    ("1d",                  "Ribbons",                            FIF.ALIGNMENT, "1D systems"),
+    ("hybridribbon",        "Hybrid ribbons",                     FIF.LINK,      "1D systems"),
+    ("hofstader1d",         "Hofstadter butterflies",             FIF.PALETTE,   "1D systems"),
+    ("2d",                  "Sheets",                             FIF.LAYOUT,    "2D systems"),
+    ("2dslab",              "Films",                              FIF.SCROLL,    "2D systems"),
+    ("hybridfilm",          "Hybrid films",                       FIF.EMBED,     "2D systems"),
+    ("impurity_embedding",  "Single impurities",                  FIF.PIN,       "2D systems"),
+    ("multilayergraphene",  "Multilayer graphene",                FIF.LIBRARY,   "2D systems"),
+    ("tmdc",                "Transition metal dichalcogenides",   FIF.TAG,       "2D systems"),
+    ("tbg",                 "Twisted multilayer graphene",        FIF.SYNC,      "2D systems"),
+    ("heavyfermion",        "Heavy fermion Kondo lattice",        FIF.ROBOT,     "2D systems"),
+    ("3d",                  "3D crystals",                        FIF.VIEW,      "3D systems"),
+]
 
 
-
-python = get_command() # Python command
-
-
-def call_mode(mode,folder=None,pyqt=True):
-  """ Returns a function which calls a particular quantum lattice mode"""
-  if folder is None: folder = mode # if not provided
-  path = qlroot
-  def launch():
-    """Function to launch a particular calculation, passes qlroot as input"""
-    script = os.path.join(path,"interface-pyqt",mode,mode+".py")
-    # subprocess.Popen is non-blocking by construction (no shell "&" needed)
-    # and takes an argument list, so it works with paths containing spaces
-    # and on Windows, unlike the previous os.system(string) call
-    subprocess.Popen([python,script,path])
-  return launch
+launch_cwd = os.getcwd() # the directory quantum-lattice itself was launched from
 
 
+def load_mode(mode):
+  """Import a mode's <mode>.py as a page-builder module and return its
+  built page widget (window). Mirrors what running `python <mode>.py`
+  standalone does, minus the blocking window.run() at the bottom (guarded
+  behind `if __name__ == "__main__"` in every mode script).
 
-# create signals
-signals = dict()
-signals["sheets"] = call_mode("2d",pyqt=True)   
-signals["heterostructure"] = call_mode("hybridfilm",pyqt=True)   
-signals["twisted_bilayer"] = call_mode("tbg",pyqt=True)  
-signals["ribbons_pyqt"] = call_mode("1d",pyqt=True)  
-signals["islands_pyqt"] = call_mode("0d",pyqt=True)  
-signals["film2d_pyqt"] = call_mode("2dslab",pyqt=True)  
-signals["hybridribbon_pyqt"] = call_mode("hybridribbon",pyqt=True)  
-signals["hofstader_pyqt"] = call_mode("hofstader1d",pyqt=True)  
-signals["crystal3d_pyqt"] = call_mode("3d",pyqt=True)  
-signals["heavy_fermion"] = call_mode("heavyfermion",pyqt=True)  
-signals["huge0d_pyqt"] = call_mode("huge_0d",pyqt=True)  
-signals["multilayergraphene"] = call_mode("multilayergraphene",pyqt=True)  
-signals["impurity_embedding"] = call_mode("impurity_embedding")  
-signals["tmdc"] = call_mode("tmdc")  
+  Restores launch_cwd before each import: every mode's bootstrap captures
+  its own `inipath = os.getcwd()` (used by save_results()/load_results()
+  to write/read QL_save/ next to wherever the user launched the app from)
+  before calling create_folder(), which chdirs into a fresh scratch
+  folder - so without restoring launch_cwd here first, every mode after
+  the first would instead capture the previous mode's scratch folder."""
+  os.chdir(launch_cwd)
+  moddir = os.path.join(qlroot,"interface-pyqt",mode)
+  if moddir not in sys.path: sys.path.insert(0,moddir) # e.g. huge_0d's sibling handlers.py/islandbuild.py
+  modname = "shell_mode_"+mode
+  spec = importlib.util.spec_from_file_location(modname,os.path.join(moddir,mode+".py"))
+  modobj = importlib.util.module_from_spec(spec)
+  sys.modules[modname] = modobj # standard importlib practice; also lets tools/smoke_test.py introspect pages
+  spec.loader.exec_module(modobj)
+  return modobj.window
 
 
+class Shell(FluentWindow):
+  """Single-process shell: every mode is a page in one window's sidebar
+  navigation, replacing the old system_selection window that spawned each
+  mode as its own OS subprocess/top-level window."""
+  def __init__(self):
+    super().__init__()
+    self.setWindowTitle("Quantum Lattice")
+    last_group = None
+    for mode,label,icon,group in MODES:
+      if group != last_group:
+        if last_group is not None:
+          self.navigationInterface.addSeparator(position=NavigationItemPosition.SCROLL)
+        last_group = group
+      page = load_mode(mode)
+      page.setObjectName(mode) # addSubInterface requires a unique object name
+      # Every mode's page is a plain QMainWindow (unchanged from the old
+      # standalone-window design, see qtwrap.new_page()), not one of
+      # qfluentwidgets' own containers. Once ANY qfluentwidgets widget
+      # inside it has its own stylesheet applied (see Phase 3's widget
+      # promotion), Qt stops the plain QWidget containers (centralwidget,
+      # tab pages, ...) from visually inheriting the shell's dark
+      # background, and they paint an opaque default-palette (light)
+      # background instead. Making them explicitly transparent restores
+      # the shell's dark backdrop showing through - safe to do only here
+      # (not in qtwrap.py itself), since a page run standalone via
+      # `python <mode>.py` has no dark FluentWindow behind it to show
+      # through and would otherwise render see-through/broken.
+      page.setStyleSheet("QWidget { background: transparent; }")
+      self.addSubInterface(page,icon,label,position=NavigationItemPosition.SCROLL)
+    # keep qtwrap's "active page" (what get()/getbox()/modify()/... resolve
+    # against) in sync with whichever page navigation currently shows -
+    # only the visible page's widgets can receive a click, so this is
+    # always correct, matching qtwrap.new_page()'s own doc-comment.
+    # qtwrap.new_page() (called from load_mode() above, once per mode)
+    # already left `form` pointing at whichever page was built LAST, not
+    # the one actually shown first - re-point it at the real initial page
+    # now, before this signal is connected to keep it correct from here on.
+    qtwrap.set_active(self.stackedWidget.currentWidget())
+    self.stackedWidget.currentChanged.connect(self._on_page_changed)
+    self.navigationInterface.setExpandWidth(260)
+    self.navigationInterface.addItem(
+        routeKey="update_qh",icon=FIF.UPDATE,text="Update Quantum Lattice",
+        onClick=self._update_qh,position=NavigationItemPosition.BOTTOM)
 
-def update_qh():
-    os.chdir(qlroot) # go to the main directory
-    status = os.system("git pull") # pull the directory, fails loudly on local conflicts
-    if status!=0:
-        print("git pull failed, likely due to local changes; resolve manually and try again")
-        return
-    pycommand.create_icon() # create the icon
+  def _on_page_changed(self,index):
+    widget = self.stackedWidget.widget(index)
+    qtwrap.set_active(widget)
+
+  def _update_qh(self):
+    """git pull + recreate the launcher icon + relaunch - same behavior
+    the old system_selection window's "Update Quantum Lattice" button had."""
+    os.chdir(qlroot)
+    status = os.system("git pull") # fails loudly on local conflicts
+    if status != 0:
+      print("git pull failed, likely due to local changes; resolve manually and try again")
+      return
+    pycommand.create_icon()
     pycommand.run_qh()
-    exit()
+    sys.exit()
 
 
-signals["update_qh"] = update_qh # update Quantum Lattice 
+def main():
+  setTheme(Theme.DARK)
+  # every ql-* plotting script launched via qlinterface.execute_script()
+  # is a subprocess that inherits this process's environment, so setting
+  # this once here is enough for utilities/plotstyle.py's apply() to pick
+  # a matching dark style in all of them, no per-script wiring needed
+  os.environ["QL_THEME"] = "dark"
+  shell = Shell()
+  shell.resize(1400,800)
+  shell.show()
+  qtwrap.ensure_app().exec()
 
 
-# set the quantum lattice logo
-qtwrap.set_logo("qhlogo","quantum_lattice.png")
-
-# Set the version number
-version = open(qlroot+"/VERSION.TXT").read().replace("\n","")
-version = "Version "+version.replace(" ",".")
-window.set("qh_version",version) # set the version number
-
-window.connect_clicks(signals,robust=False) # connect the clicks
-window.run()
-
+if __name__ == "__main__":
+  main()

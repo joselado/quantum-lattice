@@ -34,21 +34,21 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout">
           <item row="2" column="2">
-           <widget class="QLineEdit" name="crystalfield">
+           <widget class="LineEdit" name="crystalfield">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="7" column="0">
-           <widget class="QLabel" name="label_24">
+           <widget class="BodyLabel" name="label_24">
             <property name="text">
              <string>Haldane</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLabel" name="fermi_image">
+           <widget class="BodyLabel" name="fermi_image">
             <property name="minimumSize">
              <size>
               <width>30</width>
@@ -61,21 +61,21 @@
            </widget>
           </item>
           <item row="10" column="2">
-           <widget class="QLineEdit" name="mAF">
+           <widget class="LineEdit" name="mAF">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="8" column="0">
-           <widget class="QLabel" name="label_25">
+           <widget class="BodyLabel" name="label_25">
             <property name="text">
              <string>Anti-Haldane</string>
             </property>
            </widget>
           </item>
           <item row="3" column="2">
-           <widget class="QLineEdit" name="peierls">
+           <widget class="LineEdit" name="peierls">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -85,56 +85,56 @@
            </widget>
           </item>
           <item row="11" column="2">
-           <widget class="QLineEdit" name="swave">
+           <widget class="LineEdit" name="swave">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="6" column="1">
-           <widget class="QLabel" name="kanemele_image">
+           <widget class="BodyLabel" name="kanemele_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="6" column="0">
-           <widget class="QLabel" name="label_11">
+           <widget class="BodyLabel" name="label_11">
             <property name="text">
              <string>Kane-Mele</string>
             </property>
            </widget>
           </item>
           <item row="5" column="0">
-           <widget class="QLabel" name="label_10">
+           <widget class="BodyLabel" name="label_10">
             <property name="text">
              <string>Rashba</string>
             </property>
            </widget>
           </item>
           <item row="10" column="0">
-           <widget class="QLabel" name="label_13">
+           <widget class="BodyLabel" name="label_13">
             <property name="text">
              <string>Antiferromagnetism</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLabel" name="bfield_image">
+           <widget class="BodyLabel" name="bfield_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="12" column="1">
-           <widget class="QLabel" name="pwave_image">
+           <widget class="BodyLabel" name="pwave_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="0" column="2">
-           <widget class="QLineEdit" name="fermi">
+           <widget class="LineEdit" name="fermi">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -144,175 +144,175 @@
            </widget>
           </item>
           <item row="4" column="2">
-           <widget class="QLineEdit" name="exchange">
+           <widget class="LineEdit" name="exchange">
             <property name="text">
              <string>0.0, 0.0, 0.0</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_38">
+           <widget class="BodyLabel" name="label_38">
             <property name="text">
              <string>Hoppings</string>
             </property>
            </widget>
           </item>
           <item row="11" column="0">
-           <widget class="QLabel" name="label_26">
+           <widget class="BodyLabel" name="label_26">
             <property name="text">
              <string>swave superconductivity</string>
             </property>
            </widget>
           </item>
           <item row="9" column="2">
-           <widget class="QLineEdit" name="mAB">
+           <widget class="LineEdit" name="mAB">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="5" column="2">
-           <widget class="QLineEdit" name="rashba">
+           <widget class="LineEdit" name="rashba">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="11" column="1">
-           <widget class="QLabel" name="swave_image">
+           <widget class="BodyLabel" name="swave_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="12" column="0">
-           <widget class="QLabel" name="label_37">
+           <widget class="BodyLabel" name="label_37">
             <property name="text">
              <string>pwave superconductivity</string>
             </property>
            </widget>
           </item>
           <item row="7" column="1">
-           <widget class="QLabel" name="haldane_image">
+           <widget class="BodyLabel" name="haldane_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label">
+           <widget class="BodyLabel" name="label">
             <property name="text">
              <string>Fermi energy</string>
             </property>
            </widget>
           </item>
           <item row="9" column="1">
-           <widget class="QLabel" name="mAB_image">
+           <widget class="BodyLabel" name="mAB_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLabel" name="hopping_image">
+           <widget class="BodyLabel" name="hopping_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_17">
+           <widget class="BodyLabel" name="label_17">
             <property name="text">
              <string>Crystal field</string>
             </property>
            </widget>
           </item>
           <item row="10" column="1">
-           <widget class="QLabel" name="mAF_image">
+           <widget class="BodyLabel" name="mAF_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="5" column="1">
-           <widget class="QLabel" name="rashba_image">
+           <widget class="BodyLabel" name="rashba_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="8" column="2">
-           <widget class="QLineEdit" name="antihaldane">
+           <widget class="LineEdit" name="antihaldane">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="12" column="2">
-           <widget class="QLineEdit" name="pwave">
+           <widget class="LineEdit" name="pwave">
             <property name="text">
              <string>0.0,0.0,0.0</string>
             </property>
            </widget>
           </item>
           <item row="6" column="2">
-           <widget class="QLineEdit" name="kanemele">
+           <widget class="LineEdit" name="kanemele">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="1" column="2">
-           <widget class="QLineEdit" name="hoppings">
+           <widget class="LineEdit" name="hoppings">
             <property name="text">
              <string>1.0</string>
             </property>
            </widget>
           </item>
           <item row="8" column="1">
-           <widget class="QLabel" name="antihaldane_image">
+           <widget class="BodyLabel" name="antihaldane_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="4" column="0">
-           <widget class="QLabel" name="label_3">
+           <widget class="BodyLabel" name="label_3">
             <property name="text">
              <string>Exchange</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLabel" name="cf_image">
+           <widget class="BodyLabel" name="cf_image">
             <property name="text">
              <string/>
             </property>
            </widget>
           </item>
           <item row="7" column="2">
-           <widget class="QLineEdit" name="haldane">
+           <widget class="LineEdit" name="haldane">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="9" column="0">
-           <widget class="QLabel" name="label_12">
+           <widget class="BodyLabel" name="label_12">
             <property name="text">
              <string>Sublattice imbalance</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_14">
+           <widget class="BodyLabel" name="label_14">
             <property name="text">
              <string>Magnetic field</string>
             </property>
            </widget>
           </item>
           <item row="4" column="1">
-           <widget class="QLabel" name="exchange_image">
+           <widget class="BodyLabel" name="exchange_image">
             <property name="text">
              <string/>
             </property>
@@ -330,7 +330,7 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_24">
           <item row="0" column="0">
-           <widget class="QLabel" name="label_35">
+           <widget class="BodyLabel" name="label_35">
             <property name="text">
              <string>Non-uniform strain</string>
             </property>
@@ -339,42 +339,42 @@
           <item row="0" column="1">
            <layout class="QGridLayout" name="gridLayout_27">
             <item row="0" column="1">
-             <widget class="QLineEdit" name="strain_strength">
+             <widget class="LineEdit" name="strain_strength">
               <property name="text">
                <string>0.0</string>
               </property>
              </widget>
             </item>
             <item row="0" column="0">
-             <widget class="QLabel" name="label_36">
+             <widget class="BodyLabel" name="label_36">
               <property name="text">
                <string>Strength</string>
               </property>
              </widget>
             </item>
             <item row="1" column="0">
-             <widget class="QLabel" name="label_39">
+             <widget class="BodyLabel" name="label_39">
               <property name="text">
                <string>Decay length</string>
               </property>
              </widget>
             </item>
             <item row="1" column="1">
-             <widget class="QLineEdit" name="strain_decay">
+             <widget class="LineEdit" name="strain_decay">
               <property name="text">
                <string>3.0</string>
               </property>
              </widget>
             </item>
             <item row="3" column="0" colspan="2">
-             <widget class="QPushButton" name="show_hoppings">
+             <widget class="PushButton" name="show_hoppings">
               <property name="text">
                <string>Show hoppings</string>
               </property>
              </widget>
             </item>
             <item row="2" column="1">
-             <widget class="QComboBox" name="strain_type">
+             <widget class="ComboBox" name="strain_type">
               <item>
                <property name="text">
                 <string>Radial scalar</string>
@@ -388,7 +388,7 @@
              </widget>
             </item>
             <item row="2" column="0">
-             <widget class="QLabel" name="label_42">
+             <widget class="BodyLabel" name="label_42">
               <property name="text">
                <string>Strain type</string>
               </property>
@@ -424,35 +424,35 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_4">
           <item row="3" column="0">
-           <widget class="QLabel" name="label_7">
+           <widget class="BodyLabel" name="label_7">
             <property name="text">
              <string>Rotation</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="nsides">
+           <widget class="LineEdit" name="nsides">
             <property name="text">
              <string>3</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_6">
+           <widget class="BodyLabel" name="label_6">
             <property name="text">
              <string>Number of sides</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_8">
+           <widget class="BodyLabel" name="label_8">
             <property name="text">
              <string>Type of lattice</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QComboBox" name="lattice">
+           <widget class="ComboBox" name="lattice">
             <item>
              <property name="text">
               <string>Honeycomb</string>
@@ -481,21 +481,21 @@
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_2">
+           <widget class="BodyLabel" name="label_2">
             <property name="text">
              <string>Width</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="width">
+           <widget class="LineEdit" name="width">
             <property name="text">
              <string>5</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="rotation">
+           <widget class="LineEdit" name="rotation">
             <property name="text">
              <string>0</string>
             </property>
@@ -513,7 +513,7 @@
         <item>
          <layout class="QGridLayout" name="gridLayout_15">
           <item row="0" column="0">
-           <widget class="QCheckBox" name="remove_single_bonded">
+           <widget class="CheckBox" name="remove_single_bonded">
             <property name="toolTip">
              <string>Remove atoms that have a single bond in the structure</string>
             </property>
@@ -526,14 +526,14 @@
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QCheckBox" name="remove_selected">
+           <widget class="CheckBox" name="remove_selected">
             <property name="text">
              <string>Remove selected atoms</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QPushButton" name="select_atoms_removal">
+           <widget class="PushButton" name="select_atoms_removal">
             <property name="text">
              <string>Select atoms to remove</string>
             </property>
@@ -556,14 +556,14 @@
        </attribute>
        <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
-         <widget class="QPushButton" name="show_structure">
+         <widget class="PushButton" name="show_structure">
           <property name="text">
            <string>Show structure</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="show_structure_3d">
+         <widget class="PushButton" name="show_structure_3d">
           <property name="text">
            <string>Show structure 3D</string>
           </property>
@@ -577,7 +577,7 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_9">
         <item row="0" column="0">
-         <widget class="QPushButton" name="show_bands">
+         <widget class="PushButton" name="show_bands">
           <property name="text">
            <string>Eigenvalues</string>
           </property>
@@ -586,14 +586,14 @@
         <item row="1" column="0">
          <layout class="QGridLayout" name="gridLayout_2">
           <item row="0" column="0">
-           <widget class="QLabel" name="label_15">
+           <widget class="BodyLabel" name="label_15">
             <property name="text">
              <string>Operator</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QComboBox" name="bands_color">
+           <widget class="ComboBox" name="bands_color">
             <property name="currentIndex">
              <number>0</number>
             </property>
@@ -651,49 +651,49 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_6">
           <item row="1" column="1">
-           <widget class="QLineEdit" name="multildos_delta">
+           <widget class="LineEdit" name="multildos_delta">
             <property name="text">
              <string>0.03</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_20">
+           <widget class="BodyLabel" name="label_20">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_19">
+           <widget class="BodyLabel" name="label_19">
             <property name="text">
              <string>Energy window</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="multildos_ewindow">
+           <widget class="LineEdit" name="multildos_ewindow">
             <property name="text">
              <string>1.5</string>
             </property>
            </widget>
           </item>
           <item row="4" column="0" colspan="2">
-           <widget class="QPushButton" name="show_interactive_ldos">
+           <widget class="PushButton" name="show_interactive_ldos">
             <property name="text">
              <string>Show LDOS</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_30">
+           <widget class="BodyLabel" name="label_30">
             <property name="text">
              <string>Basis</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QComboBox" name="basis_ldos">
+           <widget class="ComboBox" name="basis_ldos">
             <property name="toolTip">
              <string>Choose the basis of the LDOS, projection onto the tight binding basis, or directly in true real space assuming a certain atomic-like wavefunction</string>
             </property>
@@ -710,14 +710,14 @@
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_31">
+           <widget class="BodyLabel" name="label_31">
             <property name="text">
              <string>Local orbital radii</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="ratomic_ldos">
+           <widget class="LineEdit" name="ratomic_ldos">
             <property name="toolTip">
              <string>Radii of the atomic-like wavefunctions put in every site. Only affects the result for ht eBasis &quot;Real space atomic orbitals&quot;</string>
             </property>
@@ -738,42 +738,42 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_17">
           <item row="0" column="0">
-           <widget class="QLabel" name="label_16">
+           <widget class="BodyLabel" name="label_16">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="dos_delta">
+           <widget class="LineEdit" name="dos_delta">
             <property name="text">
              <string>0.01</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="dos_ewindow">
+           <widget class="LineEdit" name="dos_ewindow">
             <property name="text">
              <string>4.0</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_41">
+           <widget class="BodyLabel" name="label_41">
             <property name="text">
              <string>Energy window</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_dos_mode">
+           <widget class="BodyLabel" name="label_dos_mode">
             <property name="text">
              <string>Mode</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QComboBox" name="dos_mode">
+           <widget class="ComboBox" name="dos_mode">
             <item>
              <property name="text">
               <string>ED</string>
@@ -792,19 +792,19 @@
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_dos_operator">
+           <widget class="BodyLabel" name="label_dos_operator">
             <property name="text">
              <string>Operator</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QComboBox" name="dos_operator"/>
+           <widget class="ComboBox" name="dos_operator"/>
           </item>
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_dos">
+         <widget class="PushButton" name="show_dos">
           <property name="text">
            <string>Density of states</string>
           </property>
@@ -830,7 +830,7 @@
             <item row="0" column="0" colspan="2">
              <layout class="QGridLayout" name="gridLayout_10">
               <item row="0" column="1">
-               <widget class="QComboBox" name="scf_initialization">
+               <widget class="ComboBox" name="scf_initialization">
                 <item>
                  <property name="text">
                   <string>antiferro</string>
@@ -859,7 +859,7 @@
                </widget>
               </item>
               <item row="0" column="0">
-               <widget class="QLabel" name="label_22">
+               <widget class="BodyLabel" name="label_22">
                 <property name="text">
                  <string>Initialization</string>
                 </property>
@@ -868,14 +868,14 @@
               <item row="1" column="0" colspan="2">
                <layout class="QHBoxLayout" name="horizontalLayout_3">
                 <item>
-                 <widget class="QLabel" name="label_21">
+                 <widget class="BodyLabel" name="label_21">
                   <property name="text">
                    <string>U</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLineEdit" name="U">
+                 <widget class="LineEdit" name="U">
                   <property name="toolTip">
                    <string>Local Hubbard interaction</string>
                   </property>
@@ -885,14 +885,14 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLabel" name="label_23">
+                 <widget class="BodyLabel" name="label_23">
                   <property name="text">
                    <string>V1</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLineEdit" name="V1">
+                 <widget class="LineEdit" name="V1">
                   <property name="toolTip">
                    <string>First neighbor interaction</string>
                   </property>
@@ -902,14 +902,14 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLabel" name="label_40">
+                 <widget class="BodyLabel" name="label_40">
                   <property name="text">
                    <string>V2</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLineEdit" name="V2">
+                 <widget class="LineEdit" name="V2">
                   <property name="toolTip">
                    <string>Second neighbor interaction</string>
                   </property>
@@ -923,28 +923,28 @@
               <item row="2" column="0" colspan="2">
                <layout class="QGridLayout" name="gridLayout_7">
                 <item row="0" column="2">
-                 <widget class="QLabel" name="label_29">
+                 <widget class="BodyLabel" name="label_29">
                   <property name="text">
                    <string>Extra electron</string>
                   </property>
                  </widget>
                 </item>
                 <item row="0" column="1">
-                 <widget class="QLineEdit" name="filling_scf">
+                 <widget class="LineEdit" name="filling_scf">
                   <property name="text">
                    <string>0.5</string>
                   </property>
                  </widget>
                 </item>
                 <item row="0" column="0">
-                 <widget class="QLabel" name="label_28">
+                 <widget class="BodyLabel" name="label_28">
                   <property name="text">
                    <string>FIlling</string>
                   </property>
                  </widget>
                 </item>
                 <item row="0" column="3">
-                 <widget class="QLineEdit" name="extra_electron">
+                 <widget class="LineEdit" name="extra_electron">
                   <property name="text">
                    <string>0.0</string>
                   </property>
@@ -955,14 +955,14 @@
              </layout>
             </item>
             <item row="1" column="0">
-             <widget class="QCheckBox" name="do_scf">
+             <widget class="CheckBox" name="do_scf">
               <property name="text">
                <string>Include mean field</string>
               </property>
              </widget>
             </item>
             <item row="1" column="1">
-             <widget class="QPushButton" name="solve_scf">
+             <widget class="PushButton" name="solve_scf">
               <property name="text">
                <string>Solve SCF</string>
               </property>
@@ -978,42 +978,42 @@
             <item row="0" column="0">
              <layout class="QGridLayout" name="gridLayout_12">
               <item row="0" column="0">
-               <widget class="QLabel" name="label_32">
+               <widget class="BodyLabel" name="label_32">
                 <property name="text">
                  <string>Mixing</string>
                 </property>
                </widget>
               </item>
               <item row="1" column="0">
-               <widget class="QLabel" name="label_27">
+               <widget class="BodyLabel" name="label_27">
                 <property name="text">
                  <string># of kpoints</string>
                 </property>
                </widget>
               </item>
               <item row="1" column="1">
-               <widget class="QLineEdit" name="nk_scf">
+               <widget class="LineEdit" name="nk_scf">
                 <property name="text">
                  <string>10</string>
                 </property>
                </widget>
               </item>
               <item row="0" column="1">
-               <widget class="QLineEdit" name="mix_scf">
+               <widget class="LineEdit" name="mix_scf">
                 <property name="text">
                  <string>0.1</string>
                 </property>
                </widget>
               </item>
               <item row="2" column="0">
-               <widget class="QLabel" name="label_33">
+               <widget class="BodyLabel" name="label_33">
                 <property name="text">
                  <string>Smearing</string>
                 </property>
                </widget>
               </item>
               <item row="2" column="1">
-               <widget class="QLineEdit" name="smearing_scf">
+               <widget class="LineEdit" name="smearing_scf">
                 <property name="text">
                  <string>0.01</string>
                 </property>
@@ -1035,14 +1035,14 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_26">
           <item row="1" column="0">
-           <widget class="QLabel" name="label_43">
+           <widget class="BodyLabel" name="label_43">
             <property name="text">
              <string>Plotting mode</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QComboBox" name="magnetization_plot_mode">
+           <widget class="ComboBox" name="magnetization_plot_mode">
             <item>
              <property name="text">
               <string>2D</string>
@@ -1056,7 +1056,7 @@
            </widget>
           </item>
           <item row="0" column="0" colspan="2">
-           <widget class="QPushButton" name="show_magnetism">
+           <widget class="PushButton" name="show_magnetism">
             <property name="text">
              <string>Show magnetism</string>
             </property>
@@ -1074,7 +1074,7 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_22">
           <item row="0" column="1">
-           <widget class="QComboBox" name="operator_chern">
+           <widget class="ComboBox" name="operator_chern">
             <item>
              <property name="text">
               <string>None</string>
@@ -1093,14 +1093,14 @@
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_34">
+           <widget class="BodyLabel" name="label_34">
             <property name="text">
              <string>Operator</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0" colspan="2">
-           <widget class="QPushButton" name="show_local_chern">
+           <widget class="PushButton" name="show_local_chern">
             <property name="text">
              <string>Show local Chern number</string>
             </property>
@@ -1118,21 +1118,21 @@
         <item row="0" column="0" colspan="2">
          <layout class="QGridLayout" name="gridLayout_19">
           <item row="0" column="1">
-           <widget class="QLineEdit" name="tmax_time_evolution">
+           <widget class="LineEdit" name="tmax_time_evolution">
             <property name="text">
              <string>50</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_9">
+           <widget class="BodyLabel" name="label_9">
             <property name="text">
              <string>Maximum time</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QComboBox" name="channel_time_evolution">
+           <widget class="ComboBox" name="channel_time_evolution">
             <item>
              <property name="text">
               <string>Up</string>
@@ -1146,7 +1146,7 @@
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_18">
+           <widget class="BodyLabel" name="label_18">
             <property name="text">
              <string>Channel</string>
             </property>
@@ -1155,14 +1155,14 @@
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QPushButton" name="select_atom_time_evolution">
+         <widget class="PushButton" name="select_atom_time_evolution">
           <property name="text">
            <string>Select atom</string>
           </property>
          </widget>
         </item>
         <item row="1" column="1">
-         <widget class="QPushButton" name="show_time_evolution">
+         <widget class="PushButton" name="show_time_evolution">
           <property name="text">
            <string>Perform time evolution</string>
           </property>
@@ -1173,7 +1173,7 @@
      </widget>
     </item>
     <item row="2" column="0" colspan="2">
-     <widget class="QPushButton" name="save_results">
+     <widget class="PushButton" name="save_results">
       <property name="toolTip">
        <string>Save all the results in a local folder called QH_save, pressing the button overrides the folder!</string>
       </property>
@@ -1183,7 +1183,7 @@
      </widget>
     </item>
     <item row="3" column="0" colspan="2">
-     <widget class="QPushButton" name="load_results">
+     <widget class="PushButton" name="load_results">
       <property name="toolTip">
        <string>Restore the parameters and results from the last saved state</string>
       </property>
@@ -1206,6 +1206,33 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
- <resources/>
+ <customwidgets>
+ <customwidget>
+  <class>BodyLabel</class>
+  <extends>QLabel</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>CheckBox</class>
+  <extends>QCheckBox</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>ComboBox</class>
+  <extends>QComboBox</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>LineEdit</class>
+  <extends>QLineEdit</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>PushButton</class>
+  <extends>QPushButton</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+</customwidgets>
+<resources/>
  <connections/>
 </ui>

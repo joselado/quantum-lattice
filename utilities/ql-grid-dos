@@ -78,7 +78,7 @@ def getplot(obj):
   splot.set_ylim([min(y)-1,max(y)+1])
   splot.set_xlabel("x")
   splot.set_ylabel("y")
-  fig.set_facecolor('white')
+  fig.set_facecolor(plotstyle.BACKGROUND)
   return fig
 
 

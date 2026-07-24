@@ -5,15 +5,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-from PyQt5.QtWidgets import QDialog, QApplication, QPushButton, QVBoxLayout
-from PyQt5.QtWidgets import QSlider
-from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QGridLayout
-from PyQt5.QtCore import Qt
-from PyQt5 import QtCore
+from PySide6.QtWidgets import QDialog, QApplication, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QSlider
+from PySide6 import QtWidgets
+from PySide6.QtWidgets import QGridLayout
+from PySide6.QtCore import Qt
+from PySide6 import QtCore
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 
 import random
@@ -168,4 +168,4 @@ if __name__ == '__main__':
     main.add_combobox(["red","blue","black"],label="Color",key="c") 
     main.plot()
     main.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

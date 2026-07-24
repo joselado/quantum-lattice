@@ -13,7 +13,7 @@ plotstyle.apply()
 
 fig = plt.figure()
 
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 
 m = np.genfromtxt("POSITIONS.OUT").transpose() # read file
 x = m[0] # x position

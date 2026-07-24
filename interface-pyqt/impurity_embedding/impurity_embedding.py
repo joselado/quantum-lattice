@@ -9,7 +9,7 @@ sys.path.append(qlroot+"/pysrc/") # python libraries
 
 from interfacetk import qtwrap # import the library with simple wrappaers to qt4
 getbox = qtwrap.getbox  # get the value of a certain variable
-window = qtwrap.main() # this is the main interface
+window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 get = window.get  # get the value of a certain variable
 
 
@@ -200,6 +200,8 @@ window.set("info_tab","Results will be saved to "+inipath)
 
 window.connect_clicks(signals,robust=False)
 folder = create_folder()
+window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
 tmppath = os.getcwd() # get the initial directory
-window.run()
+if __name__ == "__main__":
+    window.run() # show this page as its own standalone window and block
 

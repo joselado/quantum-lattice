@@ -28,63 +28,63 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout">
           <item row="0" column="0">
-           <widget class="QLabel" name="label">
+           <widget class="BodyLabel" name="label">
             <property name="text">
              <string>Interlayer</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_2">
+           <widget class="BodyLabel" name="label_2">
             <property name="text">
              <string>Electric bias</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_4">
+           <widget class="BodyLabel" name="label_4">
             <property name="text">
              <string>Fermi energy</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="tinter">
+           <widget class="LineEdit" name="tinter">
             <property name="text">
              <string>0.4</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="interlayer_bias">
+           <widget class="LineEdit" name="interlayer_bias">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="fermi">
+           <widget class="LineEdit" name="fermi">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="6" column="1">
-           <widget class="QRadioButton" name="set_half_filling">
+           <widget class="RadioButton" name="set_half_filling">
             <property name="text">
              <string>Measure with respect to half filling</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_3">
+           <widget class="BodyLabel" name="label_3">
             <property name="text">
              <string>Crystal field</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="crystalfield">
+           <widget class="LineEdit" name="crystalfield">
             <property name="toolTip">
              <string>Crystal field Hartree term, makes the edge atoms inequivalent</string>
             </property>
@@ -94,28 +94,28 @@
            </widget>
           </item>
           <item row="5" column="0">
-           <widget class="QLabel" name="label_20">
+           <widget class="BodyLabel" name="label_20">
             <property name="text">
              <string>Angle inplane B field</string>
             </property>
            </widget>
           </item>
           <item row="5" column="1">
-           <widget class="QLineEdit" name="inplaneb_phi">
+           <widget class="LineEdit" name="inplaneb_phi">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="4" column="0">
-           <widget class="QLabel" name="label_18">
+           <widget class="BodyLabel" name="label_18">
             <property name="text">
              <string>Inplane B field</string>
             </property>
            </widget>
           </item>
           <item row="4" column="1">
-           <widget class="QLineEdit" name="inplaneb">
+           <widget class="LineEdit" name="inplaneb">
             <property name="enabled">
              <bool>false</bool>
             </property>
@@ -141,14 +141,14 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_8">
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_structure">
+         <widget class="PushButton" name="show_structure">
           <property name="text">
            <string>Show structure</string>
           </property>
          </widget>
         </item>
         <item row="1" column="1">
-         <widget class="QPushButton" name="show_structure_3d">
+         <widget class="PushButton" name="show_structure_3d">
           <property name="text">
            <string>Show structure 3D</string>
           </property>
@@ -157,14 +157,14 @@
         <item row="0" column="0" colspan="2">
          <layout class="QGridLayout" name="gridLayout_5">
           <item row="0" column="1">
-           <widget class="QLineEdit" name="nsuper_struct">
+           <widget class="LineEdit" name="nsuper_struct">
             <property name="text">
              <string>6</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_12">
+           <widget class="BodyLabel" name="label_12">
             <property name="text">
              <string>Supercell</string>
             </property>
@@ -182,42 +182,42 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_3">
           <item row="2" column="0">
-           <widget class="QLabel" name="label_7">
+           <widget class="BodyLabel" name="label_7">
             <property name="text">
              <string>nbands</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_6">
+           <widget class="BodyLabel" name="label_6">
             <property name="text">
              <string>nkpoints</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="nbands">
+           <widget class="LineEdit" name="nbands">
             <property name="text">
              <string>20</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="nk_bands">
+           <widget class="LineEdit" name="nk_bands">
             <property name="text">
              <string>100</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_16">
+           <widget class="BodyLabel" name="label_16">
             <property name="text">
              <string>Operator</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QComboBox" name="bands_color">
+           <widget class="ComboBox" name="bands_color">
             <item>
              <property name="text">
               <string>None</string>
@@ -248,7 +248,7 @@
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_bands">
+         <widget class="PushButton" name="show_bands">
           <property name="text">
            <string>Bandstructure</string>
           </property>
@@ -264,56 +264,56 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_4">
           <item row="0" column="1">
-           <widget class="QLineEdit" name="delta_ldos_single">
+           <widget class="LineEdit" name="delta_ldos_single">
             <property name="text">
              <string>0.01</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_9">
+           <widget class="BodyLabel" name="label_9">
             <property name="text">
              <string>Energy</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="nsuper_ldos_single">
+           <widget class="LineEdit" name="nsuper_ldos_single">
             <property name="text">
              <string>3</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_10">
+           <widget class="BodyLabel" name="label_10">
             <property name="text">
              <string>Supercell</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="energy_ldos_single">
+           <widget class="LineEdit" name="energy_ldos_single">
             <property name="text">
              <string>0.0</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_8">
+           <widget class="BodyLabel" name="label_8">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_11">
+           <widget class="BodyLabel" name="label_11">
             <property name="text">
              <string># kpoints</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="nk_ldos_single">
+           <widget class="LineEdit" name="nk_ldos_single">
             <property name="text">
              <string>10</string>
             </property>
@@ -322,7 +322,7 @@
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_ldos_single">
+         <widget class="PushButton" name="show_ldos_single">
           <property name="text">
            <string>Show LDOS</string>
           </property>
@@ -338,7 +338,7 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_18">
           <item row="1" column="1">
-           <widget class="QLineEdit" name="multildos_nk">
+           <widget class="LineEdit" name="multildos_nk">
             <property name="toolTip">
              <string>Number of kpoints used</string>
             </property>
@@ -348,7 +348,7 @@
            </widget>
           </item>
           <item row="4" column="1">
-           <widget class="QLineEdit" name="multildos_delta">
+           <widget class="LineEdit" name="multildos_delta">
             <property name="toolTip">
              <string>Energy smearing</string>
             </property>
@@ -358,28 +358,28 @@
            </widget>
           </item>
           <item row="4" column="0">
-           <widget class="QLabel" name="label_23">
+           <widget class="BodyLabel" name="label_23">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_24">
+           <widget class="BodyLabel" name="label_24">
             <property name="text">
              <string>Energy window</string>
             </property>
            </widget>
           </item>
           <item row="5" column="0" colspan="2">
-           <widget class="QPushButton" name="show_multildos">
+           <widget class="PushButton" name="show_multildos">
             <property name="text">
              <string>Show LDOS</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="multildos_ewindow">
+           <widget class="LineEdit" name="multildos_ewindow">
             <property name="toolTip">
              <string>Energy window</string>
             </property>
@@ -389,21 +389,21 @@
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_25">
+           <widget class="BodyLabel" name="label_25">
             <property name="text">
              <string>Number of kpoints</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_26">
+           <widget class="BodyLabel" name="label_26">
             <property name="text">
              <string>Number of unit cells</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="multildos_nrep">
+           <widget class="LineEdit" name="multildos_nrep">
             <property name="toolTip">
              <string>Number of replicas of the unit cell to plot</string>
             </property>
@@ -413,7 +413,7 @@
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="multildos_numw">
+           <widget class="LineEdit" name="multildos_numw">
             <property name="toolTip">
              <string>Number of wavefunctions computed around E=0 to calculate the LDOS</string>
             </property>
@@ -423,7 +423,7 @@
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_32">
+           <widget class="BodyLabel" name="label_32">
             <property name="text">
              <string>Number of waves</string>
             </property>
@@ -439,7 +439,7 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_12">
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_dos">
+         <widget class="PushButton" name="show_dos">
           <property name="text">
            <string>Show DOS</string>
           </property>
@@ -448,7 +448,7 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_6">
           <item row="0" column="1">
-           <widget class="QLineEdit" name="delta_dos">
+           <widget class="LineEdit" name="delta_dos">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -458,14 +458,14 @@
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_17">
+           <widget class="BodyLabel" name="label_17">
             <property name="text">
              <string># kpoints</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_13">
+           <widget class="BodyLabel" name="label_13">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -475,14 +475,14 @@
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="nk_dos">
+           <widget class="LineEdit" name="nk_dos">
             <property name="text">
              <string>100</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QComboBox" name="mode_dos">
+           <widget class="ComboBox" name="mode_dos">
             <item>
              <property name="text">
               <string>Lowest</string>
@@ -496,21 +496,21 @@
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_14">
+           <widget class="BodyLabel" name="label_14">
             <property name="text">
              <string>Calculation mode</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_15">
+           <widget class="BodyLabel" name="label_15">
             <property name="text">
              <string># of waves for Lowest mode</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="numw_dos">
+           <widget class="LineEdit" name="numw_dos">
             <property name="toolTip">
              <string>Number of wavefunctions used for the calculation of DOS for the Lowest mode. Increase to see a bigger energy window</string>
             </property>
@@ -531,63 +531,63 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_15">
           <item row="2" column="1">
-           <widget class="QLineEdit" name="fs_nk">
+           <widget class="LineEdit" name="fs_nk">
             <property name="text">
              <string>60</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="fs_ewindow">
+           <widget class="LineEdit" name="fs_ewindow">
             <property name="text">
              <string>0.05</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_52">
+           <widget class="BodyLabel" name="label_52">
             <property name="text">
              <string>Number of kpoints</string>
             </property>
            </widget>
           </item>
           <item row="4" column="0" colspan="2">
-           <widget class="QPushButton" name="show_fermi_surface">
+           <widget class="PushButton" name="show_fermi_surface">
             <property name="text">
              <string>Show Fermi surface</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_49">
+           <widget class="BodyLabel" name="label_49">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QLineEdit" name="fs_delta">
+           <widget class="LineEdit" name="fs_delta">
             <property name="text">
              <string>0.0005</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_42">
+           <widget class="BodyLabel" name="label_42">
             <property name="text">
              <string>Energy window</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_22">
+           <widget class="BodyLabel" name="label_22">
             <property name="text">
              <string>Number of waves</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="fs_numw">
+           <widget class="LineEdit" name="fs_numw">
             <property name="text">
              <string>8</string>
             </property>
@@ -605,35 +605,35 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_11">
           <item row="1" column="1">
-           <widget class="QLineEdit" name="delta_kbands">
+           <widget class="LineEdit" name="delta_kbands">
             <property name="text">
              <string>0.01</string>
             </property>
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="QLabel" name="label_29">
+           <widget class="BodyLabel" name="label_29">
             <property name="text">
              <string>Energy window</string>
             </property>
            </widget>
           </item>
           <item row="3" column="1">
-           <widget class="QLineEdit" name="window_kbands">
+           <widget class="LineEdit" name="window_kbands">
             <property name="text">
              <string>0.5</string>
             </property>
            </widget>
           </item>
           <item row="5" column="0">
-           <widget class="QLabel" name="label_31">
+           <widget class="BodyLabel" name="label_31">
             <property name="text">
              <string># vectors</string>
             </property>
            </widget>
           </item>
           <item row="5" column="1">
-           <widget class="QLineEdit" name="nv_kbands">
+           <widget class="LineEdit" name="nv_kbands">
             <property name="toolTip">
              <string>Number of vectors in KPM, increase this number to remove noise</string>
             </property>
@@ -643,49 +643,49 @@
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_27">
+           <widget class="BodyLabel" name="label_27">
             <property name="text">
              <string>Smearing</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QLineEdit" name="ne_kbands">
+           <widget class="LineEdit" name="ne_kbands">
             <property name="text">
              <string>400</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_28">
+           <widget class="BodyLabel" name="label_28">
             <property name="text">
              <string># of energies</string>
             </property>
            </widget>
           </item>
           <item row="4" column="0">
-           <widget class="QLabel" name="label_30">
+           <widget class="BodyLabel" name="label_30">
             <property name="text">
              <string>KPM scale</string>
             </property>
            </widget>
           </item>
           <item row="4" column="1">
-           <widget class="QLineEdit" name="scale_kbands">
+           <widget class="LineEdit" name="scale_kbands">
             <property name="text">
              <string>4.0</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="nk_kbands">
+           <widget class="LineEdit" name="nk_kbands">
             <property name="text">
              <string>100</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_19">
+           <widget class="BodyLabel" name="label_19">
             <property name="text">
              <string># of kpoints</string>
             </property>
@@ -694,7 +694,7 @@
          </layout>
         </item>
         <item row="1" column="0">
-         <widget class="QPushButton" name="show_dosbands">
+         <widget class="PushButton" name="show_dosbands">
           <property name="toolTip">
            <string>This is equivalent to band structure calculation, but it can be applied for very large systems</string>
           </property>
@@ -720,24 +720,24 @@
         <item>
          <layout class="QGridLayout" name="gridLayout_2">
           <item row="0" column="0">
-           <widget class="QLabel" name="label_5">
+           <widget class="BodyLabel" name="label_5">
             <property name="text">
              <string>Cell size</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QLineEdit" name="cell_size">
+           <widget class="LineEdit" name="cell_size">
             <property name="text">
              <string>7</string>
             </property>
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QComboBox" name="multilayer_type"/>
+           <widget class="ComboBox" name="multilayer_type"/>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_33">
+           <widget class="BodyLabel" name="label_33">
             <property name="text">
              <string>Multilayer type</string>
             </property>
@@ -755,7 +755,7 @@
         <item>
          <layout class="QGridLayout" name="gridLayout_27">
           <item row="0" column="0">
-           <widget class="QCheckBox" name="remove_single_bonded">
+           <widget class="CheckBox" name="remove_single_bonded">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -771,14 +771,14 @@
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QCheckBox" name="remove_selected">
+           <widget class="CheckBox" name="remove_selected">
             <property name="text">
              <string>Remove selected atoms</string>
             </property>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QPushButton" name="select_atoms_removal">
+           <widget class="PushButton" name="select_atoms_removal">
             <property name="text">
              <string>Select atoms to remove</string>
             </property>
@@ -793,7 +793,7 @@
     <item row="2" column="0">
      <layout class="QGridLayout" name="gridLayout_7">
       <item row="0" column="1">
-       <widget class="QComboBox" name="use_parallelization">
+       <widget class="ComboBox" name="use_parallelization">
         <item>
          <property name="text">
           <string>Yes</string>
@@ -807,7 +807,7 @@
        </widget>
       </item>
       <item row="0" column="0">
-       <widget class="QLabel" name="label_21">
+       <widget class="BodyLabel" name="label_21">
         <property name="text">
          <string>Parallelization</string>
         </property>
@@ -816,14 +816,14 @@
      </layout>
     </item>
     <item row="3" column="0" colspan="2">
-     <widget class="QPushButton" name="save_results">
+     <widget class="PushButton" name="save_results">
       <property name="text">
        <string>Save results</string>
       </property>
      </widget>
     </item>
     <item row="4" column="0" colspan="2">
-     <widget class="QPushButton" name="load_results">
+     <widget class="PushButton" name="load_results">
       <property name="text">
        <string>Load results</string>
       </property>
@@ -843,6 +843,38 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
- <resources/>
+ <customwidgets>
+ <customwidget>
+  <class>BodyLabel</class>
+  <extends>QLabel</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>CheckBox</class>
+  <extends>QCheckBox</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>ComboBox</class>
+  <extends>QComboBox</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>LineEdit</class>
+  <extends>QLineEdit</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>PushButton</class>
+  <extends>QPushButton</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>RadioButton</class>
+  <extends>QRadioButton</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+</customwidgets>
+<resources/>
  <connections/>
 </ui>

@@ -5,7 +5,8 @@
 # pyvista (optional, only needed for the 3D plotting utilities in utilities/)
 # is installed separately by install.py, best-effort, so a failure there
 # does not block the rest of the install.
-PyQt5
+PySide6
+PySide6-Fluent-Widgets
 numpy
 scipy
 numba

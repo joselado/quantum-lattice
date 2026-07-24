@@ -1,4 +1,5 @@
 from .qlinterface import execute_script
+import os
 import numpy as np
 from pyqula import klist
 from .qh_interface import *
@@ -335,7 +336,7 @@ def select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry"):
 def check_parallel(qtwrap):
   """Check if there is parallelization"""
   if qtwrap.getbox("use_parallelization") =="Yes":
-      parallel.cores = parallel.maxcpu
+      parallel.set_cores(os.cpu_count())
   else: parallel.cores = 1 # single core
 
 

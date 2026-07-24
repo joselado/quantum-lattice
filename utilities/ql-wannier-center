@@ -67,7 +67,7 @@ for i in range(1,len(m)): # loop over waves
 
  
 # now plot the different centers
-fig.set_facecolor("white")
+fig.set_facecolor(plotstyle.BACKGROUND)
 py.plot(x,fermis/np.pi,color=plotstyle.PRIMARY)
 for i in range(1,len(m)):
   y = m[i]

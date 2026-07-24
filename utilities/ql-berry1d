@@ -27,7 +27,7 @@ fig = py.figure()
 currentfig = plt.gcf()
 currentfig.canvas.setWindowTitle('Berry curvature')
 fig.subplots_adjust(0.3,0.2)
-fig.set_facecolor("white") # white face
+fig.set_facecolor(plotstyle.BACKGROUND) # white face
 
 name = args.input
 m = py.genfromtxt(name).transpose() # get the curvature

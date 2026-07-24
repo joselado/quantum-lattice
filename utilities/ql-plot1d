@@ -20,7 +20,7 @@ for i in range(nfiles):
   m = np.genfromtxt(name).transpose()
   x = m[0]
   y = m[1]
-  fig.set_facecolor("white")
+  fig.set_facecolor(plotstyle.BACKGROUND)
   py.plot(x,y,linewidth=3.0,label=name,color=plotstyle.PRIMARY,marker="o")
 #  py.scatter(x,y,label=name,color=plotstyle.PRIMARY,marker="o")
   py.xlim([min(x),max(x)])

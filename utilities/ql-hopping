@@ -15,7 +15,7 @@ plotstyle.apply()
 
 def getfig(main):
   fig = plt.gcf()
-  fig.set_facecolor("white") # white
+  fig.set_facecolor(plotstyle.BACKGROUND) # white
   
   name = args.input # name of the file
   

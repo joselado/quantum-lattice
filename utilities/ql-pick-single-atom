@@ -51,7 +51,7 @@ def onpick(event):
         plt.draw() # draw image
         
 
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 col = ax.scatter(x, y,sorig, corig, picker=True)
 plt.axis("equal")
 fig.canvas.mpl_connect('pick_event', onpick)

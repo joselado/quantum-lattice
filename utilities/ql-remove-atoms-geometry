@@ -14,7 +14,7 @@ remove = False # if have to write in the file to remove
 write = True
 remove = True
 
-m = np.genfromtxt("POSITIONS.OUT").transpose()
+m = np.atleast_2d(np.genfromtxt("POSITIONS.OUT")).transpose()
 x = m[0]
 y = m[1]
 z = m[2]
@@ -56,7 +56,7 @@ def pick_sites(event):
         
 
 fig, ax = plt.subplots()
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 col = ax.scatter(x, y,sorig, corig, picker=True)
 plt.axis("equal")
 fig.canvas.mpl_connect('pick_event', pick_sites)

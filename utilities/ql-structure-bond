@@ -29,7 +29,7 @@ plotstyle.apply()
 fig = plt.figure()
 plt.gcf().canvas.setWindowTitle('Structure')
 
-fig.set_facecolor("white") # white
+fig.set_facecolor(plotstyle.BACKGROUND) # white
 
 name = args.input
 

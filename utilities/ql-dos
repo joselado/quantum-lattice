@@ -92,7 +92,7 @@ def getplot(obj):
       iplot.set_ylim([min(di[abs(ei)<ewin]),max(di[abs(ei)<ewin])])  
       iplot.set_xlabel("Energy [t]")
       iplot.set_ylabel("Integrated $DOS$")
-  fig.set_facecolor('white')
+  fig.set_facecolor(plotstyle.BACKGROUND)
   plt.locator_params(nbins=4)
   return fig
 
