@@ -5,18 +5,35 @@ built from this codebase, targeting `pysrc/pyqula` as the unchanged compute engi
 
 ## Why this can't be a direct port
 
-Three parts of the current stack have no path to Android at all:
+The interface was migrated from PyQt5 to PySide6 (single-process `qfluentwidgets`
+shell, see `CLAUDE.md`), which changes one of these blockers but not the others:
 
-- **PyQt5** has no Android backend.
+- **PySide6** (unlike PyQt5) does have an Android deployment path since Qt 6.5, via
+  `pyside6-android-deploy`/`androiddeployqt` bundling a CPython + Qt-for-Android
+  build into an APK. It's young, fiddly tooling (NDK/SDK pinning, real APK-size and
+  cold-start cost from bundling a Python interpreter), and — more importantly — an
+  app built this way still runs Qt Widgets through Qt's own Android backend, so it
+  reads as "a Python/Qt app that happens to run on Android" rather than genuinely
+  native Compose/Material, the same UX/Play-Store-quality gap that ruled out a
+  Kivy-style port below. So this doesn't change the recommended architecture, but it
+  is no longer a hard "no path at all" like PyQt5 was — worth a throwaway spike if
+  the Chaquopy route (Phase 0 below) stalls.
 - **`numba`** JIT-compiles via `llvmlite`/LLVM, which has no viable Android build.
+  Unaffected by the PySide6 migration.
 - **PyVista/VTK** (used by the `ql-moments`/`ql-magnetism`/`ql-structure3d`/`ql-plot3d`
   utilities) would require cross-compiling VTK for Android — a project of its own.
+  Unaffected by the PySide6 migration.
 
-The app's control flow also assumes a desktop multi-process OS: `system_selection`
-spawns each mode as an independent `Popen` subprocess, and `execute_script()` shells
-out to `ql-*` scripts against `.OUT` files written to a scratch directory. Android is
-one sandboxed process per app, so this handoff pattern has to be replaced, not just
-the widgets.
+The app's control flow used to assume a desktop multi-process OS: `system_selection`
+spawned each mode as an independent `Popen` subprocess/top-level window. That's gone
+— every mode is now a page in one process's `FluentWindow`, switched via
+`qtwrap.set_active()`, which is architecturally much closer to Android's one
+sandboxed process per app than the old design was. What's *unchanged*, and still the
+real blocker Phase 1 below exists to remove, is that a mode's own calculation
+handlers still go through `qlinterface.execute_script()`: writing `.OUT` files to a
+scratch directory and shelling out to a separate `ql-*` matplotlib script to plot
+them. That file/subprocess handoff has no Android equivalent and has to be replaced
+with in-process function calls returning arrays, not just the widgets.
 
 ## Recommended architecture
 
@@ -57,7 +74,7 @@ Do not proceed past this phase until all three spikes pass on a real device/emul
 ## Phase 1 — extract a UI-agnostic compute layer
 
 Pull the physics logic currently smeared across each `<mode>.py` and `common.py` into
-a plain Python package with no PyQt5 imports and no file-based handoff:
+a plain Python package with no PySide6 imports and no file-based handoff:
 
 - `build_geometry(params) -> geometry`
 - `compute_bands(geometry, params) -> arrays`
