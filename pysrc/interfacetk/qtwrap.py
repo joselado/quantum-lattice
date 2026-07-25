@@ -8,12 +8,33 @@
 
 
 
+import os
+
+# Some systems (notably conda envs that also have PyQt5/Qt5 installed
+# alongside PySide6) ship a stray qt.conf next to the Python executable
+# (e.g. <conda-prefix>/bin/qt.conf) that redirects Qt's plugin search path
+# to that other, incompatible Qt install ("Could not find the Qt platform
+# plugin xcb/wayland" even though the plugin files are physically present,
+# because Qt refuses to load a plugin built against a different Qt version).
+# Force PySide6's own bundled plugins to take priority, before QApplication
+# is ever constructed. os.environ.setdefault so an explicit user override
+# of these variables is still respected.
+try:
+    import PySide6 as _PySide6
+    _plugins_dir = os.path.join(os.path.dirname(_PySide6.__file__), "Qt", "plugins")
+    if os.path.isdir(_plugins_dir):
+        os.environ.setdefault("QT_PLUGIN_PATH", _plugins_dir)
+        _platforms_dir = os.path.join(_plugins_dir, "platforms")
+        if os.path.isdir(_platforms_dir):
+            os.environ.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", _platforms_dir)
+except ImportError:
+    pass
+
 from PySide6 import QtWidgets  # Import the PySide6 module we'll need
 from PySide6.QtGui import QPixmap
 #from PySide6.QtCore import Signal
 import sys  # We need sys so that we can pass argv to QApplication
 import numpy as np
-import os
 import time
 import inspect
 import json
