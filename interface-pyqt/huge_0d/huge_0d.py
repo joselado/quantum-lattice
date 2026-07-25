@@ -20,6 +20,11 @@ from interfacetk.qh_interface import * # import all the libraries needed
 import islandbuild
 import handlers
 
+from interfacetk import latticeterms
+latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+                                                         # terms (Haldane,
+                                                         # Kane-Mele, valley)
+                                                         # for other lattices
 
 inipath = os.getcwd() # get the initial directory
 

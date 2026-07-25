@@ -35,6 +35,13 @@ pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=
 cs = specialgeometry.multilayer_codes(n=4)
 qtwrap.set_combobox("lattice",cs=cs)
 
+# note: this mode's "lattice" combobox holds a layer-stacking code (e.g.
+# "ABA"), not a lattice-family name like other modes' - the geometry is
+# always honeycomb-derived regardless of which stacking is picked, so the
+# classifier below is a constant rather than reading that combobox.
+from interfacetk import latticeterms
+latticeterms.connect(qtwrap,lambda: "Honeycomb")
+
 
 STACKING_OFFSETS = {"A": -1, "B": 0, "C": 1}
 

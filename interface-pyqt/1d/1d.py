@@ -27,7 +27,11 @@ modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
 
-
+from interfacetk import latticeterms
+latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+                                                         # terms (Haldane,
+                                                         # Kane-Mele, valley)
+                                                         # for other lattices
 
 
 

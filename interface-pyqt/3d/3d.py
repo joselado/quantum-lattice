@@ -32,6 +32,12 @@ LATTICES = {
   "Hyperhoneycomb": geometry.hyperhoneycomb_lattice,
 }
 
+from interfacetk import latticeterms
+latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+                                                         # terms (Haldane,
+                                                         # Kane-Mele, valley)
+                                                         # for other lattices
+
 def get_geometry():
   """ Create geometry"""
   lattice_name = getbox("lattice") # get the option
