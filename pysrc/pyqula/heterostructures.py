@@ -119,6 +119,12 @@ class Heterostructure():
        """Return selfenergy of iesim lead"""
        from .transporttk.selfenergy import get_selfenergy
        return get_selfenergy(self,energy,**kwargs)
+    def get_selfenergy_batch(self,energies,**kwargs):
+       """Return selfenergy of iesim lead at many energies at once, using
+       a numba prange-parallel Sancho-Rubio iteration (see
+       transporttk/selfenergy.py:get_selfenergy_batch)"""
+       from .transporttk.selfenergy import get_selfenergy_batch
+       return get_selfenergy_batch(self,energies,**kwargs)
     def get_reflection_normal_lead(self,s):
        from .transporttk.builder import get_reflection_normal_lead
        return get_reflection_normal_lead(self,s)
@@ -150,9 +156,39 @@ class Heterostructure():
     def block2full(self,sparse=False):
         """Put in full form"""
         return block2full(self,sparse=sparse)
-    def get_kappa(self,**kwargs):
-        from .transporttk.kappa import get_kappa_ratio
-        return get_kappa_ratio(self,**kwargs)
+    def get_kappa(self,temp=0.,**kwargs):
+        """Kappa (SC/normal conductance power-law ratio). temp=0 (default)
+        keeps the original zero-temperature get_kappa_ratio behavior
+        unchanged; temp!=0 routes through the thermally-averaged
+        get_kappa_finite_temperature_energies instead (see kappa.py),
+        which shares one AAA self-energy interpolant across the whole
+        thermal sweep for whichever branch is superconducting rather than
+        rebuilding it call by call. Accepts the same single-`energy`
+        convention as the zero-temperature path (returning a scalar);
+        pass `energies=[...]` explicitly for the batched multi-energy
+        result instead."""
+        if not temp:
+            from .transporttk.kappa import get_kappa_ratio
+            return get_kappa_ratio(self,**kwargs)
+        from .transporttk.kappa import get_kappa_finite_temperature_energies
+        single = "energies" not in kwargs
+        energy = kwargs.pop("energy",0.0) # always pop: an explicit energy
+        if single:                        # alongside energies must not be
+            kwargs["energies"] = [energy] # forwarded twice further down
+        out = get_kappa_finite_temperature_energies(self,temp=temp,**kwargs)
+        return out[0] if single else out
+    def get_dc_current(self,voltage,**kwargs):
+        """Floquet-Keldysh DC current (MAR/AC-Josephson) at a given bias
+        voltage, following San-Jose, Cayao, Prada, Aguado, NJP 15, 075019
+        (2013) (arXiv:1301.4408). Only supports a heterostructure with no
+        explicit central region (heterostructures.build(h1,h2), the two
+        leads directly weak-linked via set_coupling)"""
+        from .keldysh import dc_current
+        return dc_current(self,voltage,**kwargs)
+    def get_iv_curve(self,voltages,**kwargs):
+        """Floquet-Keldysh I(V) curve, see get_dc_current"""
+        from .keldysh import iv_curve
+        return iv_curve(self,voltages,**kwargs)
   
 
 

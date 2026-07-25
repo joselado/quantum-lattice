@@ -24,6 +24,7 @@ from . import ldos
 from . import bandstructure
 from . import increase_hilbert
 from .meanfield import Vinteraction
+from .meanfield import Vinteraction_kpm
 from .sctk import dvector
 from .algebratk import hamiltonianalgebra
 from .bandstructure import get_bands_nd
@@ -142,6 +143,13 @@ class Hamiltonian():
     def set_multihopping(self,mh):
         """Set a multihopping as the Hamiltonian"""
         multicell.set_multihopping(self,mh)
+
+    def get_wannier_hamiltonian(self,**kwargs):
+        """Wannierize a subset of this Hamiltonian's bands (via wannierpy's
+        pure-Python Wannier90 port) and return a new Hamiltonian in the
+        resulting maximally-localized Wannier basis"""
+        from .wanniertk.wannierize import get_wannier_hamiltonian
+        return get_wannier_hamiltonian(self,**kwargs)
     @get_docstring(spectrum.set_filling)
     def set_filling(self,filling,**kwargs):
         spectrum.set_filling(self,filling=filling,**kwargs)
@@ -199,6 +207,7 @@ class Hamiltonian():
       def f(k=[0.,0.,0.],e=0.0,inv=False):
           hk = hkgen(k) # get matrix
           if canonical_phase: # use a Bloch phase in all the sites
+              if not getattr(self.geometry, "has_fractional", False): self.geometry.get_fractional()
               frac_r = self.geometry.frac_r # fractional coordinates
               # start in zero
               U = np.diag([self.geometry.bloch_phase(k,r) for r in frac_r])
@@ -428,8 +437,22 @@ class Hamiltonian():
         from .multihopping import MultiHopping
         return MultiHopping(self.get_dict())
     @get_docstring(Vinteraction)
-    def get_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
-        scf = Vinteraction(self,**kwargs)
+    def get_mean_field_hamiltonian(self,return_total_energy=False,
+            integration="ed",**kwargs):
+        scf = Vinteraction(self,integration=integration,**kwargs)
+        if not scf.converged: scf.hamiltonian = None # no convergence
+        if return_total_energy:
+            return (scf.hamiltonian,scf.total_energy)
+        else: return scf.hamiltonian
+    @get_docstring(Vinteraction_kpm)
+    def get_mean_field_hamiltonian_kpm(self,return_total_energy=False,**kwargs):
+        """KPM-based (sparse, Chebyshev) alternative to
+        get_mean_field_hamiltonian: instead of diagonalizing the Bloch
+        Hamiltonian H(k) at each k-point, evaluates only the density-matrix
+        elements required by the provided interaction (U, V1, V2, V3, Vr)
+        through Chebyshev recursion on H(k). Meant for large/sparse
+        Hamiltonians; see selfconsistency.densitydensity_kpm."""
+        scf = Vinteraction_kpm(self,**kwargs)
         if not scf.converged: scf.hamiltonian = None # no convergence
         if return_total_energy:
             return (scf.hamiltonian,scf.total_energy)
@@ -503,7 +526,20 @@ class Hamiltonian():
         Add a chiral kekule hopping
         """
         fun = kekule.chiral_kekule(self.geometry,**kwargs)
-        self.add_kekule(fun)
+        # fun already does its own complete bond classification (and,
+        # if a non-default registry= was passed, its own registry
+        # membership check), so go through bond_function_to_matrix
+        # directly rather than add_kekule/kekule_function, which would
+        # independently re-derive and re-apply *their own* (always
+        # default-registry) mask on top -- silently zeroing out every
+        # bond outside the default registry regardless of what fun
+        # itself was built against.
+        fm = kekule.bond_function_to_matrix(fun)
+        if self.dimensionality==0: # zero dimensional
+            m = fm(self.geometry.r,self.geometry.r)
+            self.intra = self.intra + self.spinless2full(m)
+        else: # workaround for higher dimensionality
+            self.add_hopping_matrix(fm) # add the Kekule hopping
   
     def add_modified_haldane(self,t):
         """
@@ -515,9 +551,14 @@ class Hamiltonian():
         Adds an anti Kane-Mele term
         """  
         kanemele.add_anti_kane_mele(self,t) # return anti kane mele SOC
-    def add_antihaldane(self,t): 
+    def add_antihaldane(self,t):
         """Add an anti-Haldane term"""
         self.add_modified_haldane(t) # second name
+    def add_valley_exchange(self,v):
+        """Add a valley-space exchange term v=(vx,vy,vz).(tau_x,tau_y,tau_z),
+        the valley-pseudospin analogue of add_exchange for real spin"""
+        from .operatortk.inplane_valley import add_valley_exchange
+        add_valley_exchange(self,v)
     def add_crystal_field(self,v,**kwargs):
         """Add a crystal field term to the Hamiltonian"""
         from . import crystalfield
@@ -570,8 +611,8 @@ class Hamiltonian():
           ops = [o.get_matrix() for o in ops] # define operators
         return spectrum.ev(self,operator=ops,**kwargs).real
     # for backwards compatibility
-    def compute_vev(self,**kwargs): 
-        return self.get_vev(**kwargs)
+    def compute_vev(self,operator=None,**kwargs):
+        return self.get_vev(operator=operator,**kwargs)
     def get_1dh(self,k=[0.0]):
         """Return a 1d Hamiltonian"""
         if self.is_multicell: # not implemented
@@ -961,7 +1002,6 @@ from .neighbor import generate_parametric_hopping
 
 
 
-from .superconductivity import get_nambu_tauz
 from .superconductivity import project_electrons
 from .superconductivity import project_holes
 from .superconductivity import get_eh_sector_odd_even

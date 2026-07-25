@@ -30,13 +30,15 @@ def get_berry_curvature_path(h,kpath=None,dk=0.01,
     tr = timing.Testimator("BERRY CURVATURE",silent=silent)
     ik = 0
     if operator is not None: mode="Green" # Green function mode
+    if mode=="Green": # build the generator once, not per k-point
+        f = h.get_gk_gen(delta=delta) # get generator
+        def gI(e=0.,k=[0.,0.,0.]): return f(e=e,k=k,inv=True) # exact inverse
     def getb(k):
       if reciprocal:  k = h.geometry.get_k2K_generator()(k) # convert
       if mode=="Wilson":
         b = berry_curvature(h,k,dk=dk,window=window,max_waves=max_waves)
       elif mode=="Green":
-        f = h.get_gk_gen(delta=delta) # get generator
-        b = berry_green(f,k=k,operator=operator) 
+        b = berry_green(f,k=k,operator=operator,gI=gI)
       else: raise
       return str(k[0])+"   "+str(k[1])+"   "+str(b)+"\n"
     fo = open("BERRY_CURVATURE.OUT","w") # open file
@@ -133,12 +135,14 @@ def precise_chern(h,dk=0.01, mode="Wilson",delta=0.0001,operator=None):
     """ Calculates the chern number of a 2d system """
     from scipy import integrate
     err = {"epsabs" : 1.0, "epsrel": 1.0,"limit" : 10}
+    if mode=="Green": # build the generator once, not per (x,y) evaluation
+        f2 = h.get_gk_gen(delta=delta) # get generator
+        def gI2(e=0.,k=[0.,0.,0.]): return f2(e=e,k=k,inv=True) # exact inverse
     def f(x,y): # function to integrate
       if mode=="Wilson":
         return berry_curvature(h,np.array([x,y]),dk=dk)
       elif mode=="Green":
-         f2 = h.get_gk_gen(delta=delta) # get generator
-         return berry_green(f2,k=[x,y,0.],operator=operator) 
+         return berry_green(f2,k=[x,y,0.],operator=operator,gI=gI2)
       else: raise
     c = integrate.dblquad(f,0.,1.,lambda x : 0., lambda x: 1.,epsabs=0.01,
                             epsrel=0.01)
@@ -173,12 +177,14 @@ def mesh_chern(h,dk=-1,nk=10,delta=0.0001,mode="Wilson",
       print("Switching to Green mode in topology")
       mode="Green"
     # create the function
+    if mode=="Green": # build the generator once, not per k-point
+        f2 = h.get_gk_gen(delta=delta) # get generator
+        def gI2(e=0.,k=[0.,0.,0.]): return f2(e=e,k=k,inv=True) # exact inverse
     def fberry(k): # function to integrate
       if mode=="Wilson":
         return berry_curvature(h,k,dk=dk)
       if mode=="Green":
-         f2 = h.get_gk_gen(delta=delta) # get generator
-         return berry_green(f2,k=[k[0],k[1],0.],operator=operator) 
+         return berry_green(f2,k=[k[0],k[1],0.],operator=operator,gI=gI2)
     ##################
     if kmesh is None: # no kmesh provided
         ks = klist.kmesh(h.dimensionality,nk=nk) # get the mesh
@@ -199,6 +205,43 @@ def mesh_chern(h,dk=-1,nk=10,delta=0.0001,mode="Wilson",
     else: # kmesh is given
         den = klist.infer_kmesh_density(kmesh,d=2) # infer the volume
         c = den*c/(2.*np.pi) # normalize
+    open("CHERN.OUT","w").write(str(c)+"\n")
+    return c
+
+
+def chern_qtci(h,mode="Wilson",delta=0.0001,dk=-1,operator=None,
+        nk=20,tolerance=1e-6,**kwargs):
+    """Compute the Chern number of a 2D system by integrating the Berry
+    curvature over the BZ with qutecipy, instead of summing it over a
+    k-point mesh (see mesh_chern). qutecipy approximates the integrand as
+    a low-rank tensor train (tensor cross interpolation) and folds a
+    Gauss-Kronrod quadrature rule into it, so the sampling adaptively
+    concentrates where the Berry curvature is largest (e.g. near a small
+    gap) rather than needing a uniformly dense mesh.
+
+    nk sets the resolution of that underlying quadrature mesh (mirroring
+    the nk k-point-mesh density used elsewhere in this module). Because the
+    Gauss-Kronrod/TCI quadrature converges spectrally (each extra order
+    roughly doubles the number of accurate digits, much like each extra
+    quantics bit doubles a grid's resolution), matching the accuracy of an
+    nk-point mesh only takes a Gauss-Kronrod order growing logarithmically
+    with nk, not linearly: GKorder=4*bits+1 with bits=ceil(log2(nk)). If dk
+    is not given explicitly it also sets the Wilson-loop plaquette size
+    dk=1/(2*nk)."""
+    from .qtcitk.gkintegrate import gkorder_from_nk, integrate_robust
+    if dk<0: dk = 1./float(2*nk) # automatic dk, tied to the quadrature resolution
+    GKorder = gkorder_from_nk(nk)
+    if operator is not None and mode=="Wilson":
+        mode = "Green" # operator-resolved curvature needs Green's function mode
+    if mode=="Green": # Green's function generator, built once
+        fgk = h.get_gk_gen(delta=delta)
+        def gI(e=0.,k=[0.,0.,0.]): return fgk(e=e,k=k,inv=True) # exact inverse
+    def f(k):
+        if mode=="Wilson": return berry_curvature(h,k,dk=dk)
+        elif mode=="Green": return berry_green(fgk,k=[k[0],k[1],0.],operator=operator,gI=gI)
+        else: raise
+    c = integrate_robust(np.float64,f,GKorder,tolerance,**kwargs)
+    c = c/(2.*np.pi) # normalize so that the integral gives an integer
     open("CHERN.OUT","w").write(str(c)+"\n")
     return c
 
@@ -241,17 +284,19 @@ def get_berry_curvature_master(h,dk=None,nk=100,
     ik = 0
     from . import parallel
     if verbose>0: tr = timing.Testimator("BERRY CURVATURE",maxite=len(ks))
+    if mode=="Green": # build the generator once, not per k-point
+        f = h.get_gk_gen(delta=delta) # get generator
+        def gI(e=0.,k=[0.,0.,0.]): return f(e=e,k=k,inv=True) # exact inverse
     def fp(ki): # function to compute the Berry curvature
-        if parallel.cores == 1: 
+        if parallel.cores == 1:
             if verbose>0: tr.iterate()
-        else: 
+        else:
             if verbose>0:  print("Doing",ki)
         k = R@ki # change of basis
         if mode=="Wilson":
            b = berry_curvature(h,k,dk=dk,window=window,max_waves=max_waves)
         elif mode=="Green":
-           f = h.get_gk_gen(delta=delta) # get generator
-           b = berry_green(f,k=k,operator=operator) 
+           b = berry_green(f,k=k,operator=operator,gI=gI)
         else: raise
         return b
     bs = parallel.pcall(fp,ks) # compute all the Berry curvatures
@@ -316,11 +361,19 @@ def z2_invariant(h,nk=60,nt=60,nocc=None):
 
 
 
-def chern(h,**kwargs):
-    """Compute Chern invariant"""
+def chern(h,integration="grid",**kwargs):
+    """Compute Chern invariant.
+
+    integration: "grid" (default) sums the Berry curvature over a fixed
+    k-point mesh, see mesh_chern. "qtci" instead integrates the Berry
+    curvature over the BZ using qutecipy (tensor cross interpolation +
+    Gauss-Kronrod quadrature), see chern_qtci, adaptively refining the
+    sampling instead of relying on a fixed mesh density.
+    """
+    if integration=="qtci": return chern_qtci(h,**kwargs)
     return mesh_chern(h,**kwargs) # workaround
     # the wannier winding does not work
-    c = wannier_winding(h,full=True,**kwargs) 
+    c = wannier_winding(h,full=True,**kwargs)
     open("CHERN.OUT","w").write(str(c))
     return c
 
@@ -556,8 +609,8 @@ def chern_density(h,nk=10,operator=None,delta=0.02,dk=0.02,
   out = parallel.pcall(fp,ks) # compute everything
   for o in out: cs += o # add contributions
   cs = cs/(len(ks)*np.pi*2) # normalize
-  from scipy.integrate import cumtrapz
-  csi = cumtrapz(cs,x=es,initial=0) # integrate
+  from scipy.integrate import cumulative_trapezoid
+  csi = cumulative_trapezoid(cs,x=es,initial=0) # integrate
   if write:
       np.savetxt("CHERN_DENSITY.OUT",np.matrix([es,cs]).T)
       np.savetxt("CHERN_DENSITY_INTEGRATED.OUT",np.matrix([es,csi]).T)

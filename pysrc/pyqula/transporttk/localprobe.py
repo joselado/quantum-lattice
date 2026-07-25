@@ -16,7 +16,22 @@ class LocalProbe():
     def __init__(self,h,lead=None,delta=1e-5,i=0,T=1.0,**kwargs):
         h = h.get_dense() # dense Hamiltonian
         self.H = h.copy() # store Hamiltonian
+        # Precompute the non-multicell form once, when valid (nearest-
+        # neighbor or shorter hopping only -- the same precondition
+        # bloch_selfenergy itself uses before ever calling
+        # get_no_multicell()), instead of leaving every later self-energy
+        # call (bloch_selfenergy's per-energy sideband sweep in
+        # keldyshtk/current.py's Floquet-Keldysh dc_current) to redo that
+        # (expensive, deepcopy-based) conversion from scratch against an
+        # unchanging Hamiltonian. Mirrors the identical precomputation
+        # already done for the probe lead below. For longer-range hopping,
+        # bloch_selfenergy takes a different code path that never calls
+        # get_no_multicell(), so there's nothing to precompute there.
+        from ..htk.kchain import detect_longest_hopping
+        if self.H.is_multicell and detect_longest_hopping(self.H)<=1:
+            self.H = self.H.get_no_multicell()
         self.has_eh = self.H.has_eh # electron-hole
+        self.dimensionality = 1 # probe-to-single-site coupling, always 1D
         self.delta = delta
         self.mode = "bulk"
         self.reuse_gf = False # reuse the Green's function
@@ -47,47 +62,94 @@ class LocalProbe():
     def get_reflection_normal_lead(self,s):
         return get_reflection_normal_lead(self,s)
     def didv(self,T=None,**kwargs):
-        from .didv import didv
-        return didv(self,**kwargs)
+        """Differential conductance. Routed through generic_didv (as
+        Heterostructure.didv already is) rather than calling the bare
+        method-selecting didv() directly, so that a `temp` kwarg here
+        actually reaches transporttk.thermaldidv.finite_T_didv instead of
+        being silently forwarded into a method (smatrix/keldysh) that
+        never looks at it -- at temp=0 (the default) this reduces to
+        exactly the previous zero_T_didv_1D(self,...)->didv(self,...) call
+        chain, so existing zero-temperature behavior is unchanged."""
+        from .didv import generic_didv
+        return generic_didv(self,**kwargs)
+    def get_dc_current(self,voltage,**kwargs):
+        """Floquet-Keldysh DC current at bias `voltage` between the probe
+        and the sample site it couples to, see
+        Heterostructure.get_dc_current and keldyshtk/current.py. Only
+        meaningful (and only exact) when the probe lead is itself
+        superconducting -- see didv(method="keldysh")."""
+        from ..keldyshtk.current import dc_current
+        return dc_current(self,voltage,**kwargs)
+    def get_iv_curve(self,voltages,**kwargs):
+        """Floquet-Keldysh I(V) curve, see get_dc_current"""
+        from ..keldyshtk.current import iv_curve
+        return iv_curve(self,voltages,**kwargs)
     def copy(self): return deepcopy(self)
     def set_coupling(self,c):
         self.T = c # set the coupling
     def remove_pairing(self):
         self.H.remove_pairing()
         self.lead.remove_pairing()
-    def get_kappa(self,T=None,**kwargs):
-        from .kappa import get_kappa_ratio
-        if T is None: T = self.T 
-        return get_kappa_ratio(self,T=T,**kwargs)
+    def get_kappa(self,T=None,temp=0.,**kwargs):
+        """Kappa (SC/normal conductance power-law ratio). temp=0 (default)
+        keeps the original zero-temperature get_kappa_ratio behavior
+        unchanged; temp!=0 routes through the thermally-averaged
+        get_kappa_finite_temperature_energies instead (see
+        Heterostructure.get_kappa's docstring for the same dispatch)."""
+        if T is None: T = self.T
+        if not temp:
+            from .kappa import get_kappa_ratio
+            return get_kappa_ratio(self,T=T,**kwargs)
+        from .kappa import get_kappa_finite_temperature_energies
+        single = "energies" not in kwargs
+        energy = kwargs.pop("energy",0.0) # always pop: an explicit energy
+        if single:                        # alongside energies must not be
+            kwargs["energies"] = [energy] # forwarded twice further down
+        out = get_kappa_finite_temperature_energies(self,T=T,temp=temp,**kwargs)
+        return out[0] if single else out
     def get_dos(self,**kwargs):
         return get_dos_bulk(self,**kwargs)
 
 
 
 
-def generate_gf(self,energy=0.0,**kwargs):
+def generate_gf(self,energy=0.0,numba=None,**kwargs):
     """Generate the specific Green's function"""
-    mode = self.mode 
+    mode = self.mode
     # just a trick to reuse the GF if needed
-    if self.reuse_gf and self.gf is not None: return self.gf 
+    if self.reuse_gf and self.gf is not None: return self.gf
     else:
+        # forward `numba` down to bloch_selfenergy's Sancho-Rubio call (see
+        # lead_selfenergy above for why: keldyshtk/current.py's
+        # _cached_selfenergy passes numba=True to route the many thousands
+        # of per-sideband calls in a Keldysh dc_current through the
+        # compiled kernel instead of the slow pure-Python default)
         gf = self.H.get_gf(energy=energy,delta=self.bulk_delta,
                              mode=gfmode,
-                             gtype=mode)
+                             gtype=mode,
+                             numba=numba)
         if self.reuse_gf: self.gf = gf # overwrite
         return gf
 
 
-def lead_selfenergy(self,energy=0.0,**kwargs):
+def lead_selfenergy(self,energy=0.0,numba=None,**kwargs):
      """Return the selfenergy of the lead"""
      if self.frozen_lead: energy = 0.0 # set as zero energy
      delta = self.delta
      intra = self.lead.intra
      inter = dagger(self.lead.inter)
      cou = inter
+     # forward `numba` to the Sancho-Rubio iteration: callers like
+     # keldyshtk/current.py's _cached_selfenergy pass numba=True to route
+     # through the compiled kernel (greentk.rg.green_renormalization_jit)
+     # for a hot loop that recomputes this selfenergy many thousands of
+     # times per dc_current call -- dropping it here (it used to land in
+     # the swallowed **kwargs) silently forced the slow pure-Python path
+     # every time regardless of what the caller asked for.
      ggg,g = green_renormalization(intra,inter,
                                      energy=energy,
-                                     delta=delta)
+                                     delta=delta,
+                                     numba=numba)
      sigma = cou@g@dagger(cou) # selfenergy
      return sigma
 
@@ -156,7 +218,7 @@ def get_intra(H):
     depending on its type"""
     from ..hamiltonians import Hamiltonian
     from ..embedding import Embedding
-    if type(H)==Hamiltonian: return H.intra
+    if isinstance(H, Hamiltonian): return H.intra
     elif type(H)==Embedding: return H.m
     else: raise
 

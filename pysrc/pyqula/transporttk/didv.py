@@ -18,9 +18,9 @@ def zero_T_didv(self,delta=None,**kwargs):
     """Zero temperature dIdV"""
     if delta is None: delta = self.delta # set the own delta
     if self.dimensionality==1: # one dimensional
-        return zero_T_didv_1D(self,**kwargs)
+        return zero_T_didv_1D(self,delta=delta,**kwargs)
     elif self.dimensionality==2: # two dimensional
-        return zero_T_didv_2D(self,**kwargs)
+        return zero_T_didv_2D(self,delta=delta,**kwargs)
     else: raise
 
 
@@ -68,8 +68,147 @@ dagger = algebra.dagger
 
 
 
-def didv(ht,energy=0.0,delta=1e-6,kwant=False,opl=None,opr=None,**kwargs):
-    """Calculate differential conductance"""
+def _lead_is_superconducting(h):
+    """Whether a lead Hamiltonian carries an actual (nonzero) pairing
+    amplitude -- as opposed to merely being written in the Nambu basis
+    with zero pairing, e.g. via turn_nambu())."""
+    if h is None or not getattr(h,"has_eh",False): return False
+    return not h.get_anomalous_hamiltonian().is_zero()
+
+
+def _is_localprobe(ht):
+    from .localprobe import LocalProbe
+    return isinstance(ht,LocalProbe)
+
+
+def _both_leads_superconducting(ht):
+    """Whether `ht` is a two-lead heterostructure (Heterostructure.Hl/Hr
+    set by heterostructures.build) with both leads superconducting, or a
+    LocalProbe whose probe (`ht.lead`) and sample (`ht.H`) are both
+    superconducting -- the case where the Floquet-Keldysh formalism
+    applies."""
+    if _is_localprobe(ht):
+        return _lead_is_superconducting(ht.lead) and _lead_is_superconducting(ht.H)
+    if not (hasattr(ht,"Hl") and hasattr(ht,"Hr")): return False
+    return _lead_is_superconducting(ht.Hl) and _lead_is_superconducting(ht.Hr)
+
+
+def keldysh_didv(ht,voltage=0.0,delta=1e-6,dv=None,use_qtci=False,
+                  use_aaa=True,**kwargs):
+    """Zero/finite-bias differential conductance dI/dV at bias `voltage`,
+    obtained as a central finite-difference derivative of the
+    Floquet-Keldysh DC current (Heterostructure.get_dc_current), see
+    keldyshtk/current.py and San-Jose, Cayao, Prada, Aguado, NJP 15, 075019
+    (2013). Supported for two-lead heterostructures with no explicit
+    central region (heterostructures.build(h1,h2)), and for a LocalProbe
+    (transporttk.localprobe.LocalProbe) whose probe lead is itself
+    superconducting -- the probe and the sample site it couples to play
+    the role of the two leads.
+
+    `use_aaa=True` (default) builds one aaatk.selfenergy_aaa.SelfenergyAAA
+    interpolant per lead (see keldyshtk.current.build_selfenergy_aaa) once
+    here, covering both voltage+dv and voltage-dv's sideband window, and
+    shares it between the Ip and Im dc_current calls below instead of
+    each independently building (and discarding) its own -- unlike the
+    quantics/qtci approach below, this one measurably pays off (see
+    aaatk/selfenergy_aaa.py's module docstring for the measured net
+    effect -- modest for a cheap-per-solve target, substantially larger
+    for an expensive-per-solve one), which is why it is the default. If
+    the interpolant doesn't converge within its (deliberately
+    modest, single-sweep-sized) budget -- possible for a wide sideband
+    window packing many Andreev/MAR resonances into the interpolated
+    range -- this falls back to letting each dc_current call build (or
+    skip) its own default instead of forcing a possibly-losing shared fit
+    (see dc_current's own selfenergy_method="aaa" docstring).
+
+    `use_qtci=True` instead builds a qtcitk.selfenergy_qtci.SelfenergyQTCI
+    interpolant the same way (overrides `use_aaa`). Kept for comparison/
+    debugging only -- measured NOT to help for a LocalProbe's Sancho-Rubio
+    self-energy (see qtcitk.selfenergy_qtci's module docstring for the
+    benchmark)."""
+    from ..keldyshtk.current import (dc_current, build_selfenergy_qtci,
+                                      build_selfenergy_aaa)
+    if dv is None: dv = max(abs(voltage)*1e-2,1e-3)
+    # Only auto-build a shared interpolant if the caller hasn't already
+    # passed their own selfenergy_qtci -- otherwise this would silently
+    # discard it in favor of a freshly built one every time, defeating the
+    # explicit-override escape hatch documented above and in dc_current.
+    if "selfenergy_qtci" not in kwargs:
+        if use_qtci:
+            nmax_max = kwargs.get("nmax_max", 40)
+            kwargs["selfenergy_qtci"] = build_selfenergy_qtci(
+                    ht, abs(voltage)+dv, nmax_max, delta=delta)
+        elif use_aaa:
+            nmax_max = kwargs.get("nmax_max", 40)
+            shared = build_selfenergy_aaa(ht, abs(voltage)+dv, nmax_max, delta=delta)
+            if all(s.converged for s in shared.values()):
+                kwargs["selfenergy_qtci"] = shared
+    Ip = dc_current(ht,voltage+dv,delta=delta,**kwargs)
+    Im = dc_current(ht,voltage-dv,delta=delta,**kwargs)
+    return (Ip-Im)/(2*dv)
+
+
+def didv(ht,energy=0.0,delta=1e-6,kwant=False,opl=None,opr=None,
+         method="auto",**kwargs):
+    """Calculate differential conductance.
+
+    `method` selects the transport formalism used:
+      - "smatrix": zero-temperature scattering-matrix (Landauer/BTK)
+        conductance (the BdG smatrix formula is used automatically when
+        `ht.has_eh` is True). For a LocalProbe this evaluates the probe's
+        self-energy frozen at absolute energy 0 (a grounded, wide-band
+        tip) and drops the entire bias across the sample only.
+      - "keldysh": Floquet-Keldysh dI/dV, see `keldysh_didv`. Only valid
+        for a two-lead heterostructure with no explicit central region and
+        both leads superconducting, or a LocalProbe with a superconducting
+        probe and sample.
+      - "auto" (default): "keldysh" if both leads of `ht` are
+        superconducting, otherwise "smatrix" -- this matches the physical
+        case each method is built for (Keldysh MAR/Josephson physics needs
+        two superconducting leads; a single/no superconducting lead is
+        already handled exactly by the smatrix formula).
+
+    For a LocalProbe, forcing method="keldysh" where "auto" would pick
+    "smatrix" (i.e. a normal, or negligibly-paired, probe lead) *is*
+    consistent with the "smatrix" result: keldyshtk.current.
+    _prepare_bias_target grounds a normal probe (freezes its self-energy
+    at absolute energy 0, matching "smatrix"'s own convention for it)
+    specifically so the two methods agree there. This is a wide-band-lead
+    approximation, exact only in that limit -- for a probe with genuine
+    band structure over the relevant bias window (e.g. a plain 1D chain,
+    not literally wide-band) expect a residual of a few percent, not
+    perfect agreement (see the tolerance discussion in
+    tests/keldysh/test_localprobe_keldysh.py's
+    test_localprobe_normal_junction_matches_static_bias_reference).
+
+    Do NOT extend that expectation to a two-lead Heterostructure or to a
+    LocalProbe whose probe genuinely is superconducting: `dc_current`
+    there evaluates the probe's self-energy at each Floquet sideband's
+    actual (non-frozen) energy -- letting it float with the bias like a
+    second, comparable electrode is required for correct AC-Josephson/MAR
+    physics through the probe's own gap (grounding it instead pins every
+    evaluation at that gap's center, confirmed to suppress the current by
+    over an order of magnitude for examples/transport/
+    decay_constant_keldysh's parameters) and for a Heterostructure's
+    validated normal-normal rigid-bias reduction (tests/keldysh/
+    test_normal_junction_gauge_invariance.py). Forcing method="keldysh"
+    there where "auto" would pick "smatrix" computes a genuinely
+    different bias convention (confirmed to disagree by a non-vanishing
+    O(1) factor, e.g. ratio 1.18-1.24 well above the gap, as the extra
+    lead's pairing amplitude is taken to zero), not an approximation of
+    it -- and forced sub-gap comparisons are further complicated by a
+    real physical (not numerical) effect: any nonzero pairing, however
+    small, opens a hard gap exactly at the Fermi level, which
+    `dc_current`'s quasienergy integral always samples (it starts at 0),
+    so its zero-pairing limit there does not equal the exactly-normal
+    self-energy either."""
+    if method=="auto":
+        method = "keldysh" if _both_leads_superconducting(ht) else "smatrix"
+    if method=="keldysh":
+        return keldysh_didv(ht,voltage=energy,delta=delta,**kwargs)
+    elif method!="smatrix":
+        raise ValueError("Unknown didv method '"+str(method)+"', expected"
+                          " 'auto', 'smatrix' or 'keldysh'")
     if ht.has_eh: # for systems with electons and holes
         return didv_BdG(ht,energy=energy,delta=delta,**kwargs)
     else:

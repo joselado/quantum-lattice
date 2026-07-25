@@ -137,13 +137,35 @@ def set_hoppings(h,hop):
     """Add the hoppings to the Hamiltonian"""
     h.set_multihopping(MultiHopping(hop))
 
-def get_dm(h,v,nk=1,**kwargs):
-    """Get the density matrix"""
-    ds = [(0,0,0)] # directions
+def get_dm(h,v,nk=None,integration="ed",tolerance=1e-6,**kwargs):
+    """Get the density matrix.
+
+    integration: "ed" (default) computes it by exact diagonalization on a
+    k-mesh (h.get_density_matrix), with nk defaulting to 1 if not given.
+    "qtci" instead integrates each required entry over the BZ with
+    qutecipy (tensor cross interpolation), see
+    qtcitk.densitymatrix_qtci.get_dm_qtci -- same {direction: matrix}
+    return contract, so it is a drop-in replacement in the SCF loop below
+    (selfconsistency.densitydensity.generic_densitydensity); nk defaults
+    to get_dm_qtci's own DEFAULT_NK if not given (nk=None is forwarded
+    through rather than substituting a different, ED-only default here).
+    tolerance only applies to (and is only forwarded for) "qtci"; the "ed"
+    path never sees it, so nothing needs to know which kwargs are safe for
+    which backend other than this function itself."""
+    if integration=="qtci":
+        from ..qtcitk.densitymatrix_qtci import get_dm_qtci
+        return get_dm_qtci(h,v,nk=nk,tolerance=tolerance,**kwargs)
+    elif integration=="ed":
+        if nk is None: nk = 1
+        ds = [(0,0,0)] # directions
 #    if h.dimensionality>0:
-    for key in v: ds.append(key) # store the vector
-    dms = h.get_density_matrix(ds=ds,nk=nk,**kwargs) # get all the density matrices
-    return dms # return dictionary
+        for key in v: ds.append(key) # store the vector
+        dms = h.get_density_matrix(ds=ds,nk=nk,**kwargs) # get all the density matrices
+        return dms # return dictionary
+    else:
+        raise ValueError("integration must be 'ed' or 'qtci', got %r -- "
+                "unrecognized values used to silently fall back to 'ed' "
+                "with no warning"%(integration,))
 
 
 
@@ -260,6 +282,8 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
         compute_anomalous=True,compute_normal=True,info=False,
         maxite=None,
         T=1e-7, # temperature
+        integration="ed", # "ed" (exact diagonalization) or "qtci"
+        tolerance=1e-6, # qtci-only: crossinterpolate2 convergence tolerance
         callback_h=None,**kwargs):
     """Perform the SCF mean field"""
     if verbose>1: info=True
@@ -295,7 +319,9 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
       if callback_h is not None:
           h = callback_h(h) # callback for the Hamiltonian
       t0 = time.perf_counter() # time
-      dm = get_dm(h,v,nk=nk,T=T) # get the density matrix
+      # get_dm itself decides which kwargs (e.g. tolerance) are safe to
+      # forward to which backend, so this call never needs to know that
+      dm = get_dm(h,v,nk=nk,T=T,integration=integration,tolerance=tolerance)
       if callback_dm is not None:
           dm = callback_dm(dm) # callback for the density matrix
       t1 = time.perf_counter() # time
@@ -416,9 +442,13 @@ def get_array2mf(scf):
     return fa2mf # return function
 
 
-def densitydensity(h,filling=0.5,mu=None,verbose=0,**kwargs):
+def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
     """Function for density-density interactions"""
-    if h.has_eh: 
+    if use_jax:
+        from .densitydensity_jax import densitydensity_jax
+        return densitydensity_jax(h,filling=filling,mu=mu,verbose=verbose,
+                **kwargs)
+    if h.has_eh:
         if not h.has_spin: return NotImplemented # only for spinful
     h = h.get_multicell()
     h = h.get_dense()
@@ -467,11 +497,13 @@ def hubbard(h,U=1.0,constrains=[],**kwargs):
       for i in range(n): zero[i,i] = U[i] # Hubbard interaction
     v = dict() # dictionary
     v[(0,0,0)] = zero 
-    from . import mfconstrains
-    def callback_mf(mf):
-        """Put the constrains in the mean field if necessary"""
-        mf = mfconstrains.enforce_constrains(mf,h,constrains)
-        return mf
+    callback_mf = None
+    if constrains:
+        from . import mfconstrains
+        def callback_mf(mf):
+            """Put the constrains in the mean field if necessary"""
+            mf = mfconstrains.enforce_constrains(mf,h,constrains)
+            return mf
     if h.has_spin:
       return densitydensity(h,v=v,callback_mf=callback_mf,**kwargs)
     else:
@@ -485,6 +517,29 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
     - U, local Hubbard interaction
     - V1, first neighbor interaction
     - V2, second neighbor interaction
+
+    integration: "ed" (default) computes the density matrix at each SCF
+    step by exact diagonalization on a k-mesh. "qtci" instead integrates
+    each required density-matrix entry over the BZ with qutecipy (tensor
+    cross interpolation) -- see selfconsistency.densitydensity.get_dm and
+    qtcitk.densitymatrix_qtci.get_dm_qtci; only 2D Hamiltonians are
+    supported for "qtci".
+
+    WARNING: if the SCF loop does not converge (e.g. maxite reached before
+    maxerror is met), the returned Hamiltonian is None, but the returned
+    total_energy is still whatever value was reached at that point, NOT
+    necessarily a meaningful self-consistent energy - this applies to
+    get_mean_field_hamiltonian(return_total_energy=True) too. Always check
+    the SCF object's .converged attribute (or that the returned Hamiltonian
+    is not None) before trusting total_energy; do not assume a returned
+    number is correct just because no exception was raised. This is easy to
+    miss with solver="newton"/"fsolve"/"newton_krylov" (use_jax=True):
+    those can stop after zero completed iterations if the very first
+    Newton/GMRES step fails to find an improving direction (e.g. an
+    unbiased spinful Hamiltonian with an unbroken continuous spin-rotation
+    symmetry, which leaves the Jacobian singular along that direction), in
+    which case the reported total_energy is essentially just the unmodified
+    initial guess evaluated once, not a converged answer.
     """
     h = h.get_multicell() # multicell Hamiltonian
     h = h.get_dense()
@@ -515,11 +570,13 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
             v[(0,0,0)][2*i,2*i+1] += U[i]/2. # add
             v[(0,0,0)][2*i+1,2*i] += U[i]/2. # add
     # Now put the constrains if necessary
-    from . import mfconstrains
-    def callback_mf(mf):
-        """Put the constrains in the mean field if necessary"""
-        mf = mfconstrains.enforce_constrains(mf,h,constrains)
-        return mf
+    callback_mf = None
+    if constrains:
+        from . import mfconstrains
+        def callback_mf(mf):
+            """Put the constrains in the mean field if necessary"""
+            mf = mfconstrains.enforce_constrains(mf,h,constrains)
+            return mf
     return densitydensity(h,v=v,callback_mf=callback_mf,**kwargs)
 
 

@@ -390,6 +390,7 @@ def square_zigzag_ribbon(npairs):
   g = Geometry() # create geometry class
   g.x = x  # add to the x atribute
   g.y = y  # add to the y atribute
+  g.z = y*0.0  # add to the z atribute
   g.celldis = s2 # add distance to the nearest cell
   g.xyz2r() # create r coordinates
   g.dimensionality = 1
@@ -677,10 +678,10 @@ def cubic_lattice():
   Creates a cubic lattice
   """
   g = Geometry() # create geometry
-  g.r = [np.array([0.,0.,0.])]
-  g.x = [0.0]
-  g.y = [0.0]
-  g.z = [0.0]
+  g.r = np.array([[0.,0.,0.]])
+  g.x = np.array([0.0])
+  g.y = np.array([0.0])
+  g.z = np.array([0.0])
   g.a1 = np.array([1.,0.,0.]) # first lattice vector
   g.a2 = np.array([0.,1.,0.]) # second lattice vector
   g.a3 = np.array([0.,0.,1.]) # second lattice vector
@@ -926,16 +927,21 @@ def remove_duplicated(g):
 
 
 def remove_duplicated_positions(r):
-  rs = []
+  r = np.array(r) # as array
+  if len(r)==0: return np.zeros((0,3))
+  rs = np.empty(r.shape) # upper bound on the number of kept atoms
+  nkept = 0 # number of atoms kept so far
   for ir in r: # loop over atoms
-     store = True # store this atom
-     for jr in rs: # loop over stored
-       dr = ir-jr
-       dr = dr.dot(dr) # distance
-       if dr<0.01: store = False
+     if nkept==0: store = True # nothing stored yet
+     else: # compare against every already-kept atom at once instead of
+       # a per-pair python loop (this used to be O(natoms^2) with a
+       # python-level distance computation on every pair)
+       dr = rs[:nkept]-ir
+       store = not np.any(np.sum(dr*dr,axis=1)<0.01)
      if store: # store this atom
-       rs.append(ir.copy())
-  return np.array(rs) # return unrepeated atoms
+       rs[nkept] = ir
+       nkept += 1
+  return rs[:nkept].copy() # return unrepeated atoms
 
 
 

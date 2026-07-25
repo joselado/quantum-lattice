@@ -2,9 +2,7 @@ from __future__ import print_function
 from . import geometry
 from copy import deepcopy
 from . import algebra
-from numba import jit
 import numpy as np
-from . import algebra
 
 
 try: 
@@ -15,13 +13,13 @@ except: use_fortran = False
 
 def remove(g,l):
   """ Remove certain atoms from the geometry"""
-  nr = len(l) # number of removed atoms
+  lset = set(l) # membership test below is O(1) against a set, O(len(l)) against a list
   go = g.copy() # copy the geometry
   xo = [] # copy the list
   yo = [] # copy the list
   zo = [] # copy the list
   for i in range(len(g.x)):
-    if not i in l:
+    if not i in lset:
       xo.append(g.x[i])
       yo.append(g.y[i])
       zo.append(g.z[i])
@@ -29,11 +27,16 @@ def remove(g,l):
   go.y = np.array(yo)
   go.z = np.array(zo)
   go.xyz2r() # update the revectors
+  go.has_fractional = False # site count changed, stale cached frac_r no longer valid
+  if hasattr(go, "frac_r"): del go.frac_r # don't leave a wrong-length array for
+  # code that reads frac_r directly without checking has_fractional first
+  # (see wanniertk/wannierize.py's _particle_hole_operator for a real bug
+  # this caused)
   ##### if has sublattice ####
   if g.has_sublattice: # if has sublattice, keep the indexes
     ab = [] # initialize
     for i in range(len(g.x)):
-      if not i in l:
+      if not i in lset:
         ab.append(g.sublattice[i]) # keep the index
     go.sublattice = ab # store the keeped atoms
   return go
@@ -52,6 +55,8 @@ def remove_sites(g,store):
   store = np.array(store,dtype=int) # store
   gout.r = g.r[store==1]
   gout.r2xyz() # update r
+  gout.has_fractional = False # site count changed, stale cached frac_r no longer valid
+  if hasattr(gout, "frac_r"): del gout.frac_r # see remove()'s matching comment above
   if gout.has_sublattice: # if has sublattice, keep the indexes
     gout.sublattice = np.array(g.sublattice)[store==1]
   return gout
@@ -138,14 +143,17 @@ def remove_unibonded(g,d=1.0,tol=0.01,use_fortran=use_fortran,iterative=False):
       if not retain[i]: sb.append(i) # remove
     gout = remove(g,sb) # remove those atoms
   else: # use python routine
-    for i in range(len(g.r)): 
+    # precompute every direction's replicas once (this used to be redone
+    # from scratch inside the loop over i, turning what should be a single
+    # O(natoms) pass into an O(natoms^2) one) and count neighbors with
+    # numpy broadcasting instead of a per-atom python loop
+    replicas = [g.replicas(d=direc) for direc in g.neighbor_directions()]
+    for i in range(len(g.r)):
       r1 = g.r[i] # first position
       nb = 0 # initialize
-      for direc in g.neighbor_directions(): # loop over directions
-        for r2 in g.replicas(d=direc): # loop over replicas
-          dr = r1-r2
-          if d-tol < dr.dot(dr) < d+tol: # if first neighbor
-            nb += 1 # increase counter
+      for r2 in replicas: # loop over directions
+        dr2 = np.sum((r1-r2)**2,axis=1) # squared distances to this direction's replicas
+        nb += np.count_nonzero((d-tol < dr2) & (dr2 < d+tol)) # first neighbors
       if nb<2:
         sb.append(i+0) # add to the list
     gout = remove(g,sb) # remove those atoms
@@ -361,6 +369,8 @@ def add(g1,g2):
   g.y = np.concatenate([g1.y,g2.y])
   g.z = np.concatenate([g1.z,g2.z])
   g.xyz2r()
+  g.has_fractional = False # site count changed, stale cached frac_r no longer valid
+  if hasattr(g, "frac_r"): del g.frac_r # see remove()'s matching comment above
   g.has_sublattice = False
   return g
 
@@ -381,9 +391,12 @@ def set_xy_plane(g):
   Rt = np.matrix([[ct,0,st],[0.,1.,0],[-st,0,ct]]) # rotate along y
   Rp = np.matrix([[cp,-sp,0.],[sp,cp,0],[0.,0.,1.]]) # rotate along z
   R = Rp@Rt # transforms (0,0,1) to nv
-  U = algebra.inv(R) # inverse transformation
+  # algebra.inv always returns a complex128 array; this is a rotation of
+  # real vectors, so cast back to real to avoid leaking complex dtype
+  # into the geometry (breaks numba-jitted real-valued code downstream)
+  U = np.array(algebra.inv(R)).real # inverse transformation
   # now transform everything
-  def transform(r): return U@r
+  def transform(r): return np.array(U@r).flatten()
   go.a1 = transform(g.a1)
   go.a2 = transform(g.a2)
   go.a3 = transform(g.a3)
@@ -398,23 +411,17 @@ def sites_in_unit_cell(r,a1,a2,a3,dim=3):
   """Retain position located in the unit cell defined by a1,a2,a3"""
   R = np.array([a1,a2,a3]).T # transformation matrix
   L = algebra.inv(R) # inverse matrix
-#  d0 = -np.random.random()*0.001 - .5 # accuracy
   d0 = 0.00234231421 - 0.5 # random number
   d1 = 1.0 + d0 # accuracy
-  retain = [] # empty list
-  for ri in r: # loop over positions
-    rn = L@ri  # transform
-    n1,n2,n3 = rn[0],rn[1],rn[2]
-    if dim==3:
-        if d0<n1<d1 and d0<n2<d1 and d0<n3<d1:
-            retain.append(1)
-        else: retain.append(0)
-    if dim==2:
-        if d0<n1<d1 and d0<n2<d1:
-            retain.append(1)
-        else: retain.append(0)
-  retain = np.array(retain)
-  return retain
+  # transform every position at once instead of looping over positions in
+  # python with a per-atom matrix-vector product
+  rn = np.array(r)@L.T # fractional coordinates of every position
+  if dim==3:
+    retain = (d0<rn[:,0])&(rn[:,0]<d1)&(d0<rn[:,1])&(rn[:,1]<d1)&(d0<rn[:,2])&(rn[:,2]<d1)
+  elif dim==2:
+    retain = (d0<rn[:,0])&(rn[:,0]<d1)&(d0<rn[:,1])&(rn[:,1]<d1)
+  else: return np.array([]) # unreached in practice, matches the old behavior
+  return retain.astype(int)
 
 def retain_unit_cell(r,a1,a2,a3,dim=3):
     """Retain position located in the unit cell defined by a1,a2,a3"""
