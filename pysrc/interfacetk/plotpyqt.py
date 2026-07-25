@@ -27,6 +27,15 @@ def get_interface(plot_figure,i=0):
             # this is the Canvas Widget that displays the `figure`
             # it takes the `figure` instance as a parameter to __init__
             self.canvas = FigureCanvas(self.figure)
+            # standard matplotlib toolbar - gives every script built on
+            # get_interface() (ql-ldos, ql-potential, ...) click-drag
+            # rectangle zoom (magnifying-glass tool), pan, zoom-out/home
+            # and save-figure for free, on top of whatever "Zoom" slider
+            # a script also adds. Built once here rather than in plot()
+            # (which reuses this same self.figure/self.canvas, only
+            # clearing and redrawing its axes on every slider change) so
+            # the toolbar and its view history survive across redraws.
+            self.toolbar = NavigationToolbar(self.canvas, self)
 #            self.button = QPushButton('Plot')
 #            self.button.clicked.connect(self.plot)
             # set the layout
@@ -35,6 +44,7 @@ def get_interface(plot_figure,i=0):
             self.column = 0
             self.layout = layout
             self._dynamic_ax = self.canvas.figure.subplots()
+            self.layout.addWidget(self.toolbar, 0,0,1,0)
             self.layout.addWidget(self.canvas, 1,0,1,0)
             self.setLayout(layout)
         def plot(self):
