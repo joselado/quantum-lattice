@@ -15,6 +15,7 @@ qtwrap.ensure_app()
 
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QFont, QFontMetrics, QColor
 from PySide6.QtCore import Qt, QRectF
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
 from qfluentwidgets import FluentWindow, FluentIcon as FIF, setTheme, Theme, NavigationItemPosition
 
@@ -97,6 +98,45 @@ def load_mode(mode):
   return modobj.window
 
 
+class _LazyPage(QWidget):
+  """Placeholder shown in the shell's stackedWidget for a mode that
+  hasn't been navigated to yet. Building a mode's page runs its
+  <mode>.py top to bottom - importing pyqula submodules and, for some
+  modes (e.g. huge_0d, which builds a full default 1260-atom geometry
+  and Hamiltonian at import time), doing real work - which used to
+  happen for all 14 modes at shell startup whether or not the user ever
+  opened them. Deferring that to first navigation is what makes launch
+  fast. This wrapper's own identity never changes (only its child does,
+  see ensure_built()), so the nav item's click routing - wired by
+  qfluentwidgets' addSubInterface against this wrapper object - keeps
+  working correctly before and after the swap, with no need to touch
+  qfluentwidgets' internal signal connections."""
+  def __init__(self,mode,label):
+    super().__init__()
+    self.mode = mode
+    self.real_page = None
+    # see the addSubInterface loop below for why this has to be
+    # transparent too, not just the real page once built
+    self.setStyleSheet("QWidget { background: transparent; }")
+    layout = QVBoxLayout(self)
+    layout.setContentsMargins(0,0,0,0)
+    self._loading_label = QLabel("Loading "+label+" ...")
+    self._loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(self._loading_label)
+    self._layout = layout
+
+  def ensure_built(self):
+    """Build the real page on first call; a cheap no-op afterwards."""
+    if self.real_page is not None: return self.real_page
+    real_page = load_mode(self.mode)
+    real_page.setStyleSheet("QWidget { background: transparent; }")
+    self._layout.removeWidget(self._loading_label)
+    self._loading_label.deleteLater()
+    self._layout.addWidget(real_page)
+    self.real_page = real_page
+    return real_page
+
+
 class Shell(FluentWindow):
   """Single-process shell: every mode is a page in one window's sidebar
   navigation, replacing the old system_selection window that spawned each
@@ -111,10 +151,10 @@ class Shell(FluentWindow):
           self.navigationInterface.addSeparator(position=NavigationItemPosition.SCROLL)
         last_group = group
       icon = text_icon(code)
-      page = load_mode(mode)
-      page.setObjectName(mode) # addSubInterface requires a unique object name
-      # Every mode's page is a plain QMainWindow (unchanged from the old
-      # standalone-window design, see qtwrap.new_page()), not one of
+      wrapper = _LazyPage(mode,label)
+      wrapper.setObjectName(mode) # addSubInterface requires a unique object name
+      # Every mode's real page is a plain QMainWindow (unchanged from the
+      # old standalone-window design, see qtwrap.new_page()), not one of
       # qfluentwidgets' own containers. Once ANY qfluentwidgets widget
       # inside it has its own stylesheet applied (see Phase 3's widget
       # promotion), Qt stops the plain QWidget containers (centralwidget,
@@ -124,19 +164,16 @@ class Shell(FluentWindow):
       # the shell's dark backdrop showing through - safe to do only here
       # (not in qtwrap.py itself), since a page run standalone via
       # `python <mode>.py` has no dark FluentWindow behind it to show
-      # through and would otherwise render see-through/broken.
-      page.setStyleSheet("QWidget { background: transparent; }")
-      self.addSubInterface(page,icon,label,position=NavigationItemPosition.SCROLL)
-    # keep qtwrap's "active page" (what get()/getbox()/modify()/... resolve
-    # against) in sync with whichever page navigation currently shows -
-    # only the visible page's widgets can receive a click, so this is
-    # always correct, matching qtwrap.new_page()'s own doc-comment.
-    # qtwrap.new_page() (called from load_mode() above, once per mode)
-    # already left `form` pointing at whichever page was built LAST, not
-    # the one actually shown first - re-point it at the real initial page
-    # now, before this signal is connected to keep it correct from here on.
-    qtwrap.set_active(self.stackedWidget.currentWidget())
+      # through and would otherwise render see-through/broken. Applied to
+      # both _LazyPage itself (so the "Loading..." placeholder matches)
+      # and the real page once ensure_built() swaps it in.
+      self.addSubInterface(wrapper,icon,label,position=NavigationItemPosition.SCROLL)
     self.stackedWidget.currentChanged.connect(self._on_page_changed)
+    # the shell always shows some page as soon as it's visible - force-build
+    # that first one now rather than leaving its "Loading..." placeholder
+    # up until the user clicks something. Every later navigation goes
+    # through the same _on_page_changed() path.
+    self._on_page_changed(self.stackedWidget.currentIndex())
     self.navigationInterface.setExpandWidth(260)
     self.navigationInterface.addItem(
         routeKey="update_qh",icon=FIF.UPDATE,text="Update Quantum Lattice",
@@ -144,6 +181,12 @@ class Shell(FluentWindow):
 
   def _on_page_changed(self,index):
     widget = self.stackedWidget.widget(index)
+    if isinstance(widget,_LazyPage):
+      widget = widget.ensure_built()
+    # keep qtwrap's "active page" (what get()/getbox()/modify()/... resolve
+    # against) in sync with whichever page navigation currently shows -
+    # only the visible page's widgets can receive a click, so this is
+    # always correct, matching qtwrap.new_page()'s own doc-comment.
     qtwrap.set_active(widget)
 
   def _update_qh(self):

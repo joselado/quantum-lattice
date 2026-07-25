@@ -23,16 +23,37 @@ import handlers
 
 inipath = os.getcwd() # get the initial directory
 
-def initialize():  handlers.initialize(qtwrap)
-def show_ldos():  handlers.show_ldos(qtwrap)
-def show_full_spectrum():  handlers.show_full_spectrum()
-def show_dos():  handlers.show_dos(qtwrap)
-def show_spatial_dos():  handlers.show_spatial_dos(qtwrap)
+_initialized = False # whether initialize() has built a Hamiltonian yet
+                      # in this page's scratch folder
+
+def initialize():
+  global _initialized
+  handlers.initialize(qtwrap)
+  _initialized = True
+
+def _ensure_initialized():
+  """Handlers below that read the saved Hamiltonian (handlers.
+  load_hamiltonian(), which just hamiltonians.load()s a file from disk)
+  need initialize() to have run at least once first. It used to run
+  unconditionally as soon as this module was imported - on a ~1260-atom
+  default island that alone costs a couple of seconds - which, now that
+  the shell only imports a mode's <mode>.py on first navigation to it
+  (see _LazyPage in bin/versions/quantum-lattice-pyqt), meant just
+  opening this page paid that cost even before touching a button. Build
+  it lazily instead, on first handler call that actually needs it; an
+  explicit click of the "Initialize" button still always rebuilds
+  (e.g. after changing parameters), same as before."""
+  if not _initialized: initialize()
+
+def show_ldos():  _ensure_initialized(); handlers.show_ldos(qtwrap)
+def show_full_spectrum():  _ensure_initialized(); handlers.show_full_spectrum()
+def show_dos():  _ensure_initialized(); handlers.show_dos(qtwrap)
+def show_spatial_dos():  _ensure_initialized(); handlers.show_spatial_dos(qtwrap)
 def show_potential():  handlers.show_potential(qtwrap)
 def show_lattice():  handlers.show_lattice(qtwrap)
-def show_path_dos():  handlers.show_path_dos(qtwrap)
-def show_path():  handlers.show_path(qtwrap)
-def show_eigenvalues():  handlers.show_eigenvalues(qtwrap)
+def show_path_dos():  _ensure_initialized(); handlers.show_path_dos(qtwrap)
+def show_path():  _ensure_initialized(); handlers.show_path(qtwrap)
+def show_eigenvalues():  _ensure_initialized(); handlers.show_eigenvalues(qtwrap)
 def clear_removal():  handlers.clear_removal()
 def select_atoms():  handlers.select_atoms()
 def select_atoms_dos():  handlers.select_atoms_dos()
@@ -65,6 +86,5 @@ window.connect_clicks(signals)
 folder = create_folder()
 window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
 tmppath = os.getcwd() # get the initial directory
-initialize() # do it once
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block

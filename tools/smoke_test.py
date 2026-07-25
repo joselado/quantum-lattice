@@ -22,7 +22,8 @@ Two checks per mode, plus one for the shell:
                no real display is needed.
   3. shell   - bin/versions/quantum-lattice-pyqt (the single-process
                FluentWindow shell every mode is normally reached through)
-               builds all its pages and reaches the blocking event loop
+               builds its initially-shown page (the rest load lazily on
+               first navigation) and reaches the blocking event loop
                without raising. Checked once, not per-mode.
 
 Usage:
@@ -47,7 +48,10 @@ MODES = [
 ]
 
 ALIVE_TIMEOUT = 6  # seconds a healthy GUI should stay up (blocked in app.exec())
-SHELL_ALIVE_TIMEOUT = 30  # the shell builds all 14 pages up front, so give it longer
+SHELL_ALIVE_TIMEOUT = 10  # the shell only builds its initially-shown page up
+                          # front (the rest are lazy, see _LazyPage in
+                          # bin/versions/quantum-lattice-pyqt), so it reaches
+                          # the event loop about as fast as a single mode does
 
 # Buttons pysrc/interfacetk/common.py's wire_standard_signals() auto-wires
 # for any mode that calls it - keep in sync with common.STANDARD_HANDLERS
