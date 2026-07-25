@@ -13,28 +13,61 @@ sys.path.append(qlroot+"/pysrc/") # python libraries
 from interfacetk import qtwrap # import the library with simple wrappers to Qt
 qtwrap.ensure_app()
 
+from PySide6.QtGui import QIcon, QPixmap, QPainter, QFont, QFontMetrics, QColor
+from PySide6.QtCore import Qt, QRectF
+
 from qfluentwidgets import FluentWindow, FluentIcon as FIF, setTheme, Theme, NavigationItemPosition
 
 from interpreter import pycommand
 
 
-# (mode dir, nav label, icon, nav group) - replaces the old system_selection
-# .ui grid of buttons; grouping matches its former dimensionality columns
+def text_icon(text,box=96,color="#e8e8e8"):
+  """Build a QIcon that renders `text` (a short module code like "1D",
+  "moire", "Hy1D") centered on a transparent square, used in place of the
+  stock FluentIcon glyphs in MODES below - those were unrelated stock
+  pictograms next to each system type, not a real cue to what the module
+  is. Rendered at a high resolution and shrunk-to-fit so it downscales
+  crisply into the nav's fixed 16x16 icon slot."""
+  pixmap = QPixmap(box,box)
+  pixmap.fill(Qt.GlobalColor.transparent)
+  painter = QPainter(pixmap)
+  painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+  painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+  margin = box*0.04
+  size = int(box*0.7)
+  font = QFont()
+  font.setBold(True)
+  if len(text)>3: font.setLetterSpacing(QFont.SpacingType.PercentageSpacing,90)
+  while size>6:
+    font.setPixelSize(size)
+    rect = QFontMetrics(font).boundingRect(text)
+    if rect.width()<=box-2*margin and rect.height()<=box-2*margin: break
+    size -= 1
+  painter.setFont(font)
+  painter.setPen(QColor(color))
+  painter.drawText(QRectF(0,0,box,box),Qt.AlignmentFlag.AlignCenter,text)
+  painter.end()
+  return QIcon(pixmap)
+
+
+# (mode dir, nav label, short code shown as the nav icon, nav group) -
+# replaces the old system_selection .ui grid of buttons; grouping matches
+# its former dimensionality columns
 MODES = [
-    ("0d",                  "Islands",                            FIF.TILES,     "0D systems"),
-    ("huge_0d",             "Huge islands",                       FIF.ZOOM_IN,   "0D systems"),
-    ("1d",                  "Ribbons",                            FIF.ALIGNMENT, "1D systems"),
-    ("hybridribbon",        "Hybrid ribbons",                     FIF.LINK,      "1D systems"),
-    ("hofstader1d",         "Hofstadter butterflies",             FIF.PALETTE,   "1D systems"),
-    ("2d",                  "Sheets",                             FIF.LAYOUT,    "2D systems"),
-    ("2dslab",              "Films",                              FIF.SCROLL,    "2D systems"),
-    ("hybridfilm",          "Hybrid films",                       FIF.EMBED,     "2D systems"),
-    ("impurity_embedding",  "Single impurities",                  FIF.PIN,       "2D systems"),
-    ("multilayergraphene",  "Multilayer graphene",                FIF.LIBRARY,   "2D systems"),
-    ("tmdc",                "Transition metal dichalcogenides",   FIF.TAG,       "2D systems"),
-    ("tbg",                 "Twisted multilayer graphene",        FIF.SYNC,      "2D systems"),
-    ("heavyfermion",        "Heavy fermion Kondo lattice",        FIF.ROBOT,     "2D systems"),
-    ("3d",                  "3D crystals",                        FIF.VIEW,      "3D systems"),
+    ("0d",                  "Islands",                            "0D",     "0D systems"),
+    ("huge_0d",             "Huge islands",                       "0D+",    "0D systems"),
+    ("1d",                  "Ribbons",                             "1D",     "1D systems"),
+    ("hybridribbon",        "Hybrid ribbons",                     "Hy1D",   "1D systems"),
+    ("hofstader1d",         "Hofstadter butterflies",             "Hof",    "1D systems"),
+    ("2d",                  "Sheets",                             "2D",     "2D systems"),
+    ("2dslab",              "Films",                              "Film",   "2D systems"),
+    ("hybridfilm",          "Hybrid films",                       "Hy2D",   "2D systems"),
+    ("impurity_embedding",  "Single impurities",                  "Imp",    "2D systems"),
+    ("multilayergraphene",  "Multilayer graphene",                "MLG",    "2D systems"),
+    ("tmdc",                "Transition metal dichalcogenides",   "TMD",    "2D systems"),
+    ("tbg",                 "Twisted multilayer graphene",        "moire",  "2D systems"),
+    ("heavyfermion",        "Heavy fermion Kondo lattice",        "Kondo",  "2D systems"),
+    ("3d",                  "3D crystals",                        "3D",     "3D systems"),
 ]
 
 
@@ -72,11 +105,12 @@ class Shell(FluentWindow):
     super().__init__()
     self.setWindowTitle("Quantum Lattice")
     last_group = None
-    for mode,label,icon,group in MODES:
+    for mode,label,code,group in MODES:
       if group != last_group:
         if last_group is not None:
           self.navigationInterface.addSeparator(position=NavigationItemPosition.SCROLL)
         last_group = group
+      icon = text_icon(code)
       page = load_mode(mode)
       page.setObjectName(mode) # addSubInterface requires a unique object name
       # Every mode's page is a plain QMainWindow (unchanged from the old
