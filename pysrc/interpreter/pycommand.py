@@ -77,13 +77,6 @@ def install_requirements(python=None):
         except subprocess.CalledProcessError:
             print("Optional dependency 'pyvista' could not be installed;")
             print("3D plotting utilities (ql-plot3d, ql-moments, ...) will not work")
-    # try to compile the optional Fortran acceleration bundled with pyqula
-    try:
-        from ..pyqula import compilefortran
-        compiler = shutil.which("f2py",path=os.path.dirname(os.path.realpath(python)))
-        compilefortran.compile_fortran(compiler=compiler)
-    except Exception as e:
-        print("Optional Fortran acceleration was not compiled:",e)
 
 
 def install_editable(python=None):

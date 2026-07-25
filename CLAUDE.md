@@ -71,7 +71,7 @@ The 3D scripts (`ql-moments`, `ql-magnetism`, `ql-structure3d`, `ql-plot3d`, `ql
 
 ### `pysrc/interpreter/`
 
-`pycommand.py` is the install/launch toolbox: `get_python()` returns `sys.executable`, `install_requirements()` checks each required package by trying to import it under the target interpreter and pip-installs only what's missing (pyvista and Fortran-acceleration compilation are attempted best-effort and never fail the install), `install_editable()` runs `pip install -e .` to register the `quantum-lattice` console script, `create_icon()`/`get_qh_command()` build a Linux `.desktop` entry or Windows `.bat` launcher, preferring the pip-installed script (found via `shutil.which`) since desktop launchers often run with a minimal `PATH`.
+`pycommand.py` is the install/launch toolbox: `get_python()` returns `sys.executable`, `install_requirements()` checks each required package by trying to import it under the target interpreter and pip-installs only what's missing (pyvista is attempted best-effort and never fails the install), `install_editable()` runs `pip install -e .` to register the `quantum-lattice` console script, `create_icon()`/`get_qh_command()` build a Linux `.desktop` entry or Windows `.bat` launcher, preferring the pip-installed script (found via `shutil.which`) since desktop launchers often run with a minimal `PATH`.
 
 ### Packaging
 
