@@ -112,3 +112,25 @@ def enable_point_picking(pl,points,callback):
         callback(int(np.argmin(d2)))
     pl.enable_point_picking(callback=_on_pick,picker="point",
                              left_clicking=True,show_message=True)
+
+
+def enable_area_picking(pl,points,callback):
+    """Wire up click-drag rectangle picking on a point cloud (press "r" to
+    start drawing, drag, release to select, "r" again to stop); `callback`
+    is called with the array of indices of every point enclosed by the
+    selection, projected through the full depth of the scene - the 3D
+    equivalent of a 2D lasso-select, for bulk selection instead of
+    clicking points one by one. A rectangle click-drag is also VTK's
+    trackball camera rotation gesture, so this can't just run alongside
+    enable_point_picking the way the matplotlib LassoSelector runs
+    alongside a plain click in the 2D pickers (see ql-remove-atoms-geometry) -
+    the caller is expected to toggle between the two with pl.disable_picking()
+    in between, e.g. bound to its own key event."""
+    points = np.asarray(points)
+    cloud = pv.PolyData(points)
+    def _on_rectangle(selection):
+        sel = cloud.select_interior_points(selection.frustum_mesh,check_surface=False)
+        indices = np.nonzero(np.asarray(sel["selected_points"],dtype=bool))[0]
+        if len(indices)==0: return
+        callback(indices)
+    pl.enable_rectangle_picking(callback=_on_rectangle,show_message=True)

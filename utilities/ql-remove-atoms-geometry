@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.path import Path
+from matplotlib.widgets import LassoSelector
 import sys
 
 import matplotlib
@@ -18,49 +20,68 @@ m = np.atleast_2d(np.genfromtxt("POSITIONS.OUT")).transpose()
 x = m[0]
 y = m[1]
 z = m[2]
+pts = np.column_stack([x,y]) # for the lasso's point-in-polygon test
 corig = [] # oroginal color
 sorig = [] # original size
 for iz in z:
-  if iz>0.00001: 
+  if iz>0.00001:
     corig.append("lightgreen")
     sorig.append(20)
-  else: 
+  else:
     corig.append("black")
     sorig.append(60)
 isred = [False for ix in x] # if selected
 
 plt.ion()
 
-def pick_sites(event):
-        ind = event.ind
-        print('Scatter:', ind, np.take(x, ind), np.take(y, ind))
-        # replot
-        try: del red
-        except: pass
-        for i in ind:
-          isred[i] = not isred[i]
-          if isred[i]: c = "red"
-          else: c = corig[i]
+def write_selection():
+        if not write: return
+        # this is just a workaround, I should do it better in the future
+        if remove: namefile = "REMOVE_ATOMS.INFO"
+        else: namefile = "SELECTED_ATOMS.INFO"
+        fo = open(namefile,"w")
+        for (w,i) in zip(isred,range(len(x))):
+          if w: fo.write(str(i)+"\n")
+        fo.close()
+        print("Written selected atoms in "+namefile)
+
+def redraw(indexes):
+        for i in indexes:
+          c = "red" if isred[i] else corig[i]
           plt.scatter(x[i],y[i],sorig[i],c)
         plt.title("Red sites will be removed")
         plt.draw() # draw image
-        if write: # write in file
-          # this is just a workaround, I should do it better in the future
-          if remove: namefile = "REMOVE_ATOMS.INFO"
-          else: namefile = "SELECTED_ATOMS.INFO"
-          fo = open(namefile,"w")
-          for (w,i) in zip(isred,range(len(x))):
-            if w: fo.write(str(i)+"\n")
-          fo.close()
-          print("Written selected atoms in "+namefile)
-        
+
+def pick_sites(event):
+        """A plain click on a single atom toggles just that one"""
+        ind = event.ind
+        print('Scatter:', ind, np.take(x, ind), np.take(y, ind))
+        for i in ind: isred[i] = not isred[i]
+        redraw(ind)
+        write_selection()
+
+def lasso_select(verts):
+        """Dragging a closed area marks every enclosed atom for removal,
+        for bulk selection instead of clicking sites one by one. A plain
+        click (no real drag) produces a near-empty/degenerate path here
+        that never contains any atom, so it falls through to pick_sites
+        above without double-toggling anything."""
+        if len(verts)<3: return
+        enclosed = np.nonzero(Path(verts).contains_points(pts))[0]
+        if len(enclosed)==0: return
+        for i in enclosed: isred[i] = True
+        redraw(enclosed)
+        write_selection()
 
 fig, ax = plt.subplots()
 fig.set_facecolor(plotstyle.BACKGROUND) # white
 col = ax.scatter(x, y,sorig, corig, picker=True)
 plt.axis("equal")
 fig.canvas.mpl_connect('pick_event', pick_sites)
+lasso = LassoSelector(ax,lasso_select) # click-drag around an area to
+                                        # bulk-select every atom it encloses
 
 
 fig.canvas.manager.set_window_title('Site removal selection')
+plt.title("Click an atom to toggle it, or drag to lasso-select an area")
 plt.show(block=True)

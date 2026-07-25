@@ -50,5 +50,42 @@ def picker_callback(point_id):
     write_selection()
 
 
-_pv3d.enable_point_picking(pl,points,picker_callback)
+def area_callback(indices):
+    """Called when a rectangle drag-select completes: marks every
+    enclosed atom for removal, for bulk selection instead of clicking
+    sites one by one."""
+    for i in indices: removed[i] = True
+    redraw()
+    pl.add_text(str(len(indices))+" atoms selected",position="upper_edge",name="pick_title")
+    write_selection()
+
+
+# A rectangle click-drag is also the trackball camera's rotate gesture,
+# so single-atom picking and area picking can't both be active at once
+# (PyVista raises PyVistaPickingError if you try) - press "a" to switch
+# between them. In area mode, PyVista's own rectangle-picking tool still
+# needs its usual "r" to start/stop drawing a rectangle (see the on-screen
+# message it prints), same as calling it stand-alone would.
+mode = {"active": None}
+
+def enable_point_mode():
+    if mode["active"] is not None: pl.disable_picking()
+    _pv3d.enable_point_picking(pl,points,picker_callback)
+    mode["active"] = "point"
+    pl.add_text("Click mode: click an atom to toggle it  (press 'a' for area-select)",
+                position="lower_edge",font_size=10,name="mode_title")
+
+def enable_area_mode():
+    if mode["active"] is not None: pl.disable_picking()
+    _pv3d.enable_area_picking(pl,points,area_callback)
+    mode["active"] = "area"
+    pl.add_text("Area mode: press 'r' then drag a rectangle to bulk-select  (press 'a' for click mode)",
+                position="lower_edge",font_size=10,name="mode_title")
+
+def toggle_mode():
+    if mode["active"]=="point": enable_area_mode()
+    else: enable_point_mode()
+
+pl.add_key_event("a",toggle_mode)
+enable_point_mode() # start in single-atom click mode, as before
 pl.show()
