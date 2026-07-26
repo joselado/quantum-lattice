@@ -10,6 +10,16 @@
 
 import os
 
+# This app's widgets (QDialog/QMainWindow/...) are always PySide6. matplotlib's
+# Qt-based backends (backend_qtagg, used by plotpyqt.py to embed figures in
+# those same dialogs) pick their own Qt binding via the QT_API env var, and a
+# user may have QT_API=pyqt5 set globally in their shell (e.g. to make plain,
+# non-quantum-lattice matplotlib scripts work against a conda-installed PyQt5 -
+# see the qt.conf note below). Mixing a PyQt5-backed canvas into a PySide6
+# QDialog doesn't work, so force this process to PySide6 unconditionally
+# (plain assignment, not setdefault) regardless of what's set outside it.
+os.environ["QT_API"] = "pyside6"
+
 # Some systems (notably conda envs that also have PyQt5/Qt5 installed
 # alongside PySide6) ship a stray qt.conf next to the Python executable
 # (e.g. <conda-prefix>/bin/qt.conf) that redirects Qt's plugin search path
