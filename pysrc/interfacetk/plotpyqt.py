@@ -47,6 +47,26 @@ def get_interface(plot_figure,i=0):
             self.layout.addWidget(self.toolbar, 0,0,1,0)
             self.layout.addWidget(self.canvas, 1,0,1,0)
             self.setLayout(layout)
+            # plot() below fully clears and rebuilds every Axes on each
+            # slider/combobox change, which used to silently reset any
+            # view the user had zoomed/panned to with the toolbar back to
+            # each axis' auto-fit extent. _user_view remembers, per axis
+            # index, the last view the user set by hand (populated by the
+            # 'xlim_changed'/'ylim_changed' callbacks plot() connects
+            # after each redraw) and plot() reapplies it on the next
+            # redraw instead of the script's own default. Wiring the
+            # toolbar's Home button to clear it gives an explicit way
+            # back to the auto-fit view.
+            self._user_view = {}
+            # NavigationToolbar2QT connects its Home button to a bound
+            # self.home captured at construction time (see its __init__),
+            # so overriding self.toolbar.home afterwards would never be
+            # called by an actual click - hook the QAction itself instead
+            # (an extra listener alongside the toolbar's own, not a
+            # replacement) to also clear the remembered view on Home.
+            home_action = self.toolbar._actions.get("home")
+            if home_action is not None:
+                home_action.triggered.connect(lambda: self._user_view.clear())
         def plot(self):
             '''Plot the figure'''
             # instead of ax.hold(False)
@@ -55,9 +75,20 @@ def get_interface(plot_figure,i=0):
 #            self.layout.removeWidget(self.canvas)
             fig = plot_figure(self) # get that figure
             plt.tight_layout(h_pad=0.1,w_pad=0.1) # adjust axis
-            if fig.number!=self.figure.number: 
+            if fig.number!=self.figure.number:
                 print("You must plot in the same figure as the one initialized for the interface, use fig = plt.figure(obj.figure.number) in your function, where obj is the input of your function")
                 exit()
+            for i,ax in enumerate(fig.axes):
+                view = self._user_view.get(i)
+                if view is not None: ax.set_xlim(view[0]); ax.set_ylim(view[1])
+                # connected only now, after plot_figure()'s own set_xlim/
+                # set_ylim calls already ran - so this only fires (and
+                # only overwrites _user_view) on view changes the user
+                # makes afterwards via the toolbar, not the script's own
+                def _remember_view(_ax,i=i):
+                    self._user_view[i] = (_ax.get_xlim(),_ax.get_ylim())
+                ax.callbacks.connect('xlim_changed',_remember_view)
+                ax.callbacks.connect('ylim_changed',_remember_view)
             self._dynamic_ax.figure.canvas.draw()
 #            self.canvas = FigureCanvas(self.figure)
 #            self.toolbar = NavigationToolbar(self.canvas, self)
