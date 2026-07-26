@@ -15,8 +15,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QGridLayout, QMainWindow, QMenuBar,
-    QSizePolicy, QStatusBar, QTabWidget, QWidget)
+from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QMainWindow,
+    QMenuBar, QSizePolicy, QStatusBar, QTabWidget,
+    QWidget)
 
 from qfluentwidgets import (BodyLabel, ComboBox, LineEdit, PushButton)
 
@@ -36,6 +37,26 @@ class Ui_MainWindow(object):
         self.tab_3.setObjectName(u"tab_3")
         self.gridLayout_15 = QGridLayout(self.tab_3)
         self.gridLayout_15.setObjectName(u"gridLayout_15")
+        self.horizontalLayout_nparts = QHBoxLayout()
+        self.horizontalLayout_nparts.setObjectName(u"horizontalLayout_nparts")
+        self.label_nparts = BodyLabel(self.tab_3)
+        self.label_nparts.setObjectName(u"label_nparts")
+
+        self.horizontalLayout_nparts.addWidget(self.label_nparts)
+
+        self.nparts = ComboBox(self.tab_3)
+        self.nparts.addItem("")
+        self.nparts.addItem("")
+        self.nparts.addItem("")
+        self.nparts.addItem("")
+        self.nparts.addItem("")
+        self.nparts.setObjectName(u"nparts")
+
+        self.horizontalLayout_nparts.addWidget(self.nparts)
+
+
+        self.gridLayout_15.addLayout(self.horizontalLayout_nparts, 0, 0, 1, 1)
+
         self.tabWidget_4 = QTabWidget(self.tab_3)
         self.tabWidget_4.setObjectName(u"tabWidget_4")
         self.tab_8 = QWidget()
@@ -301,7 +322,7 @@ class Ui_MainWindow(object):
 
         self.tabWidget_4.addTab(self.tab_11, "")
 
-        self.gridLayout_15.addWidget(self.tabWidget_4, 0, 0, 1, 1)
+        self.gridLayout_15.addWidget(self.tabWidget_4, 1, 0, 1, 1)
 
         self.tabWidget_2.addTab(self.tab_3, "")
 
@@ -713,6 +734,13 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"2D heterostructure", None))
+        self.label_nparts.setText(QCoreApplication.translate("MainWindow", u"Number of parts", None))
+        self.nparts.setItemText(0, QCoreApplication.translate("MainWindow", u"2", None))
+        self.nparts.setItemText(1, QCoreApplication.translate("MainWindow", u"3", None))
+        self.nparts.setItemText(2, QCoreApplication.translate("MainWindow", u"4", None))
+        self.nparts.setItemText(3, QCoreApplication.translate("MainWindow", u"5", None))
+        self.nparts.setItemText(4, QCoreApplication.translate("MainWindow", u"6", None))
+
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.rashba.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.mAB.setText(QCoreApplication.translate("MainWindow", u"0.0", None))

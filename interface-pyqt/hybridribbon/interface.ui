@@ -32,6 +32,46 @@
        </attribute>
        <layout class="QGridLayout" name="gridLayout_15">
         <item row="0" column="0">
+         <layout class="QHBoxLayout" name="horizontalLayout_nparts">
+          <item>
+           <widget class="BodyLabel" name="label_nparts">
+            <property name="text">
+             <string>Number of parts</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="ComboBox" name="nparts">
+            <item>
+             <property name="text">
+              <string>2</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>3</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>4</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>5</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>6</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="1" column="0">
          <widget class="QTabWidget" name="tabWidget_4">
           <property name="currentIndex">
            <number>0</number>

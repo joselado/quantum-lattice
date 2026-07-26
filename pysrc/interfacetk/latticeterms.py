@@ -44,8 +44,15 @@ def is_honeycomb_family(lattice_name):
 # Each entry restricts one term/operator to lattices for which
 # `rule(lattice_name)` is True.
 #
-#   "widget"     - plain widgets (LineEdit fields, their *_image formula
-#                  labels, ...), shown only when the rule holds.
+#   "widget"     - base widget names (LineEdit fields, their *_image
+#                  formula labels, ...), shown only when the rule holds.
+#                  Matched against every attribute on the page whose name
+#                  is the base name itself, base+"_image", or base+"_N"
+#                  for any digits N - the latter covers hybridfilm/
+#                  hybridribbon's per-part fields ("haldane_2", and
+#                  "haldane_3"/"haldane_4"/... built at runtime by
+#                  hybridparts.py once the user picks more than 2 parts),
+#                  without this list needing to enumerate a widget per part.
 #   "combo_item" - one specific item text kept in/out of each listed
 #                  QComboBox's item list depending on the rule. Item text
 #                  is given per combobox since the same term shows up
@@ -56,14 +63,10 @@ def is_honeycomb_family(lattice_name):
 #                  populated at runtime from pyqula's
 #                  operators.operator_list, which uses lowercase "valley".
 RESTRICTED_TERMS = [
-    {"kind": "widget", "names": ["haldane", "haldane_image", "haldane_2"],
-     "rule": is_honeycomb_family},
-    {"kind": "widget", "names": ["antihaldane", "antihaldane_image", "antihaldane_2"],
-     "rule": is_honeycomb_family},
-    {"kind": "widget", "names": ["kanemele", "kanemele_image", "kanemele_2"],
-     "rule": is_honeycomb_family},
-    {"kind": "widget", "names": ["antikanemele", "antikanemele_image", "antikanemele_2"],
-     "rule": is_honeycomb_family},
+    {"kind": "widget", "names": ["haldane"], "rule": is_honeycomb_family},
+    {"kind": "widget", "names": ["antihaldane"], "rule": is_honeycomb_family},
+    {"kind": "widget", "names": ["kanemele"], "rule": is_honeycomb_family},
+    {"kind": "widget", "names": ["antikanemele"], "rule": is_honeycomb_family},
     {"kind": "combo_item",
      "items": {"topology_operator": "Valley", "operator_chern": "Valley",
                "bands_color": "valley", "fs_operator": "valley",
@@ -72,10 +75,17 @@ RESTRICTED_TERMS = [
 ]
 
 
-def _apply_widget_restriction(form, names, allowed):
-    for name in names:
-        w = getattr(form, name, None)
-        if w is not None: w.setVisible(allowed)
+def _matches_base(base, attr_name):
+    if attr_name == base or attr_name == base + "_image": return True
+    if attr_name.startswith(base + "_"): return attr_name[len(base)+1:].isdigit()
+    return False
+
+
+def _apply_widget_restriction(form, base_names, allowed):
+    for base in base_names:
+        for attr_name, w in list(vars(form).items()):
+            if _matches_base(base, attr_name) and hasattr(w, "setVisible"):
+                w.setVisible(allowed)
 
 
 def _apply_combo_item_restriction(form, items, allowed):

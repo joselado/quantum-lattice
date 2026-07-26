@@ -19,6 +19,7 @@ window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mod
 
 from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
+from interfacetk import hybridparts # per-part (Upper/Lower/...) parameter widgets
 
 
 
@@ -37,6 +38,29 @@ latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # Kane-Mele, valley)
                                                          # for other lattices
 
+# parameters set separately per part (z-slab) of the system, in the same
+# order Designer laid out the Upper/Lower (part 1/2) tabs - see
+# hybridparts.py. Adding a term here is enough for it to also gain
+# per-part fields for part 3+; initialize() below still needs its own
+# check()/fint() call to actually use it.
+PART_FIELDS = [
+  ("strain","Strain"),
+  ("fermi","Fermi energy"),
+  ("Bx","Zeeman Jx"),
+  ("By","Zeeman Jy"),
+  ("Bz","Zeeman Jz"),
+  ("rashba","Rashba"),
+  ("kanemele","Kane-Mele"),
+  ("haldane","Haldane"),
+  ("antihaldane","Anti-Haldane"),
+  ("mAB","Sublattice imbalance"),
+  ("mAF","Antiferromagnetism"),
+  ("swave","swave pairing"),
+]
+hybridparts.connect(qtwrap,PART_FIELDS,
+    on_new_part=lambda: latticeterms.apply_term_restrictions(qtwrap.form,getbox("lattice")))
+
+
 def get_geometry():
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
@@ -50,48 +74,34 @@ def get_geometry():
 
 
 
-def get_interpolator(p1,p2):
-  """Return the interpolator between the two parameters"""
-  def fun(r1,r2=None): # function of the position
-    if r2 is not None: r = (r1 + r2)/2.
-    else: r = r1
-    if r[2]<0.0: return p1
-    else: return p2
-  return fun # return function
-
-
-
-
 def initialize():
   """ Initialize the calculation"""
-  def check(name):
-    if abs(get(name))>0.0 or abs(get(name+"_2"))>0.0: return True
-    else: return False
-  def fint(name): return get_interpolator(get(name),get(name+"_2")) # function
+  nparts = hybridparts.current_nparts(qtwrap) # how many z-slabs the user picked
   g = get_geometry() # get the geometry
+  region_of = hybridparts.region_of_factory(g.z.min(),g.z.max(),nparts) # z -> part index
+  def check(name): return hybridparts.part_check(get,name,nparts)
+  def fint(name): return hybridparts.part_interpolator(get,name,nparts,2,region_of) # axis 2 = z
   if check("strain"): # custom function
     dfun = fint("strain") # get function
     def fun(r1,r2): # function to compute distance
       dr = r1-r2
       dr2 = dr.dot(dr) # distance
-      if 0.9<dr2<1.1: 
+      if 0.9<dr2<1.1:
         if 0.9<abs(dr[2])<1.1: return 1.0 + dfun(r1,r2) # first neighbor
         return 1.0
       else: return 0.0
     h = g.get_hamiltonian(fun=fun) # get the Hamiltonian
   else:
     h = g.get_hamiltonian(has_spin=True)
-  j1 = np.array([get("Bx"),get("By"),get("Bz")])
-  j2 = np.array([get("Bx_2"),get("By_2"),get("Bz_2")])
-  h.add_zeeman(get_interpolator(j1,j2)) # Zeeman fields
+  h.add_zeeman(hybridparts.part_vector_interpolator(get,["Bx","By","Bz"],nparts,2,region_of)) # Zeeman fields
   h.add_sublattice_imbalance(fint("mAB"))  # sublattice imbalance
   if check("rashba"): h.add_rashba(fint("rashba"))  # Rashba field
   h.add_antiferromagnetism(fint("mAF"))  # AF order
   h.shift_fermi(fint("fermi")) # shift fermi energy
   if check("kanemele"):  h.add_kane_mele(fint("kanemele")) # intrinsic SOC
   if check("haldane"):  h.add_haldane(fint("haldane")) # intrinsic SOC
-  if check("antihaldane"):  h.add_antihaldane(fint("antihaldane")) 
-  if check("swave"):  h.add_swave(fint("swave")) 
+  if check("antihaldane"):  h.add_antihaldane(fint("antihaldane"))
+  if check("swave"):  h.add_swave(fint("swave"))
 #  h.add_peierls(get("peierls")) # shift fermi energy
   return h
 
