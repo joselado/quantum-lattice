@@ -177,7 +177,6 @@ def show_z2():
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
-#  comp = computing() # create the computing window
   scfin = window.getbox("scf_initialization")
   h = initialize() # initialize the Hamiltonian
   mf = scftypes.guess(h,mode=scfin)

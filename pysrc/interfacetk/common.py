@@ -194,7 +194,6 @@ def get_qpi(h,window):
 def solve_scf(h,window):
   """Perform a selfconsistent calculation"""
   get = window.get # redefine
-#  comp = computing() # create the computing window
   scfin = window.getbox("scf_initialization")
   mf = scftypes.guess(h,mode=scfin)
   nk = int(get("nk_scf"))

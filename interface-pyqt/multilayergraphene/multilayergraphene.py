@@ -124,7 +124,6 @@ def show_structure():
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
-  comp = computing() # create the computing window
   scfin = getbox("scf_initialization")
   h = initialize() # initialize the Hamiltonian
   mf = scftypes.guess(h,mode=scfin)
@@ -136,7 +135,6 @@ def solve_scf():
                 mf=mf,mode="U",smearing=get("smearing_scf"),
                 mix = get("mix_scf"))
   scf.hamiltonian.save() # save in a file
-  comp.kill()
 
 
 
@@ -160,7 +158,6 @@ def show_structure_3d():
 
 
 def show_interactive_ldos():
-  comp = computing() # create the computing window
   h = pickup_hamiltonian()  # get the hamiltonian
   ewin = get("window_ldos")
   nrep = int(get("nsuper_ldos"))
@@ -169,7 +166,6 @@ def show_interactive_ldos():
   delta = get("delta_ldos")
   ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,
           nrep=nrep)
-  comp.kill()
   execute_script("ql-multildos ")
 
 

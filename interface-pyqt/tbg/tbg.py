@@ -108,7 +108,6 @@ def check_parallel():
   
 
 def show_dos():
-  comp = computing() # create the computing window
   h = pickup_hamiltonian()  # get the hamiltonian
   nk = int(round(np.sqrt(get("nk_dos"))))
   ndos = int(get("nume_dos"))
@@ -127,7 +126,6 @@ def show_dos():
     dos.dos2d(h,nk=nk,delta=delta,numw=numw)
   else: raise
   execute_script("ql-dos --input DOS.OUT ")
-  comp.kill()
   return
 
 

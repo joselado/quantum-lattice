@@ -126,8 +126,17 @@ class _LazyPage(QWidget):
     self._layout = layout
 
   def ensure_built(self):
-    """Build the real page on first call; a cheap no-op afterwards."""
+    """Build the real page on first call; a cheap no-op afterwards.
+    Refuses to build while some other page's handler is running: building
+    a page calls create_folder(), which chdirs into a fresh scratch
+    folder, and pyqula's cwd-relative I/O can't tolerate that racing
+    against a handler's own chdir on its worker thread (see
+    qtwrap.is_busy()). The user just sees the "Loading..." placeholder a
+    little longer and can retry once the running calculation finishes."""
     if self.real_page is not None: return self.real_page
+    if qtwrap.is_busy():
+      self._loading_label.setText("Waiting for the current calculation to finish...")
+      return self
     real_page = load_mode(self.mode)
     real_page.setStyleSheet("QWidget { background: transparent; }")
     self._layout.removeWidget(self._loading_label)

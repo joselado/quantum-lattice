@@ -32,17 +32,19 @@ except ImportError:
 
 from PySide6 import QtWidgets  # Import the PySide6 module we'll need
 from PySide6.QtGui import QPixmap
-#from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, QThread, QObject, Signal
 import sys  # We need sys so that we can pass argv to QApplication
 import numpy as np
 import time
 import inspect
 import json
 import importlib.util
+import threading
+import traceback
 
 from numpy import * # this may not be a good idea
-from .qlinterface import running
 from .debugging import holler
+from qfluentwidgets import InfoBar, InfoBarPosition, IndeterminateProgressBar
 
 QtGui = QtWidgets
 app = None  # the single QApplication for the whole process, built lazily
@@ -57,23 +59,110 @@ form = None  # the currently *active* page - the one whose widgets get/getbox/
 def ensure_app():
     """Return the process-wide QApplication, creating it on first use.
     Every mode shares this same instance instead of each constructing its
-    own, since several pages/modes can now live in one process."""
-    global app
+    own, since several pages/modes can now live in one process. Also
+    builds the singleton used to marshal widget access back onto this
+    thread (see _MainThreadCaller below) - always safe to do here since
+    ensure_app() is only ever called from the main thread, before any
+    worker thread (see _HandlerRunner) can exist."""
+    global app,_main_caller
     if app is None:
         existing = QtWidgets.QApplication.instance()
         app = existing if existing is not None else QtWidgets.QApplication(sys.argv)
+    if _main_caller is None:
+        _main_caller = _MainThreadCaller()
     return app
 
 
-def get_failsafe(f,robust=True):
-    """Return a function that if fails things do not break down"""
-    def fout(*args,**kwargs):
-        if not robust: return f()
-        try: f()
-        except:
-            if holler(): print("Something wrong happened")
-            return None
-    return fout
+# --- Background execution & thread-safe widget access -------------------
+#
+# connect_clicks() (below) runs each button's handler on its own worker
+# QThread instead of blocking the GUI thread, so the shell (and every
+# other open page) stays responsive during a calculation instead of
+# freezing solid until it finishes.
+#
+# Handler code (interfacetk/common.py, every <mode>.py) freely calls
+# get()/getbox()/modify()/is_checked()/... at arbitrary points in its
+# body, interleaved with the actual computation - rewriting every handler
+# to gather inputs up front would be a much bigger change. Instead, each
+# of those free functions detects when it has been called off the GUI
+# thread and transparently re-runs itself on the GUI thread through a
+# blocking queued Qt signal, waiting for the result - so handler code
+# keeps working unmodified regardless of which thread it happens to run
+# on.
+class _MainThreadCaller(QObject):
+    """Lives on the GUI thread. Runs an arbitrary callable there on behalf
+    of a worker thread and blocks the caller until it's done."""
+    _request = Signal(object,object,object,object) # fn,args,kwargs,box - kept as
+    # plain `object` (not typed tuple/dict) so PySide6 passes the exact same
+    # Python objects through, not a marshaled copy: `box` must stay the same
+    # dict instance so call() sees _handle()'s writes into it after emit()
+    # returns.
+    def __init__(self):
+        super().__init__()
+        self._request.connect(self._handle,Qt.ConnectionType.BlockingQueuedConnection)
+    def _handle(self,fn,args,kwargs,box):
+        try: box["result"] = fn(*args,**kwargs)
+        except Exception as e: box["error"] = e
+    def call(self,fn,*args,**kwargs):
+        box = {}
+        self._request.emit(fn,args,kwargs,box) # blocks until _handle returns
+        if "error" in box: raise box["error"]
+        return box.get("result")
+
+
+_main_caller = None # built by ensure_app(), always on the GUI thread
+
+
+def _gui_thread_only(fn):
+    """Decorator for a free function that touches widgets: run it directly
+    if already on the GUI thread (the common case - no overhead beyond one
+    thread-identity check), otherwise marshal the call onto the GUI thread
+    and block the calling worker thread until it returns."""
+    def wrapper(*args,**kwargs):
+        if QThread.currentThread() is app.thread():
+            return fn(*args,**kwargs)
+        return _main_caller.call(fn,*args,**kwargs)
+    return wrapper
+
+
+# Only one handler - across every mode/page in the shell - may run at a
+# time. pyqula's own I/O is cwd-relative (see qlinterface.create_folder()),
+# so letting two handlers, or a handler and the chdir a not-yet-built
+# page performs once at construction time, run concurrently on different
+# threads would let their os.chdir() calls race and write results into
+# the wrong page's scratch folder. A single process-wide flag is enough
+# since only one click (or one page build) needs to hold it at a time.
+_busy_lock = threading.Lock()
+
+
+def is_busy():
+    """Whether some handler is currently running somewhere in the shell.
+    Checked by the shell before lazily building a not-yet-visited page,
+    since building one chdirs into its scratch folder (see
+    bin/versions/quantum-lattice-pyqt's _LazyPage.ensure_built())."""
+    return _busy_lock.locked()
+
+
+class _HandlerRunner(QThread):
+    """Runs one button handler on a worker thread. Any widget access
+    inside the handler hops back to the GUI thread transparently (see
+    _gui_thread_only above) - the handler itself is unaware it isn't
+    running on the GUI thread. Emits onto the page's own bound slots
+    (_on_runner_ok/_on_runner_error) rather than plain closures so Qt
+    recognizes the cross-thread call and auto-queues it back to the GUI
+    thread instead of running the slot on this worker thread."""
+    finished_ok = Signal(object) # emits self, so the page knows which runner finished
+    finished_error = Signal(object,str) # emits self, full traceback text
+    def __init__(self,fn):
+        super().__init__()
+        self._fn = fn
+        self.robust = True # overwritten by the caller before start()
+    def run(self):
+        try:
+            self._fn()
+            self.finished_ok.emit(self)
+        except Exception:
+            self.finished_error.emit(self,traceback.format_exc())
 
 
 
@@ -88,6 +177,9 @@ class _AppBase:
         # It sets up layout and widgets that are defined
         self._params_dirty_time = time.time() # results are stale before this
         self._connect_dirty_tracking()
+        self._runners = [] # worker threads kept alive (see connect_clicks) until they finish
+        self._progress_bar = None
+        self._progress_label = None
     def _connect_dirty_tracking(self):
         """Mark parameters as changed only on genuine user interaction,
         never on programmatic updates (e.g. a handler writing a computed
@@ -128,14 +220,82 @@ class _AppBase:
     def getbox(self,*args,**kwargs):
         return getbox(*args,**kwargs)
     def connect_clicks(self,ds,robust=True):
-      """Connect the different functions"""
-      ds2 = dict()
-      for d in ds:
-          ds2[d] = get_failsafe(running(self._with_own_scratch_dir(ds[d])),robust=robust)
-      for d in ds2:
-          bu = getattr(self,d) # label in the interface
-          fun = ds2[d] # function to call
-          bu.clicked.connect(fun) # connect name to function
+      """Connect the different functions. Each one now runs on its own
+      worker thread (_HandlerRunner) instead of blocking the GUI, so the
+      shell stays responsive and other pages remain usable while a
+      calculation is in flight. Only one handler across the whole app may
+      run at a time (see is_busy()/_busy_lock above) - a second click
+      while one is running is refused with an InfoBar rather than queued,
+      since queuing would just mean a second unpredictable wait.
+      `robust` only controls how much detail reaches stdout on failure,
+      matching each mode's existing choice (True: generic message, False:
+      full traceback) - either way an InfoBar is now always shown in the
+      window itself, so a failure is visible even without a terminal
+      attached (e.g. launched from the desktop icon)."""
+      for name,fn in ds.items():
+          bu = getattr(self,name) # widget for this button
+          bu.clicked.connect(self._make_click_starter(self._with_own_scratch_dir(fn),robust))
+
+    def _make_click_starter(self,fn,robust):
+        def start():
+            if not _busy_lock.acquire(blocking=False):
+                InfoBar.warning(title="Please wait",
+                    content="Another calculation is currently running - try again once it finishes",
+                    parent=self,duration=4000,position=InfoBarPosition.TOP)
+                return
+            self._show_progress()
+            runner = _HandlerRunner(fn)
+            runner.robust = robust
+            self._runners.append(runner) # keep a live reference so Qt doesn't GC it mid-run
+            runner.finished_ok.connect(self._on_runner_ok)
+            runner.finished_error.connect(self._on_runner_error)
+            runner.start()
+        return start
+
+    def _on_runner_ok(self,runner):
+        self._cleanup_runner(runner)
+
+    def _on_runner_error(self,runner,tb):
+        self._cleanup_runner(runner)
+        self._report_error(tb,runner.robust)
+
+    def _cleanup_runner(self,runner):
+        self._hide_progress()
+        if _busy_lock.locked(): _busy_lock.release()
+        if runner in self._runners: self._runners.remove(runner)
+
+    def _ensure_progress_widgets(self):
+        if self._progress_bar is not None: return
+        bar = IndeterminateProgressBar(self)
+        bar.setFixedWidth(140)
+        bar.hide()
+        label = QtWidgets.QLabel("")
+        self.statusBar().addWidget(label)
+        self.statusBar().addPermanentWidget(bar)
+        self._progress_bar = bar
+        self._progress_label = label
+
+    def _show_progress(self):
+        self._ensure_progress_widgets()
+        self._progress_label.setText("Computing...")
+        self._progress_bar.show()
+        self._progress_bar.start()
+
+    def _hide_progress(self):
+        if self._progress_bar is None: return
+        self._progress_bar.stop()
+        self._progress_bar.hide()
+        self._progress_label.setText("")
+
+    def _report_error(self,tb,robust):
+        stripped = tb.strip()
+        last_line = stripped.splitlines()[-1] if stripped else "Something went wrong"
+        InfoBar.error(title="Calculation failed",content=last_line,parent=self,
+                      duration=6000,position=InfoBarPosition.TOP)
+        if robust:
+            if holler(): print("Something wrong happened")
+        else:
+            print(tb)
     def _with_own_scratch_dir(self,f):
         """Wrap a handler so it always runs with this page's own scratch
         folder as the process cwd. Several pages/modes can be loaded in
@@ -208,6 +368,7 @@ def array2string(v):
     return ss
 
 
+@_gui_thread_only
 def get_array(name,v0=[0.,0.,0.],**kwargs):
     """Get an array from a cell"""
     v = getattr(form,name).text() # get the text
@@ -218,6 +379,7 @@ def get_array(name,v0=[0.,0.,0.],**kwargs):
         return np.array(v0) # return the default value
 
 
+@_gui_thread_only
 def get(name,string=False,default=0.0,call=True):
   """Return a certain value"""
   try:
@@ -244,6 +406,7 @@ def get(name,string=False,default=0.0,call=True):
 
 
 
+@_gui_thread_only
 def getbox(name):
   try:
     obj = getattr(form,name) # get the object
@@ -253,6 +416,7 @@ def getbox(name):
     return None
 
 
+@_gui_thread_only
 def set_combobox(name,cs=[]):
     """Add the different colormaps to a combox"""
     try: cb = getattr(form,name)
@@ -264,6 +428,7 @@ def set_combobox(name,cs=[]):
 
 
 
+@_gui_thread_only
 def modify(name,text):
   try:
     obj = getattr(form,name) # get the object
@@ -273,6 +438,7 @@ def modify(name,text):
 
 set_value = modify
 
+@_gui_thread_only
 def is_checked(name,default=False):
     try:
         obj = getattr(form,name) # get the object
@@ -281,6 +447,7 @@ def is_checked(name,default=False):
 
 
 
+@_gui_thread_only
 def set_image(name,path,width=None,height=None):
   """Set a certain image"""
   label = form.findChild(QtWidgets.QLabel,name) # get the object
@@ -305,6 +472,7 @@ def set_logo(name,image,**kwargs):
   
 
 
+@_gui_thread_only
 def save_interface(self,output=None):
     """Save all the parameter widgets (text fields, comboboxes, checkboxes
     and radio buttons) of the interface to a JSON file"""
@@ -321,6 +489,7 @@ def save_interface(self,output=None):
         json.dump(out, outf)
 
 
+@_gui_thread_only
 def load_interface(self,inputfile):
     """Restore parameter widgets previously written by save_interface()"""
     with open(inputfile, "r") as inf:

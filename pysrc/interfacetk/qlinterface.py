@@ -128,26 +128,4 @@ def execute_script(name,background=True):
 
 
 
-def computing():
-    """Return an object that shows up a window saying computing.
-    Passes this process's PID so the window's "Kill calculation" button
-    can terminate the actual calculation (running in this process),
-    not just close its own indicator window."""
-    qlpath = get_qlroot()
-    python = get_python()
-    name = os.path.join(qlpath,"interface-pyqt","timer","timer.py")
-    subp = subprocess.Popen([python,name,str(os.getpid())]) # execute the command
-    return subp
-
-
-def running(original):
-    """Wrapper to use a timer on a fucntion"""
-    def wrapper(*args,**kwargs):
-        comp = computing()
-        out = original(*args,**kwargs)
-        comp.kill()
-        return out
-    return wrapper
-
-
 
