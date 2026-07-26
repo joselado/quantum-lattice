@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
-from matplotlib.widgets import LassoSelector
+from matplotlib.widgets import LassoSelector, Button
 import sys
 
 import matplotlib
@@ -81,6 +81,21 @@ fig.canvas.mpl_connect('pick_event', pick_sites)
 lasso = LassoSelector(ax,lasso_select) # click-drag around an area to
                                         # bulk-select every atom it encloses
 
+def back_to_selection_mode(event=None):
+        """The navigation toolbar's pan/zoom tools grab the canvas's
+        widgetlock while active, which silently disables picking and the
+        lasso (LassoSelector/pick_event never fire until the lock is
+        released). Toggling the active tool back off - the same as
+        clicking its toolbar button again - releases the lock."""
+        toolbar = getattr(fig.canvas, "toolbar", None)
+        if toolbar is None or not toolbar.mode: return
+        if "pan" in toolbar.mode: toolbar.pan()
+        elif "zoom" in toolbar.mode: toolbar.zoom()
+
+fig.subplots_adjust(bottom=0.15)
+button_ax = fig.add_axes([0.35, 0.02, 0.3, 0.06])
+selection_button = Button(button_ax, "Back to selection mode")
+selection_button.on_clicked(back_to_selection_mode)
 
 fig.canvas.manager.set_window_title('Site removal selection')
 plt.title("Click an atom to toggle it, or drag to lasso-select an area")
