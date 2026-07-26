@@ -4,7 +4,7 @@ from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
-from matplotlib.widgets import LassoSelector, Button
+from matplotlib.widgets import LassoSelector
 import sys
 
 import matplotlib
@@ -83,20 +83,25 @@ fig.canvas.mpl_connect('pick_event', onpick3)
 lasso = LassoSelector(ax,lasso_select) # click-drag around an area to
                                         # bulk-select every atom it encloses
 
-def back_to_selection_mode(event=None):
+def add_selection_mode_button(fig):
         """The navigation toolbar's pan/zoom tools grab the canvas's
         widgetlock while active, which silently disables picking and the
         lasso (LassoSelector/pick_event never fire until the lock is
-        released). Toggling the active tool back off - the same as
-        clicking its toolbar button again - releases the lock."""
+        released). This adds a real button to that same toolbar (the
+        Qt backend's toolbar is a plain QToolBar) that toggles the
+        active tool back off - the same as clicking its own icon again -
+        which releases the lock and restores clicking/lasso-selecting."""
         toolbar = getattr(fig.canvas, "toolbar", None)
-        if toolbar is None or not toolbar.mode: return
-        if "pan" in toolbar.mode: toolbar.pan()
-        elif "zoom" in toolbar.mode: toolbar.zoom()
+        if toolbar is None: return # non-interactive backend, nothing to add to
+        def back_to_selection_mode():
+                if not toolbar.mode: return
+                if "pan" in toolbar.mode: toolbar.pan()
+                elif "zoom" in toolbar.mode: toolbar.zoom()
+        toolbar.addSeparator()
+        action = toolbar.addAction("Selection mode",back_to_selection_mode)
+        action.setToolTip("Release the pan/zoom tool and go back to "
+                           "clicking/lasso-selecting atoms")
 
-fig.subplots_adjust(bottom=0.15)
-button_ax = fig.add_axes([0.35, 0.02, 0.3, 0.06])
-selection_button = Button(button_ax, "Back to selection mode")
-selection_button.on_clicked(back_to_selection_mode)
+add_selection_mode_button(fig)
 
 plt.show(block=True)
