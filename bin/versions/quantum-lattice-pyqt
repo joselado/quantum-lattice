@@ -15,9 +15,10 @@ qtwrap.ensure_app()
 
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QFont, QFontMetrics, QColor
 from PySide6.QtCore import Qt, QRectF
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 
-from qfluentwidgets import FluentWindow, FluentIcon as FIF, setTheme, Theme, NavigationItemPosition
+from qfluentwidgets import (FluentWindow, FluentIcon as FIF, setTheme, Theme,
+    NavigationItemPosition, SwitchButton, BodyLabel)
 
 from interpreter import pycommand
 
@@ -184,9 +185,38 @@ class Shell(FluentWindow):
     # through the same _on_page_changed() path.
     self._on_page_changed(self.stackedWidget.currentIndex())
     self.navigationInterface.setExpandWidth(260)
+    self._add_plot_theme_switch()
     self.navigationInterface.addItem(
         routeKey="update_qh",icon=FIF.UPDATE,text="Update Quantum Lattice",
         onClick=self._update_qh,position=NavigationItemPosition.BOTTOM)
+
+  def _add_plot_theme_switch(self):
+    """A single switch, shown once in the shell's nav panel rather than
+    per-mode, since every mode is a page in this same process/window and
+    shares the one QL_THEME env var every ql-* plotting subprocess reads
+    (see plotstyle.py / _pv3d.py). Added directly to the nav panel's
+    bottomLayout (a plain QVBoxLayout) rather than via addItem()/
+    addWidget(), since those require a NavigationWidget subclass and this
+    is a plain switch, not a nav destination."""
+    container = QWidget(self.navigationInterface)
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(20,8,16,8)
+    label = BodyLabel("Dark plots",container)
+    switch = SwitchButton(container)
+    switch.setOnText("")
+    switch.setOffText("")
+    switch.setChecked(True) # matches the QL_THEME default set in main()
+    switch.checkedChanged.connect(self._on_plot_theme_changed)
+    layout.addWidget(label)
+    layout.addStretch(1)
+    layout.addWidget(switch)
+    self.navigationInterface.panel.bottomLayout.addWidget(container)
+
+  def _on_plot_theme_changed(self,checked):
+    # every ql-* script is launched afterward via subprocess.Popen with
+    # no explicit env=, so it inherits this process's current os.environ
+    # at that moment - no restart needed for the new value to take effect
+    os.environ["QL_THEME"] = "dark" if checked else "light"
 
   def _on_page_changed(self,index):
     widget = self.stackedWidget.widget(index)

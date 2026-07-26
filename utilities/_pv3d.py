@@ -13,12 +13,31 @@ this directory, never launched directly.
 import numpy as np
 import pyvista as pv
 from scipy.spatial import cKDTree
+import plotstyle # same directory - matplotlib scripts already rely on
+                  # this sys.path.insert(0,dirname) done by every caller
 
 
 def new_plotter(title=None):
     pl = pv.Plotter(title=title or "Quantum Lattice")
-    pl.set_background("white")
+    dark = plotstyle._env_wants_dark() # follows the same QL_THEME switch
+                                        # plotstyle.apply() uses for the
+                                        # matplotlib-based ql-* scripts
+    pl.set_background(plotstyle.BACKGROUND_DARK if dark else "white")
     return pl
+
+
+def text_color():
+    """Foreground color for on-screen labels (pl.add_text/add_text
+    below), matching whichever background new_plotter() just picked -
+    default PyVista text is black, invisible against a dark background."""
+    return plotstyle.FOREGROUND_DARK if plotstyle._env_wants_dark() else "black"
+
+
+def add_text(pl,*args,**kwargs):
+    """pl.add_text() with a theme-correct default color; pass color=...
+    explicitly to override."""
+    kwargs.setdefault("color",text_color())
+    return pl.add_text(*args,**kwargs)
 
 
 def nearest_neighbor_distance(points):

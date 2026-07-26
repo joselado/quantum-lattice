@@ -46,7 +46,7 @@ def picker_callback(point_id):
     """ Called when the user clicks on a point: toggles its removal"""
     removed[point_id] = not removed[point_id]
     redraw()
-    pl.add_text("Selected atom "+str(point_id)+" ",position="upper_edge",name="pick_title")
+    _pv3d.add_text(pl,"Selected atom "+str(point_id)+" ",position="upper_edge",name="pick_title")
     write_selection()
 
 
@@ -56,7 +56,7 @@ def area_callback(indices):
     sites one by one."""
     for i in indices: removed[i] = True
     redraw()
-    pl.add_text(str(len(indices))+" atoms selected",position="upper_edge",name="pick_title")
+    _pv3d.add_text(pl,str(len(indices))+" atoms selected",position="upper_edge",name="pick_title")
     write_selection()
 
 
@@ -72,14 +72,14 @@ def enable_point_mode():
     if mode["active"] is not None: pl.disable_picking()
     _pv3d.enable_point_picking(pl,points,picker_callback)
     mode["active"] = "point"
-    pl.add_text("Click mode: click an atom to toggle it  (press 'a' for area-select)",
+    _pv3d.add_text(pl,"Click mode: click an atom to toggle it  (press 'a' for area-select)",
                 position="lower_edge",font_size=10,name="mode_title")
 
 def enable_area_mode():
     if mode["active"] is not None: pl.disable_picking()
     _pv3d.enable_area_picking(pl,points,area_callback)
     mode["active"] = "area"
-    pl.add_text("Area mode: press 'r' then drag a rectangle to bulk-select  (press 'a' for click mode)",
+    _pv3d.add_text(pl,"Area mode: press 'r' then drag a rectangle to bulk-select  (press 'a' for click mode)",
                 position="lower_edge",font_size=10,name="mode_title")
 
 def toggle_mode():
