@@ -33,6 +33,10 @@ def initialize(qtwrap):
   get = qtwrap.get
   t0 = time.perf_counter()
   os.system("rm SELECTED_ATOMS.INFO") # remove the file for the DOS
+  os.system("rm LINE_ATOMS.INFO") # remove the file for the path DOS -
+                                   # a stale pick from a previous, possibly
+                                   # differently-sized island must not be
+                                   # silently reused on rebuild
   g = islandbuild.get_geometry0d(qtwrap) # get the geometry
   h = hamiltonians.hamiltonian(g) # get the hamiltonian
   h.has_spin = False # spin treatment
@@ -170,7 +174,18 @@ def show_lattice(qtwrap):
 
 def calculate_path_dos(qtwrap):
   """Calculate all the DOS in a path"""
-  get = qtwrap.get
+  get,modify = qtwrap.get,qtwrap.modify
+  # if select_path_atoms() below was used to draw a line with the mouse
+  # since the last calculation, pick up its result instead of whatever
+  # was last typed into initial_atom/final_atom - same "launch an async
+  # picker script, read its output file back on the next click" pattern
+  # as show_ldos()'s SELECTED_ATOMS.INFO / 0d.py's
+  # SELECTED_SINGLE_ATOM.INFO handling.
+  if os.path.isfile("LINE_ATOMS.INFO"):
+    picked = open("LINE_ATOMS.INFO").read().split()
+    if len(picked)==2:
+      modify("initial_atom",picked[0])
+      modify("final_atom",picked[1])
   i0 = int(get("initial_atom"))
   i1 = int(get("final_atom"))
   h = load_hamiltonian() # get the hamiltonian
@@ -271,3 +286,11 @@ def select_atoms():
 
 def select_atoms_dos():
   execute_script("ql-fast-pick write  ") # remove the file
+
+
+def select_path_atoms():
+  """Draw a straight line with the mouse to set the initial/final atom
+  for the "DOS in a line" tab - calculate_path_dos() above picks up its
+  result (LINE_ATOMS.INFO) on the next click of Show path/Compute DOS in
+  a line of atoms, same async pattern as select_atoms_dos() above."""
+  execute_script("ql-pick-line ")

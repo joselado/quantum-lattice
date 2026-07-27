@@ -62,6 +62,7 @@ def show_eigenvalues():  _ensure_initialized(); handlers.show_eigenvalues(qtwrap
 def clear_removal():  handlers.clear_removal()
 def select_atoms():  handlers.select_atoms()
 def select_atoms_dos():  handlers.select_atoms_dos()
+def select_path():  _ensure_initialized(); handlers.select_path_atoms()
 
 def save_results():  save_state(inipath,tmppath,window) # function to save
 def load_results():  load_state(inipath,tmppath,window) # function to load
@@ -84,6 +85,7 @@ signals["load_results"] = load_results  # load the results
 #signals["clear_removal"] = clear_removal  # clear the file
 #signals["select_atoms"] = select_atoms  # select_atoms
 signals["select_atoms_dos"] = select_atoms_dos  # select_atoms
+signals["select_path"] = select_path  # draw a line to pick the initial/final atom
 
 
 

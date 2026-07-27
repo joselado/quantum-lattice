@@ -626,6 +626,11 @@ class Ui_MainWindow(object):
 
         self.gridLayout_18.addWidget(self.show_path, 3, 0, 1, 1)
 
+        self.select_path = PushButton(self.tab_10)
+        self.select_path.setObjectName(u"select_path")
+
+        self.gridLayout_18.addWidget(self.select_path, 3, 1, 1, 1)
+
         self.tabWidget_3.addTab(self.tab_10, "")
         self.tab_12 = QWidget()
         self.tab_12.setObjectName(u"tab_12")
@@ -839,6 +844,10 @@ class Ui_MainWindow(object):
         self.final_atom.setText(QCoreApplication.translate("MainWindow", u"1", None))
         self.width_path.setText(QCoreApplication.translate("MainWindow", u"1.5", None))
         self.show_path.setText(QCoreApplication.translate("MainWindow", u"Show path", None))
+#if QT_CONFIG(tooltip)
+        self.select_path.setToolTip(QCoreApplication.translate("MainWindow", u"Draw a straight line with the mouse between two atoms to set the initial/final atom below", None))
+#endif // QT_CONFIG(tooltip)
+        self.select_path.setText(QCoreApplication.translate("MainWindow", u"Select path", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_10), QCoreApplication.translate("MainWindow", u"DOS in a line", None))
         self.label_37.setText(QCoreApplication.translate("MainWindow", u"# of eigenvalues", None))
 #if QT_CONFIG(tooltip)

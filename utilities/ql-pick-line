@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Interactive picker for huge_0d's "DOS in a line" feature: instead of
+typing the initial/final atom indices by hand, click-and-drag a straight
+line across the structure - the atoms nearest the drag's start and end
+points become the initial/final atom, written to LINE_ATOMS.INFO for
+handlers.calculate_path_dos() to read back (see interface-pyqt/huge_0d/
+handlers.py), the same async "launch picker, read its file back on the
+next click" pattern as ql-fast-pick/ql-remove-atoms-geometry."""
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+
+import matplotlib
+import matplotlib.colors as mcolors
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+
+m = np.atleast_2d(np.genfromtxt("POSITIONS.OUT")).transpose()
+x = m[0]
+y = m[1]
+z = m[2]
+pts = np.column_stack([x,y])
+corig = [] # original color, same in-plane/out-of-plane convention as ql-fast-pick
+sorig = []
+for iz in z:
+  if iz>0.00001:
+    corig.append("lightgreen")
+    sorig.append(20)
+  else:
+    corig.append("black")
+    sorig.append(60)
+
+i0 = None # index of the currently picked initial/final atom, if any
+i1 = None
+line_artist = None # the drawn line, redrawn on every drag
+
+plt.ion()
+
+def write_selection():
+  fo = open("LINE_ATOMS.INFO","w")
+  if i0 is not None: fo.write(str(i0)+"\n")
+  if i1 is not None: fo.write(str(i1)+"\n")
+  fo.close()
+  print("Written line atoms in LINE_ATOMS.INFO")
+
+def nearest_atom(px,py):
+  d2 = (x-px)**2 + (y-py)**2
+  return int(np.argmin(d2))
+
+def redraw():
+  """Recompute every point's color/size from scratch each time (rather
+  than mutating collection state incrementally) - simplest way to keep
+  this correct across repeated drags without the highlighted-atom state
+  drifting out of sync with i0/i1."""
+  sizes = np.array(sorig,dtype=float)
+  colors = [mcolors.to_rgba(c) for c in corig]
+  if i0 is not None:
+    sizes[i0] = 80
+    colors[i0] = mcolors.to_rgba(plotstyle.SECONDARY)
+  if i1 is not None:
+    sizes[i1] = 80
+    colors[i1] = mcolors.to_rgba(plotstyle.ACCENT)
+  scatter = ax.collections[0]
+  scatter.set_facecolor(colors)
+  scatter.set_sizes(sizes)
+  if i0 is not None and i1 is not None:
+    ax.set_title("Initial atom: "+str(i0)+"   Final atom: "+str(i1))
+  else:
+    ax.set_title("Click-drag a line from the initial to the final atom")
+  fig.canvas.draw_idle()
+
+def in_selection_mode():
+  """False while the navigation toolbar's pan/zoom tool is active - same
+  guard as ql-fast-pick's "Selection mode" button describes, applied here
+  directly to the drag handlers themselves (a manually-connected event
+  handler, unlike a matplotlib Widget, doesn't automatically get skipped
+  by the toolbar's widgetlock, so it must check this itself to avoid
+  fighting the toolbar's own pan/zoom drag)."""
+  toolbar = getattr(fig.canvas,"toolbar",None)
+  return toolbar is None or not toolbar.mode
+
+def on_press(event):
+  global i0,i1,line_artist
+  if event.inaxes != ax or not in_selection_mode(): return
+  i0 = nearest_atom(event.xdata,event.ydata)
+  i1 = None
+  if line_artist is not None:
+    line_artist.remove()
+    line_artist = None
+  redraw()
+
+def on_motion(event):
+  global line_artist
+  if event.inaxes != ax or not in_selection_mode(): return
+  if i0 is None or event.button != 1: return
+  if line_artist is not None: line_artist.remove()
+  line_artist, = ax.plot([x[i0],event.xdata],[y[i0],event.ydata],
+                         color=plotstyle.PRIMARY,linewidth=1.5,linestyle="--")
+  fig.canvas.draw_idle()
+
+def on_release(event):
+  global i1
+  if event.inaxes != ax or not in_selection_mode(): return
+  if i0 is None or event.xdata is None: return
+  i1 = nearest_atom(event.xdata,event.ydata)
+  if i1 == i0: i1 = None # a plain click with no real drag picks nothing new
+  redraw()
+  write_selection()
+
+fig, ax = plt.subplots()
+fig.set_facecolor(plotstyle.BACKGROUND)
+ax.scatter(x,y,sorig,corig,picker=True)
+plt.axis("equal")
+ax.set_title("Click-drag a line from the initial to the final atom")
+fig.canvas.mpl_connect('button_press_event',on_press)
+fig.canvas.mpl_connect('motion_notify_event',on_motion)
+fig.canvas.mpl_connect('button_release_event',on_release)
+
+def add_selection_mode_button(fig):
+  """Same as ql-fast-pick's own helper - see its docstring there. The
+  navigation toolbar's pan/zoom tools grab the canvas's widgetlock while
+  active; this button switches back to plain click/drag mode."""
+  toolbar = getattr(fig.canvas,"toolbar",None)
+  if toolbar is None: return
+  def back_to_selection_mode():
+    if not toolbar.mode: return
+    if "pan" in toolbar.mode: toolbar.pan()
+    elif "zoom" in toolbar.mode: toolbar.zoom()
+  toolbar.addSeparator()
+  action = toolbar.addAction("Selection mode",back_to_selection_mode)
+  action.setToolTip("Release the pan/zoom tool and go back to "
+                     "drawing the line between two atoms")
+
+add_selection_mode_button(fig)
+
+plt.show(block=True)
