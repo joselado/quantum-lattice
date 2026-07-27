@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QScrollArea, QFrame)
 
 from qfluentwidgets import (FluentWindow, FluentIcon as FIF, setTheme, Theme,
-    NavigationItemPosition, SwitchButton, BodyLabel, DisplayLabel,
-    CaptionLabel, StrongBodyLabel, PushButton, FlowLayout)
+    NavigationItemPosition, SwitchButton, BodyLabel, StrongBodyLabel,
+    PushButton, FlowLayout)
 
 from interpreter import pycommand
 
@@ -148,22 +148,31 @@ class _LazyPage(QWidget):
       return self
     try:
       real_page = load_mode(self.mode)
+      real_page.setStyleSheet("QWidget { background: transparent; }")
+      self._layout.removeWidget(self._loading_label)
+      self._loading_label.deleteLater()
+      self._layout.addWidget(real_page)
+      # must be set before release_busy() below: release_busy() emits
+      # became_free synchronously (same-thread signal), which
+      # Shell._retry_pending_page() is connected to and which re-enters
+      # ensure_built() on this same page if it still sees real_page as
+      # None - re-acquiring the now-free lock and rebuilding the page
+      # again, releasing the lock again, and so on forever. Setting
+      # real_page first makes that reentrant check see the page as
+      # already built, so it's a no-op instead of infinite recursion.
+      self.real_page = real_page
     finally:
       qtwrap.release_busy()
-    real_page.setStyleSheet("QWidget { background: transparent; }")
-    self._layout.removeWidget(self._loading_label)
-    self._loading_label.deleteLater()
-    self._layout.addWidget(real_page)
-    self.real_page = real_page
     return real_page
 
 
 class HomePage(QWidget):
   """Landing page shown first when the shell opens, before the old
   behavior of just dropping the user onto whichever mode happened to be
-  first in MODES with no orientation. Gives the app an identity (the
-  title) and a one-click jump to every mode, grouped the same way as the
-  sidebar (see MODES above) so the two stay in sync automatically."""
+  first in MODES with no orientation. Gives the app an identity (the old
+  system_selection window's banner logo) and a one-click jump to every
+  mode, grouped the same way as the sidebar (see MODES above) so the two
+  stay in sync automatically."""
   def __init__(self,mode_entries,switch_to):
     # mode_entries: [(label,code,group,wrapper), ...], in MODES order;
     # switch_to: callable(wrapper) -> None, e.g. Shell.switchTo, used to
@@ -174,17 +183,12 @@ class HomePage(QWidget):
     outer.setContentsMargins(56,40,56,32)
     outer.setSpacing(0)
 
-    title = DisplayLabel("Quantum Lattice")
-    title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-    font = title.font()
-    font.setLetterSpacing(QFont.SpacingType.PercentageSpacing,102)
-    title.setFont(font)
-    title.setTextColor(QColor("#2f6fed"),QColor("#7db4ff")) # accent tint, light/dark theme
-    outer.addWidget(title)
-
-    subtitle = CaptionLabel("Tight-binding & DFT-like lattice modeling - pick a system to begin")
-    subtitle.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-    outer.addWidget(subtitle)
+    logo = QLabel()
+    logo.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    logo_path = os.path.join(qlroot,"interface-pyqt","logos","quantum_lattice.png")
+    logo_pixmap = QPixmap(logo_path)
+    logo.setPixmap(logo_pixmap.scaledToWidth(640,Qt.TransformationMode.SmoothTransformation))
+    outer.addWidget(logo)
     outer.addSpacing(28)
 
     scroll = QScrollArea()
