@@ -1,9 +1,22 @@
 """Registry for Hamiltonian terms/operators that only make physical
-sense for certain lattice geometries - e.g. the Haldane and Kane-Mele
-spin-orbit terms, and the "valley" operator, are only meaningful for
-honeycomb-derived lattices (plain honeycomb, multilayer/bilayer/twisted
-graphene, hyperhoneycomb, ...), not for square/kagome/lieb/triangular/
-cubic/diamond/pyrochlore ones. A mode wires this up with one call:
+sense for certain lattice geometries. Two different rules are in play
+here, both proxying for pyqula's own per-geometry `has_sublattice` flag
+(see geometry.py) by lattice name since the UI only has the name, not
+the built geometry object, at restriction time:
+
+  - is_honeycomb_family: the Haldane/Kane-Mele spin-orbit terms and the
+    "valley" operator are honeycomb-specific physics (they come from
+    graphene's particular next-nearest-neighbor structure), so they're
+    restricted to honeycomb-derived lattices only (plain honeycomb,
+    multilayer/bilayer/twisted graphene, hyperhoneycomb, ...) even though
+    other lattice families also have a sublattice basis.
+  - is_sublattice_family: the sublattice imbalance ("mAB") and
+    antiferromagnetism ("mAF") mass terms are generic staggered on-site
+    terms that make sense on *any* lattice with more than one sublattice,
+    so they're restricted more broadly - honeycomb-derived lattices plus
+    Lieb and Diamond - not just plain Square/Triangular/Cubic.
+
+A mode wires this up with one call:
 
     from interfacetk import latticeterms
     latticeterms.connect(qtwrap,lambda: getbox("lattice"))
@@ -41,6 +54,26 @@ def is_honeycomb_family(lattice_name):
     return "honeycomb" in name or "graphene" in name
 
 
+def is_sublattice_family(lattice_name):
+    """True for any lattice whose geometry has more than one sublattice
+    (pyqula's `has_sublattice=True`): honeycomb-family (see
+    is_honeycomb_family) plus Lieb and Diamond.
+    Substring-based for the same reasons as is_honeycomb_family - a new
+    LATTICES entry for one of these families is classified automatically
+    as long as it's named the usual way ("... Lieb ...","... Diamond...").
+    Plain Square/Triangular/Cubic/Kagome/Pyrochlore lattices are excluded
+    here (even though Kagome and Pyrochlore are `has_sublattice=True` in
+    geometry.py, they're deliberately excluded from this UI-facing rule
+    on request - this is a hand-maintained list, not a live query against
+    geometry.py's actual flag, so a *future* lattice family that also has
+    a real sublattice basis but isn't named Honeycomb/Graphene/Lieb/
+    Diamond will be silently classified as False here and need adding to
+    this list by hand)."""
+    name = (lattice_name or "").lower()
+    return (is_honeycomb_family(lattice_name)
+            or "lieb" in name or "diamond" in name)
+
+
 # Each entry restricts one term/operator to lattices for which
 # `rule(lattice_name)` is True.
 #
@@ -67,11 +100,19 @@ RESTRICTED_TERMS = [
     {"kind": "widget", "names": ["antihaldane"], "rule": is_honeycomb_family},
     {"kind": "widget", "names": ["kanemele"], "rule": is_honeycomb_family},
     {"kind": "widget", "names": ["antikanemele"], "rule": is_honeycomb_family},
+    {"kind": "widget", "names": ["mAB"], "rule": is_sublattice_family},
+    {"kind": "widget", "names": ["mAF"], "rule": is_sublattice_family},
     {"kind": "combo_item",
      "items": {"topology_operator": "Valley", "operator_chern": "Valley",
                "bands_color": "valley", "fs_operator": "valley",
                "operator_kdos": "valley", "dos_operator": "valley"},
      "rule": is_honeycomb_family},
+    {"kind": "combo_item",
+     "items": {"sweep_parameter": "Sublattice imbalance"},
+     "rule": is_sublattice_family},
+    {"kind": "combo_item",
+     "items": {"sweep_parameter": "Antiferromagnetism"},
+     "rule": is_sublattice_family},
 ]
 
 
