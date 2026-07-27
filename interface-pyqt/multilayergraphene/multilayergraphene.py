@@ -177,6 +177,7 @@ def sweep_parameter():
                int(get("sweep_steps"))) # parameters
     def modify(p): # function to change the parameter
         if pname=="Sublattice imbalance": qtwrap.modify("mAB",p)
+        elif pname=="Antiferromagnetism": qtwrap.modify("mAF",p)
         elif pname=="Kane-Mele": qtwrap.modify("kanemele",p)
         elif pname=="Jx": qtwrap.modify("Bx",p)
         elif pname=="Jy": qtwrap.modify("By",p)

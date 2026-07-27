@@ -18,7 +18,7 @@ remove = False # if have to write in the file to remove
 if "write" in sys.argv: write = True
 if "remove" in sys.argv: remove = True
 
-m = np.genfromtxt("POSITIONS.OUT").transpose()
+m = np.atleast_2d(np.genfromtxt("POSITIONS.OUT")).transpose()
 x = m[0]
 y = m[1]
 z = m[2]
