@@ -266,6 +266,7 @@ class Shell(FluentWindow):
     self.switchTo(self.home_page)
     self._on_page_changed(self.stackedWidget.currentIndex())
     self.navigationInterface.setExpandWidth(260)
+    self._add_interface_theme_switch()
     self._add_plot_theme_switch()
     self.navigationInterface.addItem(
         routeKey="update_qh",icon=FIF.UPDATE,text="Update Quantum Lattice",
@@ -284,6 +285,30 @@ class Shell(FluentWindow):
     widget = self.stackedWidget.currentWidget()
     if isinstance(widget,_LazyPage) and widget.real_page is None:
       self._on_page_changed(self.stackedWidget.currentIndex())
+
+  def _add_interface_theme_switch(self):
+    """Switch for the actual GUI theme (qfluentwidgets' setTheme()) -
+    the FluentWindow chrome, nav panel, and every promoted widget's
+    stylesheet - as opposed to _add_plot_theme_switch()'s QL_THEME,
+    which only affects matplotlib/PyVista styling in the separate ql-*
+    plotting subprocesses. setTheme() applies live (updateStyleSheet()),
+    so no restart is needed."""
+    container = QWidget(self.navigationInterface)
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(20,8,16,8)
+    label = BodyLabel("Dark interface",container)
+    switch = SwitchButton(container)
+    switch.setOnText("")
+    switch.setOffText("")
+    switch.setChecked(True) # matches the setTheme(Theme.DARK) default set in main()
+    switch.checkedChanged.connect(self._on_interface_theme_changed)
+    layout.addWidget(label)
+    layout.addStretch(1)
+    layout.addWidget(switch)
+    self.navigationInterface.panel.bottomLayout.addWidget(container)
+
+  def _on_interface_theme_changed(self,checked):
+    setTheme(Theme.DARK if checked else Theme.LIGHT)
 
   def _add_plot_theme_switch(self):
     """A single switch, shown once in the shell's nav panel rather than
