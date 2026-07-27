@@ -830,16 +830,6 @@ class Ui_MainWindow(object):
 
         self.gridLayout_site_dos.addWidget(self.site_dos_delta, 1, 1, 1, 1)
 
-        self.label_site_dos_nk = BodyLabel(self.tab_site_dos)
-        self.label_site_dos_nk.setObjectName(u"label_site_dos_nk")
-
-        self.gridLayout_site_dos.addWidget(self.label_site_dos_nk, 2, 0, 1, 1)
-
-        self.site_dos_nk = LineEdit(self.tab_site_dos)
-        self.site_dos_nk.setObjectName(u"site_dos_nk")
-
-        self.gridLayout_site_dos.addWidget(self.site_dos_nk, 2, 1, 1, 1)
-
 
         self.verticalLayout_site_dos.addLayout(self.gridLayout_site_dos)
 
@@ -1066,8 +1056,6 @@ class Ui_MainWindow(object):
         self.site_dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"4.0", None))
         self.label_site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
         self.site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"0.03", None))
-        self.label_site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"Number of kpoints", None))
-        self.site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"100", None))
         self.show_site_dos.setText(QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_site_dos), QCoreApplication.translate("MainWindow", u"Site DOS", None))
 #if QT_CONFIG(tooltip)

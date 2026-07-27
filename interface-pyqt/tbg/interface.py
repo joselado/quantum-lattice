@@ -790,7 +790,7 @@ class Ui_MainWindow(object):
         self.label_site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
         self.site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"0.03", None))
         self.label_site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"Number of kpoints", None))
-        self.site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"100", None))
+        self.site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"30", None))
         self.show_site_dos.setText(QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_site_dos), QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.label_5.setText(QCoreApplication.translate("MainWindow", u"Cell size", None))

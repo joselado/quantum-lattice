@@ -1000,20 +1000,6 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
-           <widget class="BodyLabel" name="label_site_dos_nk">
-            <property name="text">
-             <string>Number of kpoints</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="LineEdit" name="site_dos_nk">
-            <property name="text">
-             <string>100</string>
-            </property>
-           </widget>
-          </item>
          </layout>
         </item>
         <item>

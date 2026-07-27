@@ -89,10 +89,13 @@ def onpick(event):
     fig.canvas.flush_events()
 
     e,d = compute_dos(i)
+    dmax = np.max(d)
     ax_dos.clear()
     ax_dos.set_facecolor(plotstyle.BACKGROUND)
     ax_dos.plot(e,d,color=plotstyle.PRIMARY)
     ax_dos.set_xlim([-args.ewindow,args.ewindow])
+    ax_dos.set_ylim([0,dmax])
+    ax_dos.set_yticks([0,dmax],["0","max"]) # exact numbers aren't meaningful here
     ax_dos.set_xlabel("Energy [t]")
     ax_dos.set_ylabel("DOS")
     ax_dos.set_title("Site "+str(i))
