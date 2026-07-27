@@ -129,20 +129,15 @@ class Ui_MainWindow(object):
 
         self.gridLayout_6.addWidget(self.show_lattice, 0, 0, 1, 1)
 
-        self.initialize = PushButton(self.centralwidget)
-        self.initialize.setObjectName(u"initialize")
-
-        self.gridLayout_6.addWidget(self.initialize, 1, 0, 1, 1)
-
         self.save_results = PushButton(self.centralwidget)
         self.save_results.setObjectName(u"save_results")
 
-        self.gridLayout_6.addWidget(self.save_results, 2, 0, 1, 1)
+        self.gridLayout_6.addWidget(self.save_results, 1, 0, 1, 1)
 
         self.load_results = PushButton(self.centralwidget)
         self.load_results.setObjectName(u"load_results")
 
-        self.gridLayout_6.addWidget(self.load_results, 3, 0, 1, 1)
+        self.gridLayout_6.addWidget(self.load_results, 2, 0, 1, 1)
 
 
         self.gridLayout_21.addLayout(self.gridLayout_6, 0, 1, 1, 1)
@@ -722,10 +717,6 @@ class Ui_MainWindow(object):
         self.show_lattice.setToolTip(QCoreApplication.translate("MainWindow", u"Show the geometry created", None))
 #endif // QT_CONFIG(tooltip)
         self.show_lattice.setText(QCoreApplication.translate("MainWindow", u"Show island", None))
-#if QT_CONFIG(tooltip)
-        self.initialize.setToolTip(QCoreApplication.translate("MainWindow", u"Write the Hamiltonian to a file, to allow quick access for the rest of the computations", None))
-#endif // QT_CONFIG(tooltip)
-        self.initialize.setText(QCoreApplication.translate("MainWindow", u"Initialize Hamiltonian", None))
 #if QT_CONFIG(tooltip)
         self.save_results.setToolTip(QCoreApplication.translate("MainWindow", u"Copy the results to a local folder", None))
 #endif // QT_CONFIG(tooltip)

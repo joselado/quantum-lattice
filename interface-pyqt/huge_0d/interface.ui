@@ -175,16 +175,6 @@
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="PushButton" name="initialize">
-        <property name="toolTip">
-         <string>Write the Hamiltonian to a file, to allow quick access for the rest of the computations</string>
-        </property>
-        <property name="text">
-         <string>Initialize Hamiltonian</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
        <widget class="PushButton" name="save_results">
         <property name="toolTip">
          <string>Copy the results to a local folder</string>
@@ -194,7 +184,7 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="2" column="0">
        <widget class="PushButton" name="load_results">
         <property name="toolTip">
          <string>Restore the parameters and results from the last saved state</string>

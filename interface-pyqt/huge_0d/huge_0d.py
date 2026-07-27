@@ -30,25 +30,30 @@ inipath = os.getcwd() # get the initial directory
 
 _initialized = False # whether initialize() has built a Hamiltonian yet
                       # in this page's scratch folder
+_init_dirty_time = None # window.params_dirty_time() as of the last initialize()
 
 def initialize():
-  global _initialized
+  global _initialized, _init_dirty_time
   handlers.initialize(qtwrap)
   _initialized = True
+  _init_dirty_time = window.params_dirty_time()
 
 def _ensure_initialized():
   """Handlers below that read the saved Hamiltonian (handlers.
   load_hamiltonian(), which just hamiltonians.load()s a file from disk)
-  need initialize() to have run at least once first. It used to run
-  unconditionally as soon as this module was imported - on a ~1260-atom
-  default island that alone costs a couple of seconds - which, now that
-  the shell only imports a mode's <mode>.py on first navigation to it
-  (see _LazyPage in bin/versions/quantum-lattice-pyqt), meant just
-  opening this page paid that cost even before touching a button. Build
-  it lazily instead, on first handler call that actually needs it; an
-  explicit click of the "Initialize" button still always rebuilds
-  (e.g. after changing parameters), same as before."""
-  if not _initialized: initialize()
+  need initialize() to have built one first, and need it rebuilt whenever
+  a form parameter has changed since - there used to be an explicit
+  "Initialize Hamiltonian" button for this, but forgetting to press it
+  after changing a parameter silently ran the next calculation against
+  the stale Hamiltonian. window.params_dirty_time() (see qtwrap.py's
+  dirty-tracking, also used by save_state()/load_state() to decide which
+  result files are still valid) only advances on genuine user edits to a
+  form widget, never on a handler's own programmatic writes, so comparing
+  it against the value as of the last initialize() tells us exactly
+  whether a rebuild is needed - including the very first call, where
+  _initialized is still False."""
+  if not _initialized or window.params_dirty_time()>_init_dirty_time:
+    initialize()
 
 def show_ldos():  _ensure_initialized(); handlers.show_ldos(qtwrap)
 def show_full_spectrum():  _ensure_initialized(); handlers.show_full_spectrum()
@@ -70,7 +75,6 @@ def load_results():  load_state(inipath,tmppath,window) # function to load
 
 # create signals
 signals = dict()
-signals["initialize"] = initialize  # initialize and run
 signals["show_ldos"] = show_ldos  # show LDOS
 signals["show_dos"] = show_dos  # show DOS
 signals["show_spatial_dos"] = show_spatial_dos  # show DOS
