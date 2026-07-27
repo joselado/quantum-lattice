@@ -15,10 +15,12 @@ qtwrap.ensure_app()
 
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QFont, QFontMetrics, QColor
 from PySide6.QtCore import Qt, QRectF
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QScrollArea, QFrame)
 
 from qfluentwidgets import (FluentWindow, FluentIcon as FIF, setTheme, Theme,
-    NavigationItemPosition, SwitchButton, BodyLabel)
+    NavigationItemPosition, SwitchButton, BodyLabel, DisplayLabel,
+    CaptionLabel, StrongBodyLabel, PushButton, FlowLayout)
 
 from interpreter import pycommand
 
@@ -128,23 +130,91 @@ class _LazyPage(QWidget):
 
   def ensure_built(self):
     """Build the real page on first call; a cheap no-op afterwards.
-    Refuses to build while some other page's handler is running: building
-    a page calls create_folder(), which chdirs into a fresh scratch
-    folder, and pyqula's cwd-relative I/O can't tolerate that racing
-    against a handler's own chdir on its worker thread (see
-    qtwrap.is_busy()). The user just sees the "Loading..." placeholder a
-    little longer and can retry once the running calculation finishes."""
+    Refuses to build while some other page's handler (or another page's
+    own build) is running: building a page calls create_folder(), which
+    chdirs into a fresh scratch folder, and pyqula's cwd-relative I/O
+    can't tolerate that racing against a handler's own chdir on its
+    worker thread. Claiming the busy lock (qtwrap.try_acquire_busy(),
+    the same lock a handler click claims) and only then building, rather
+    than checking qtwrap.is_busy() first and building afterwards as two
+    separate steps, is what closes the race where both could see "free"
+    at the same instant and then chdir concurrently. The user just sees
+    the "Loading..." placeholder a little longer; the shell retries
+    automatically once the lock frees up (see Shell._retry_pending_page)
+    rather than requiring the user to navigate away and back."""
     if self.real_page is not None: return self.real_page
-    if qtwrap.is_busy():
+    if not qtwrap.try_acquire_busy():
       self._loading_label.setText("Waiting for the current calculation to finish...")
       return self
-    real_page = load_mode(self.mode)
+    try:
+      real_page = load_mode(self.mode)
+    finally:
+      qtwrap.release_busy()
     real_page.setStyleSheet("QWidget { background: transparent; }")
     self._layout.removeWidget(self._loading_label)
     self._loading_label.deleteLater()
     self._layout.addWidget(real_page)
     self.real_page = real_page
     return real_page
+
+
+class HomePage(QWidget):
+  """Landing page shown first when the shell opens, before the old
+  behavior of just dropping the user onto whichever mode happened to be
+  first in MODES with no orientation. Gives the app an identity (the
+  title) and a one-click jump to every mode, grouped the same way as the
+  sidebar (see MODES above) so the two stay in sync automatically."""
+  def __init__(self,mode_entries,switch_to):
+    # mode_entries: [(label,code,group,wrapper), ...], in MODES order;
+    # switch_to: callable(wrapper) -> None, e.g. Shell.switchTo, used to
+    # navigate there (also updates the sidebar's selection highlight).
+    super().__init__()
+    self.setStyleSheet("QWidget { background: transparent; }")
+    outer = QVBoxLayout(self)
+    outer.setContentsMargins(56,40,56,32)
+    outer.setSpacing(0)
+
+    title = DisplayLabel("Quantum Lattice")
+    title.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    font = title.font()
+    font.setLetterSpacing(QFont.SpacingType.PercentageSpacing,102)
+    title.setFont(font)
+    title.setTextColor(QColor("#2f6fed"),QColor("#7db4ff")) # accent tint, light/dark theme
+    outer.addWidget(title)
+
+    subtitle = CaptionLabel("Tight-binding & DFT-like lattice modeling - pick a system to begin")
+    subtitle.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    outer.addWidget(subtitle)
+    outer.addSpacing(28)
+
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
+    scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+    content = QWidget()
+    content.setStyleSheet("QWidget { background: transparent; }")
+    scroll.setWidget(content)
+    content_layout = QVBoxLayout(content)
+    content_layout.setContentsMargins(0,0,12,0)
+    content_layout.setSpacing(20)
+
+    last_group = None
+    flow = None
+    for label,code,group,wrapper in mode_entries:
+      if group != last_group:
+        content_layout.addWidget(StrongBodyLabel(group))
+        flow_container = QWidget()
+        flow_container.setStyleSheet("QWidget { background: transparent; }")
+        flow = FlowLayout(flow_container,needAni=False)
+        flow.setContentsMargins(0,0,0,0)
+        content_layout.addWidget(flow_container)
+        last_group = group
+      btn = PushButton(text_icon(code),label)
+      btn.setFixedHeight(36)
+      btn.clicked.connect(lambda checked=False,w=wrapper: switch_to(w))
+      flow.addWidget(btn)
+    content_layout.addStretch(1)
+    outer.addWidget(scroll,1)
 
 
 class Shell(FluentWindow):
@@ -154,6 +224,7 @@ class Shell(FluentWindow):
   def __init__(self):
     super().__init__()
     self.setWindowTitle("Quantum Lattice")
+    mode_entries = [] # (label,code,group,wrapper) in MODES order, for the home page
     last_group = None
     for mode,label,code,group in MODES:
       if group != last_group:
@@ -178,17 +249,37 @@ class Shell(FluentWindow):
       # both _LazyPage itself (so the "Loading..." placeholder matches)
       # and the real page once ensure_built() swaps it in.
       self.addSubInterface(wrapper,icon,label,position=NavigationItemPosition.SCROLL)
+      mode_entries.append((label,code,group,wrapper))
+    self.home_page = HomePage(mode_entries,self.switchTo)
+    self.home_page.setObjectName("home")
+    self.addSubInterface(self.home_page,FIF.HOME,"Home",position=NavigationItemPosition.TOP)
     self.stackedWidget.currentChanged.connect(self._on_page_changed)
-    # the shell always shows some page as soon as it's visible - force-build
-    # that first one now rather than leaving its "Loading..." placeholder
-    # up until the user clicks something. Every later navigation goes
-    # through the same _on_page_changed() path.
+    # land on the home page rather than whichever mode happened to be
+    # first in MODES, and force-build it now (a cheap no-op for a plain
+    # QWidget, but matches the "always some page ready as soon as the
+    # shell is visible" contract every later navigation relies on via
+    # the same _on_page_changed() path).
+    self.switchTo(self.home_page)
     self._on_page_changed(self.stackedWidget.currentIndex())
     self.navigationInterface.setExpandWidth(260)
     self._add_plot_theme_switch()
     self.navigationInterface.addItem(
         routeKey="update_qh",icon=FIF.UPDATE,text="Update Quantum Lattice",
         onClick=self._update_qh,position=NavigationItemPosition.BOTTOM)
+    # a page whose first-navigation build was deferred by ensure_built()
+    # (because a handler, or another page's own build, was running at the
+    # time) would otherwise be stuck showing "Waiting..." until the user
+    # happens to navigate away and back - retry it as soon as whatever
+    # was running frees up instead.
+    qtwrap.on_busy_free(self._retry_pending_page)
+
+  def _retry_pending_page(self):
+    """Called whenever the busy lock frees up (a handler finished, or a
+    deferred page build completed elsewhere). If the page currently shown
+    is a _LazyPage that deferred its own build earlier, retry it now."""
+    widget = self.stackedWidget.currentWidget()
+    if isinstance(widget,_LazyPage) and widget.real_page is None:
+      self._on_page_changed(self.stackedWidget.currentIndex())
 
   def _add_plot_theme_switch(self):
     """A single switch, shown once in the shell's nav panel rather than
