@@ -236,6 +236,20 @@ def on_busy_free(slot):
     _busy_signals.became_free.connect(slot)
 
 
+def try_acquire_busy_or_warn(parent):
+    """try_acquire_busy(), and if something else already holds the lock,
+    show the same "please wait" InfoBar every busy-rejection uses - a
+    button click via connect_clicks() below, and the shell's own "Update
+    Quantum Lattice" nav item - so the wording can't drift between call
+    sites. Returns whether the lock was acquired."""
+    if try_acquire_busy():
+        return True
+    InfoBar.warning(title="Please wait",
+        content="Another calculation is currently running - try again once it finishes",
+        parent=parent,duration=4000,position=InfoBarPosition.TOP)
+    return False
+
+
 class _HandlerRunner(QThread):
     """Runs one button handler on a worker thread. Any widget access
     inside the handler hops back to the GUI thread transparently (see
@@ -335,10 +349,7 @@ class _AppBase:
 
     def _make_click_starter(self,fn,robust):
         def start():
-            if not try_acquire_busy():
-                InfoBar.warning(title="Please wait",
-                    content="Another calculation is currently running - try again once it finishes",
-                    parent=self,duration=4000,position=InfoBarPosition.TOP)
+            if not try_acquire_busy_or_warn(self):
                 return
             self._show_progress()
             runner = _HandlerRunner(fn,self) # self: the page this button belongs to

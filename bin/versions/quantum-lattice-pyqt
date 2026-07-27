@@ -232,6 +232,12 @@ class HomePage(QWidget):
 _GITHUB_ARCHIVE_URL = "https://github.com/joselado/quantum-lattice/archive/refs/heads/master.zip"
 
 
+_GIT_PULL_TIMEOUT = 60 # seconds; a merge that needs interactive input or a
+                        # remote demanding credentials with no TTY would
+                        # otherwise hang forever while holding the shell-wide
+                        # busy lock, freezing every other page/handler
+
+
 def _git_pull():
   """Update qlroot via `git pull`, for a cloned install (has .git/).
   Uses `git -C` rather than os.chdir() so it never touches the
@@ -240,11 +246,17 @@ def _git_pull():
   is cwd-relative. Forces an English locale so the "already up to date"
   substring check below doesn't depend on the system's locale."""
   env = dict(os.environ,LANG="C",LC_ALL="C")
-  result = subprocess.run(["git","-C",qlroot,"pull"],capture_output=True,text=True,env=env)
+  try:
+    result = subprocess.run(["git","-C",qlroot,"pull"],capture_output=True,text=True,
+        env=env,timeout=_GIT_PULL_TIMEOUT)
+  except subprocess.TimeoutExpired:
+    raise RuntimeError("git pull timed out after "+str(_GIT_PULL_TIMEOUT)+"s "
+        "(needs a merge message, or a remote asking for credentials?)")
   if result.returncode != 0:
     raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "git pull failed")
   output = result.stdout.strip()
-  if "Already up to date" in output:
+  # Git >= 2.9 says "Already up to date."; older Git says "Already up-to-date."
+  if "Already up to date" in output or "Already up-to-date" in output:
     return False,output or "Already up to date."
   return True,output or "Updated."
 
@@ -252,13 +264,28 @@ def _git_pull():
 def _redownload_latest():
   """Update qlroot for a plain download (e.g. GitHub's "Download ZIP"),
   which has no .git/ to `git pull` against: re-fetch the latest master
-  archive and overwrite qlroot with its contents. There's no local
-  history to diff against, so this always reports as an update (no cheap
-  way to tell "nothing changed" without git), will silently overwrite any
-  local edits, and - since it only adds/overwrites files rather than
-  mirroring the archive exactly - won't remove a file that was deleted
-  upstream. Good enough for keeping a downloaded copy current; a user who
-  wants proper merge/diff behavior should use `git clone` instead."""
+  archive and swap it in for qlroot. There's no local history to diff
+  against, so this always reports as an update (no cheap way to tell
+  "nothing changed" without git), will silently overwrite any local edits,
+  and - since it only adds/overwrites files rather than mirroring the
+  archive exactly - won't remove a file that was deleted upstream. Good
+  enough for keeping a downloaded copy current; a user who wants proper
+  merge/diff behavior should use `git clone` instead.
+
+  The merged tree is built in a staging directory *next to* qlroot (not
+  under qlroot itself, and not under tempfile's default location, which
+  may be a different filesystem/tmpfs) before qlroot is touched at all, so
+  a failure while downloading/extracting/copying never touches the live
+  install. qlroot is then swapped for the staged tree via rename (same
+  filesystem, so it can't fail partway through the way a file-by-file copy
+  onto the live tree could), keeping the old tree as a backup until the
+  swap fully succeeds so a failure partway through can be undone."""
+  qlroot_norm = os.path.normpath(qlroot)
+  parent = os.path.dirname(qlroot_norm)
+  staging = os.path.join(parent,".quantum-lattice-update-staging")
+  backup = os.path.join(parent,".quantum-lattice-update-backup")
+  for d in (staging,backup):
+    if os.path.isdir(d): shutil.rmtree(d)
   with tempfile.TemporaryDirectory() as tmp:
     archive_path = os.path.join(tmp,"quantum-lattice.zip")
     try:
@@ -267,8 +294,24 @@ def _redownload_latest():
       raise RuntimeError("Could not reach GitHub: "+str(e))
     with zipfile.ZipFile(archive_path) as zf:
       zf.extractall(tmp)
-    extracted = os.path.join(tmp,"quantum-lattice-master")
-    shutil.copytree(extracted,qlroot,dirs_exist_ok=True)
+    # GitHub's archive always wraps everything in one top-level folder,
+    # named after the repo/branch - discover it instead of hardcoding that
+    # name, so a repo rename or default-branch change can't break this
+    extracted_entries = [e for e in os.listdir(tmp)
+                          if os.path.isdir(os.path.join(tmp,e))]
+    if len(extracted_entries) != 1:
+      raise RuntimeError("Unexpected archive layout from "+_GITHUB_ARCHIVE_URL)
+    extracted = os.path.join(tmp,extracted_entries[0])
+    shutil.copytree(qlroot,staging,symlinks=True)
+    shutil.copytree(extracted,staging,dirs_exist_ok=True)
+  os.rename(qlroot_norm,backup)
+  try:
+    os.rename(staging,qlroot_norm)
+  except OSError:
+    shutil.rmtree(qlroot_norm,ignore_errors=True)
+    os.rename(backup,qlroot_norm)
+    raise
+  shutil.rmtree(backup,ignore_errors=True)
   return True,"Downloaded and installed the latest version from GitHub."
 
 
@@ -298,16 +341,22 @@ class _UpdateRunner(QThread):
     except Exception as e:
       self.finished_error.emit(str(e))
       return
-    if not updated:
-      self.finished_noop.emit(message)
-      return
     try:
-      pycommand.install_requirements() # pick up any new/bumped dependency before relaunching
+      # always run these, even when the pull/redownload itself was a
+      # no-op: if a previous click updated the source fine but then failed
+      # here (e.g. create_icon() hit a permission error), the source is
+      # already current so every later pull looks like a no-op too - only
+      # retrying these unconditionally gives that failure a way to recover
+      pycommand.install_requirements() # pick up any new/bumped dependency
+      pycommand.install_editable()     # re-register the console script (pyproject.toml may have changed)
       pycommand.create_icon()
     except Exception as e:
-      self.finished_error.emit("Updated but failed to finish install: "+str(e))
+      self.finished_error.emit("Failed to finish install: "+str(e))
       return
-    self.finished_ok.emit(message)
+    if updated:
+      self.finished_ok.emit(message)
+    else:
+      self.finished_noop.emit(message)
 
 
 class Shell(FluentWindow):
@@ -444,10 +493,7 @@ class Shell(FluentWindow):
     "Update Quantum Lattice" button had, but off the GUI thread and with
     real success/failure feedback instead of a print() nobody sees when
     launched from the desktop icon."""
-    if not qtwrap.try_acquire_busy():
-      InfoBar.warning(title="Please wait",
-          content="A calculation is currently running - try again once it finishes",
-          parent=self,duration=4000,position=InfoBarPosition.TOP)
+    if not qtwrap.try_acquire_busy_or_warn(self):
       return
     runner = _UpdateRunner()
     self._update_runner = runner # keep a live reference so Qt doesn't GC it mid-run
@@ -458,20 +504,28 @@ class Shell(FluentWindow):
 
   def _on_update_ok(self,message):
     # no InfoBar here: the process exits right after run_qh() spawns the
-    # new instance, so there's no time for one to be seen
-    qtwrap.release_busy()
+    # new instance, so there's no time for one to be seen.
+    # release_busy() fires a synchronous same-thread signal that can
+    # reenter _retry_pending_page()->ensure_built()->load_mode() right
+    # here (see the busy-lock-reentrancy gotcha) - relaunching first means
+    # that reentrant call, if it ever raises, can no longer abort the
+    # relaunch itself.
     pycommand.run_qh()
+    qtwrap.release_busy()
     sys.exit()
 
   def _on_update_noop(self,message):
-    qtwrap.release_busy()
+    # show the InfoBar before release_busy(), not after - see the comment
+    # in _on_update_ok: release_busy()'s synchronous reentrancy could
+    # otherwise abort this method before the message is ever shown
     InfoBar.info(title="Already up to date",content=message,
         parent=self,duration=4000,position=InfoBarPosition.TOP)
+    qtwrap.release_busy()
 
   def _on_update_error(self,message):
-    qtwrap.release_busy()
     InfoBar.error(title="Update failed",content=message,
         parent=self,duration=6000,position=InfoBarPosition.TOP)
+    qtwrap.release_busy()
 
 
 def main():

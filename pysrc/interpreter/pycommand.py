@@ -40,13 +40,47 @@ def _required_packages():
 _IMPORT_NAME = {"PySide6-Fluent-Widgets": "qfluentwidgets"}
 
 
+def _parse_requirement(package):
+    """Parse a requirements.txt line (bare name, or name with a version
+    specifier like "numpy>=1.20") via `packaging`, which is what pip
+    itself uses to understand the same syntax. Imported lazily (not at
+    module level) and tolerating its absence: `packaging` isn't guaranteed
+    to be importable on a bare interpreter (a fresh `python -m venv` does
+    not have it) even though pip does, and this module is imported before
+    install_requirements() has had any chance to install anything - a
+    hard top-level dependency here would break `install.py` on first run,
+    before it could fix exactly that. Returns None if unavailable or
+    unparseable, so callers fall back to treating the whole line as a
+    bare package name (the pre-existing behavior)."""
+    try:
+        from packaging.requirements import Requirement
+        return Requirement(package)
+    except Exception:
+        return None
+
+
 def _module_available(python,package):
-    """Check whether `package` (a requirements.txt/pip name) can be
-    imported by the given interpreter"""
-    module = _IMPORT_NAME.get(package,package)
+    """Check whether `package` (a requirements.txt line) is importable by
+    the given interpreter and, if a version specifier is given and
+    `packaging` is available to parse it, that the installed version
+    actually satisfies it - a bare importability check would otherwise
+    report an outdated already-installed version as "available", skipping
+    the pip install that was meant to fix it."""
+    req = _parse_requirement(package)
+    name = req.name if req is not None else package
+    module = _IMPORT_NAME.get(name,name)
     result = subprocess.run([python,"-c","import "+module],
                              stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-    return result.returncode==0
+    if result.returncode != 0:
+        return False
+    if req is None or not req.specifier:
+        return True
+    version_check = subprocess.run(
+        [python,"-c","import importlib.metadata;print(importlib.metadata.version(%r))" % req.name],
+        capture_output=True,text=True)
+    if version_check.returncode != 0:
+        return False # installed but its version can't be determined - treat as unsatisfied
+    return req.specifier.contains(version_check.stdout.strip(),prereleases=True)
 
 
 def install_requirements(python=None):
