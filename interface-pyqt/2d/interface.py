@@ -769,6 +769,36 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout.addWidget(self.V2)
 
+        self.label_j1 = BodyLabel(self.tab_12)
+        self.label_j1.setObjectName(u"label_j1")
+
+        self.horizontalLayout.addWidget(self.label_j1)
+
+        self.J1 = LineEdit(self.tab_12)
+        self.J1.setObjectName(u"J1")
+
+        self.horizontalLayout.addWidget(self.J1)
+
+        self.label_j2 = BodyLabel(self.tab_12)
+        self.label_j2.setObjectName(u"label_j2")
+
+        self.horizontalLayout.addWidget(self.label_j2)
+
+        self.J2 = LineEdit(self.tab_12)
+        self.J2.setObjectName(u"J2")
+
+        self.horizontalLayout.addWidget(self.J2)
+
+        self.label_j3 = BodyLabel(self.tab_12)
+        self.label_j3.setObjectName(u"label_j3")
+
+        self.horizontalLayout.addWidget(self.label_j3)
+
+        self.J3 = LineEdit(self.tab_12)
+        self.J3.setObjectName(u"J3")
+
+        self.horizontalLayout.addWidget(self.J3)
+
 
         self.gridLayout_10.addLayout(self.horizontalLayout, 1, 0, 1, 2)
 
@@ -1349,6 +1379,21 @@ class Ui_MainWindow(object):
         self.V2.setToolTip(QCoreApplication.translate("MainWindow", u"Second neighbor interaction", None))
 #endif // QT_CONFIG(tooltip)
         self.V2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_j1.setText(QCoreApplication.translate("MainWindow", u"J1", None))
+#if QT_CONFIG(tooltip)
+        self.J1.setToolTip(QCoreApplication.translate("MainWindow", u"First neighbor Heisenberg exchange", None))
+#endif // QT_CONFIG(tooltip)
+        self.J1.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_j2.setText(QCoreApplication.translate("MainWindow", u"J2", None))
+#if QT_CONFIG(tooltip)
+        self.J2.setToolTip(QCoreApplication.translate("MainWindow", u"Second neighbor Heisenberg exchange", None))
+#endif // QT_CONFIG(tooltip)
+        self.J2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_j3.setText(QCoreApplication.translate("MainWindow", u"J3", None))
+#if QT_CONFIG(tooltip)
+        self.J3.setToolTip(QCoreApplication.translate("MainWindow", u"Third neighbor Heisenberg exchange", None))
+#endif // QT_CONFIG(tooltip)
+        self.J3.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.do_scf.setText(QCoreApplication.translate("MainWindow", u"Include mean field", None))
         self.solve_scf.setText(QCoreApplication.translate("MainWindow", u"Solve SCF", None))
 #if QT_CONFIG(tooltip)

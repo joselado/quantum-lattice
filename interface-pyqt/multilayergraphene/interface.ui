@@ -941,7 +941,7 @@
                </widget>
               </item>
               <item row="1" column="1">
-               <widget class="LineEdit" name="hubbard">
+               <widget class="LineEdit" name="U">
                 <property name="text">
                  <string>2.0</string>
                 </property>
@@ -958,6 +958,91 @@
                <widget class="LineEdit" name="filling_scf">
                 <property name="text">
                  <string>0.5</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="BodyLabel" name="label_v1">
+                <property name="text">
+                 <string>V1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="1">
+               <widget class="LineEdit" name="V1">
+                <property name="toolTip">
+                 <string>First neighbor interaction</string>
+                </property>
+                <property name="text">
+                 <string>0.0</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="BodyLabel" name="label_v2">
+                <property name="text">
+                 <string>V2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="LineEdit" name="V2">
+                <property name="toolTip">
+                 <string>Second neighbor interaction</string>
+                </property>
+                <property name="text">
+                 <string>0.0</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="0">
+               <widget class="BodyLabel" name="label_j1">
+                <property name="text">
+                 <string>J1</string>
+                </property>
+               </widget>
+              </item>
+              <item row="5" column="1">
+               <widget class="LineEdit" name="J1">
+                <property name="toolTip">
+                 <string>First neighbor Heisenberg exchange</string>
+                </property>
+                <property name="text">
+                 <string>0.0</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="0">
+               <widget class="BodyLabel" name="label_j2">
+                <property name="text">
+                 <string>J2</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="1">
+               <widget class="LineEdit" name="J2">
+                <property name="toolTip">
+                 <string>Second neighbor Heisenberg exchange</string>
+                </property>
+                <property name="text">
+                 <string>0.0</string>
+                </property>
+               </widget>
+              </item>
+              <item row="7" column="0">
+               <widget class="BodyLabel" name="label_j3">
+                <property name="text">
+                 <string>J3</string>
+                </property>
+               </widget>
+              </item>
+              <item row="7" column="1">
+               <widget class="LineEdit" name="J3">
+                <property name="toolTip">
+                 <string>Third neighbor Heisenberg exchange</string>
+                </property>
+                <property name="text">
+                 <string>0.0</string>
                 </property>
                </widget>
               </item>

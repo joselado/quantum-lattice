@@ -739,6 +739,56 @@ class Ui_MainWindow(object):
 
         self.gridLayout_10.addWidget(self.filling_scf, 2, 1, 1, 1)
 
+        self.label_v1 = BodyLabel(self.tab_12)
+        self.label_v1.setObjectName(u"label_v1")
+
+        self.gridLayout_10.addWidget(self.label_v1, 3, 0, 1, 1)
+
+        self.V1 = LineEdit(self.tab_12)
+        self.V1.setObjectName(u"V1")
+
+        self.gridLayout_10.addWidget(self.V1, 3, 1, 1, 1)
+
+        self.label_v2 = BodyLabel(self.tab_12)
+        self.label_v2.setObjectName(u"label_v2")
+
+        self.gridLayout_10.addWidget(self.label_v2, 4, 0, 1, 1)
+
+        self.V2 = LineEdit(self.tab_12)
+        self.V2.setObjectName(u"V2")
+
+        self.gridLayout_10.addWidget(self.V2, 4, 1, 1, 1)
+
+        self.label_j1 = BodyLabel(self.tab_12)
+        self.label_j1.setObjectName(u"label_j1")
+
+        self.gridLayout_10.addWidget(self.label_j1, 5, 0, 1, 1)
+
+        self.J1 = LineEdit(self.tab_12)
+        self.J1.setObjectName(u"J1")
+
+        self.gridLayout_10.addWidget(self.J1, 5, 1, 1, 1)
+
+        self.label_j2 = BodyLabel(self.tab_12)
+        self.label_j2.setObjectName(u"label_j2")
+
+        self.gridLayout_10.addWidget(self.label_j2, 6, 0, 1, 1)
+
+        self.J2 = LineEdit(self.tab_12)
+        self.J2.setObjectName(u"J2")
+
+        self.gridLayout_10.addWidget(self.J2, 6, 1, 1, 1)
+
+        self.label_j3 = BodyLabel(self.tab_12)
+        self.label_j3.setObjectName(u"label_j3")
+
+        self.gridLayout_10.addWidget(self.label_j3, 7, 0, 1, 1)
+
+        self.J3 = LineEdit(self.tab_12)
+        self.J3.setObjectName(u"J3")
+
+        self.gridLayout_10.addWidget(self.J3, 7, 1, 1, 1)
+
 
         self.gridLayout_18.addLayout(self.gridLayout_10, 0, 0, 1, 2)
 
@@ -1163,6 +1213,31 @@ class Ui_MainWindow(object):
         self.U.setText(QCoreApplication.translate("MainWindow", u"2.0", None))
         self.label_34.setText(QCoreApplication.translate("MainWindow", u"Filling", None))
         self.filling_scf.setText(QCoreApplication.translate("MainWindow", u"0.5", None))
+        self.label_v1.setText(QCoreApplication.translate("MainWindow", u"V1", None))
+#if QT_CONFIG(tooltip)
+        self.V1.setToolTip(QCoreApplication.translate("MainWindow", u"First neighbor interaction", None))
+#endif // QT_CONFIG(tooltip)
+        self.V1.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_v2.setText(QCoreApplication.translate("MainWindow", u"V2", None))
+#if QT_CONFIG(tooltip)
+        self.V2.setToolTip(QCoreApplication.translate("MainWindow", u"Second neighbor interaction", None))
+#endif // QT_CONFIG(tooltip)
+        self.V2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_j1.setText(QCoreApplication.translate("MainWindow", u"J1", None))
+#if QT_CONFIG(tooltip)
+        self.J1.setToolTip(QCoreApplication.translate("MainWindow", u"First neighbor Heisenberg exchange", None))
+#endif // QT_CONFIG(tooltip)
+        self.J1.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_j2.setText(QCoreApplication.translate("MainWindow", u"J2", None))
+#if QT_CONFIG(tooltip)
+        self.J2.setToolTip(QCoreApplication.translate("MainWindow", u"Second neighbor Heisenberg exchange", None))
+#endif // QT_CONFIG(tooltip)
+        self.J2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_j3.setText(QCoreApplication.translate("MainWindow", u"J3", None))
+#if QT_CONFIG(tooltip)
+        self.J3.setToolTip(QCoreApplication.translate("MainWindow", u"Third neighbor Heisenberg exchange", None))
+#endif // QT_CONFIG(tooltip)
+        self.J3.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.do_scf.setText(QCoreApplication.translate("MainWindow", u"Include mean field", None))
         self.solve_scf.setText(QCoreApplication.translate("MainWindow", u"Solve SCF", None))
         self.tabWidget_4.setTabText(self.tabWidget_4.indexOf(self.tab_12), QCoreApplication.translate("MainWindow", u"Basic", None))
