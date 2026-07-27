@@ -69,7 +69,6 @@ def clear_removal():  handlers.clear_removal()
 def select_atoms():  handlers.select_atoms()
 def select_atoms_dos():  handlers.select_atoms_dos()
 def select_path():  _ensure_initialized(); handlers.select_path_atoms()
-def select_site_dos():  _ensure_initialized(); common.select_site(handlers.load_hamiltonian(),qtwrap)
 def show_site_dos():  _ensure_initialized(); common.get_site_dos(handlers.load_hamiltonian(),qtwrap,use_kpm=True) # islands here are too large for ED
 
 def save_results():  save_state(inipath,tmppath,window) # function to save
@@ -93,8 +92,7 @@ signals["load_results"] = load_results  # load the results
 #signals["select_atoms"] = select_atoms  # select_atoms
 signals["select_atoms_dos"] = select_atoms_dos  # select_atoms
 signals["select_path"] = select_path  # draw a line to pick the initial/final atom
-signals["select_site_dos"] = select_site_dos  # pick the site for show_site_dos
-signals["show_site_dos"] = show_site_dos  # DOS projected onto the picked site
+signals["show_site_dos"] = show_site_dos  # interactive DOS projected onto a picked site
 
 
 

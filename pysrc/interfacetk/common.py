@@ -107,32 +107,30 @@ def get_dos(h,window,silent=False):
 
 
 
-def select_site(h,window):
-    """Write the geometry and launch the interactive picker (click a
-    site in the structure plot) that show_site_dos below reads back"""
-    h.geometry.write()
-    execute_script("ql-pick-single-atom")
-
-
 def get_site_dos(h,window,use_kpm=False):
-    """DOS projected onto a single, interactively selected site (see
-    select_site above), using pyqula's "site" projector operator.
+    """Open the interactive Site DOS view: a geometry subplot on the
+    left (click a site) and a DOS subplot on the right, recomputed on
+    every click - see utilities/ql-site-dos. The DOS itself has to be
+    (re)computed inside that subprocess, in response to its own
+    matplotlib pick_event, so what's handed off here is the built
+    Hamiltonian (pickled) rather than a single precomputed DOS.OUT.
     use_kpm picks the diagonalization method: KPM for the modes whose
     Hamiltonians are too large for exact diagonalization (huge_0d, tbg,
     hofstader1d - wired with use_kpm=True in their own <mode>.py), ED
     (the dos.dos default) for every other mode."""
-    try: i = int(open("SELECTED_SINGLE_ATOM.INFO").read())
-    except: i = 0
-    # no spin doubling here (unlike 0d.py's show_time_evolution): get_site()
-    # indexes into h.geometry.r, one row per atom regardless of spin, not
-    # into the spinful Hamiltonian basis - see operators.get_site()
-    op = h.get_operator("site",index=i)
+    # a dedicated filename, not the "hamiltonian.pkl" default: that one is
+    # pickup_hamiltonian()'s canonical SCF result (written by
+    # scf.hamiltonian.save() above), and this handler runs regardless of
+    # whether "do_scf" is checked - saving over the default here would
+    # silently clobber the converged SCF Hamiltonian with a fresh one
+    hfile = "SITE_DOS_HAMILTONIAN.pkl"
+    h.save(hfile) # loaded back by ql-site-dos
     ewindow = abs(window.get("site_dos_ewindow"))
     delta = window.get("site_dos_delta") or 1e-3 # avoid a division by zero below
     nk = max([int(window.get("site_dos_nk")),1])
-    energies = np.linspace(-ewindow,ewindow,int(ewindow/delta*5))
-    dos.dos(h,delta=delta,nk=nk,energies=energies,use_kpm=use_kpm,operator=op)
-    execute_script("ql-dos --input DOS.OUT")
+    command = "ql-site-dos --hamiltonian "+hfile+" --ewindow "+str(ewindow)+" --delta "+str(delta)+" --nk "+str(nk)
+    if use_kpm: command += " --kpm True"
+    execute_script(command)
 
 
 def get_berry1d(h,window):
@@ -333,7 +331,6 @@ STANDARD_HANDLERS = {
     "show_fermi_surface": get_fermi_surface,
     "show_qpi": get_qpi,
     "show_multildos": get_multildos,
-    "select_site_dos": select_site,
     "show_site_dos": get_site_dos, # ED by default; overridden to KPM in extra={} for huge_0d/tbg/hofstader1d
 }
 

@@ -963,7 +963,7 @@
         <item>
          <widget class="BodyLabel" name="label_site_dos_info">
           <property name="text">
-           <string>Pick a site in the structure plot, then compute the DOS projected onto it</string>
+           <string>Click a site in the structure plot to compute the DOS there</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>
@@ -1017,19 +1017,9 @@
          </layout>
         </item>
         <item>
-         <widget class="PushButton" name="select_site_dos">
-          <property name="toolTip">
-           <string>Click a site in the structure plot to select it</string>
-          </property>
-          <property name="text">
-           <string>Pick site</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="PushButton" name="show_site_dos">
           <property name="text">
-           <string>Show site DOS</string>
+           <string>Site DOS</string>
           </property>
          </widget>
         </item>

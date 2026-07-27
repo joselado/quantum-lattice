@@ -523,11 +523,6 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_site_dos.addLayout(self.gridLayout_site_dos)
 
-        self.select_site_dos = PushButton(self.tab_site_dos)
-        self.select_site_dos.setObjectName(u"select_site_dos")
-
-        self.verticalLayout_site_dos.addWidget(self.select_site_dos)
-
         self.show_site_dos = PushButton(self.tab_site_dos)
         self.show_site_dos.setObjectName(u"show_site_dos")
 
@@ -699,18 +694,14 @@ class Ui_MainWindow(object):
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Unit cells", None))
         self.show_magnetism.setText(QCoreApplication.translate("MainWindow", u"Show magnetism", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_13), QCoreApplication.translate("MainWindow", u"Magnetism", None))
-        self.label_site_dos_info.setText(QCoreApplication.translate("MainWindow", u"Pick a site in the structure plot, then compute the DOS projected onto it", None))
+        self.label_site_dos_info.setText(QCoreApplication.translate("MainWindow", u"Click a site in the structure plot to compute the DOS there", None))
         self.label_site_dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"Energy window", None))
         self.site_dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"4.0", None))
         self.label_site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
         self.site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"0.03", None))
         self.label_site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"Number of kpoints", None))
         self.site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"100", None))
-#if QT_CONFIG(tooltip)
-        self.select_site_dos.setToolTip(QCoreApplication.translate("MainWindow", u"Click a site in the structure plot to select it", None))
-#endif // QT_CONFIG(tooltip)
-        self.select_site_dos.setText(QCoreApplication.translate("MainWindow", u"Pick site", None))
-        self.show_site_dos.setText(QCoreApplication.translate("MainWindow", u"Show site DOS", None))
+        self.show_site_dos.setText(QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_site_dos), QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.nsuper.setText(QCoreApplication.translate("MainWindow", u"1", None))
         self.label_6.setText(QCoreApplication.translate("MainWindow", u"Supercell", None))

@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""Interactive site DOS: geometry on the left, DOS on the right.
+
+Unlike every other ql-* script (which only ever plots files a <mode>.py
+handler already computed - see CLAUDE.md's "utilities/" section), this
+one imports pyqula and recomputes the DOS itself, on every click. That
+recomputation has to happen wherever matplotlib's pick_event fires, and
+that's this subprocess's own event loop, not the GUI process's - so
+common.get_site_dos() saves the built Hamiltonian to a pickle
+(hamiltonian.pkl) before launching this script instead of writing a
+DOS.OUT for a single site up front.
+"""
+import argparse
+import os
+import sys
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+
+qlroot = os.path.dirname(os.path.realpath(__file__)) + "/.."
+sys.path.append(qlroot + "/pysrc/")
+from pyqula import hamiltonians, dos
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--hamiltonian", default="hamiltonian.pkl",
+        help="Pickled pyqula Hamiltonian to load (see Hamiltonian.save)")
+parser.add_argument("--ewindow", type=float, default=4.0)
+parser.add_argument("--delta", type=float, default=0.03)
+parser.add_argument("--nk", type=int, default=100)
+parser.add_argument("--kpm", default="False",
+        help="Use KPM instead of exact diagonalization (large systems)")
+args = parser.parse_args()
+
+use_kpm = args.kpm == "True"
+delta = args.delta or 1e-3 # avoid a division by zero below
+h = hamiltonians.load(args.hamiltonian)
+
+r = np.array(h.geometry.r)
+x,y,z = r[:,0],r[:,1],r[:,2]
+sizes = [60 if abs(iz)<1e-5 else 20 for iz in z]
+colors = [plotstyle.PRIMARY if abs(iz)<1e-5 else plotstyle.SECONDARY for iz in z]
+
+fig,(ax_geom,ax_dos) = plt.subplots(1,2,figsize=(11,5))
+fig.canvas.setWindowTitle("Site DOS")
+fig.set_facecolor(plotstyle.BACKGROUND)
+
+ax_geom.set_facecolor(plotstyle.BACKGROUND)
+ax_geom.scatter(x,y,sizes,colors,picker=True)
+ax_geom.set_aspect("equal")
+ax_geom.set_title("Click a site")
+
+ax_dos.set_facecolor(plotstyle.BACKGROUND)
+ax_dos.set_xlabel("Energy [t]")
+ax_dos.set_ylabel("DOS")
+ax_dos.set_title("Pick a site")
+
+fig.tight_layout()
+
+
+def compute_dos(i):
+    op = h.get_operator("site",index=i)
+    energies = np.linspace(-args.ewindow,args.ewindow,int(args.ewindow/delta*5))
+    return dos.dos(h,delta=delta,nk=args.nk,energies=energies,
+            use_kpm=use_kpm,operator=op)
+
+
+def onpick(event):
+    ind = event.ind
+    if len(ind)==0: return
+    i = int(ind[0]) # first site under the click
+    # nothing else needs to read this index back - pick and compute both
+    # happen right here in this one process - so it isn't written to a
+    # file. (SELECTED_SINGLE_ATOM.INFO in particular must stay untouched:
+    # it's 0d.py's "Perform time evolution" feature's own handoff file,
+    # in the same page-level scratch dir every handler shares.)
+
+    colors_now = list(colors)
+    colors_now[i] = plotstyle.ACCENT
+    ax_geom.collections[0].set_facecolor(colors_now)
+    ax_geom.set_title("Site "+str(i))
+    fig.canvas.draw_idle()
+
+    ax_dos.set_title("Computing...")
+    fig.canvas.draw_idle()
+    fig.canvas.flush_events()
+
+    e,d = compute_dos(i)
+    ax_dos.clear()
+    ax_dos.set_facecolor(plotstyle.BACKGROUND)
+    ax_dos.plot(e,d,color=plotstyle.PRIMARY)
+    ax_dos.set_xlim([-args.ewindow,args.ewindow])
+    ax_dos.set_xlabel("Energy [t]")
+    ax_dos.set_ylabel("DOS")
+    ax_dos.set_title("Site "+str(i))
+    fig.canvas.draw_idle()
+
+
+fig.canvas.mpl_connect("pick_event",onpick)
+plt.show()
