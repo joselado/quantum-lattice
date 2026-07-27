@@ -39,9 +39,13 @@ def part_suffix(i):
     return "" if i == 1 else "_%d" % i
 
 
-def current_nparts(qtwrap, nparts_box="nparts"):
-    try: return int(qtwrap.getbox(nparts_box))
+def _parse_nparts(text):
+    try: return int(text)
     except (TypeError, ValueError): return 2
+
+
+def current_nparts(qtwrap, nparts_box="nparts"):
+    return _parse_nparts(qtwrap.getbox(nparts_box))
 
 
 def region_of_factory(coord_min, coord_max, nparts):
@@ -137,7 +141,15 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
         if i not in extra_tabs:
             tab = _build_tab(params, i)
             for name, _ in params:
-                setattr(form, name + part_suffix(i), tab.findChild(LineEdit, name + part_suffix(i)))
+                field = tab.findChild(LineEdit, name + part_suffix(i))
+                setattr(form, name + part_suffix(i), field)
+                # Designer-built part 1/2 fields get this wired once, for
+                # every QLineEdit on the page, by _AppBase's own
+                # _connect_dirty_tracking() at page-construction time -
+                # these part 3+ fields are built later, here, so without
+                # this line an edit to one would never mark results stale
+                # (params_dirty_time() would stay at its pre-edit value).
+                field.textEdited.connect(form._mark_dirty)
             extra_tabs[i] = tab
             if on_new_part is not None: on_new_part()
         return extra_tabs[i]
@@ -151,5 +163,14 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
             for i in range(current + 1, n + 1): tabs.addTab(ensure_built(i), "Part %d" % i)
 
     combo = getattr(form, nparts_box)
-    combo.currentTextChanged.connect(lambda _t: apply_count(current_nparts(qtwrap, nparts_box)))
+    # Read the new value directly off the signal (the text the combobox
+    # just changed to), not via current_nparts(qtwrap,nparts_box) -
+    # qtwrap.getbox() resolves through the shell's single global "active
+    # page" pointer, which is only guaranteed to be *this* page while the
+    # combobox change is a live user click (the only page whose widgets
+    # can receive one). A programmatic change - e.g. load_interface()
+    # restoring a saved session onto a page that isn't currently shown -
+    # would otherwise read the wrong (currently active) page's nparts
+    # value while still mutating this page's own `tabs`/`extra_tabs`.
+    combo.currentTextChanged.connect(lambda text: apply_count(_parse_nparts(text)))
     apply_count(current_nparts(qtwrap, nparts_box))
