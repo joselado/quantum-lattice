@@ -549,6 +549,62 @@ class Ui_MainWindow(object):
         self.gridLayout_22.addWidget(self.show_kdos, 1, 0, 1, 1)
 
         self.tabWidget_3.addTab(self.tab, "")
+        self.tab_site_dos = QWidget()
+        self.tab_site_dos.setObjectName(u"tab_site_dos")
+        self.verticalLayout_site_dos = QVBoxLayout(self.tab_site_dos)
+        self.verticalLayout_site_dos.setObjectName(u"verticalLayout_site_dos")
+        self.label_site_dos_info = BodyLabel(self.tab_site_dos)
+        self.label_site_dos_info.setObjectName(u"label_site_dos_info")
+        self.label_site_dos_info.setWordWrap(True)
+
+        self.verticalLayout_site_dos.addWidget(self.label_site_dos_info)
+
+        self.gridLayout_site_dos = QGridLayout()
+        self.gridLayout_site_dos.setObjectName(u"gridLayout_site_dos")
+        self.label_site_dos_ewindow = BodyLabel(self.tab_site_dos)
+        self.label_site_dos_ewindow.setObjectName(u"label_site_dos_ewindow")
+
+        self.gridLayout_site_dos.addWidget(self.label_site_dos_ewindow, 0, 0, 1, 1)
+
+        self.site_dos_ewindow = LineEdit(self.tab_site_dos)
+        self.site_dos_ewindow.setObjectName(u"site_dos_ewindow")
+
+        self.gridLayout_site_dos.addWidget(self.site_dos_ewindow, 0, 1, 1, 1)
+
+        self.label_site_dos_delta = BodyLabel(self.tab_site_dos)
+        self.label_site_dos_delta.setObjectName(u"label_site_dos_delta")
+
+        self.gridLayout_site_dos.addWidget(self.label_site_dos_delta, 1, 0, 1, 1)
+
+        self.site_dos_delta = LineEdit(self.tab_site_dos)
+        self.site_dos_delta.setObjectName(u"site_dos_delta")
+
+        self.gridLayout_site_dos.addWidget(self.site_dos_delta, 1, 1, 1, 1)
+
+        self.label_site_dos_nk = BodyLabel(self.tab_site_dos)
+        self.label_site_dos_nk.setObjectName(u"label_site_dos_nk")
+
+        self.gridLayout_site_dos.addWidget(self.label_site_dos_nk, 2, 0, 1, 1)
+
+        self.site_dos_nk = LineEdit(self.tab_site_dos)
+        self.site_dos_nk.setObjectName(u"site_dos_nk")
+
+        self.gridLayout_site_dos.addWidget(self.site_dos_nk, 2, 1, 1, 1)
+
+
+        self.verticalLayout_site_dos.addLayout(self.gridLayout_site_dos)
+
+        self.select_site_dos = PushButton(self.tab_site_dos)
+        self.select_site_dos.setObjectName(u"select_site_dos")
+
+        self.verticalLayout_site_dos.addWidget(self.select_site_dos)
+
+        self.show_site_dos = PushButton(self.tab_site_dos)
+        self.show_site_dos.setObjectName(u"show_site_dos")
+
+        self.verticalLayout_site_dos.addWidget(self.show_site_dos)
+
+        self.tabWidget_3.addTab(self.tab_site_dos, "")
 
         self.gridLayout_6.addWidget(self.tabWidget_3, 0, 1, 1, 1)
 
@@ -719,6 +775,19 @@ class Ui_MainWindow(object):
         self.label_21.setText(QCoreApplication.translate("MainWindow", u"# of points", None))
         self.show_kdos.setText(QCoreApplication.translate("MainWindow", u"Show Surface DOS", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab), QCoreApplication.translate("MainWindow", u"SDOS", None))
+        self.label_site_dos_info.setText(QCoreApplication.translate("MainWindow", u"Pick a site in the structure plot, then compute the DOS projected onto it", None))
+        self.label_site_dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"Energy window", None))
+        self.site_dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"4.0", None))
+        self.label_site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
+        self.site_dos_delta.setText(QCoreApplication.translate("MainWindow", u"0.03", None))
+        self.label_site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"Number of kpoints", None))
+        self.site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"100", None))
+#if QT_CONFIG(tooltip)
+        self.select_site_dos.setToolTip(QCoreApplication.translate("MainWindow", u"Click a site in the structure plot to select it", None))
+#endif // QT_CONFIG(tooltip)
+        self.select_site_dos.setText(QCoreApplication.translate("MainWindow", u"Pick site", None))
+        self.show_site_dos.setText(QCoreApplication.translate("MainWindow", u"Show site DOS", None))
+        self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_site_dos), QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save results", None))
         self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load results", None))
     # retranslateUi

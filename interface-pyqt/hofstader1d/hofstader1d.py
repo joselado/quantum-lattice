@@ -204,6 +204,8 @@ signals["show_dos"] = show_dos  # show DOS
 signals["show_dosbands"] = show_dosbands  # show DOS
 signals["show_hofstader"] = show_hofstader  # show DOS
 signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
+signals["select_site_dos"] = lambda: common.select_site(pickup_hamiltonian(),qtwrap)
+signals["show_site_dos"] = lambda: common.get_site_dos(pickup_hamiltonian(),qtwrap,use_kpm=True) # magnetic-field supercells are too large for ED
 signals["save_results"] = save_results
 signals["load_results"] = load_results
 

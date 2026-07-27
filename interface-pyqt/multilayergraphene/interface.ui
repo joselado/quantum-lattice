@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -729,7 +729,7 @@
            </widget>
           </item>
           <item row="4" column="1">
-           <widget class="ComboBox" name="dos_operator"/>
+           <widget class="ComboBox" name="dos_operator" />
           </item>
          </layout>
         </item>
@@ -1334,6 +1334,86 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_site_dos">
+       <attribute name="title">
+        <string>Site DOS</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_site_dos">
+        <item>
+         <widget class="BodyLabel" name="label_site_dos_info">
+          <property name="text">
+           <string>Pick a site in the structure plot, then compute the DOS projected onto it</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="gridLayout_site_dos">
+          <item row="0" column="0">
+           <widget class="BodyLabel" name="label_site_dos_ewindow">
+            <property name="text">
+             <string>Energy window</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="LineEdit" name="site_dos_ewindow">
+            <property name="text">
+             <string>4.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="BodyLabel" name="label_site_dos_delta">
+            <property name="text">
+             <string>Smearing</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="LineEdit" name="site_dos_delta">
+            <property name="text">
+             <string>0.03</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="BodyLabel" name="label_site_dos_nk">
+            <property name="text">
+             <string>Number of kpoints</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="LineEdit" name="site_dos_nk">
+            <property name="text">
+             <string>100</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="PushButton" name="select_site_dos">
+          <property name="toolTip">
+           <string>Click a site in the structure plot to select it</string>
+          </property>
+          <property name="text">
+           <string>Pick site</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="PushButton" name="show_site_dos">
+          <property name="text">
+           <string>Show site DOS</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
     <item row="2" column="0" colspan="2">
@@ -1362,35 +1442,35 @@
     </rect>
    </property>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar" />
  </widget>
  <customwidgets>
- <customwidget>
-  <class>BodyLabel</class>
-  <extends>QLabel</extends>
-  <header>qfluentwidgets</header>
- </customwidget>
- <customwidget>
-  <class>CheckBox</class>
-  <extends>QCheckBox</extends>
-  <header>qfluentwidgets</header>
- </customwidget>
- <customwidget>
-  <class>ComboBox</class>
-  <extends>QComboBox</extends>
-  <header>qfluentwidgets</header>
- </customwidget>
- <customwidget>
-  <class>LineEdit</class>
-  <extends>QLineEdit</extends>
-  <header>qfluentwidgets</header>
- </customwidget>
- <customwidget>
-  <class>PushButton</class>
-  <extends>QPushButton</extends>
-  <header>qfluentwidgets</header>
- </customwidget>
-</customwidgets>
-<resources/>
- <connections/>
+  <customwidget>
+   <class>BodyLabel</class>
+   <extends>QLabel</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>CheckBox</class>
+   <extends>QCheckBox</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>ComboBox</class>
+   <extends>QComboBox</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>LineEdit</class>
+   <extends>QLineEdit</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>PushButton</class>
+   <extends>QPushButton</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+ </customwidgets>
+ <resources />
+ <connections />
 </ui>

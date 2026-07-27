@@ -113,7 +113,7 @@ def show_dos():
   ndos = int(get("nume_dos"))
   npol = int(get("numpol_dos"))
   ndos = npol*10
-  delta = get("delta_dos")
+  delta = get("delta_dos") or 1e-3 # avoid a division by zero below
   scale = 10.0 # scale for KPM
   check_parallel() # check if there is parallelization
   name = qtwrap.getbox("mode_dos") # mode of the DOS
@@ -223,6 +223,7 @@ def load_results():  load_state(inipath,tmppath,window) # function to load
 # behavior need to be listed explicitly here
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_dos": show_dos,  # custom KPM/Lowest DOS modes
+  "show_site_dos": lambda: common.get_site_dos(pickup_hamiltonian(),qtwrap,use_kpm=True), # moire cells are too large for ED
   "show_ldos_single": show_ldos,  # show Berry curvature
   "show_structure": show_structure,  # show magnetism
   "show_structure_3d": show_structure_3d,

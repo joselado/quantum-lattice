@@ -59,7 +59,7 @@ def get_kdos(h,window):
 def get_surface_dos(h,window):
     """Show the KDOS"""
     ew = window.get("sdos_ewindow")
-    delta = window.get("sdos_delta")
+    delta = window.get("sdos_delta") or 1e-3 # avoid a division by zero below
     new = int(4*ew/delta) # scale as kpoints
     energies = np.linspace(-ew,ew,new) # number of ene
     kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
@@ -90,7 +90,7 @@ def show_exchange(h,window):
 
 def get_dos(h,window,silent=False):
     nk = max([int(window.get("dos_nk")),1])
-    delta = window.get("dos_delta")
+    delta = window.get("dos_delta") or 1e-3 # avoid a division by zero below
     ewindow = abs(window.get("dos_ewindow"))
     energies = np.linspace(-ewindow,ewindow,int(ewindow/delta*5)) # get the energies
     h = h.reduce() # reduce dimensionality of possible
@@ -105,6 +105,34 @@ def get_dos(h,window,silent=False):
       dos.dos(h,delta=delta,nk=nk,energies=energies,operator=op) # compute DOS
     if not silent: execute_script("ql-dos --input DOS.OUT")
 
+
+
+def select_site(h,window):
+    """Write the geometry and launch the interactive picker (click a
+    site in the structure plot) that show_site_dos below reads back"""
+    h.geometry.write()
+    execute_script("ql-pick-single-atom")
+
+
+def get_site_dos(h,window,use_kpm=False):
+    """DOS projected onto a single, interactively selected site (see
+    select_site above), using pyqula's "site" projector operator.
+    use_kpm picks the diagonalization method: KPM for the modes whose
+    Hamiltonians are too large for exact diagonalization (huge_0d, tbg,
+    hofstader1d - wired with use_kpm=True in their own <mode>.py), ED
+    (the dos.dos default) for every other mode."""
+    try: i = int(open("SELECTED_SINGLE_ATOM.INFO").read())
+    except: i = 0
+    # no spin doubling here (unlike 0d.py's show_time_evolution): get_site()
+    # indexes into h.geometry.r, one row per atom regardless of spin, not
+    # into the spinful Hamiltonian basis - see operators.get_site()
+    op = h.get_operator("site",index=i)
+    ewindow = abs(window.get("site_dos_ewindow"))
+    delta = window.get("site_dos_delta") or 1e-3 # avoid a division by zero below
+    nk = max([int(window.get("site_dos_nk")),1])
+    energies = np.linspace(-ewindow,ewindow,int(ewindow/delta*5))
+    dos.dos(h,delta=delta,nk=nk,energies=energies,use_kpm=use_kpm,operator=op)
+    execute_script("ql-dos --input DOS.OUT")
 
 
 def get_berry1d(h,window):
@@ -262,6 +290,7 @@ def get_multildos(h,window):
 
 def get_nk(h,delta=1e-2,fac=1.0):
     """Return the number of k-points to be used"""
+    delta = delta or 1e-3 # avoid a division by zero below
     n = h.intra.shape[0] # dimension of the Hamiltonian
     d = h.dimensionality # dimensionality
     nk = 1./(delta*n) # number of kpoints
@@ -304,6 +333,8 @@ STANDARD_HANDLERS = {
     "show_fermi_surface": get_fermi_surface,
     "show_qpi": get_qpi,
     "show_multildos": get_multildos,
+    "select_site_dos": select_site,
+    "show_site_dos": get_site_dos, # ED by default; overridden to KPM in extra={} for huge_0d/tbg/hofstader1d
 }
 
 

@@ -58,7 +58,7 @@ SHELL_ALIVE_TIMEOUT = 10  # the shell only builds its initially-shown page up
 AUTO_WIRED_BUTTONS = {
     "show_bands", "show_dos", "show_kdos", "show_dosbands", "show_berry1d",
     "show_berry2d", "show_z2", "show_chern", "show_fermi_surface",
-    "show_qpi", "show_multildos",
+    "show_qpi", "show_multildos", "select_site_dos", "show_site_dos",
 }
 
 
