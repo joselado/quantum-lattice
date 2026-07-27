@@ -19,5 +19,5 @@ def read_positions():
 ca = (z1-np.min(z1))/(np.max(z1)-np.min(z1)+1e-3) # scaled height, used for color
 
 pl = _pv3d.new_plotter("Structure")
-_pv3d.add_scaled_points(pl,(x1,y1,z1),ca,cmap="cool",point_size=25,opacity=1.0)
+_pv3d.add_atoms_colored(pl,(x1,y1,z1),ca,cmap="cool",opacity=1.0)
 pl.show()

@@ -62,6 +62,28 @@ def add_atoms(pl,xyz,color="cyan",radius=None,opacity=1.0):
     return points
 
 
+def add_atoms_colored(pl,xyz,scalars,radius=None,cmap="cool",opacity=1.0,show_scalar_bar=False):
+    """Like add_atoms above (true shaded spheres in world/data
+    coordinates - fixed physical size, independent of camera zoom), but
+    colored per-atom by a scalar (e.g. layer height) instead of one
+    flat color. Use this instead of add_scaled_points when the points
+    represent atoms: add_scaled_points sizes/renders points in *screen*
+    pixels via VTK's point rendering, so their apparent size stays
+    fixed in pixels rather than shrinking/growing with the rest of the
+    scene as the camera zooms - fine for a weight-encoded overlay (e.g.
+    ql-wave's wavefunction amplitude), wrong for atoms that should look
+    like part of the 3D structure."""
+    points = np.asarray(xyz).T
+    if radius is None: radius = nearest_neighbor_distance(points)/3.0
+    cloud = pv.PolyData(points)
+    cloud["scalars"] = np.asarray(scalars)
+    sphere = pv.Sphere(radius=radius,theta_resolution=12,phi_resolution=12)
+    glyph = cloud.glyph(geom=sphere,scale=False,orient=False)
+    pl.add_mesh(glyph,scalars="scalars",cmap=cmap,opacity=opacity,
+                show_scalar_bar=show_scalar_bar)
+    return points
+
+
 def add_scaled_points(pl,xyz,scalars,color=None,cmap="viridis",point_size=30,opacity=0.6):
     """Draw points scaled/colored by a per-point scalar (e.g. LDOS weight)"""
     points = np.asarray(xyz).T

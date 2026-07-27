@@ -20,5 +20,10 @@ rs = xyz.transpose()
 pl = _pv3d.new_plotter()
 _pv3d.add_atoms(pl,xyz,color=lattice_color)
 _pv3d.add_bonds(pl,rs,rs,dmin=1e-6,dmax=1.005,color=lattice_color,radius=0.1)
-_pv3d.add_scaled_points(pl,xyz,m[2],color=ldos_color,point_size=30,opacity=0.5)
+# a halo around each atom, not add_scaled_points: that renders in
+# screen pixels, so it would drift out of registration with the
+# (correctly world-sized) atoms above as the camera zooms - see
+# add_atoms_colored's docstring
+nn = _pv3d.nearest_neighbor_distance(xyz.transpose())
+_pv3d.add_atoms(pl,xyz,color=ldos_color,radius=nn/1.5,opacity=0.5)
 pl.show()
