@@ -25,6 +25,7 @@ from . import bandstructure
 from . import increase_hilbert
 from .meanfield import Vinteraction
 from .meanfield import Vinteraction_kpm
+from .meanfield import SzSz,SxSx,SySy,Jinteraction,VJinteraction
 from .sctk import dvector
 from .algebratk import hamiltonianalgebra
 from .bandstructure import get_bands_nd
@@ -42,6 +43,19 @@ from .htk import symmetry
 
 from .limits import densedimension as maxmatrix
 optimal = False
+
+def _mean_field_scf_result(scf,return_total_energy):
+    """Shared tail for the get_*_mean_field_hamiltonian wrappers below:
+    SzSz/SxSx/SySy return the NotImplemented sentinel (not an SCF object)
+    for spinless/BdG Hamiltonians, which must be checked before touching
+    scf.converged."""
+    if scf is NotImplemented:
+        if return_total_energy: return (None,None)
+        else: return None
+    if not scf.converged: scf.hamiltonian = None # no convergence
+    if return_total_energy:
+        return (scf.hamiltonian,scf.total_energy)
+    else: return scf.hamiltonian
 
 class Hamiltonian():
     """ Class for a hamiltonian """
@@ -132,6 +146,18 @@ class Hamiltonian():
         """Spatially resolved IETS at a certain energy"""
         from . import chi
         return chi.get_qdos_iets(self,**kwargs)
+    def get_rpa_kernel_poles(self,**kwargs):
+        """Return the poles of the RPA kernel 1 - U*chi(q,omega), i.e. the
+        frequencies of the collective modes/instabilities of the
+        interacting response function"""
+        from . import chi
+        return chi.rpa_kernel_poles(self,**kwargs)
+    def get_magnon_bands(self,**kwargs):
+        """Return the magnon bands: the poles of the full spin RPA kernel
+        (the Sx,Sy,Sz channel used by get_spinchi_full/get_iets_ldos),
+        scanned along a q-path"""
+        from . import chi
+        return chi.magnon_bands(self,**kwargs)
     def get_hopping_dict(self):
         """Return the dictionary with the hoppings"""
         return multicell.get_hopping_dict(self)
@@ -436,14 +462,26 @@ class Hamiltonian():
         """Return a multihopping object"""
         from .multihopping import MultiHopping
         return MultiHopping(self.get_dict())
-    @get_docstring(Vinteraction)
+    @get_docstring(VJinteraction)
     def get_mean_field_hamiltonian(self,return_total_energy=False,
             integration="ed",**kwargs):
-        scf = Vinteraction(self,integration=integration,**kwargs)
-        if not scf.converged: scf.hamiltonian = None # no convergence
-        if return_total_energy:
-            return (scf.hamiltonian,scf.total_energy)
-        else: return scf.hamiltonian
+        if self.has_spin and integration in ("ed","kpm"):
+            scf = VJinteraction(self,integration=integration,**kwargs)
+        else:
+            # VJinteraction requires has_spin (spin-spin exchange has no
+            # meaning for a spinless Hamiltonian -- see its own has_spin
+            # check) and only supports integration="ed"/"kpm" (no
+            # qtci/solver zoo); fall back for the remaining combinations to
+            # whichever of Vinteraction/Vinteraction_kpm supports this
+            # integration mode -- Vinteraction itself never learned "kpm"
+            # (that is Vinteraction_kpm's own separate entry point), so
+            # route there explicitly instead of forwarding integration="kpm"
+            # into Vinteraction's get_dm, which only accepts "ed"/"qtci"
+            if integration=="kpm":
+                scf = Vinteraction_kpm(self,**kwargs)
+            else:
+                scf = Vinteraction(self,integration=integration,**kwargs)
+        return _mean_field_scf_result(scf,return_total_energy)
     @get_docstring(Vinteraction_kpm)
     def get_mean_field_hamiltonian_kpm(self,return_total_energy=False,**kwargs):
         """KPM-based (sparse, Chebyshev) alternative to
@@ -452,11 +490,22 @@ class Hamiltonian():
         elements required by the provided interaction (U, V1, V2, V3, Vr)
         through Chebyshev recursion on H(k). Meant for large/sparse
         Hamiltonians; see selfconsistency.densitydensity_kpm."""
-        scf = Vinteraction_kpm(self,**kwargs)
-        if not scf.converged: scf.hamiltonian = None # no convergence
-        if return_total_energy:
-            return (scf.hamiltonian,scf.total_energy)
-        else: return scf.hamiltonian
+        return _mean_field_scf_result(Vinteraction_kpm(self,**kwargs),return_total_energy)
+    @get_docstring(SzSz)
+    def get_szsz_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
+        return _mean_field_scf_result(SzSz(self,**kwargs),return_total_energy)
+    @get_docstring(SxSx)
+    def get_sxsx_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
+        return _mean_field_scf_result(SxSx(self,**kwargs),return_total_energy)
+    @get_docstring(SySy)
+    def get_sysy_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
+        return _mean_field_scf_result(SySy(self,**kwargs),return_total_energy)
+    @get_docstring(Jinteraction)
+    def get_exchange_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
+        return _mean_field_scf_result(Jinteraction(self,**kwargs),return_total_energy)
+    @get_docstring(VJinteraction)
+    def get_combined_mean_field_hamiltonian(self,return_total_energy=False,**kwargs):
+        return _mean_field_scf_result(VJinteraction(self,**kwargs),return_total_energy)
     def get_tails(self,discard=None):
         """Write the tails of the wavefunctions"""
         if self.dimensionality!=0: raise

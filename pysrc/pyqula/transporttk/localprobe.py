@@ -13,7 +13,7 @@ gfmode = "adaptive"
 
 
 class LocalProbe():
-    def __init__(self,h,lead=None,delta=1e-5,i=0,T=1.0,**kwargs):
+    def __init__(self,h,lead=None,delta=1e-6,i=0,T=1.0,**kwargs):
         h = h.get_dense() # dense Hamiltonian
         self.H = h.copy() # store Hamiltonian
         # Precompute the non-multicell form once, when valid (nearest-
@@ -36,6 +36,14 @@ class LocalProbe():
         self.mode = "bulk"
         self.reuse_gf = False # reuse the Green's function
         self.gf = None
+        # Neither selfenergy (probe lead=0, sample lead=1) depends on the
+        # probe-sample coupling self.T -- see get_central_gmatrix, where T
+        # only scales the off-diagonal coupling block -- so callers that
+        # sweep T at fixed energy (transporttk.kappa's get_conductances)
+        # can safely cache them across that sweep. Off by default so every
+        # other call site keeps computing them fresh, as before.
+        self.reuse_selfenergy = False
+        self._selfenergy_cache = {}
         self.bulk_delta = delta
         self.frozen_lead = True
         self.i = i # this site
@@ -49,14 +57,23 @@ class LocalProbe():
         self.T = T # transparency
     def get_selfenergy(self,energy,lead=0,**kwargs):
         """Return the selfenergies"""
+        if self.reuse_selfenergy:
+            # keyed on every kwarg that can change the result (delta,
+            # numba) besides energy/lead -- not just (energy,lead) -- so a
+            # cache scope spanning calls with different delta/numba can't
+            # silently return a stale selfenergy solved with the wrong one
+            key = (energy,lead,kwargs.get("delta"),kwargs.get("numba"))
+            if key in self._selfenergy_cache: return self._selfenergy_cache[key]
         if lead==0: # use the probe
-            return lead_selfenergy(self,energy=energy,**kwargs)
+            out = lead_selfenergy(self,energy=energy,**kwargs)
         elif lead==1: # use the system
             g = generate_gf(self,energy=energy,
                                **kwargs) # generate the Green's function
-            return local_selfenergy(self.H,g,i=self.i,
+            out = local_selfenergy(self.H,g,i=self.i,
                                 energy=energy,**kwargs)
         else: raise
+        if self.reuse_selfenergy: self._selfenergy_cache[key] = out
+        return out
     def get_central_gmatrix(self,**kwargs):
         return get_central_gmatrix(self,**kwargs)
     def get_reflection_normal_lead(self,s):
@@ -67,9 +84,19 @@ class LocalProbe():
         method-selecting didv() directly, so that a `temp` kwarg here
         actually reaches transporttk.thermaldidv.finite_T_didv instead of
         being silently forwarded into a method (smatrix/keldysh) that
-        never looks at it -- at temp=0 (the default) this reduces to
-        exactly the previous zero_T_didv_1D(self,...)->didv(self,...) call
-        chain, so existing zero-temperature behavior is unchanged."""
+        never looks at it.
+
+        At temp=0 (the default) this now goes through zero_T_didv, which
+        defaults an unspecified delta to self.delta -- matching
+        Heterostructure.didv's own convention -- rather than the bare
+        didv()'s hardcoded delta=1e-6 that LocalProbe.didv used to fall
+        through to before this routing existed. __init__'s own delta
+        default is 1e-6 precisely so a caller who never touches delta
+        anywhere still gets that same number; only a caller who
+        constructs LocalProbe with an explicit delta=... now sees it
+        consistently applied to didv() as well, rather than silently
+        ignored in favor of 1e-6. Pass delta=... to didv() itself to
+        override either default directly."""
         from .didv import generic_didv
         return generic_didv(self,**kwargs)
     def get_dc_current(self,voltage,**kwargs):

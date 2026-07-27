@@ -55,7 +55,7 @@ def normal_term_ji(v,dm):
     out = dm*0.0 # initialize
     return normal_term_ji_jit(v,dm,out) # return the normal term
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def normal_term_jit(v,dm,out):
     """Return the normal terms, jit function"""
     n = len(v[0])
@@ -68,7 +68,7 @@ def normal_term_jit(v,dm,out):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def normal_term_ii_jit(v,dm,out):
     """Return the normal terms, jit function"""
     n = len(v[0])
@@ -77,7 +77,7 @@ def normal_term_ii_jit(v,dm,out):
         out[i,i] = out[i,i] + v[i,j]*dm[j,j]
     return out
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def normal_term_jj_jit(v,dm,out):
     """Return the normal terms, jit function"""
     n = len(v[0])
@@ -87,7 +87,7 @@ def normal_term_jj_jit(v,dm,out):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def normal_term_ij_jit(v,dm,out):
     """Return the normal terms, jit function"""
     n = len(v[0])
@@ -97,7 +97,7 @@ def normal_term_ij_jit(v,dm,out):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def normal_term_ji_jit(v,dm,out):
     """Return the normal terms, jit function"""
     n = len(v[0])
@@ -136,6 +136,60 @@ def hamiltonian2dict(h):
 def set_hoppings(h,hop):
     """Add the hoppings to the Hamiltonian"""
     h.set_multihopping(MultiHopping(hop))
+
+
+def random_hermitian_guess(v,shape,scale=1.0):
+    """Random initial mean-field guess dict over v's direction keys.
+
+    Each direction's matrix is drawn independently EXCEPT when its
+    opposite direction was already drawn, in which case it is set to that
+    matrix's conjugate transpose -- required for the overall guess to be
+    Hermitian (mf[d] == mf[-d].conj().T for every direction pair, not just
+    the onsite (0,0,0) term, which used to be the only one symmetrized
+    here). Exact diagonalization tolerates skipping this (diagonalizing a
+    mildly non-Hermitian H(k) still gives a finite, if slightly-off,
+    answer that the SCF loop's own mixing washes out within a few
+    iterations), but integration="kpm" (densitydensity_kpm.py) does not:
+    its Chebyshev recursion assumes real eigenvalues bounded by `scale`,
+    and a non-Hermitian H(k) can have eigenvalues well outside that bound,
+    which blows up exponentially over npol recursion steps (observed:
+    >1e40 mean-field magnitude after a single SCF iteration with the old,
+    onsite-only-symmetrized guess) instead of just being somewhat wrong.
+
+    scale multiplies every freshly-drawn direction's matrix by a real
+    constant before its opposite direction (if any) mirrors it -- this
+    preserves the Hermitian-dict property (scaling a Hermitian pair by a
+    real number keeps it Hermitian) while letting callers pick their own
+    guess magnitude (e.g. selfconsistency.spinspin._run_anisotropic_scf's
+    own copy of this construction used a smaller 1e-1 scale than this
+    module's own default of 1.0 unscaled)."""
+    mf = dict()
+    for d in v:
+        d2 = tuple(-x for x in d)
+        if d2 in mf: mf[d] = mf[d2].conj().T # mirror the opposite direction
+        else: mf[d] = np.exp(1j*np.random.random(shape))*scale
+    mf[(0,0,0)] = mf[(0,0,0)] + mf[(0,0,0)].T.conjugate()
+    return mf
+
+
+def mf_matches_hamiltonian(h0,mf):
+    """True if every matrix in a candidate mean-field dict has the shape
+    h0's own hopping matrices do. Used to validate a mean field loaded
+    from MF.pkl before reusing it as an SCF starting guess: checking
+    compatibility by attempting `MultiHopping(h0.get_dict()) +
+    MultiHopping(mf)` and seeing if it raises is NOT reliable -- numpy
+    silently broadcasts two differently-shaped arrays together (instead of
+    raising) whenever one of the mismatched dimensions happens to be 1
+    (e.g. a spinless 1-orbital h0 reusing an MF.pkl cached from an
+    unrelated 2-orbital spinful run), corrupting h0's own matrix shapes
+    downstream with an opaque failure (an "inhomogeneous shape" error deep
+    inside Bloch-matrix construction) far from the actual cause. Checking
+    shapes directly instead is exact, not just "usually works"."""
+    n = h0.intra.shape[0]
+    for m in mf.values():
+        if np.shape(m) != (n,n): return False
+    return True
+
 
 def get_dm(h,v,nk=None,integration="ed",tolerance=1e-6,**kwargs):
     """Get the density matrix.
@@ -256,18 +310,30 @@ from .superscf import enforce_eh_symmetry_anomalous
 
 
 
+@jit(nopython=True,cache=True)
+def get_dc_energy_jit(v,dm00,dmd):
+    """Double-counting energy contribution of a single interaction key,
+    jit function -- the O(n^2) inner loop of get_dc_energy, split out so it
+    compiles like the other normal_term_*_jit functions in this module
+    instead of running as a pure-Python double loop (previously ~0.2s on
+    its own for a ~200-orbital system, called once per Vinteraction call
+    but once per active exchange channel -- up to 4x -- for VJinteraction)."""
+    n = v.shape[0]
+    out = 0.0+0.0j
+    for i in range(n): # loop
+      for j in range(n): # loop
+          out -= v[i,j]*dm00[i,i]*dm00[j,j]
+          c = dmd[i,j] # cross term
+          out += v[i,j]*c*np.conjugate(c) # add contribution
+    return out
+
+
 def get_dc_energy(v,dm):
     """Compute double counting energy"""
     out = 0.0
+    dm00 = dm[(0,0,0)]
     for d in v: # loop over interactions
-        d2 = (-d[0],-d[1],-d[2]) # minus this direction
-        n = v[d].shape[0] # shape
-        for i in range(n): # loop
-          for j in range(n): # loop
-              out -= v[d][i,j]*dm[(0,0,0)][i,i]*dm[(0,0,0)][j,j]
-              c = dm[d][i,j] # cross term
-              out += v[d][i,j]*c*np.conjugate(c) # add contribution
-#    print("DC energy",out.real)
+        out += get_dc_energy_jit(v[d],dm00,dm[d])
     return out.real
 
 
@@ -292,15 +358,14 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
     h1 = h1.get_dense()
     h1.nk = nk # store the number of kpoints
     if mf is None: # no mean field given
-      try: 
-          if load_mf: 
+      try:
+          if load_mf:
               mf = inout.load(mf_file) # load the file
-              MultiHopping(h0.get_dict()) + MultiHopping(mf) # see if compatible
+              if not mf_matches_hamiltonian(h0,mf): # see if compatible
+                  raise ValueError("cached MF.pkl shape does not match this Hamiltonian")
           else: raise
-      except: 
-          mf = dict()
-          for d in v: mf[d] = np.exp(1j*np.random.random(h1.intra.shape))
-          mf[(0,0,0)] = mf[(0,0,0)] + mf[(0,0,0)].T.conjugate()
+      except:
+          mf = random_hermitian_guess(v,h1.intra.shape)
     elif type(mf)==str:
         from ..meanfield import guess
         mf = guess(h0,mode=mf) # overwrite
@@ -467,10 +532,22 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
     # Now compute the total energy
     h = scf.hamiltonian
     etot = h.get_total_energy(nk=h.nk)
-    if mu is None: 
+    if mu is None:
         etot += h.fermi*h.intra.shape[0]*filling # add the Fermi energy
     #print("Occupied energies",etot)
-    etot += get_dc_energy(scf.v,scf.dm) # add the double counting energy
+    # get_dc_energy assumes dm's shape matches v's, which is never
+    # Nambu-doubled even when h (hence scf.dm) is BdG -- so the electron
+    # sector must be extracted from scf.dm first for a BdG h, or this
+    # silently reads the wrong entries (mixing electron and hole rows/cols
+    # of the reordered Nambu matrix), giving a total energy that is not
+    # even consistent between a primitive cell and a supercell of the same
+    # system (caught via that exact check)
+    dm_dc = scf.dm
+    if h.has_eh:
+        from .. import superconductivity
+        dm_dc = {key: superconductivity.get_eh_sector(m,i=0,j=0)
+                for (key,m) in scf.dm.items()}
+    etot += get_dc_energy(scf.v,dm_dc) # add the double counting energy
     etot = etot.real
     scf.total_energy = etot
     if verbose>1:
@@ -518,28 +595,42 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
     - V1, first neighbor interaction
     - V2, second neighbor interaction
 
+    NOT the default engine behind Hamiltonian.get_mean_field_hamiltonian
+    any more -- that now calls VJinteraction (selfconsistency/spinspin.py),
+    a superset that also supports J1/J2/J3/J1x/J1y/J1z exchange in the same
+    SCF loop and is the one to build performance/feature work on going
+    forward. Vinteraction is kept as-is: it is still exercised directly by
+    a handful of tests (the qtci/solver/compute_cross/etc. kwargs below
+    that VJinteraction does not accept, and the
+    test_vjinteraction_reduces_to_vinteraction_with_only_V-style
+    equivalence checks), so don't remove or extend it speculatively -- only
+    touch it if a bug is found here specifically.
+
     integration: "ed" (default) computes the density matrix at each SCF
     step by exact diagonalization on a k-mesh. "qtci" instead integrates
     each required density-matrix entry over the BZ with qutecipy (tensor
     cross interpolation) -- see selfconsistency.densitydensity.get_dm and
     qtcitk.densitymatrix_qtci.get_dm_qtci; only 2D Hamiltonians are
-    supported for "qtci".
+    supported for "qtci". VJinteraction does not support this (or
+    solver=/compute_cross=/etc. below) at all -- call Vinteraction
+    directly if you need them.
 
     WARNING: if the SCF loop does not converge (e.g. maxite reached before
     maxerror is met), the returned Hamiltonian is None, but the returned
     total_energy is still whatever value was reached at that point, NOT
     necessarily a meaningful self-consistent energy - this applies to
-    get_mean_field_hamiltonian(return_total_energy=True) too. Always check
-    the SCF object's .converged attribute (or that the returned Hamiltonian
-    is not None) before trusting total_energy; do not assume a returned
-    number is correct just because no exception was raised. This is easy to
-    miss with solver="newton"/"fsolve"/"newton_krylov" (use_jax=True):
-    those can stop after zero completed iterations if the very first
-    Newton/GMRES step fails to find an improving direction (e.g. an
-    unbiased spinful Hamiltonian with an unbroken continuous spin-rotation
-    symmetry, which leaves the Jacobian singular along that direction), in
-    which case the reported total_energy is essentially just the unmodified
-    initial guess evaluated once, not a converged answer.
+    VJinteraction/get_mean_field_hamiltonian(return_total_energy=True) too.
+    Always check the SCF object's .converged attribute (or that the
+    returned Hamiltonian is not None) before trusting total_energy; do not
+    assume a returned number is correct just because no exception was
+    raised. This is easy to miss with
+    solver="newton"/"fsolve"/"newton_krylov" (use_jax=True): those can stop
+    after zero completed iterations if the very first Newton/GMRES step
+    fails to find an improving direction (e.g. an unbiased spinful
+    Hamiltonian with an unbroken continuous spin-rotation symmetry, which
+    leaves the Jacobian singular along that direction), in which case the
+    reported total_energy is essentially just the unmodified initial guess
+    evaluated once, not a converged answer.
     """
     h = h.get_multicell() # multicell Hamiltonian
     h = h.get_dense()

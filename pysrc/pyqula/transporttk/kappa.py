@@ -1,4 +1,5 @@
 # compute the kappa parameter of a heterostructure
+from contextlib import contextmanager
 import numpy as np
 from ..parallel import pcall
 
@@ -8,12 +9,38 @@ def get_single(HT=None,c=1.0,energies=[0.0],**kwargs):
     return np.array([HT.didv(energy=e,**kwargs) for e in energies]) # loop over Ts
 
 
+@contextmanager
+def _selfenergy_cache_scope(ht):
+    """Enable LocalProbe self-energy caching (LocalProbe.reuse_selfenergy)
+    for the duration of the block, restoring whatever state was there
+    before on exit. Exact, not an approximation: neither selfenergy
+    LocalProbe.get_selfenergy returns depends on the probe-sample coupling
+    ht.T (get_central_gmatrix only ever scales the off-diagonal coupling
+    block by T), so sharing them across get_conductances' two-coupling
+    sweep at fixed energy changes nothing about the result -- only how
+    many times the expensive Sancho-Rubio/sample-GF selfenergy solve gets
+    redone (2x -> 1x per coupling sweep). `ht` types without this cache
+    (e.g. Heterostructure) silently get a no-op here."""
+    if not hasattr(ht,"reuse_selfenergy"):
+        yield
+        return
+    prev_flag,prev_cache = ht.reuse_selfenergy,ht._selfenergy_cache
+    ht.reuse_selfenergy = True
+    ht._selfenergy_cache = {}
+    try:
+        yield
+    finally:
+        ht.reuse_selfenergy = prev_flag
+        ht._selfenergy_cache = prev_cache
+
+
 def get_conductances(T=1e-2,**kwargs):
     """Compute Kappa by doing a log-log plot"""
     cref = T
     ts = np.exp(np.linspace(np.log(cref*0.9),np.log(cref*1.1),2)) # hoppings
 #    ts = [cref*0.9,cref*1.1]
-    Gs = np.array([get_single(c=t,**kwargs) for t in ts]) # compute conductance
+    with _selfenergy_cache_scope(kwargs.get("HT")):
+        Gs = np.array([get_single(c=t,**kwargs) for t in ts]) # compute conductance
     return ts,Gs
 
 def get_power(ts,gs,delta=1e-8):
@@ -33,9 +60,57 @@ def get_kappa(energy=0.0,**kwargs):
     return np.array(ks)[0] # return kappa
 
 
+def _with_shared_selfenergy(ht,kwargs):
+    """Return kwargs with a shared AAA self-energy interpolant added,
+    covering this call's single energy (get_kappa's `energy` kwarg,
+    defaulting to 0.0), if `ht` is Floquet-Keldysh-eligible and the
+    caller hasn't already supplied their own selfenergy_qtci -- otherwise
+    kwargs unchanged. Building it once here, instead of letting
+    get_conductances's two-coupling probe (get_single, one didv() call
+    per coupling) each independently build their own default fit, is the
+    same sharing _shared_selfenergy_for_branch already does for the
+    finite-temperature kappa path below, applied to the zero-temperature
+    one -- a smaller win (only 2 calls share one build here, versus that
+    path's whole coupling/energy/thermal-quadrature sweep) but the same
+    already-proven, zero-risk pattern."""
+    if "selfenergy_qtci" in kwargs: return kwargs
+    from .didv import _both_leads_superconducting
+    if not _both_leads_superconducting(ht): return kwargs
+    from ..keldyshtk.current import build_shared_selfenergy
+    energy = kwargs.get("energy",0.0)
+    nmax_max = kwargs.get("nmax_max",40)
+    shared = build_shared_selfenergy(ht,abs(energy),nmax_max=nmax_max,
+                        delta=kwargs.get("delta"),dv=kwargs.get("dv"))
+    if shared is None: return kwargs
+    return dict(kwargs,selfenergy_qtci=shared)
+
+
 def get_kappa_ratio(HT,**kwargs):
-    ks1 = get_kappa(HT=generate_HT(HT,SC=True,**kwargs),**kwargs)
-    ks2 = get_kappa(HT=generate_HT(HT,SC=False,**kwargs),**kwargs)
+    # SC branch only: the normal branch below never routes through Keldysh
+    # (generate_HT(...,SC=False) strips pairing), so it has no self-energy
+    # interpolant to share and must keep using the caller's own kwargs
+    # unchanged -- injecting the SC branch's interpolant there would hand
+    # it the wrong leads' self-energy.
+    ht_sc = generate_HT(HT,SC=True,**kwargs)
+    ht_normal = generate_HT(HT,SC=False,**kwargs)
+    # Zero-temperature, 1D LocalProbe fast path: kappa here is
+    # d(log G)/d(log t), which get_kappa/get_power below estimate with a
+    # 2-point secant (2 extra didv/selfenergy solves per branch). When
+    # both branches are LocalProbe objects with a non-superconducting
+    # probe (transporttk.kappa_jax.applicable), that derivative can be
+    # computed exactly with jax.grad instead, from a single selfenergy
+    # solve per branch -- see kappa_jax's module docstring for the
+    # measured ~3.7x speedup and accuracy comparison. get_kappa_ratio_jax
+    # returns None (jax unavailable, wrong case, or a solve failure) for
+    # anything outside that scope, in which case the code below runs
+    # exactly as before.
+    from .kappa_jax import get_kappa_ratio_jax
+    energy = kwargs.get("energy",0.0)
+    T = kwargs.get("T",1e-2)
+    fast = get_kappa_ratio_jax(ht_sc,ht_normal,energy=energy,T=T)
+    if fast is not None: return fast
+    ks1 = get_kappa(HT=ht_sc,**_with_shared_selfenergy(ht_sc,kwargs))
+    ks2 = get_kappa(HT=ht_normal,**kwargs)
     return ks1/ks2
 
 
@@ -82,30 +157,35 @@ def get_conductances_finite_temp(T=1e-2,temp=1e-2,**kwargs):
     """Finite-temperature analog of get_conductances: same two-coupling
     log-log sampling used to extract the kappa power-law exponent, but
     each conductance is HT.didv(temp=temp,...) (thermally averaged)
-    rather than the T=0 conductance get_conductances uses."""
+    rather than the T=0 conductance get_conductances uses. Wrapped in the
+    same _selfenergy_cache_scope as get_conductances: the probe/sample
+    selfenergies LocalProbe.get_selfenergy returns still don't depend on
+    the coupling T at finite temperature either (temp only changes how
+    finite_T_didv's thermal quadrature *consumes* them, over a set of
+    quasienergies that is itself identical for both coupling points), so
+    caching them across the two-coupling sweep is exact here too -- and
+    typically a bigger win, since the thermal quadrature revisits the
+    same quasienergy grid ~147 times per coupling."""
     cref = T
     ts = np.exp(np.linspace(np.log(cref*0.9),np.log(cref*1.1),2)) # hoppings
-    Gs = np.array([get_single(c=t,temp=temp,**kwargs) for t in ts]) # compute conductance
+    with _selfenergy_cache_scope(kwargs.get("HT")):
+        Gs = np.array([get_single(c=t,temp=temp,**kwargs) for t in ts]) # compute conductance
     return ts,Gs
 
 
 def _shared_selfenergy_for_branch(ht,energies,temp,nmax_max=40,delta=None,dv=None,**kwargs):
-    """Build one aaatk.selfenergy_aaa.SelfenergyAAA lead self-energy
-    interpolant per lead (see keldyshtk.current.build_selfenergy_aaa),
-    covering every quasienergy the finite-temperature thermal quadrature
-    (transporttk.thermaldidv.finite_T_didv, window
+    """Thin wrapper around keldyshtk.current.build_shared_selfenergy,
+    sized to cover every quasienergy the finite-temperature thermal
+    quadrature (transporttk.thermaldidv.finite_T_didv, window
     +-thermaldidv.THERMAL_WINDOW*temp) could visit for any energy in
     `energies` -- so it can be built ONCE per SC/normal branch and shared
     across every (coupling, energy, thermal-quadrature-node) combination
     get_kappa_finite_temperature_energies evaluates for that branch,
-    instead of keldysh_didv rebuilding its own call-local fit at every
-    single one of them (its use_aaa=True default only shares a fit within
-    one didv() call's own Ip/Im finite-difference pair, not across the
-    many outer calls a thermal integral or a kappa coupling/energy sweep
-    makes). That per-call rebuilding is what makes the un-shared,
-    finite-temperature keldysh path this replaces prohibitively slow:
-    measured to not even finish within several minutes at settings loose
-    enough that the underlying dc_current calls hadn't converged either.
+    instead of each one rebuilding its own call-local fit. That per-call
+    rebuilding is what made the un-shared, finite-temperature keldysh path
+    this replaces prohibitively slow: measured to not even finish within
+    several minutes at settings loose enough that the underlying
+    dc_current calls hadn't converged either.
 
     Self-energy is purely a lead property: it does not depend on the
     inter-lead coupling (get_conductances_finite_temp scans two couplings
@@ -113,36 +193,17 @@ def _shared_selfenergy_for_branch(ht,energies,temp,nmax_max=40,delta=None,dv=Non
     evaluated, so one interpolant sized to cover the whole sweep's energy
     range is valid for the entire calculation, not just one point of it.
 
-    Returns None if this branch's leads are not both superconducting
-    (didv's "auto" method then picks "smatrix", already cheap -- no
-    self-energy interpolant is needed there, see transporttk.didv.didv's
-    docstring) or if the AAA fit doesn't converge within its default
-    build budget -- callers get back the ordinary per-call default
-    self-energies in that case (build_selfenergy_aaa/dc_current's own
-    fallback contract), never a wrong answer.
-
-    `dv`, if the caller explicitly passed one through to didv/keldysh_didv
-    (a real, documented kwarg -- see tests/keldysh/test_localprobe_
-    keldysh.py and the user guide's Floquet-Keldysh section), is honored
-    here too: the interpolant must be sized to cover voltage+-dv for the
-    largest voltage the sweep reaches, not keldysh_didv's own *default*
-    dv formula, or an explicit large dv could have dc_current evaluate
-    the self-energy outside the fitted domain (SelfenergyAAA performs no
-    domain check and would silently extrapolate)."""
-    from .didv import _both_leads_superconducting
-    if not _both_leads_superconducting(ht):
-        return None
-    from ..keldyshtk.current import build_selfenergy_aaa
+    See build_shared_selfenergy's own docstring for the full None-return
+    contract (not both leads superconducting, or the AAA fit didn't
+    converge within budget) and for why an explicit `dv` must be honored
+    here too (SelfenergyAAA performs no domain check and would silently
+    extrapolate for a call whose voltage+-dv pushes past the fitted
+    window)."""
     from .thermaldidv import THERMAL_WINDOW
-    if delta is None: delta = ht.delta
+    from ..keldyshtk.current import build_shared_selfenergy
     emax = max(abs(e) for e in energies) if len(energies) else 0.
-    base = emax + THERMAL_WINDOW*temp
-    margin = dv if dv is not None else max(base*1e-2,1e-3) # keldysh_didv's own default dv formula
-    vmax = base + margin
-    shared = build_selfenergy_aaa(ht,vmax,nmax_max,delta=delta)
-    if not all(s.converged for s in shared.values()):
-        return None
-    return shared
+    vmax = emax + THERMAL_WINDOW*temp
+    return build_shared_selfenergy(ht,vmax,nmax_max=nmax_max,delta=delta,dv=dv)
 
 
 def get_kappa_finite_temperature_energies(HT,energies=[0.0],temp=1e-2,**kwargs):
@@ -171,8 +232,14 @@ def get_kappa_finite_temperature_energies(HT,energies=[0.0],temp=1e-2,**kwargs):
         # at all, which is what the non-superconducting branch (and a
         # superconducting branch whose build didn't converge) should get.
         extra = {"selfenergy_qtci": shared} if shared is not None else {}
+        # dict.update, not **extra,**kwargs: if the caller already passed
+        # their own selfenergy_qtci in kwargs, unpacking both would raise
+        # "got multiple values for keyword argument" instead of letting
+        # the freshly-built, branch-specific shared interpolant win
+        call_kwargs = dict(kwargs)
+        call_kwargs.update(extra)
         ts,Gs = get_conductances_finite_temp(
-            HT=ht,energies=energies,temp=temp,**extra,**kwargs)
+            HT=ht,energies=energies,temp=temp,**call_kwargs)
         return np.array([get_power(ts,g) for g in Gs.T])
     ks1 = branch_kappas(True)
     ks2 = branch_kappas(False)

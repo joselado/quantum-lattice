@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Quantum Lattice is a PySide6 desktop GUI, styled with `qfluentwidgets` (dark Fluent Design theme), for the `pyqula` tight-binding/DFT-like physics library. The GUI lets a user pick a lattice type/dimensionality, set physical parameters in form fields, and trigger `pyqula` calculations (band structures, DOS, Berry curvature, Chern numbers, self-consistent mean field, etc.), whose results are plotted by standalone plotting scripts. Every lattice mode is a page in one single-process window's sidebar navigation (see "Entry point chain" below) rather than its own separate window/process.
 
-`pysrc/pyqula/` is a vendored copy of the `pyqula` library, developed in a separate upstream repository. **Treat it as a black box: do not edit files under `pysrc/pyqula/`.** All work in this repo is on the interface layer that wraps it.
+`pysrc/pyqula/` is a vendored copy of the `pyqula` library, developed in a separate upstream repository. **Treat it as a black box: do not hand-edit individual files under `pysrc/pyqula/`.** All work in this repo is on the interface layer that wraps it. Periodically refreshing the whole vendored copy from upstream (`tools/update_pyqula.sh`) is a different thing and is allowed - encouraged, even, from time to time - see "Updating vendored pyqula" below.
 
 ## Running the app
 
@@ -69,6 +69,12 @@ Every lattice module (`0d`, `1d`, `2d`, `2dslab`, `3d`, `tbg`, `hybridfilm`, `hy
 Standalone executable Python scripts, one per plot/postprocessing task (`ql-bands`, `ql-dos`, `ql-structure-bond`, `ql-berry2d`, `ql-chern-evolution`, ...). They are never imported — they're launched as separate processes by `execute_script()` against the `.OUT`/data files a `<mode>.py` handler just wrote in the scratch folder. When adding a new kind of result to visualize, the usual pattern is: write a `.OUT` file from the handler in `<mode>.py`/`common.py`, then add/extend a `ql-*` script to read and plot it.
 
 The 3D scripts (`ql-moments`, `ql-magnetism`, `ql-structure3d`, `ql-plot3d`, `ql-pick`, ...) use **PyVista** (real VTK rendering: lighting, true spheres/tubes, interactive point picking) via the shared `utilities/_pv3d.py` helper (`new_plotter`, `add_atoms`, `add_bonds`, `add_arrows`, `add_trisurf`, `enable_point_picking`). PyVista replaced mayavi here: mayavi's own `tvtk` wrapper-generation step fails to build on newer Python, whereas PyVista installs from prebuilt wheels. `_pv3d.py` is not a `ql-*` command — it's only imported by sibling scripts via `sys.path.insert(0, dirname)`, same pattern every `ql-*` script uses to find its own directory. PyVista is an optional/best-effort dependency (see `pycommand.py`), so these scripts should fail informatively (import error) rather than silently if it's missing, not crash the whole app.
+
+### Updating vendored pyqula
+
+`tools/update_pyqula.sh` refreshes `pysrc/pyqula/` (and its paired `pysrc/pyqula_user_guide.md`) from `https://github.com/joselado/pyqula` master, wholesale - it deletes and replaces the whole directory rather than patching it in place, matching how it was vendored in the first place. This is allowed, and worth doing from time to time (e.g. before relying on a `pyqula` feature that might have landed upstream recently, or just periodically to stay current) - it's a different thing from hand-editing files under `pysrc/pyqula/`, which is still off limits. After running it: re-run `tools/smoke_test.py`, skim `git diff --stat pysrc/pyqula` for anything alarming (removed/renamed functions this repo's interface layer calls), and commit the refresh as its own commit, separate from unrelated work - see `git log --oneline -- pysrc/pyqula/` for the commit-message convention prior updates used.
+
+`pysrc/pyqula_user_guide.md` is upstream's own tutorial/feature guide (`documentation/user_guide.md` in the `pyqula` repo), refreshed by the same script. Since `pysrc/pyqula/` is a black box you're not meant to read for its own sake, check this file first when you need to know whether some physics/calculation is already implemented in `pyqula` and how to call it, instead of grepping through the vendored source.
 
 ### `pysrc/interpreter/`
 
