@@ -2,6 +2,11 @@
 
 import sys
 import os
+import shutil
+import subprocess
+import tempfile
+import zipfile
+import urllib.request
 import importlib.util
 
 # Add path of the interface
@@ -14,13 +19,13 @@ from interfacetk import qtwrap # import the library with simple wrappers to Qt
 qtwrap.ensure_app()
 
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QFont, QFontMetrics, QColor
-from PySide6.QtCore import Qt, QRectF
+from PySide6.QtCore import Qt, QRectF, QThread, Signal
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QScrollArea, QFrame)
 
 from qfluentwidgets import (FluentWindow, FluentIcon as FIF, setTheme, Theme,
     NavigationItemPosition, SwitchButton, BodyLabel, StrongBodyLabel,
-    PushButton, FlowLayout)
+    PushButton, FlowLayout, InfoBar, InfoBarPosition)
 
 from interpreter import pycommand
 
@@ -221,6 +226,90 @@ class HomePage(QWidget):
     outer.addWidget(scroll,1)
 
 
+# Repo location the "Update Quantum Lattice" button re-downloads from when
+# there's no .git/ to `git pull` against (see _redownload_latest below) -
+# matches origin's remote / README's own clone URL.
+_GITHUB_ARCHIVE_URL = "https://github.com/joselado/quantum-lattice/archive/refs/heads/master.zip"
+
+
+def _git_pull():
+  """Update qlroot via `git pull`, for a cloned install (has .git/).
+  Uses `git -C` rather than os.chdir() so it never touches the
+  process-wide cwd - important since this runs on a worker thread (see
+  _UpdateRunner) while qtwrap's busy lock is held, and every mode's I/O
+  is cwd-relative. Forces an English locale so the "already up to date"
+  substring check below doesn't depend on the system's locale."""
+  env = dict(os.environ,LANG="C",LC_ALL="C")
+  result = subprocess.run(["git","-C",qlroot,"pull"],capture_output=True,text=True,env=env)
+  if result.returncode != 0:
+    raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "git pull failed")
+  output = result.stdout.strip()
+  if "Already up to date" in output:
+    return False,output or "Already up to date."
+  return True,output or "Updated."
+
+
+def _redownload_latest():
+  """Update qlroot for a plain download (e.g. GitHub's "Download ZIP"),
+  which has no .git/ to `git pull` against: re-fetch the latest master
+  archive and overwrite qlroot with its contents. There's no local
+  history to diff against, so this always reports as an update (no cheap
+  way to tell "nothing changed" without git), will silently overwrite any
+  local edits, and - since it only adds/overwrites files rather than
+  mirroring the archive exactly - won't remove a file that was deleted
+  upstream. Good enough for keeping a downloaded copy current; a user who
+  wants proper merge/diff behavior should use `git clone` instead."""
+  with tempfile.TemporaryDirectory() as tmp:
+    archive_path = os.path.join(tmp,"quantum-lattice.zip")
+    try:
+      urllib.request.urlretrieve(_GITHUB_ARCHIVE_URL,archive_path)
+    except OSError as e:
+      raise RuntimeError("Could not reach GitHub: "+str(e))
+    with zipfile.ZipFile(archive_path) as zf:
+      zf.extractall(tmp)
+    extracted = os.path.join(tmp,"quantum-lattice-master")
+    shutil.copytree(extracted,qlroot,dirs_exist_ok=True)
+  return True,"Downloaded and installed the latest version from GitHub."
+
+
+def _update_source():
+  """Update qlroot in place, working whether this is a git clone (has
+  .git/) or a plain download/extract (no .git/). Returns (updated,message):
+  updated=False means nothing changed (already up to date); message is
+  shown to the user either way."""
+  if os.path.isdir(os.path.join(qlroot,".git")):
+    return _git_pull()
+  return _redownload_latest()
+
+
+class _UpdateRunner(QThread):
+  """Runs the git-pull-or-redownload + dependency refresh off the GUI
+  thread, so a slow network fetch doesn't freeze the shell. The caller
+  (Shell._update_qh) holds qtwrap's shell-wide busy lock for the whole
+  run, the same lock a mode handler or a lazy page build claims, since
+  rewriting files under qlroot must not race a handler's cwd-relative
+  I/O or a page build's own chdir."""
+  finished_ok = Signal(str)     # updated successfully - message for InfoBar.success
+  finished_noop = Signal(str)   # nothing to update - message for InfoBar.info
+  finished_error = Signal(str)  # failed - message for InfoBar.error
+  def run(self):
+    try:
+      updated,message = _update_source()
+    except Exception as e:
+      self.finished_error.emit(str(e))
+      return
+    if not updated:
+      self.finished_noop.emit(message)
+      return
+    try:
+      pycommand.install_requirements() # pick up any new/bumped dependency before relaunching
+      pycommand.create_icon()
+    except Exception as e:
+      self.finished_error.emit("Updated but failed to finish install: "+str(e))
+      return
+    self.finished_ok.emit(message)
+
+
 class Shell(FluentWindow):
   """Single-process shell: every mode is a page in one window's sidebar
   navigation, replacing the old system_selection window that spawned each
@@ -349,16 +438,40 @@ class Shell(FluentWindow):
     qtwrap.set_active(widget)
 
   def _update_qh(self):
-    """git pull + recreate the launcher icon + relaunch - same behavior
-    the old system_selection window's "Update Quantum Lattice" button had."""
-    os.chdir(qlroot)
-    status = os.system("git pull") # fails loudly on local conflicts
-    if status != 0:
-      print("git pull failed, likely due to local changes; resolve manually and try again")
+    """git pull (cloned install) or re-download the latest source (plain
+    download, no .git/) + refresh dependencies + recreate the launcher
+    icon + relaunch - same end result the old system_selection window's
+    "Update Quantum Lattice" button had, but off the GUI thread and with
+    real success/failure feedback instead of a print() nobody sees when
+    launched from the desktop icon."""
+    if not qtwrap.try_acquire_busy():
+      InfoBar.warning(title="Please wait",
+          content="A calculation is currently running - try again once it finishes",
+          parent=self,duration=4000,position=InfoBarPosition.TOP)
       return
-    pycommand.create_icon()
+    runner = _UpdateRunner()
+    self._update_runner = runner # keep a live reference so Qt doesn't GC it mid-run
+    runner.finished_ok.connect(self._on_update_ok)
+    runner.finished_noop.connect(self._on_update_noop)
+    runner.finished_error.connect(self._on_update_error)
+    runner.start()
+
+  def _on_update_ok(self,message):
+    # no InfoBar here: the process exits right after run_qh() spawns the
+    # new instance, so there's no time for one to be seen
+    qtwrap.release_busy()
     pycommand.run_qh()
     sys.exit()
+
+  def _on_update_noop(self,message):
+    qtwrap.release_busy()
+    InfoBar.info(title="Already up to date",content=message,
+        parent=self,duration=4000,position=InfoBarPosition.TOP)
+
+  def _on_update_error(self,message):
+    qtwrap.release_busy()
+    InfoBar.error(title="Update failed",content=message,
+        parent=self,duration=6000,position=InfoBarPosition.TOP)
 
 
 def main():
