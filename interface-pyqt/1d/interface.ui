@@ -1352,6 +1352,48 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_band_ldos">
+       <attribute name="title">
+        <string>Band LDOS</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_band_ldos">
+        <item>
+         <widget class="BodyLabel" name="label_band_ldos_info">
+          <property name="text">
+           <string>Click a point in the band structure to compute the LDOS of that eigenstate</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QGridLayout" name="gridLayout_band_ldos">
+          <item row="0" column="0">
+           <widget class="BodyLabel" name="label_band_ldos_nk">
+            <property name="text">
+             <string># kpoints</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="LineEdit" name="band_ldos_nk">
+            <property name="text">
+             <string>100</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="PushButton" name="show_band_ldos">
+          <property name="text">
+           <string>Band LDOS</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
     <item row="2" column="0" colspan="2">

@@ -94,6 +94,20 @@ def show_edge_dos():
   common.get_surface_dos(h,qtwrap) # wrapper
 
 
+def show_band_ldos():
+  """Open the interactive Band LDOS view: a band structure subplot on
+  the left (click a point) and the spatial density of that eigenstate
+  on the right, recomputed on every click - see utilities/ql-band-ldos.
+  The Hamiltonian has to be handed off (pickled) rather than a
+  precomputed BANDS.OUT, since the eigenstate itself is only computed
+  in response to the pick_event in that subprocess."""
+  h = pickup_hamiltonian() # get the Hamiltonian
+  hfile = "BAND_LDOS_HAMILTONIAN.pkl" # not hamiltonian.pkl - see get_site_dos
+  h.save(hfile)
+  nk = max([int(qtwrap.get("band_ldos_nk")),1])
+  execute_script("ql-band-ldos --hamiltonian "+hfile+" --nk "+str(nk))
+
+
 
 
 def show_magnetism():
@@ -157,6 +171,7 @@ signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,  # show bandstructure
   "show_ldos": show_ldos,  # show DOS
   "show_edge_dos": show_edge_dos,  # show DOS
+  "show_band_ldos": show_band_ldos,  # interactive LDOS of a picked band-structure point
   "show_structure_3d": show_structure_3d,
   "show_magnetism": show_magnetism,
   "solve_scf": solve_scf,

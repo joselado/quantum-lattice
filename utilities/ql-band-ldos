@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Interactive band LDOS: band structure on the left, the local density
+of the picked eigenstate on the right.
+
+Like ql-site-dos, this imports pyqula directly and recomputes on every
+click - clicking a point (a specific k and band) in the band structure
+diagonalizes the Bloch Hamiltonian H(k) there and plots the spatial
+density |psi|^2 of that one eigenstate across the ribbon's width, so
+common.get_site_dos()'s counterpart for this feature hands off the
+built Hamiltonian (pickled) rather than a precomputed BANDS.OUT.
+"""
+import argparse
+import os
+import sys
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+
+qlroot = os.path.dirname(os.path.realpath(__file__)) + "/.."
+sys.path.append(qlroot + "/pysrc/")
+from pyqula import hamiltonians, geometry
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--hamiltonian", default="hamiltonian.pkl",
+        help="Pickled pyqula Hamiltonian to load (see Hamiltonian.save)")
+parser.add_argument("--nk", type=int, default=100)
+args = parser.parse_args()
+
+h = hamiltonians.load(args.hamiltonian)
+
+# one unit cell alone is a sliver with nothing to show along the
+# periodic direction - replicate it a few times for the LDOS scatter,
+# same nrep convention as ldos.multi_ldos's own spatial plots
+NREP = 5
+r_rep = h.geometry.supercell(NREP).r
+xpos,ypos = r_rep[:,0],r_rep[:,1]
+
+hkgen = h.get_hk_gen() # Bloch Hamiltonian generator, H(k)
+ks = np.linspace(0.,1.,args.nk) # reduced k along the ribbon's periodic direction
+nb = h.intra.shape[0] # number of bands
+energies = np.empty((args.nk,nb))
+waves = [] # eigenvectors of H(k), one NxN array per k
+for ik,k in enumerate(ks):
+    evals,evecs = np.linalg.eigh(hkgen([k,0.,0.]))
+    energies[ik,:] = evals
+    waves.append(evecs)
+
+kk = np.repeat(ks,nb) # flattened (k,band) -> point index, for picking
+ee = energies.flatten()
+
+fig,(ax_bands,ax_ldos) = plt.subplots(1,2,figsize=(11,5))
+fig.canvas.setWindowTitle("Band LDOS")
+fig.set_facecolor(plotstyle.BACKGROUND)
+
+ax_ldos.set_facecolor(plotstyle.BACKGROUND)
+ax_ldos.set_aspect("equal")
+ax_ldos.set_xlabel("x")
+ax_ldos.set_ylabel("y")
+ax_ldos.set_title("Pick a state")
+
+fig.tight_layout()
+cbar = [None] # holds the one live colorbar, so onpick can drop the old one
+
+
+def draw_bands(picked=None):
+    ax_bands.clear()
+    ax_bands.set_facecolor(plotstyle.BACKGROUND)
+    ax_bands.scatter(kk,ee,10,plotstyle.PRIMARY,picker=True,pickradius=4)
+    if picked is not None:
+        ax_bands.scatter([kk[picked]],[ee[picked]],70,plotstyle.ACCENT)
+    ax_bands.set_xlabel("k")
+    ax_bands.set_ylabel("Energy [t]")
+    ax_bands.set_title("Click a point" if picked is None else "E = "+"{:.4f}".format(ee[picked]))
+
+
+draw_bands()
+
+
+def onpick(event):
+    ind = event.ind
+    if len(ind)==0: return
+    i = int(ind[0]) # first point under the click
+    ik,ib = divmod(i,nb) # back to (k-index, band index)
+    w = waves[ik][:,ib] # the picked eigenstate
+    prof = h.full2profile(np.abs(w)**2) # per-atom density, one unit cell
+    prof = geometry.replicate_array(h.geometry,prof,nrep=NREP) # match xpos/ypos
+
+    draw_bands(picked=i)
+
+    dmax = np.max(prof)
+    if dmax<=0: dmax = 1.0 # degenerate fallback, avoid a zero-width color range
+    # remove the previous click's colorbar before clearing ax_ldos, not
+    # after: Colorbar.remove() restores ax_ldos's pre-colorbar subplot
+    # geometry, and that bookkeeping is gone once ax_ldos.clear() runs
+    if cbar[0] is not None: cbar[0].remove()
+    ax_ldos.clear()
+    ax_ldos.set_facecolor(plotstyle.BACKGROUND)
+    ax_ldos.set_aspect("equal")
+    sc = ax_ldos.scatter(xpos,ypos,60,prof,cmap="inferno",vmin=0,vmax=dmax,edgecolor="none")
+    cbar[0] = fig.colorbar(sc,ax=ax_ldos,ticks=[0,dmax])
+    cbar[0].ax.set_yticklabels(["0","max"]) # exact numbers aren't meaningful here
+    ax_ldos.set_xlabel("x")
+    ax_ldos.set_ylabel("y")
+    ax_ldos.set_title("E = "+"{:.4f}".format(ee[i]))
+    fig.canvas.draw_idle()
+
+
+fig.canvas.mpl_connect("pick_event",onpick)
+plt.show()

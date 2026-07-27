@@ -914,6 +914,37 @@ class Ui_MainWindow(object):
         self.verticalLayout_site_dos.addWidget(self.show_site_dos)
 
         self.tabWidget_3.addTab(self.tab_site_dos, "")
+        self.tab_band_ldos = QWidget()
+        self.tab_band_ldos.setObjectName(u"tab_band_ldos")
+        self.verticalLayout_band_ldos = QVBoxLayout(self.tab_band_ldos)
+        self.verticalLayout_band_ldos.setObjectName(u"verticalLayout_band_ldos")
+        self.label_band_ldos_info = BodyLabel(self.tab_band_ldos)
+        self.label_band_ldos_info.setObjectName(u"label_band_ldos_info")
+        self.label_band_ldos_info.setWordWrap(True)
+
+        self.verticalLayout_band_ldos.addWidget(self.label_band_ldos_info)
+
+        self.gridLayout_band_ldos = QGridLayout()
+        self.gridLayout_band_ldos.setObjectName(u"gridLayout_band_ldos")
+        self.label_band_ldos_nk = BodyLabel(self.tab_band_ldos)
+        self.label_band_ldos_nk.setObjectName(u"label_band_ldos_nk")
+
+        self.gridLayout_band_ldos.addWidget(self.label_band_ldos_nk, 0, 0, 1, 1)
+
+        self.band_ldos_nk = LineEdit(self.tab_band_ldos)
+        self.band_ldos_nk.setObjectName(u"band_ldos_nk")
+
+        self.gridLayout_band_ldos.addWidget(self.band_ldos_nk, 0, 1, 1, 1)
+
+
+        self.verticalLayout_band_ldos.addLayout(self.gridLayout_band_ldos)
+
+        self.show_band_ldos = PushButton(self.tab_band_ldos)
+        self.show_band_ldos.setObjectName(u"show_band_ldos")
+
+        self.verticalLayout_band_ldos.addWidget(self.show_band_ldos)
+
+        self.tabWidget_3.addTab(self.tab_band_ldos, "")
 
         self.gridLayout_7.addWidget(self.tabWidget_3, 0, 1, 1, 1)
 
@@ -1166,6 +1197,11 @@ class Ui_MainWindow(object):
         self.site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"100", None))
         self.show_site_dos.setText(QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_site_dos), QCoreApplication.translate("MainWindow", u"Site DOS", None))
+        self.label_band_ldos_info.setText(QCoreApplication.translate("MainWindow", u"Click a point in the band structure to compute the LDOS of that eigenstate", None))
+        self.label_band_ldos_nk.setText(QCoreApplication.translate("MainWindow", u"# kpoints", None))
+        self.band_ldos_nk.setText(QCoreApplication.translate("MainWindow", u"100", None))
+        self.show_band_ldos.setText(QCoreApplication.translate("MainWindow", u"Band LDOS", None))
+        self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_band_ldos), QCoreApplication.translate("MainWindow", u"Band LDOS", None))
         self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save results", None))
         self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load results", None))
     # retranslateUi
