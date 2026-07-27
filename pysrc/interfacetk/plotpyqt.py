@@ -13,10 +13,22 @@ from PySide6.QtCore import Qt
 from PySide6 import QtCore
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as _StockToolbar
 import matplotlib.pyplot as plt
 
 import random
+
+
+class NavigationToolbar(_StockToolbar):
+    """The stock toolbar minus its Back/Forward view-history buttons.
+    Those step through matplotlib's per-Axes view stack, but plot() below
+    fully clears and rebuilds every Axes on each slider/combobox change
+    (see _user_view above/below, which is what actually makes zoom/pan
+    survive a redraw here) - so there's no meaningful "previous view" for
+    Back/Forward to return to across a redraw, only within one, which
+    isn't a distinction a user clicking Back would expect."""
+    toolitems = [t for t in _StockToolbar.toolitems if t[0] not in ("Back","Forward")]
+
 
 def get_interface(plot_figure,i=0):
     """Return an object that plots stuff"""
