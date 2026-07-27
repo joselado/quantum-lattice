@@ -124,14 +124,61 @@ _main_caller = None # built by ensure_app(), always on the GUI thread
 
 
 def _gui_thread_only(fn):
-    """Decorator for a free function that touches widgets: run it directly
-    if already on the GUI thread (the common case - no overhead beyond one
-    thread-identity check), otherwise marshal the call onto the GUI thread
-    and block the calling worker thread until it returns."""
+    """Decorator for a free function that already receives its target page
+    explicitly (save_interface/load_interface - see below), so no page
+    substitution is needed here: run it directly if already on the GUI
+    thread (the common case - no overhead beyond one thread-identity
+    check), otherwise marshal the call onto the GUI thread and block the
+    calling worker thread until it returns."""
     def wrapper(*args,**kwargs):
         if QThread.currentThread() is app.thread():
             return fn(*args,**kwargs)
         return _main_caller.call(fn,*args,**kwargs)
+    return wrapper
+
+
+# get()/getbox()/modify()/... (unlike save_interface/load_interface) don't
+# take their target page as an explicit argument - they resolve it
+# implicitly, historically always via the single module-global `form`.
+# That's correct for direct GUI-thread calls (page construction, a
+# handler's own page while nothing else is happening), but not for a
+# handler running on its worker thread: handler code calls get()/getbox()
+# at arbitrary points "interleaved with the actual computation" (see
+# _HandlerRunner below), and if the user navigates the shell to a
+# different page while that handler is still running, set_active() (used
+# by the shell's own navigation, see bin/versions/quantum-lattice-pyqt's
+# _on_page_changed()) repoints the global `form` at the newly-shown page -
+# so the running handler's *later* get()/getbox() calls would silently
+# start reading that other page's widgets instead of its own.
+#
+# _handler_local (set for the duration of one _HandlerRunner.run(), see
+# below) records which page a worker thread's in-flight handler belongs
+# to. _current_page() prefers that over the global `form` when present.
+# Resolution has to happen on the CALLING thread (via _form_thread_only,
+# not inside the wrapped function itself) because a marshaled call's body
+# actually executes on the GUI thread inside _MainThreadCaller._handle(),
+# by which point the identity of the worker thread that asked is already
+# lost - reading _handler_local there would just see the GUI thread's own
+# (always-empty) thread-local storage.
+_handler_local = threading.local()
+
+
+def _current_page():
+    return getattr(_handler_local,"page",None) or form
+
+
+def _form_thread_only(fn):
+    """Like _gui_thread_only, but for the free functions that implicitly
+    resolve their target page (see _current_page() above): resolves the
+    page on the calling thread before any marshaling, and passes it into
+    `fn` as an explicit leading argument, so a handler's widget access
+    stays pinned to the page it belongs to even if the shell navigates
+    elsewhere on the GUI thread while it's still running."""
+    def wrapper(*args,**kwargs):
+        page = _current_page()
+        if QThread.currentThread() is app.thread():
+            return fn(page,*args,**kwargs)
+        return _main_caller.call(fn,page,*args,**kwargs)
     return wrapper
 
 
@@ -145,12 +192,48 @@ def _gui_thread_only(fn):
 _busy_lock = threading.Lock()
 
 
+class _BusySignals(QObject):
+    became_free = Signal()
+
+
+_busy_signals = _BusySignals()
+
+
 def is_busy():
-    """Whether some handler is currently running somewhere in the shell.
-    Checked by the shell before lazily building a not-yet-visited page,
-    since building one chdirs into its scratch folder (see
-    bin/versions/quantum-lattice-pyqt's _LazyPage.ensure_built())."""
+    """Whether some handler (or page build - see try_acquire_busy()) is
+    currently running somewhere in the shell."""
     return _busy_lock.locked()
+
+
+def try_acquire_busy():
+    """Attempt to claim the process-wide busy lock without blocking.
+    Returns True if it was free and is now held by the caller (who must
+    call release_busy() when done), False if something else already holds
+    it. Used both by a handler's click-starter (below) and by
+    _LazyPage.ensure_built() (bin/versions/quantum-lattice-pyqt) before
+    building a not-yet-visited page - building one chdirs into its own
+    scratch folder just like a handler does, so the two must be mutually
+    exclusive. Doing the check and the acquire as one atomic call (instead
+    of is_busy() followed by a separate acquire) is what closes the race
+    where both could pass a plain "is it free?" check at the same instant
+    and then chdir concurrently."""
+    return _busy_lock.acquire(blocking=False)
+
+
+def release_busy():
+    """Release the busy lock claimed by try_acquire_busy(), if held, and
+    notify anything waiting on it via on_busy_free()."""
+    if _busy_lock.locked():
+        _busy_lock.release()
+        _busy_signals.became_free.emit()
+
+
+def on_busy_free(slot):
+    """Connect `slot` (no args) to fire once the busy lock next becomes
+    free - used by the shell to retry a page whose first-navigation build
+    was deferred by ensure_built() because something else was running at
+    the time (see _LazyPage in bin/versions/quantum-lattice-pyqt)."""
+    _busy_signals.became_free.connect(slot)
 
 
 class _HandlerRunner(QThread):
@@ -163,16 +246,20 @@ class _HandlerRunner(QThread):
     thread instead of running the slot on this worker thread."""
     finished_ok = Signal(object) # emits self, so the page knows which runner finished
     finished_error = Signal(object,str) # emits self, full traceback text
-    def __init__(self,fn):
+    def __init__(self,fn,owner_page):
         super().__init__()
         self._fn = fn
+        self.owner_page = owner_page # see _handler_local above
         self.robust = True # overwritten by the caller before start()
     def run(self):
+        _handler_local.page = self.owner_page
         try:
             self._fn()
             self.finished_ok.emit(self)
         except Exception:
             self.finished_error.emit(self,traceback.format_exc())
+        finally:
+            del _handler_local.page
 
 
 
@@ -248,13 +335,13 @@ class _AppBase:
 
     def _make_click_starter(self,fn,robust):
         def start():
-            if not _busy_lock.acquire(blocking=False):
+            if not try_acquire_busy():
                 InfoBar.warning(title="Please wait",
                     content="Another calculation is currently running - try again once it finishes",
                     parent=self,duration=4000,position=InfoBarPosition.TOP)
                 return
             self._show_progress()
-            runner = _HandlerRunner(fn)
+            runner = _HandlerRunner(fn,self) # self: the page this button belongs to
             runner.robust = robust
             self._runners.append(runner) # keep a live reference so Qt doesn't GC it mid-run
             runner.finished_ok.connect(self._on_runner_ok)
@@ -271,7 +358,7 @@ class _AppBase:
 
     def _cleanup_runner(self,runner):
         self._hide_progress()
-        if _busy_lock.locked(): _busy_lock.release()
+        release_busy()
         if runner in self._runners: self._runners.remove(runner)
 
     def _ensure_progress_widgets(self):
@@ -378,22 +465,22 @@ def array2string(v):
     return ss
 
 
-@_gui_thread_only
-def get_array(name,v0=[0.,0.,0.],**kwargs):
+@_form_thread_only
+def get_array(page,name,v0=[0.,0.,0.],**kwargs):
     """Get an array from a cell"""
-    v = getattr(form,name).text() # get the text
+    v = getattr(page,name).text() # get the text
     v = string2array(v) # convert to array
     if v is not None: return v # return the array
     else: # something wrong happened
-        modify(name,array2string(v0)) # overwrite
+        _modify_impl(page,name,array2string(v0)) # overwrite
         return np.array(v0) # return the default value
 
 
-@_gui_thread_only
-def get(name,string=False,default=0.0,call=True):
+@_form_thread_only
+def get(page,name,string=False,default=0.0,call=True):
   """Return a certain value"""
   try:
-      obj = getattr(form,name) # get the object
+      obj = getattr(page,name) # get the object
       out = obj.text()
       if string: return out # return as string
       try: # if it is a number
@@ -404,32 +491,32 @@ def get(name,string=False,default=0.0,call=True):
               out = out.replace("\n","")
               a = eval("lambda r: "+out) # execute the string
               # try the function
-              try: 
+              try:
                   a([0.,0.,0.])
                   return a
               except: raise
           else: raise
   except:
       if holler(): print(name,"not found, set to ",default)
-      modify(name,default) # set this value
+      _modify_impl(page,name,default) # set this value
       return default
 
 
 
-@_gui_thread_only
-def getbox(name):
+@_form_thread_only
+def getbox(page,name):
   try:
-    obj = getattr(form,name) # get the object
+    obj = getattr(page,name) # get the object
     return str(obj.currentText()) # return the text
   except:
     if holler(): print(name,"not found, set to None")
     return None
 
 
-@_gui_thread_only
-def set_combobox(name,cs=[]):
+@_form_thread_only
+def set_combobox(page,name,cs=[]):
     """Add the different colormaps to a combox"""
-    try: cb = getattr(form,name)
+    try: cb = getattr(page,name)
     except:
         if holler(): print("Combobox",name,"not found")
         return
@@ -438,37 +525,43 @@ def set_combobox(name,cs=[]):
 
 
 
-@_gui_thread_only
-def modify(name,text):
+def _modify_impl(page,name,text):
+  """Raw implementation, called directly (bypassing the @_form_thread_only
+  wrapper's page-resolution) by get()/get_array() above, which already
+  know the right `page` and are guaranteed to already be running on the
+  GUI thread at that point - re-resolving via _current_page() there would
+  wrongly fall back to the global `form` instead of reusing the same page
+  (see _form_thread_only's docstring)."""
   try:
-    obj = getattr(form,name) # get the object
+    obj = getattr(page,name) # get the object
     out = obj.setText(str(text))
     app.processEvents() # update the interface
   except: pass
 
+modify = _form_thread_only(_modify_impl)
 set_value = modify
 
-@_gui_thread_only
-def is_checked(name,default=False):
+@_form_thread_only
+def is_checked(page,name,default=False):
     try:
-        obj = getattr(form,name) # get the object
+        obj = getattr(page,name) # get the object
         return obj.isChecked()
     except: return default
 
 
 
-@_gui_thread_only
-def set_image(name,path,width=None,height=None):
+@_form_thread_only
+def set_image(page,name,path,width=None,height=None):
   """Set a certain image"""
-  label = form.findChild(QtWidgets.QLabel,name) # get the object
-  if label is None: 
+  label = page.findChild(QtWidgets.QLabel,name) # get the object
+  if label is None:
       print(name,"label not found")
       return
   pixmap = QPixmap(path)
   from PySide6.QtCore import Qt
   if width and height:
         # Scale to exact size, keeping aspect ratio (optional)
-    pixmap = pixmap.scaled(width, height, 
+    pixmap = pixmap.scaled(width, height,
             Qt.KeepAspectRatio, Qt.SmoothTransformation)
   label.setPixmap(pixmap)
   label.show()
