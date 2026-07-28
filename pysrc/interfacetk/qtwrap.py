@@ -605,6 +605,24 @@ def _retint_theme_images(*_):
 qconfig.themeChanged.connect(_retint_theme_images)
 
 
+def find_layout_of(widget):
+  """Find whichever QGridLayout under `widget`'s parent actually contains
+  `widget` - Designer nests one QGridLayout inside another for each term
+  block (e.g. 2d/interface.ui's "gridLayout" inside "gridLayout_24"), so
+  parentWidget().layout() alone can silently return the wrong, outer
+  layout. Shared by common.py:_ensure_formula_image() and
+  hybridparts.py:_add_formula_column(), which both need to insert a
+  formula-image label into the exact row/column a term's field already
+  occupies - kept here rather than duplicated in both so a future fix to
+  this lookup (or a bug in it) only has one place to apply."""
+  parent = widget.parentWidget()
+  if parent is None: return None
+  for grid in parent.findChildren(QtWidgets.QGridLayout):
+    if grid.indexOf(widget) != -1:
+      return grid
+  return None
+
+
 @_form_thread_only
 def set_image(page,name,path,width=None,height=None):
   """Set a certain image"""

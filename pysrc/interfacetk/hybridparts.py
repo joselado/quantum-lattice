@@ -108,37 +108,31 @@ def _build_tab(params, i):
     return tab
 
 
-def _find_layout_of(tab, widget):
-    """Find whichever QGridLayout under `tab` actually contains `widget` -
-    tab.layout() alone isn't enough since Designer nests one QGridLayout
-    inside another for each part tab (same trap noted in
-    scfterms.build()'s docstring: parentWidget().layout() would silently
-    return the wrong, outer layout)."""
-    for grid in tab.findChildren(QGridLayout):
-        if grid.indexOf(widget) != -1:
-            return grid
-    return None
-
-
 def _add_formula_column(qtwrap, tab, name, suffix):
-    """Add a "<name><suffix>_image" formula label into column 2 of the
-    (label col0, field col1) row that already holds the "<name><suffix>"
-    field, and set its rendered-LaTeX pixmap + physics tooltip from the
-    shared TERM_TOOLTIPS/logos - the runtime equivalent of the
-    "<term>_image" widgets Designer places for other modes' terms, needed
-    here since these per-part rows are discovered at runtime rather than
-    laid out in interface.ui. Silently does nothing if `name` has no
-    field in this tab (params lists differ slightly per mode) or no
-    entry in TERM_TOOLTIPS."""
+    """Add a "<name><suffix>_image" formula label between the label
+    (col0) and field (col1) of the row that already holds the
+    "<name><suffix>" field - shifting the field to col2 to make room -
+    and set its rendered-LaTeX pixmap + physics tooltip from the shared
+    TERM_TOOLTIPS/logos. The runtime equivalent of the "<term>_image"
+    widgets Designer places for other modes' terms, needed here since
+    these per-part rows are discovered at runtime rather than laid out in
+    interface.ui; positioned to match where Designer places it for those
+    other modes (label, image, field, left to right), the same reasoning
+    as common.py:_ensure_formula_image() - both share qtwrap.find_layout_of()
+    to locate the field's actual (possibly nested) QGridLayout. Silently
+    does nothing if `name` has no field in this tab (params lists differ
+    slightly per mode) or no entry in TERM_TOOLTIPS."""
     field = tab.findChild(LineEdit, name + suffix)
     if field is None: return
-    grid = _find_layout_of(tab, field)
+    grid = qtwrap.find_layout_of(field)
     if grid is None: return
     idx = grid.indexOf(field)
     row, col, rowspan, colspan = grid.getItemPosition(idx)
+    grid.removeWidget(field)
+    grid.addWidget(field, row, col + 1, rowspan, colspan)
     image = BodyLabel("", tab)
     image.setObjectName(name + suffix + "_image")
-    grid.addWidget(image, row, col + 1)
+    grid.addWidget(image, row, col)
     setattr(qtwrap.form, name + suffix + "_image", image)
     qtwrap.set_logo(name + suffix + "_image", name + ".png", width=400, height=30)
     tip = TERM_TOOLTIPS.get(name)

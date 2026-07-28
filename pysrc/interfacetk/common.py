@@ -5,7 +5,6 @@ from pyqula import klist
 from .qh_interface import *
 from pyqula import parallel
 from PySide6 import QtWidgets
-from PySide6.QtWidgets import QGridLayout
 from qfluentwidgets import BodyLabel
 
 def get_operator(h,opname,projector=False):
@@ -428,48 +427,50 @@ def set_button_tooltips(qtwrap):
     """Set a hover tooltip on every calculation PushButton this mode's page
     has, from the shared BUTTON_TOOLTIPS registry (silently skipped for a
     button name this page doesn't have - same convention as set_formulas()
-    below)."""
+    below) - but only if that button doesn't already carry a more specific,
+    hand-authored tooltip set in interface.ui (e.g. huge_0d's show_lattice:
+    "Show the geometry created", show_potential: "This shows in which atoms
+    the edge potential is added"). Without this check, a human editing a
+    button's tooltip in Designer - interface.ui is "the only file a human
+    normally edits with a GUI tool" per CLAUDE.md - would see their edit
+    silently discarded the next time this page is built, replaced by the
+    generic BUTTON_TOOLTIPS text."""
+    form = qtwrap.form
     for name, tip in BUTTON_TOOLTIPS.items():
+        widget = form.findChild(QtWidgets.QWidget,name)
+        if widget is None or widget.toolTip(): continue
         qtwrap.set_tooltip(name, tip)
 
 
-def _find_layout_of(widget):
-    """Find whichever QGridLayout under `widget`'s parent actually
-    contains `widget` - Designer nests one QGridLayout inside another for
-    each term block (e.g. 2d/interface.ui's "gridLayout" inside
-    "gridLayout_24"), so parentWidget().layout() alone can silently
-    return the wrong, outer layout (same trap noted in
-    scfterms.build()'s and hybridparts._find_layout_of()'s docstrings)."""
-    parent = widget.parentWidget()
-    if parent is None: return None
-    for grid in parent.findChildren(QGridLayout):
-        if grid.indexOf(widget) != -1:
-            return grid
-    return None
-
-
 def _ensure_formula_image(qtwrap, term):
-    """Make sure this page has a "<term>_image" label next to the
-    "<term>" field, creating one (one grid column to the right of the
-    field) if interface.ui didn't already define one - so modes whose
-    .ui predates the formula-image convention (e.g. 2dslab/3d/
-    multilayergraphene/hofstader1d/tbg/tmdc) get it automatically just by
-    calling set_formulas(), with no per-mode .ui edits needed. Modes that
-    already have a Designer-authored "<term>_image" widget (0d/1d/2d/
-    heavyfermion/impurity_embedding) are left alone - set_formulas() below
-    still sets its pixmap/tooltip either way."""
+    """Make sure this page has a "<term>_image" label between the
+    "<term>" field and its descriptive label (shifting the field one grid
+    column to the right to make room), if interface.ui didn't already
+    define one - so modes whose .ui predates the formula-image convention
+    (e.g. 2dslab/3d/multilayergraphene/hofstader1d/tbg/tmdc) get it
+    automatically just by calling set_formulas(), with no per-mode .ui
+    edits needed. Positioned to match where Designer already places the
+    image for modes that pre-date this helper (0d/1d/2d/heavyfermion/
+    impurity_embedding: label, image, field, left to right) rather than
+    after the field - an earlier version of this function put new images
+    after the field instead, which looked inconsistent (formula on the
+    "wrong" side) next to those modes. Modes that already have a
+    Designer-authored "<term>_image" widget are left alone - set_formulas()
+    below still sets its pixmap/tooltip either way."""
     form = qtwrap.form
     image_name = term+"_image"
     if form.findChild(QtWidgets.QWidget,image_name) is not None: return
     field = form.findChild(QtWidgets.QWidget,term)
     if field is None: return
-    grid = _find_layout_of(field)
+    grid = qtwrap.find_layout_of(field)
     if grid is None: return
     idx = grid.indexOf(field)
     row,col,rowspan,colspan = grid.getItemPosition(idx)
+    grid.removeWidget(field)
+    grid.addWidget(field,row,col+1,rowspan,colspan)
     image = BodyLabel("",field.parentWidget())
     image.setObjectName(image_name)
-    grid.addWidget(image,row,col+1)
+    grid.addWidget(image,row,col)
     setattr(form,image_name,image)
     # inherit the field's current shown/hidden state - if latticeterms.py
     # already hid this term's field (e.g. Haldane/Kane-Mele on a
