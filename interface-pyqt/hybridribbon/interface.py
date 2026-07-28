@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QMainWind
     QMenuBar, QSizePolicy, QStatusBar, QTabWidget,
     QVBoxLayout, QWidget)
 
-from qfluentwidgets import (BodyLabel, ComboBox, LineEdit, PushButton)
+from qfluentwidgets import (BodyLabel, CheckBox, ComboBox, LineEdit,
+    PushButton)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -646,6 +647,103 @@ class Ui_MainWindow(object):
         self.verticalLayout_site_dos.addWidget(self.show_site_dos)
 
         self.tabWidget_3.addTab(self.tab_site_dos, "")
+        self.tab_scf = QWidget()
+        self.tab_scf.setObjectName(u"tab_scf")
+        self.gridLayout_scf_16 = QGridLayout(self.tab_scf)
+        self.gridLayout_scf_16.setObjectName(u"gridLayout_scf_16")
+        self.tabWidget_scf_bc = QTabWidget(self.tab_scf)
+        self.tabWidget_scf_bc.setObjectName(u"tabWidget_scf_bc")
+        self.tab_scf_basic = QWidget()
+        self.tab_scf_basic.setObjectName(u"tab_scf_basic")
+        self.gridLayout_scf_18 = QGridLayout(self.tab_scf_basic)
+        self.gridLayout_scf_18.setObjectName(u"gridLayout_scf_18")
+        self.gridLayout_scf_10 = QGridLayout()
+        self.gridLayout_scf_10.setObjectName(u"gridLayout_scf_10")
+        self.scf_terms_container = QWidget(self.tab_scf_basic)
+        self.scf_terms_container.setObjectName(u"scf_terms_container")
+
+        self.gridLayout_scf_10.addWidget(self.scf_terms_container, 1, 0, 1, 2)
+
+        self.scf_initialization = ComboBox(self.tab_scf_basic)
+        self.scf_initialization.addItem("")
+        self.scf_initialization.addItem("")
+        self.scf_initialization.addItem("")
+        self.scf_initialization.setObjectName(u"scf_initialization")
+
+        self.gridLayout_scf_10.addWidget(self.scf_initialization, 0, 1, 1, 1)
+
+        self.label_scf_22 = BodyLabel(self.tab_scf_basic)
+        self.label_scf_22.setObjectName(u"label_scf_22")
+
+        self.gridLayout_scf_10.addWidget(self.label_scf_22, 0, 0, 1, 1)
+
+        self.label_scf_34 = BodyLabel(self.tab_scf_basic)
+        self.label_scf_34.setObjectName(u"label_scf_34")
+
+        self.gridLayout_scf_10.addWidget(self.label_scf_34, 2, 0, 1, 1)
+
+        self.filling_scf = LineEdit(self.tab_scf_basic)
+        self.filling_scf.setObjectName(u"filling_scf")
+
+        self.gridLayout_scf_10.addWidget(self.filling_scf, 2, 1, 1, 1)
+
+
+        self.gridLayout_scf_18.addLayout(self.gridLayout_scf_10, 0, 0, 1, 2)
+
+        self.do_scf = CheckBox(self.tab_scf_basic)
+        self.do_scf.setObjectName(u"do_scf")
+
+        self.gridLayout_scf_18.addWidget(self.do_scf, 1, 0, 1, 1)
+
+        self.solve_scf = PushButton(self.tab_scf_basic)
+        self.solve_scf.setObjectName(u"solve_scf")
+
+        self.gridLayout_scf_18.addWidget(self.solve_scf, 1, 1, 1, 1)
+
+        self.tabWidget_scf_bc.addTab(self.tab_scf_basic, "")
+        self.tab_scf_convergence = QWidget()
+        self.tab_scf_convergence.setObjectName(u"tab_scf_convergence")
+        self.gridLayoutWidget_scf_12 = QWidget(self.tab_scf_convergence)
+        self.gridLayoutWidget_scf_12.setObjectName(u"gridLayoutWidget_scf_12")
+        self.gridLayoutWidget_scf_12.setGeometry(QRect(30, 30, 215, 161))
+        self.gridLayout_scf_12 = QGridLayout(self.gridLayoutWidget_scf_12)
+        self.gridLayout_scf_12.setObjectName(u"gridLayout_scf_12")
+        self.gridLayout_scf_12.setContentsMargins(0, 0, 0, 0)
+        self.label_scf_32 = BodyLabel(self.gridLayoutWidget_scf_12)
+        self.label_scf_32.setObjectName(u"label_scf_32")
+
+        self.gridLayout_scf_12.addWidget(self.label_scf_32, 0, 0, 1, 1)
+
+        self.label_scf_33 = BodyLabel(self.gridLayoutWidget_scf_12)
+        self.label_scf_33.setObjectName(u"label_scf_33")
+
+        self.gridLayout_scf_12.addWidget(self.label_scf_33, 1, 0, 1, 1)
+
+        self.nk_scf = LineEdit(self.gridLayoutWidget_scf_12)
+        self.nk_scf.setObjectName(u"nk_scf")
+
+        self.gridLayout_scf_12.addWidget(self.nk_scf, 1, 1, 1, 1)
+
+        self.mix_scf = LineEdit(self.gridLayoutWidget_scf_12)
+        self.mix_scf.setObjectName(u"mix_scf")
+
+        self.gridLayout_scf_12.addWidget(self.mix_scf, 0, 1, 1, 1)
+
+        self.label_scf_35 = BodyLabel(self.gridLayoutWidget_scf_12)
+        self.label_scf_35.setObjectName(u"label_scf_35")
+
+        self.gridLayout_scf_12.addWidget(self.label_scf_35, 2, 0, 1, 1)
+
+        self.smearing_scf = LineEdit(self.gridLayoutWidget_scf_12)
+        self.smearing_scf.setObjectName(u"smearing_scf")
+
+        self.gridLayout_scf_12.addWidget(self.smearing_scf, 2, 1, 1, 1)
+
+        self.tabWidget_scf_bc.addTab(self.tab_scf_convergence, "")
+
+        self.gridLayout_scf_16.addWidget(self.tabWidget_scf_bc, 0, 0, 1, 1)
+
+        self.tabWidget_3.addTab(self.tab_scf, "")
 
         self.gridLayout_7.addWidget(self.tabWidget_3, 0, 1, 1, 1)
 
@@ -734,6 +832,7 @@ class Ui_MainWindow(object):
         self.tabWidget_4.setCurrentIndex(0)
         self.tabWidget_3.setCurrentIndex(0)
         self.bands_color.setCurrentIndex(0)
+        self.tabWidget_scf_bc.setCurrentIndex(0)
         self.tabWidget.setCurrentIndex(0)
 
 
@@ -867,6 +966,24 @@ class Ui_MainWindow(object):
         self.site_dos_nk.setText(QCoreApplication.translate("MainWindow", u"100", None))
         self.show_site_dos.setText(QCoreApplication.translate("MainWindow", u"Site DOS", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_site_dos), QCoreApplication.translate("MainWindow", u"Site DOS", None))
+        self.scf_initialization.setItemText(0, QCoreApplication.translate("MainWindow", u"antiferro", None))
+        self.scf_initialization.setItemText(1, QCoreApplication.translate("MainWindow", u"ferro", None))
+        self.scf_initialization.setItemText(2, QCoreApplication.translate("MainWindow", u"random", None))
+
+        self.label_scf_22.setText(QCoreApplication.translate("MainWindow", u"Initialization", None))
+        self.label_scf_34.setText(QCoreApplication.translate("MainWindow", u"Filling", None))
+        self.filling_scf.setText(QCoreApplication.translate("MainWindow", u"0.5", None))
+        self.do_scf.setText(QCoreApplication.translate("MainWindow", u"Include mean field", None))
+        self.solve_scf.setText(QCoreApplication.translate("MainWindow", u"Solve SCF", None))
+        self.tabWidget_scf_bc.setTabText(self.tabWidget_scf_bc.indexOf(self.tab_scf_basic), QCoreApplication.translate("MainWindow", u"Basic", None))
+        self.label_scf_32.setText(QCoreApplication.translate("MainWindow", u"Mixing", None))
+        self.label_scf_33.setText(QCoreApplication.translate("MainWindow", u"# of kpoints", None))
+        self.nk_scf.setText(QCoreApplication.translate("MainWindow", u"10", None))
+        self.mix_scf.setText(QCoreApplication.translate("MainWindow", u"0.9", None))
+        self.label_scf_35.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
+        self.smearing_scf.setText(QCoreApplication.translate("MainWindow", u"0.01", None))
+        self.tabWidget_scf_bc.setTabText(self.tabWidget_scf_bc.indexOf(self.tab_scf_convergence), QCoreApplication.translate("MainWindow", u"Convergence", None))
+        self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_scf), QCoreApplication.translate("MainWindow", u"SCF", None))
         self.label_8.setText(QCoreApplication.translate("MainWindow", u"Type of lattice", None))
         self.lattice.setItemText(0, QCoreApplication.translate("MainWindow", u"Honeycomb zigzag", None))
         self.lattice.setItemText(1, QCoreApplication.translate("MainWindow", u"Honeycomb armchair", None))

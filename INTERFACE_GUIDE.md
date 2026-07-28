@@ -138,6 +138,54 @@ shell's `MODES` list in `bin/versions/quantum-lattice-pyqt`, and add it to
 object names matter, they're not derived dynamically (see `scfterms.build()`'s
 `container`/`grid` args).
 
+## Retrofitting SCF onto an existing mode
+
+Adding mean-field support to a mode that never had it (done for
+`hybridribbon`/`hybridfilm`) means copying a whole "SCF" tab (`Basic`/
+`Convergence` sub-tabs: `do_scf`/`solve_scf`/`scf_initialization`/
+`filling_scf`/`nk_scf`/`mix_scf`/`smearing_scf`, plus the `scf_terms_container`
+placeholder) from an existing SCF+formulas mode's `interface.ui` (`1d`/`2d`/`0d`)
+into the target mode's `tabWidget_3`, as raw XML - Designer isn't used for
+this. Two gotchas found doing it:
+
+- **Object-name collisions.** Designer auto-names (`tab`, `tab_11`,
+  `tabWidget_4`, `gridLayout_10`, `gridLayout_12`, `label_22`, `label_32`,
+  ...) are very likely already used elsewhere in the target mode's own
+  `interface.ui` for unrelated widgets. Two identically-named widgets in one
+  `.ui` doesn't error at `pyside6-uic` time - `setupUi()` just assigns
+  `self.<name>` twice and the second silently wins, leaving the first
+  widget's Python handle pointing at nothing meaningful. Grep every name in
+  the block you're copying against the target file first
+  (`grep -c 'name="X"' interface.ui`) and rename every colliding one to
+  something unique before inserting - except the names `common.py`/
+  `scfterms.py` read by exact string (`do_scf`, `solve_scf`,
+  `scf_initialization`, `filling_scf`, `nk_scf`, `mix_scf`, `smearing_scf`,
+  `scf_terms_container`), which must stay as-is. If the target mode already
+  has its own real `tabWidget_4` for something else (e.g. `hybridparts.py`'s
+  per-part tabs, which default to that exact name), rename the SCF block's
+  inner Basic/Convergence `QTabWidget` and pass a non-default `grid=` to
+  `scfterms.build(qtwrap, grid="...")` instead of leaving the default
+  `"gridLayout_10"` - same collision risk, checked the same way.
+- **Missing `<customwidget>` declaration.** If the target mode never had a
+  `CheckBox`-promoted widget before (`do_scf` is one), its `interface.ui`
+  `<customwidgets>` block won't declare the `CheckBox`→`QCheckBox` promotion
+  yet, even though other promoted types (`BodyLabel`, `ComboBox`, `LineEdit`,
+  `PushButton`) are already there. `pyside6-uic` doesn't error on this - it
+  emits `WriteImports::add(): Unknown Qt class CheckBox` to stderr and
+  silently generates a plain `QCheckBox` instead of the styled one. Add the
+  missing `<customwidget>` block (copy the pattern from any of the other four)
+  and re-run `tools/convert_ui.sh` until the warning is gone.
+
+Then wire the mode's `<mode>.py` like `1d.py`: `pickup_hamiltonian =
+common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)`, a `solve_scf()`
+handler (`h = initialize(); common.solve_scf(h,qtwrap)`), `"solve_scf":
+solve_scf` in the signals dict, and `common.set_formulas(qtwrap)` once at
+the end. `common.set_formulas()` also tries every single-particle term's
+`<term>_image` (`hopping_image`, `fermi_image`, ...) - if the mode doesn't
+use the image convention for those (see the "Adding a Hamiltonian term"
+checklist above), each one prints a harmless `"<name> label not found"` to
+stderr; that's expected, not a wiring bug.
+
 ## Adding a ql-* script
 
 `utilities/ql-*` scripts are never imported, only launched as subprocesses

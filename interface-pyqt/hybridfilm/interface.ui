@@ -1066,6 +1066,147 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_scf">
+       <attribute name="title">
+        <string>SCF</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_scf_16">
+        <item row="0" column="0">
+         <widget class="QTabWidget" name="tabWidget_scf_bc">
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QWidget" name="tab_scf_basic">
+           <attribute name="title">
+            <string>Basic</string>
+           </attribute>
+           <layout class="QGridLayout" name="gridLayout_scf_18">
+            <item row="0" column="0" colspan="2">
+             <layout class="QGridLayout" name="gridLayout_scf_10">
+              <item row="1" column="0" colspan="2">
+              <widget class="QWidget" name="scf_terms_container"/>
+             </item>
+              <item row="0" column="1">
+               <widget class="ComboBox" name="scf_initialization">
+                <item>
+                 <property name="text">
+                  <string>antiferro</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>ferro</string>
+                 </property>
+                </item>
+                <item>
+                 <property name="text">
+                  <string>random</string>
+                 </property>
+                </item>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="BodyLabel" name="label_scf_22">
+                <property name="text">
+                 <string>Initialization</string>
+                </property>
+               </widget>
+              </item>
+                                                        <item row="2" column="0">
+               <widget class="BodyLabel" name="label_scf_34">
+                <property name="text">
+                 <string>Filling</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="LineEdit" name="filling_scf">
+                <property name="text">
+                 <string>0.5</string>
+                </property>
+               </widget>
+              </item>
+                                                                                                                                                                                                                               </layout>
+            </item>
+            <item row="1" column="0">
+             <widget class="CheckBox" name="do_scf">
+              <property name="text">
+               <string>Include mean field</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="PushButton" name="solve_scf">
+              <property name="text">
+               <string>Solve SCF</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="tab_scf_convergence">
+           <attribute name="title">
+            <string>Convergence</string>
+           </attribute>
+           <widget class="QWidget" name="gridLayoutWidget_scf_12">
+            <property name="geometry">
+             <rect>
+              <x>30</x>
+              <y>30</y>
+              <width>215</width>
+              <height>161</height>
+             </rect>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_scf_12">
+             <item row="0" column="0">
+              <widget class="BodyLabel" name="label_scf_32">
+               <property name="text">
+                <string>Mixing</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="BodyLabel" name="label_scf_33">
+               <property name="text">
+                <string># of kpoints</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="LineEdit" name="nk_scf">
+               <property name="text">
+                <string>10</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="LineEdit" name="mix_scf">
+               <property name="text">
+                <string>0.9</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="BodyLabel" name="label_scf_35">
+               <property name="text">
+                <string>Smearing</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="LineEdit" name="smearing_scf">
+               <property name="text">
+                <string>0.01</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
     <item row="3" column="0" colspan="2">
@@ -1100,6 +1241,11 @@
   <customwidget>
    <class>BodyLabel</class>
    <extends>QLabel</extends>
+   <header>qfluentwidgets</header>
+  </customwidget>
+  <customwidget>
+   <class>CheckBox</class>
+   <extends>QCheckBox</extends>
    <header>qfluentwidgets</header>
   </customwidget>
   <customwidget>

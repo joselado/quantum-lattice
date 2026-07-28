@@ -15,6 +15,12 @@ get = qtwrap.get  # get the value of a certain variable
 getbox = qtwrap.getbox  # get the value of a certain variable
 window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 
+from interfacetk import scfterms
+# grid= differs from the default "gridLayout_10" because that name is
+# already taken by an unrelated layout in this mode's interface.ui - see
+# INTERFACE_GUIDE.md's "Adding a mode" checklist
+scfterms.build(qtwrap,grid="gridLayout_scf_10") # build the Density-density/Spin-spin mean field tabs
+
 
 
 from interfacetk.qh_interface import * # import all the libraries needed
@@ -110,7 +116,13 @@ def show_ldos():
 
 
 
-pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+
+
+def solve_scf():
+  """Perform a selfconsistent calculation"""
+  h = initialize()
+  common.solve_scf(h,qtwrap)
 
 
 
@@ -211,11 +223,13 @@ def load_results():  load_state(inipath,tmppath,window) # function to load
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,  # show bandstructure
   "show_interactive_ldos": show_interactive_ldos,  # show DOS
+  "solve_scf": solve_scf,
   "save_results": save_results,
   "load_results": load_results,
 })
 
-
+# set all the formulas
+common.set_formulas(qtwrap)
 
 
 common.initialize(qtwrap) # initialize
