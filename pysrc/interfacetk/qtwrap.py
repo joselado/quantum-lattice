@@ -41,7 +41,7 @@ except ImportError:
     pass
 
 from PySide6 import QtWidgets  # Import the PySide6 module we'll need
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt, QThread, QObject, Signal
 import sys  # We need sys so that we can pass argv to QApplication
 import numpy as np
@@ -55,6 +55,7 @@ import traceback
 from numpy import * # this may not be a good idea
 from .debugging import holler
 from qfluentwidgets import InfoBar, InfoBarPosition, IndeterminateProgressBar
+from qfluentwidgets import qconfig, isDarkTheme
 
 QtGui = QtWidgets
 app = None  # the single QApplication for the whole process, built lazily
@@ -561,6 +562,49 @@ def is_checked(page,name,default=False):
 
 
 
+# set_image()/set_logo() are only ever used for the white-ink-on-transparent
+# Hamiltonian-term formula PNGs (CLAUDE.md's formula-image convention,
+# common.py:set_formulas()) - unlike the home page banner logo, which
+# bin/versions/quantum-lattice-pyqt sets directly via QPixmap/setPixmap and
+# never goes through here. Those PNGs are static bitmaps: setTheme() restyles
+# every promoted qfluentwidgets widget's stylesheet live, but a baked-white
+# pixmap doesn't participate in that, so on the light theme the "font" (it
+# reads as text but is actually an image) stayed white and unreadable. Tint
+# on every set_image() call, and re-tint every previously-set image label
+# when the theme switch (bin/versions/quantum-lattice-pyqt's "Dark
+# interface" switch) fires.
+_themed_image_labels = [] # [(label, untinted-but-scaled pixmap), ...]
+
+
+def _ink_color():
+    return QColor(255,255,255) if isDarkTheme() else QColor(0,0,0)
+
+
+def _tint_pixmap(pixmap,color):
+    """Recolor every non-transparent pixel of `pixmap` to `color`, keeping
+    its alpha channel - the source ink color doesn't matter going in."""
+    tinted = QPixmap(pixmap.size())
+    tinted.fill(Qt.transparent)
+    painter = QPainter(tinted)
+    painter.drawPixmap(0,0,pixmap)
+    painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    painter.fillRect(tinted.rect(),color)
+    painter.end()
+    return tinted
+
+
+def _retint_theme_images(*_):
+    color = _ink_color()
+    for label,base in list(_themed_image_labels):
+        try:
+            label.setPixmap(_tint_pixmap(base,color))
+        except RuntimeError:
+            pass # underlying C++ QLabel already destroyed (page rebuilt)
+
+
+qconfig.themeChanged.connect(_retint_theme_images)
+
+
 @_form_thread_only
 def set_image(page,name,path,width=None,height=None):
   """Set a certain image"""
@@ -569,12 +613,12 @@ def set_image(page,name,path,width=None,height=None):
       print(name,"label not found")
       return
   pixmap = QPixmap(path)
-  from PySide6.QtCore import Qt
   if width and height:
         # Scale to exact size, keeping aspect ratio (optional)
     pixmap = pixmap.scaled(width, height,
             Qt.KeepAspectRatio, Qt.SmoothTransformation)
-  label.setPixmap(pixmap)
+  _themed_image_labels.append((label,pixmap))
+  label.setPixmap(_tint_pixmap(pixmap,_ink_color()))
   label.show()
 
 
