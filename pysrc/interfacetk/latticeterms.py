@@ -122,11 +122,59 @@ def _matches_base(base, attr_name):
     return False
 
 
+def _find_layout_item(layout, widget):
+    """Recursively search `layout` (and any nested layouts inside it -
+    Designer .ui files nest a QGridLayout per "Terms in the Hamiltonian"
+    row-group inside an outer one) for `widget`. Returns
+    (containing_layout, index) or None."""
+    if layout is None: return None
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        if item.widget() is widget: return (layout, i)
+        found = _find_layout_item(item.layout(), widget)
+        if found is not None: return found
+    return None
+
+
+def _row_label_siblings(layout, index):
+    """The label(s) Designer placed in the same row as the widget at
+    `index` in `layout` - the descriptive text to a term's left (e.g.
+    "Haldane"), which almost never shares its field's own widget name
+    (that field is "haldane", but its label is some Designer
+    auto-generated "label_24", "label_11", ... with no relation to it),
+    so _apply_widget_restriction's name-based matching can never find
+    it on its own. Grid layouts: every QLabel sharing this item's row.
+    Box layouts (e.g. a horizontal "label, field, label, field, ..."
+    row like the mean field tab's U/V1/V2/J1/J2/J3): the item
+    immediately before this one, if it's a label."""
+    from PySide6.QtWidgets import QGridLayout, QBoxLayout, QLabel
+    siblings = []
+    if isinstance(layout, QGridLayout):
+        row,_col,_rs,_cs = layout.getItemPosition(index)
+        for i in range(layout.count()):
+            if i == index: continue
+            r,_c,_rs2,_cs2 = layout.getItemPosition(i)
+            if r == row:
+                w = layout.itemAt(i).widget()
+                if isinstance(w, QLabel): siblings.append(w)
+    elif isinstance(layout, QBoxLayout):
+        if index > 0:
+            w = layout.itemAt(index - 1).widget()
+            if isinstance(w, QLabel): siblings.append(w)
+    return siblings
+
+
 def _apply_widget_restriction(form, base_names, allowed):
     for base in base_names:
         for attr_name, w in list(vars(form).items()):
             if _matches_base(base, attr_name) and hasattr(w, "setVisible"):
                 w.setVisible(allowed)
+                parent = w.parentWidget()
+                found = _find_layout_item(parent.layout() if parent else None, w)
+                if found is not None:
+                    layout, index = found
+                    for label in _row_label_siblings(layout, index):
+                        label.setVisible(allowed)
 
 
 def _apply_combo_item_restriction(form, items, allowed):
