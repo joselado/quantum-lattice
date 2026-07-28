@@ -902,7 +902,7 @@ class Ui_MainWindow(object):
         self.label_mAB.setText(QCoreApplication.translate("MainWindow", u"Sublattice imbalance", None))
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
-        self.label_antikanemele.setText(QCoreApplication.translate("MainWindow", u"Anti-Kane-Mele", None))
+        self.label_antikanemele.setText(QCoreApplication.translate("MainWindow", u"Anti Kane-Mele", None))
         self.mAB.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.antikanemele.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_haldane.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))

@@ -992,7 +992,7 @@ class Ui_MainWindow(object):
         self.haldane.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_17.setText(QCoreApplication.translate("MainWindow", u"Crystal field", None))
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_exchange.setText(QCoreApplication.translate("MainWindow", u"Exchange", None))
+        self.label_exchange.setText(QCoreApplication.translate("MainWindow", u"Exchange field", None))
         self.label_kanemele.setText(QCoreApplication.translate("MainWindow", u"Kane-Mele", None))
         self.label_haldane.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))
         self.rashba.setText(QCoreApplication.translate("MainWindow", u"0.0", None))

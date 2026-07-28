@@ -718,8 +718,8 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Huge islands", None))
-        self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi shift", None))
-        self.label_mAB.setText(QCoreApplication.translate("MainWindow", u"AB imbalance", None))
+        self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
+        self.label_mAB.setText(QCoreApplication.translate("MainWindow", u"Sublattice imbalance", None))
 #if QT_CONFIG(tooltip)
         self.mAB.setToolTip(QCoreApplication.translate("MainWindow", u"Sublattice imbalance in a bipartite lattice", None))
 #endif // QT_CONFIG(tooltip)

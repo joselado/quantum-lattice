@@ -78,7 +78,7 @@
           <item row="8" column="0">
            <widget class="BodyLabel" name="label_swave">
             <property name="text">
-             <string>Superconducting pairing</string>
+             <string>swave pairing</string>
             </property>
            </widget>
           </item>
@@ -108,7 +108,7 @@
           <item row="6" column="0">
            <widget class="BodyLabel" name="label_rashba">
             <property name="text">
-             <string>Rashba SOC</string>
+             <string>Rashba</string>
             </property>
            </widget>
           </item>

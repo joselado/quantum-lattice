@@ -175,7 +175,7 @@
           <item row="5" column="0">
            <widget class="BodyLabel" name="label_kanemele">
             <property name="text">
-             <string>Kane-Mele SOC</string>
+             <string>Kane-Mele</string>
             </property>
            </widget>
           </item>
@@ -189,7 +189,7 @@
           <item row="4" column="0">
            <widget class="BodyLabel" name="label_rashba">
             <property name="text">
-             <string>Rashba SOC</string>
+             <string>Rashba</string>
             </property>
            </widget>
           </item>
@@ -223,7 +223,7 @@
           <item row="12" column="0">
            <widget class="BodyLabel" name="label_pwave">
             <property name="text">
-             <string>p-wave superconductivity</string>
+             <string>pwave pairing</string>
             </property>
            </widget>
           </item>
@@ -244,7 +244,7 @@
           <item row="11" column="0">
            <widget class="BodyLabel" name="label_swave">
             <property name="text">
-             <string>s-wave superconductivity</string>
+             <string>swave pairing</string>
             </property>
            </widget>
           </item>

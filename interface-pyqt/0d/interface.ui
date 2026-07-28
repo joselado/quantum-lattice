@@ -160,7 +160,7 @@
           <item row="11" column="0">
            <widget class="BodyLabel" name="label_swave">
             <property name="text">
-             <string>swave superconductivity</string>
+             <string>swave pairing</string>
             </property>
            </widget>
           </item>
@@ -188,7 +188,7 @@
           <item row="12" column="0">
            <widget class="BodyLabel" name="label_pwave">
             <property name="text">
-             <string>pwave superconductivity</string>
+             <string>pwave pairing</string>
             </property>
            </widget>
           </item>
@@ -279,7 +279,7 @@
           <item row="4" column="0">
            <widget class="BodyLabel" name="label_exchange">
             <property name="text">
-             <string>Exchange</string>
+             <string>Exchange field</string>
             </property>
            </widget>
           </item>

@@ -145,7 +145,7 @@
           <item row="4" column="0">
            <widget class="BodyLabel" name="label_exchange">
             <property name="text">
-             <string>Exchange</string>
+             <string>Exchange field</string>
             </property>
            </widget>
           </item>

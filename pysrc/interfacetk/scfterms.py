@@ -59,19 +59,31 @@ def _build_grid(form, parent, terms, images):
             setattr(form, f"{name}_image", image)
 
 
-def build(qtwrap, container="scf_terms_container", images=True):
+def build(qtwrap, container="scf_terms_container", grid="gridLayout_10", images=True):
     """Replace `container` with a QTabWidget with "Density-density"
-    (U/V1/V2) and "Spin-spin" (J1/J2/J3) tabs, in the same grid cell."""
+    (U/V1/V2) and "Spin-spin" (J1/J2/J3) tabs, in the same grid cell.
+
+    `grid` is the containing QGridLayout's own object name, not derived
+    from placeholder.parentWidget().layout() - `grid` is a *nested*
+    sub-layout (added to its parent layout via addLayout(), the way
+    Designer nests one QGridLayout inside another for each "Basic" tab),
+    not the layout actually set on any widget via setLayout(), so
+    parentWidget().layout() returns the wrong (outer) layout entirely,
+    silently making every indexOf()/getItemPosition() below operate on
+    the wrong object - this was the actual cause of a prior bug where the
+    tab widget ended up somewhere row/col (-1,-1) of the wrong layout,
+    collapsing every row to zero height."""
     form = qtwrap.form
     placeholder = getattr(form, container)
-    layout = placeholder.parentWidget().layout()
+    parent_widget = placeholder.parentWidget()
+    layout = getattr(form, grid)
     idx = layout.indexOf(placeholder)
     row, col, rowspan, colspan = layout.getItemPosition(idx)
     layout.removeWidget(placeholder)
     placeholder.setParent(None)
     placeholder.deleteLater()
 
-    tabs = QTabWidget(placeholder.parentWidget())
+    tabs = QTabWidget(parent_widget)
     dd_tab, ss_tab = QWidget(tabs), QWidget(tabs)
     _build_grid(form, dd_tab, DENSITY_DENSITY, images)
     _build_grid(form, ss_tab, SPIN_SPIN, images)
