@@ -418,8 +418,11 @@ def generate_hamiltonian(window,g=None):
 from .labels import set_labels
 
 
+from .termtooltips import TERM_TOOLTIPS
+
+
 def set_formulas(qtwrap):
-    """Set all the formulas in the interface"""
+    """Set all the formulas and their physics tooltips in the interface"""
     terms = ["hopping","fermi","exchange","haldane","kanemele"]
     terms += ["antihaldane","antikanemele","mAB","mAF","swave","pwave"]
     terms += ["rashba","bfield","kondo","kexchange","cf"]
@@ -427,6 +430,10 @@ def set_formulas(qtwrap):
     terms += ["U","V1","V2","J1","J2","J3"]
     for t in terms:
         qtwrap.set_logo(t+"_image",t+".png",width=400,height=30)
+        tip = TERM_TOOLTIPS.get(t)
+        if tip is not None:
+            qtwrap.set_tooltip(t,tip)
+            qtwrap.set_tooltip(t+"_image",tip)
 
 
 

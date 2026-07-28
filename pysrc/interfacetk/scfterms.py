@@ -23,16 +23,21 @@ only walks the widgets that exist at page-construction time, before this
 runs (same reasoning as hybridparts.py's part 3+ fields)."""
 from PySide6.QtWidgets import QWidget, QGridLayout, QTabWidget
 from qfluentwidgets import BodyLabel, LineEdit
+from .termtooltips import TERM_TOOLTIPS  # single source of truth for term
+                                    # tooltips, shared with common.py's
+                                    # set_formulas() - needed here too since
+                                    # 3d/2dslab/multilayergraphene build these
+                                    # fields but never call set_formulas()
 
 DENSITY_DENSITY = [
-    ("U", "U", "Local Hubbard interaction", "2.0"),
-    ("V1", "V1", "First neighbor interaction", "0.0"),
-    ("V2", "V2", "Second neighbor interaction", "0.0"),
+    ("U", "U", TERM_TOOLTIPS["U"], "2.0"),
+    ("V1", "V1", TERM_TOOLTIPS["V1"], "0.0"),
+    ("V2", "V2", TERM_TOOLTIPS["V2"], "0.0"),
 ]
 SPIN_SPIN = [
-    ("J1", "J1", "First neighbor Heisenberg exchange", "0.0"),
-    ("J2", "J2", "Second neighbor Heisenberg exchange", "0.0"),
-    ("J3", "J3", "Third neighbor Heisenberg exchange", "0.0"),
+    ("J1", "J1", TERM_TOOLTIPS["J1"], "0.0"),
+    ("J2", "J2", TERM_TOOLTIPS["J2"], "0.0"),
+    ("J3", "J3", TERM_TOOLTIPS["J3"], "0.0"),
 ]
 
 

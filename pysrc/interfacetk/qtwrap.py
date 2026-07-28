@@ -583,7 +583,18 @@ def set_logo(name,image,**kwargs):
   qlroot = os.path.dirname(os.path.realpath(__file__))+"/../../"
   path = qlroot+"/interface-pyqt/logos/"+image
   set_image(name,path,**kwargs)
-  
+
+
+@_form_thread_only
+def set_tooltip(page,name,text):
+  """Set a hover tooltip on a widget by object name, if it exists on this
+  page (silently skipped otherwise - not every mode has every term, same
+  convention as set_image's missing-label handling above)."""
+  obj = page.findChild(QtWidgets.QWidget,name)
+  if obj is None: return
+  obj.setToolTip(text)
+
+
 
 
 @_gui_thread_only
