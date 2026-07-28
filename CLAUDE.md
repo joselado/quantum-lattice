@@ -8,6 +8,8 @@ Quantum Lattice is a PySide6 desktop GUI, styled with `qfluentwidgets` (dark Flu
 
 `pysrc/pyqula/` is a vendored copy of the `pyqula` library, developed in a separate upstream repository. **Treat it as a black box: do not hand-edit individual files under `pysrc/pyqula/`.** All work in this repo is on the interface layer that wraps it. Periodically refreshing the whole vendored copy from upstream (`tools/update_pyqula.sh`) is a different thing and is allowed - encouraged, even, from time to time - see "Updating vendored pyqula" below.
 
+See `INTERFACE_GUIDE.md` for a mechanics-level companion to this file: task checklists (adding a term, adding a mode, adding a `ql-*` script) and recorded structural gotchas (e.g. how tabs are actually parented across the shared `QTabWidget`s) that aren't obvious from reading a `.ui` file cold. **Whenever a change touches how the interface is built or wired** — a new dynamic-widget pattern, a new shared convention in `pysrc/interfacetk/`, a newly-discovered structural quirk, a new per-mode checklist item — update `INTERFACE_GUIDE.md` in the same change, not as a follow-up.
+
 ## Running the app
 
 ```bash

@@ -20,7 +20,11 @@ getattr(form,name) (or QObject.findChild by name, for images) regardless
 of whether they came from Designer or here - and each field's textEdited
 is wired to form._mark_dirty, since _AppBase._connect_dirty_tracking()
 only walks the widgets that exist at page-construction time, before this
-runs (same reasoning as hybridparts.py's part 3+ fields)."""
+runs (same reasoning as hybridparts.py's part 3+ fields).
+
+build() also nests interface.ui's top-level "SCF" tab inside "Terms in
+the Hamiltonian" as a "Many-body interactions" sub-tab, alongside the
+pre-existing fields renamed "Single particle" - see _nest_scf_tab()."""
 from PySide6.QtWidgets import QWidget, QGridLayout, QTabWidget
 from qfluentwidgets import BodyLabel, LineEdit
 from .termtooltips import TERM_TOOLTIPS  # single source of truth for term
@@ -98,4 +102,47 @@ def build(qtwrap, container="scf_terms_container", grid="gridLayout_10", images=
 
     layout.addWidget(tabs, row, col, rowspan, colspan)
     setattr(form, container, tabs)
+    _nest_scf_tab(qtwrap)
     return tabs
+
+
+def _nest_scf_tab(qtwrap):
+    """Move the "SCF" tab inside "Terms in the Hamiltonian", as a sibling
+    sub-tab of the pre-existing single-particle fields, instead of two
+    separate tabs - renaming both in the process ("Terms in the
+    Hamiltonian"'s own fields -> "Single particle", "SCF" -> "Many-body
+    interactions"). In every mode's interface.ui, "Terms in the
+    Hamiltonian" is a tab of its own QTabWidget ("tabWidget_2" - in some
+    modes, e.g. 0d, a sibling "Additional terms" tab lives there too),
+    while "SCF" is one of several sibling tabs (Bands/DOS/...) of a
+    different QTabWidget ("tabWidget_3") - they are not tabs of the same
+    QTabWidget, despite both nesting under the shell's top-level
+    "tabWidget". This reuses the two existing tab-page widgets whole (each
+    already has its own self-contained layout/content from interface.ui),
+    so it only ever reparents whole widgets via QTabWidget.addTab(), never
+    touches their internal layouts."""
+    form = qtwrap.form
+    ham_tabs = form.tabWidget_2
+    scf_tabs = form.tabWidget_3
+
+    ham_idx = next((i for i in range(ham_tabs.count())
+                     if ham_tabs.tabText(i) == "Terms in the Hamiltonian"), None)
+    scf_idx = next((i for i in range(scf_tabs.count())
+                     if scf_tabs.tabText(i) == "SCF"), None)
+    if ham_idx is None or scf_idx is None:
+        raise RuntimeError(
+            "scfterms._nest_scf_tab: expected a 'Terms in the Hamiltonian' "
+            "tab in tabWidget_2 and a 'SCF' tab in tabWidget_3 - one of "
+            "these tab titles/parents has changed, update this function "
+            "(and INTERFACE_GUIDE.md) to match.")
+
+    ham_widget = ham_tabs.widget(ham_idx)
+    scf_widget = scf_tabs.widget(scf_idx)
+
+    scf_tabs.removeTab(scf_idx)
+    ham_tabs.removeTab(ham_idx)
+
+    inner = QTabWidget()
+    inner.addTab(ham_widget, "Single particle")
+    inner.addTab(scf_widget, "Many-body interactions")
+    ham_tabs.insertTab(ham_idx, inner, "Terms in the Hamiltonian")
