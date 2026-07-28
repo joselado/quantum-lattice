@@ -4,6 +4,9 @@ import numpy as np
 from pyqula import klist
 from .qh_interface import *
 from pyqula import parallel
+from PySide6 import QtWidgets
+from PySide6.QtWidgets import QGridLayout
+from qfluentwidgets import BodyLabel
 
 def get_operator(h,opname,projector=False):
     """Return an operator"""
@@ -418,7 +421,64 @@ def generate_hamiltonian(window,g=None):
 from .labels import set_labels
 
 
-from .termtooltips import TERM_TOOLTIPS
+from .termtooltips import TERM_TOOLTIPS, BUTTON_TOOLTIPS
+
+
+def set_button_tooltips(qtwrap):
+    """Set a hover tooltip on every calculation PushButton this mode's page
+    has, from the shared BUTTON_TOOLTIPS registry (silently skipped for a
+    button name this page doesn't have - same convention as set_formulas()
+    below)."""
+    for name, tip in BUTTON_TOOLTIPS.items():
+        qtwrap.set_tooltip(name, tip)
+
+
+def _find_layout_of(widget):
+    """Find whichever QGridLayout under `widget`'s parent actually
+    contains `widget` - Designer nests one QGridLayout inside another for
+    each term block (e.g. 2d/interface.ui's "gridLayout" inside
+    "gridLayout_24"), so parentWidget().layout() alone can silently
+    return the wrong, outer layout (same trap noted in
+    scfterms.build()'s and hybridparts._find_layout_of()'s docstrings)."""
+    parent = widget.parentWidget()
+    if parent is None: return None
+    for grid in parent.findChildren(QGridLayout):
+        if grid.indexOf(widget) != -1:
+            return grid
+    return None
+
+
+def _ensure_formula_image(qtwrap, term):
+    """Make sure this page has a "<term>_image" label next to the
+    "<term>" field, creating one (one grid column to the right of the
+    field) if interface.ui didn't already define one - so modes whose
+    .ui predates the formula-image convention (e.g. 2dslab/3d/
+    multilayergraphene/hofstader1d/tbg/tmdc) get it automatically just by
+    calling set_formulas(), with no per-mode .ui edits needed. Modes that
+    already have a Designer-authored "<term>_image" widget (0d/1d/2d/
+    heavyfermion/impurity_embedding) are left alone - set_formulas() below
+    still sets its pixmap/tooltip either way."""
+    form = qtwrap.form
+    image_name = term+"_image"
+    if form.findChild(QtWidgets.QWidget,image_name) is not None: return
+    field = form.findChild(QtWidgets.QWidget,term)
+    if field is None: return
+    grid = _find_layout_of(field)
+    if grid is None: return
+    idx = grid.indexOf(field)
+    row,col,rowspan,colspan = grid.getItemPosition(idx)
+    image = BodyLabel("",field.parentWidget())
+    image.setObjectName(image_name)
+    grid.addWidget(image,row,col+1)
+    setattr(form,image_name,image)
+    # inherit the field's current shown/hidden state - if latticeterms.py
+    # already hid this term's field (e.g. Haldane/Kane-Mele on a
+    # non-honeycomb lattice) before set_formulas() ran, a freshly-created
+    # image defaults to visible and would otherwise show a lone formula
+    # next to a hidden, blank row. Later lattice changes stay in sync via
+    # latticeterms.py's own "_image" name matching, now that this widget
+    # exists and is registered on `form`.
+    image.setVisible(not field.isHidden())
 
 
 def set_formulas(qtwrap):
@@ -427,12 +487,17 @@ def set_formulas(qtwrap):
     terms += ["antihaldane","antikanemele","mAB","mAF","swave","pwave"]
     terms += ["rashba","bfield","kondo","kexchange","cf"]
     terms += ["exchange_impurity","fermi_impurity"]
+    terms += ["crystalfield","peierls","inplaneb","interlayer","tinter"]
+    terms += ["bias","interlayer_bias","ising_SOC","cdw","strain"]
+    terms += ["Bx","By","Bz"]
     # mean-field (many-body) terms: scfterms.py narrows their number field
     # to give the formula column the room, so render these into a larger
     # box than the single-particle terms above
     meanfield_terms = ["U","V1","V2","J1","J2","J3"]
     for t in terms + meanfield_terms:
         width, height = (600,50) if t in meanfield_terms else (400,30)
+        if t not in meanfield_terms: _ensure_formula_image(qtwrap,t) # meanfield
+             # images are placed by scfterms.build() itself (images=True)
         qtwrap.set_logo(t+"_image",t+".png",width=width,height=height)
         tip = TERM_TOOLTIPS.get(t)
         if tip is not None:

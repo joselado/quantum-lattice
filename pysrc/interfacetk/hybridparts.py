@@ -20,8 +20,11 @@ A mode wires this up with two calls:
     fint = lambda name: hybridparts.part_interpolator(get,name,nparts,2,region_of)
     check = lambda name: hybridparts.part_check(get,name,nparts)
 
-connect() only manages widgets (building/showing/hiding part-3+ tabs);
-the region_of_factory/part_interpolator/part_check/part_vector_interpolator
+connect() only manages widgets (building/showing/hiding part-3+ tabs, and
+- see _add_formula_column() below - giving every part's field its own
+formula image/tooltip from the shared TERM_TOOLTIPS/interface-pyqt/logos
+convention, the per-part equivalent of common.py:set_formulas()); the
+region_of_factory/part_interpolator/part_check/part_vector_interpolator
 helpers below only deal in plain values, so a mode's initialize() stays
 free to define its own axis (2/z for hybridfilm, 1/y for hybridribbon)
 and its own set of Hamiltonian terms.
@@ -29,6 +32,7 @@ and its own set of Hamiltonian terms.
 import numpy as np
 from PySide6.QtWidgets import QWidget, QGridLayout
 from qfluentwidgets import BodyLabel, LineEdit
+from .termtooltips import TERM_TOOLTIPS
 
 MAX_PARTS = 6
 
@@ -104,6 +108,52 @@ def _build_tab(params, i):
     return tab
 
 
+def _find_layout_of(tab, widget):
+    """Find whichever QGridLayout under `tab` actually contains `widget` -
+    tab.layout() alone isn't enough since Designer nests one QGridLayout
+    inside another for each part tab (same trap noted in
+    scfterms.build()'s docstring: parentWidget().layout() would silently
+    return the wrong, outer layout)."""
+    for grid in tab.findChildren(QGridLayout):
+        if grid.indexOf(widget) != -1:
+            return grid
+    return None
+
+
+def _add_formula_column(qtwrap, tab, name, suffix):
+    """Add a "<name><suffix>_image" formula label into column 2 of the
+    (label col0, field col1) row that already holds the "<name><suffix>"
+    field, and set its rendered-LaTeX pixmap + physics tooltip from the
+    shared TERM_TOOLTIPS/logos - the runtime equivalent of the
+    "<term>_image" widgets Designer places for other modes' terms, needed
+    here since these per-part rows are discovered at runtime rather than
+    laid out in interface.ui. Silently does nothing if `name` has no
+    field in this tab (params lists differ slightly per mode) or no
+    entry in TERM_TOOLTIPS."""
+    field = tab.findChild(LineEdit, name + suffix)
+    if field is None: return
+    grid = _find_layout_of(tab, field)
+    if grid is None: return
+    idx = grid.indexOf(field)
+    row, col, rowspan, colspan = grid.getItemPosition(idx)
+    image = BodyLabel("", tab)
+    image.setObjectName(name + suffix + "_image")
+    grid.addWidget(image, row, col + 1)
+    setattr(qtwrap.form, name + suffix + "_image", image)
+    qtwrap.set_logo(name + suffix + "_image", name + ".png", width=400, height=30)
+    tip = TERM_TOOLTIPS.get(name)
+    if tip is not None:
+        qtwrap.set_tooltip(name + suffix, tip)
+        qtwrap.set_tooltip(name + suffix + "_image", tip)
+    # inherit the field's current shown/hidden state - see the matching
+    # comment in common.py:_ensure_formula_image(). latticeterms.connect()
+    # always runs before this (part 1/2: before hybridparts.connect();
+    # part 3+: on_new_part() re-applies restrictions right before this
+    # runs, via ensure_built()), so field.isHidden() already reflects
+    # whether this term is allowed on the current lattice.
+    image.setVisible(not field.isHidden())
+
+
 def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_parts=MAX_PARTS, on_new_part=None):
     """Wire the "nparts" combobox (items "2".."max_parts", already built
     by interface.ui) so changing it keeps exactly that many part-tabs in
@@ -135,6 +185,16 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
     tabs.setTabText(part1_idx, "Part 1")
     tabs.setTabText(part2_idx, "Part 2")
 
+    # Designer-built part 1/2 tabs are already attached to the page here
+    # (interface.ui built them as part of tabWidget_4), so their formula
+    # columns can be added immediately - unlike part 3+ below, which have
+    # to wait until they're actually addTab()'d into the page's widget
+    # tree, since qtwrap.set_logo()/set_tooltip() resolve widgets via
+    # page.findChild() and a not-yet-attached QWidget isn't found by that.
+    for name, _ in params:
+        _add_formula_column(qtwrap, tabs.widget(part1_idx), name, "")
+        _add_formula_column(qtwrap, tabs.widget(part2_idx), name, "_2")
+
     extra_tabs = {} # part index (>=3) -> QWidget, built lazily and kept
 
     def ensure_built(i):
@@ -160,7 +220,14 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
         if current > n:
             for idx in range(current - 1, n - 1, -1): tabs.removeTab(idx)
         elif current < n:
-            for i in range(current + 1, n + 1): tabs.addTab(ensure_built(i), "Part %d" % i)
+            for i in range(current + 1, n + 1):
+                newly_built = i not in extra_tabs
+                tab = ensure_built(i)
+                tabs.addTab(tab, "Part %d" % i)
+                if newly_built: # only once - see the part 1/2 comment above
+                                 # for why this has to happen after addTab()
+                    for name, _ in params:
+                        _add_formula_column(qtwrap, tab, name, part_suffix(i))
 
     combo = getattr(form, nparts_box)
     # Read the new value directly off the signal (the text the combobox

@@ -1,16 +1,20 @@
 """Runtime builder for the mean-field terms' "Density-density"
 (U/V1/V2)/"Spin-spin" (J1/J2/J3) sub-tabs, shared by every mode that has
-them (2d, 0d, 1d, 3d, 2dslab, multilayergraphene) instead of duplicating
-the same QTabWidget block in each mode's interface.ui.
+them (2d, 0d, 1d, 3d, 2dslab, multilayergraphene, hybridfilm, hybridribbon)
+instead of duplicating the same QTabWidget block in each mode's interface.ui.
 
 A mode wires this up with one call, after new_page() builds the page and
 before common.set_formulas(qtwrap) (which needs the "<term>_image"
-labels built below to already exist) / window.connect_clicks():
+labels built below to already exist - unlike single-particle terms, whose
+missing image widget set_formulas() creates itself, see
+common.py:_ensure_formula_image(); mean-field terms don't get that
+treatment since scfterms.build() already places one, images=True by
+default) / window.connect_clicks():
 
     from interfacetk import scfterms
-    scfterms.build(qtwrap)  # images=False for 3d/2dslab/multilayergraphene,
-                             # which don't use the formula-image convention
-                             # for any of their other terms either
+    scfterms.build(qtwrap)  # images=False only if a mode wants the plain
+                             # (image-less) mean-field fields, e.g. for a
+                             # narrower layout
 
 build() replaces interface.ui's "scf_terms_container" placeholder (a bare
 QWidget Designer already places at the mean-field terms' row) with the
@@ -30,8 +34,9 @@ from qfluentwidgets import BodyLabel, LineEdit
 from .termtooltips import TERM_TOOLTIPS  # single source of truth for term
                                     # tooltips, shared with common.py's
                                     # set_formulas() - needed here too since
-                                    # 3d/2dslab/multilayergraphene build these
-                                    # fields but never call set_formulas()
+                                    # these mean-field fields are built (and
+                                    # tooltipped, via DENSITY_DENSITY/SPIN_SPIN
+                                    # below) before set_formulas() runs
 
 DENSITY_DENSITY = [
     ("U", "U", TERM_TOOLTIPS["U"], "2.0"),

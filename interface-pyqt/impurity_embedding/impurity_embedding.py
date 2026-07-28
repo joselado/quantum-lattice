@@ -205,6 +205,7 @@ window.set("info_tab","Results will be saved to "+inipath)
 
 
 window.connect_clicks(signals,robust=False)
+common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
 folder = create_folder()
 window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
 tmppath = os.getcwd() # get the initial directory

@@ -187,6 +187,7 @@ common.set_formulas(qtwrap)
 
 
 window.connect_clicks(signals)
+common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
 inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs

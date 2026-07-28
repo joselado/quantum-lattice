@@ -236,6 +236,7 @@ common.initialize(qtwrap) # initialize
 qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 window.connect_clicks(signals)
+common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
 inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs

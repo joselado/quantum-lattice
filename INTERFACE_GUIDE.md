@@ -24,6 +24,7 @@ maintenance doc, not a one-time snapshot.
   object name.
 - **Change the mean-field (U/V1/V2/J1/J2/J3) fields** — `pysrc/interfacetk/scfterms.py`.
 - **Change a term's tooltip** — `pysrc/interfacetk/termtooltips.py` (`TERM_TOOLTIPS`).
+- **Change a calculation button's tooltip** — `pysrc/interfacetk/termtooltips.py` (`BUTTON_TOOLTIPS`); see "Adding a calculation button" below.
 - **Restrict a term/operator to certain lattice families** — `pysrc/interfacetk/latticeterms.py`.
 - **Add a new plot/postprocessing view** — write/extend a `ql-*` script
   under `utilities/`; see "Adding a ql-* script" below.
@@ -80,12 +81,24 @@ placeholder/page rather than editing generated code:
   Hamiltonian" page, renaming both to "Single particle" and "Many-body
   interactions". Called once per mode, right after `qtwrap.new_page()`,
   before `common.set_formulas()`/`connect_clicks()` — see any of
-  `interface-pyqt/{0d,1d,2d,3d,2dslab,multilayergraphene}/<mode>.py`.
+  `interface-pyqt/{0d,1d,2d,3d,2dslab,multilayergraphene,hybridfilm,hybridribbon}/<mode>.py`.
 - **`hybridparts.py`** — grows/shrinks a `tabWidget_4`-style tab widget's
   tab count based on an `nparts` combobox (`addTab`/`removeTab`;
   `removeTab` doesn't delete the widget, so re-adding a part preserves its
   field values), and relabels Designer-built tabs "Part 1"/"Part 2" since
   their index order isn't guaranteed consistent across mode `.ui` files.
+  Also injects each part's `<term>_image` formula label at runtime
+  (`_add_formula_column()`), for the same reason `common.py:set_formulas()`
+  does below - part 3+ tabs don't exist in `interface.ui` at all, so
+  there's nothing for Designer to have pre-built an image widget into.
+- **`common.py:set_formulas()`'s `_ensure_formula_image()`** — not a
+  standalone module, but the same pattern: creates a mode's `<term>_image`
+  label at runtime (next to the term's field, one grid column over) the
+  first time `set_formulas()` runs on a page that doesn't already have a
+  Designer-authored one. This is what lets *every* mode's terms get a
+  formula image/tooltip just by calling `common.set_formulas(qtwrap)`,
+  without needing a matching `interface.ui` edit - see "Adding a
+  Hamiltonian term" below.
 - **`latticeterms.py`** — a registry (`RESTRICTED_TERMS`) of
   lattice-family-only widgets (Haldane/Kane-Mele/valley, honeycomb-only).
   `connect(qtwrap, lambda: getbox("lattice"))` show/hides the registered
@@ -112,19 +125,43 @@ checklist form.)
    or the relevant vendored docstring
    (`selfconsistency/spinspin.py::VJinteraction`,
    `selfconsistency/densitydensity.py::Vinteraction`) for the exact
-   convention/prefactor before writing the LaTeX. Add `<term>_image` next
-   to the field in `interface.ui`, and add `<term>` to the `terms` list in
-   `common.py:set_formulas()`. Only do this for modes that already use the
-   image convention for other terms (`grep -l '_image' interface-pyqt/*/interface.ui`);
-   leave others alone rather than adding it piecemeal.
+   convention/prefactor before writing the LaTeX. Add `<term>` to the
+   `terms` list in `common.py:set_formulas()` (or `meanfield_terms` for a
+   many-body term). **No `interface.ui` edit is needed for the image
+   itself** — `set_formulas()`'s `_ensure_formula_image()` creates the
+   `<term>_image` label at runtime, next to the field, the first time a
+   mode without a Designer-authored one calls `set_formulas()` (see
+   `CLAUDE.md`'s "Hamiltonian-term formulas" bullet). The only remaining
+   requirement is that the mode actually calls `common.set_formulas(qtwrap)`
+   at all — if it doesn't yet, add that call once, near
+   `connect_clicks()`, the same way every mode already does. Modes whose
+   term fields are built per-part at runtime instead of by Designer
+   (`hybridfilm`/`hybridribbon`, see `hybridparts.py`) get this from
+   `hybridparts.connect()`/`ensure_built()` automatically instead - no
+   extra step needed there either, as long as the term name is in that
+   mode's own `PART_FIELDS` list.
 3. Add a 2-3 sentence physical-meaning entry to `TERM_TOOLTIPS` in
    `pysrc/interfacetk/termtooltips.py` — this is required independent of
-   step 2 (it's shared by both `common.py` and `scfterms.py`).
+   step 2 (it's shared by `common.py`, `scfterms.py`, and `hybridparts.py`).
 4. If the term is lattice-family-restricted, register it in
    `latticeterms.py` instead of hand-wiring show/hide logic in the mode.
 5. Wire the field into whatever builds the Hamiltonian in `<mode>.py`.
 6. Run `tools/smoke_test.py` (catches wiring/import mistakes, not physics
    correctness) and manually exercise the field in the running app.
+
+## Adding a calculation button
+
+1. Add the `PushButton` to `interface.ui` (`tools/convert_ui.sh` after).
+2. Wire its handler — either it's one of `common.STANDARD_HANDLERS`'s
+   names (nothing to do beyond giving it that exact object name) or it
+   needs an entry in the mode's own `signals`/`extra={}` dict.
+3. Add a 1-3 sentence "what does this compute/plot" entry to
+   `BUTTON_TOOLTIPS` in `pysrc/interfacetk/termtooltips.py`, keyed by the
+   button's object name - reused automatically by every mode that has a
+   same-named button via `common.set_button_tooltips(qtwrap)` (called
+   once per mode, right after `connect_clicks()`). Check whether an
+   existing entry already fits (most calculation buttons are named and
+   behave the same way across modes) before adding a near-duplicate.
 
 ## Adding a mode
 
@@ -180,11 +217,13 @@ Then wire the mode's `<mode>.py` like `1d.py`: `pickup_hamiltonian =
 common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)`, a `solve_scf()`
 handler (`h = initialize(); common.solve_scf(h,qtwrap)`), `"solve_scf":
 solve_scf` in the signals dict, and `common.set_formulas(qtwrap)` once at
-the end. `common.set_formulas()` also tries every single-particle term's
-`<term>_image` (`hopping_image`, `fermi_image`, ...) - if the mode doesn't
-use the image convention for those (see the "Adding a Hamiltonian term"
-checklist above), each one prints a harmless `"<name> label not found"` to
-stderr; that's expected, not a wiring bug.
+the end (plus `common.set_button_tooltips(qtwrap)` for the calculation
+buttons - see "Adding a calculation button" above). `common.set_formulas()`
+tries every single-particle term's `<term>_image` (`hopping_image`,
+`fermi_image`, ...) and creates any that's missing next to its field (see
+the "Adding a Hamiltonian term" checklist above) - a term this mode has no
+field for at all still prints a harmless `"<name> label not found"` to
+stderr from `set_logo()`; that's expected, not a wiring bug.
 
 ## Adding a ql-* script
 

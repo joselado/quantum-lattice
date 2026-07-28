@@ -15,7 +15,7 @@ getbox = qtwrap.getbox  # get the value of a certain variable
 window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 
 from interfacetk import scfterms
-scfterms.build(qtwrap,images=False) # build the Density-density/Spin-spin mean field tabs
+scfterms.build(qtwrap) # build the Density-density/Spin-spin mean field tabs (with formulas)
 
 from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
@@ -242,6 +242,8 @@ signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
 #from qh_interface import create_folder # import all the libraries needed
 
 window.connect_clicks(signals)
+common.set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
+common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
 inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs

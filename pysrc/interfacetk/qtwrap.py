@@ -619,7 +619,12 @@ def set_image(page,name,path,width=None,height=None):
             Qt.KeepAspectRatio, Qt.SmoothTransformation)
   _themed_image_labels.append((label,pixmap))
   label.setPixmap(_tint_pixmap(pixmap,_ink_color()))
-  label.show()
+  # deliberately not label.show(): a term whose field latticeterms.py has
+  # already hidden (e.g. Haldane on a non-honeycomb lattice) would
+  # otherwise have its formula image forced back to visible right here,
+  # independent of the field it sits next to - a label is visible by
+  # Qt's own default anyway, so nothing needs this to become shown that
+  # wasn't already.
 
 
 def set_logo(name,image,**kwargs):

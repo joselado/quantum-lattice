@@ -178,6 +178,8 @@ signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
 
 
 window.connect_clicks(signals,robust=False)
+common.set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
+common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
 inipath = os.getcwd() # get the initial directory
 folder = create_folder()
 window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs

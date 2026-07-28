@@ -118,7 +118,15 @@ RESTRICTED_TERMS = [
 
 def _matches_base(base, attr_name):
     if attr_name == base or attr_name == base + "_image": return True
-    if attr_name.startswith(base + "_"): return attr_name[len(base)+1:].isdigit()
+    if attr_name.startswith(base + "_"):
+        rest = attr_name[len(base)+1:]
+        if rest.isdigit(): return True
+        # a per-part formula image (hybridparts.py's "<name>_<N>_image",
+        # e.g. "haldane_2_image") - the digit-suffixed field itself is
+        # already matched above, but its own formula image needs the
+        # same treatment or it stays visible/hidden independently of the
+        # field it sits next to.
+        if rest.endswith("_image") and rest[:-len("_image")].isdigit(): return True
     return False
 
 

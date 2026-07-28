@@ -221,6 +221,7 @@ common.set_formulas(qtwrap)
 #from qh_interface import create_folder # import all the libraries needed
 
 window.connect_clicks(signals)
+common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block
 
