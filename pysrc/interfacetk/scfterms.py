@@ -159,3 +159,8 @@ def _nest_scf_tab(qtwrap):
     inner.addTab(ham_widget, "Single particle")
     inner.addTab(scf_widget, "Many-body interactions")
     ham_tabs.insertTab(ham_idx, inner, "Terms in the Hamiltonian")
+    # removeTab() above can leave a sibling tab (e.g. 0d's "Additional
+    # terms") focused instead of the one we just reinserted - insertTab()
+    # does not auto-select unless the tab widget was empty, so restore it
+    # explicitly rather than silently opening on the wrong tab.
+    ham_tabs.setCurrentIndex(ham_idx)
