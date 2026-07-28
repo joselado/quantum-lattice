@@ -46,7 +46,7 @@ python interface-pyqt/2d/2d.py
 
 ### Per-module structure (`interface-pyqt/<mode>/`)
 
-Every lattice module (`0d`, `1d`, `2d`, `2dslab`, `3d`, `tbg`, `hybridfilm`, `hybridribbon`, `hofstader1d`, `heavyfermion`, `multilayergraphene`, `impurity_embedding`, `tmdc`) follows the same three-file pattern (`huge_0d` and `quasiperiodic` are exceptions, see below):
+Every lattice module (`0d`, `1d`, `2d`, `2dslab`, `3d`, `tbg`, `hybridfilm`, `hybridribbon`, `hofstader1d`, `heavyfermion`, `multilayergraphene`, `impurity_embedding`, `ribbon_embedding`, `tmdc`) follows the same three-file pattern (`huge_0d` and `quasiperiodic` are exceptions, see below):
 
 - **`interface.ui`** — Qt Designer form; the only file a human normally edits with a GUI tool. Interactive widgets are promoted to their `qfluentwidgets` equivalents (`QPushButton`→`PushButton`, `QLineEdit`→`LineEdit`, `QComboBox`→`ComboBox`, `QCheckBox`→`CheckBox`, `QRadioButton`→`RadioButton`, `QLabel`→`BodyLabel`) via a `<customwidgets>` block at the end of the file (Designer's "Promote to..." workflow) - each promoted class is still a real subclass of its stock Qt base, so every `isinstance(obj,QtWidgets.QLineEdit)`-style check and every `getattr`/`.text()`/`.currentText()`/`.isChecked()` call in `pysrc/interfacetk/` keeps working unchanged.
 - **`interface.py`** — auto-generated from `interface.ui` via `tools/convert_ui.sh` (`pyside6-uic interface.ui -o interface.py`, run for every mode at once). Never hand-edit; regenerate with `tools/convert_ui.sh` after changing any `.ui` file.

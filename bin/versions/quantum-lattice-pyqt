@@ -68,6 +68,7 @@ MODES = [
     ("1d",                  "Ribbons",                             "1D",     "1D systems"),
     ("hybridribbon",        "Hybrid ribbons",                     "Hy1D",   "1D systems"),
     ("hofstader1d",         "Hofstadter butterflies",             "Hof",    "1D systems"),
+    ("ribbon_embedding",    "Single impurities",                  "Imp",    "1D systems"),
     ("2d",                  "Sheets",                             "2D",     "2D systems"),
     ("2dslab",              "Films",                              "Film",   "2D systems"),
     ("hybridfilm",          "Hybrid films",                       "Hy2D",   "2D systems"),
