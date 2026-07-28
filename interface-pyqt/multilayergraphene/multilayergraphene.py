@@ -79,7 +79,7 @@ def initialize():
   g = get_geometry() # get the geometry
   ti = get("interlayer")
   h = g.get_hamiltonian(has_spin=True,tij=specialhopping.multilayer(ti=ti))
-  h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
+  h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field
   h.add_antiferromagnetism(get("mAF"))  # AF order
@@ -162,6 +162,16 @@ def show_interactive_ldos():
 
 
 
+def modify_exchange_component(i,p):
+    """Set component i (0=x,1=y,2=z) of the "exchange" array field,
+    leaving the other two components untouched - the sweep feature still
+    lets Jx/Jy/Jz be swept independently even though they now share one
+    array widget instead of three scalar ones."""
+    v = qtwrap.get_array("exchange")
+    v[i] = p
+    qtwrap.modify("exchange",qtwrap.array2string(v))
+
+
 def sweep_parameter():
     """Perform a sweep in a parameter"""
     pname = getbox("sweep_parameter") # get the parameter
@@ -171,9 +181,9 @@ def sweep_parameter():
         if pname=="Sublattice imbalance": qtwrap.modify("mAB",p)
         elif pname=="Antiferromagnetism": qtwrap.modify("mAF",p)
         elif pname=="Kane-Mele": qtwrap.modify("kanemele",p)
-        elif pname=="Jx": qtwrap.modify("Bx",p)
-        elif pname=="Jy": qtwrap.modify("By",p)
-        elif pname=="Jz": qtwrap.modify("Bz",p)
+        elif pname=="Jx": modify_exchange_component(0,p)
+        elif pname=="Jy": modify_exchange_component(1,p)
+        elif pname=="Jz": modify_exchange_component(2,p)
         elif pname=="Rashba": qtwrap.modify("rashba",p)
         elif pname=="Haldane": qtwrap.modify("haldane",p)
         elif pname=="Anti-Haldane": qtwrap.modify("antihaldane",p)

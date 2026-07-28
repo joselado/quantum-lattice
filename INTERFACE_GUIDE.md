@@ -91,6 +91,15 @@ placeholder/page rather than editing generated code:
   (`_add_formula_column()`), for the same reason `common.py:set_formulas()`
   does below - part 3+ tabs don't exist in `interface.ui` at all, so
   there's nothing for Designer to have pre-built an image widget into.
+  Most `PARTS_FIELDS` entries are plain scalars (one `LineEdit` reads with
+  `qtwrap.get()`), but a field listed in `hybridparts.VECTOR_FIELDS` (just
+  `"exchange"` today) instead holds a 0d-style array, e.g. `"0.0, 0.0,
+  0.0"`, read per-part with `hybridparts.part_array_interpolator(qtwrap.get_array,
+  name,nparts,axis,region_of)` rather than `part_interpolator`/`get()` -
+  `_build_tab()`'s part-3+ default text (`_default_text()`) and the
+  Designer-authored part 1/2 fields must agree on this (both `"0.0, 0.0,
+  0.0"` for a vector field), or a part's exchange field silently reads
+  back as a 1-element array instead of a 3-vector.
 - **`common.py:set_formulas()`'s `_ensure_formula_image()`** — not a
   standalone module, but the same pattern: creates a mode's `<term>_image`
   label at runtime (next to the term's field, one grid column over) the

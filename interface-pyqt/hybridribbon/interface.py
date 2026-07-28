@@ -66,16 +66,6 @@ class Ui_MainWindow(object):
         self.gridLayout_17.setObjectName(u"gridLayout_17")
         self.gridLayout_10 = QGridLayout()
         self.gridLayout_10.setObjectName(u"gridLayout_10")
-        self.label_38 = BodyLabel(self.tab_11)
-        self.label_38.setObjectName(u"label_38")
-
-        self.gridLayout_10.addWidget(self.label_38, 4, 0, 1, 1)
-
-        self.Bz_2 = LineEdit(self.tab_11)
-        self.Bz_2.setObjectName(u"Bz_2")
-
-        self.gridLayout_10.addWidget(self.Bz_2, 4, 1, 1, 1)
-
         self.mAF_2 = LineEdit(self.tab_11)
         self.mAF_2.setObjectName(u"mAF_2")
 
@@ -91,10 +81,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout_10.addWidget(self.label_36, 2, 0, 1, 1)
 
-        self.Bx_2 = LineEdit(self.tab_11)
-        self.Bx_2.setObjectName(u"Bx_2")
+        self.exchange_2 = LineEdit(self.tab_11)
+        self.exchange_2.setObjectName(u"exchange_2")
 
-        self.gridLayout_10.addWidget(self.Bx_2, 2, 1, 1, 1)
+        self.gridLayout_10.addWidget(self.exchange_2, 2, 1, 1, 1)
 
         self.label_22 = BodyLabel(self.tab_11)
         self.label_22.setObjectName(u"label_22")
@@ -106,11 +96,6 @@ class Ui_MainWindow(object):
         self.fermi_2.setEnabled(True)
 
         self.gridLayout_10.addWidget(self.fermi_2, 0, 1, 1, 1)
-
-        self.label_34 = BodyLabel(self.tab_11)
-        self.label_34.setObjectName(u"label_34")
-
-        self.gridLayout_10.addWidget(self.label_34, 3, 0, 1, 1)
 
         self.mAB_2 = LineEdit(self.tab_11)
         self.mAB_2.setObjectName(u"mAB_2")
@@ -131,11 +116,6 @@ class Ui_MainWindow(object):
         self.antihaldane_2.setObjectName(u"antihaldane_2")
 
         self.gridLayout_10.addWidget(self.antihaldane_2, 8, 1, 1, 1)
-
-        self.By_2 = LineEdit(self.tab_11)
-        self.By_2.setObjectName(u"By_2")
-
-        self.gridLayout_10.addWidget(self.By_2, 3, 1, 1, 1)
 
         self.label_32 = BodyLabel(self.tab_11)
         self.label_32.setObjectName(u"label_32")
@@ -212,11 +192,6 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.label_mAF, 10, 0, 1, 1)
 
-        self.label_5 = BodyLabel(self.tab_8)
-        self.label_5.setObjectName(u"label_5")
-
-        self.gridLayout.addWidget(self.label_5, 4, 0, 1, 1)
-
         self.label_antihaldane = BodyLabel(self.tab_8)
         self.label_antihaldane.setObjectName(u"label_antihaldane")
 
@@ -232,16 +207,6 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.haldane, 7, 1, 1, 1)
 
-        self.Bz = LineEdit(self.tab_8)
-        self.Bz.setObjectName(u"Bz")
-
-        self.gridLayout.addWidget(self.Bz, 4, 1, 1, 1)
-
-        self.By = LineEdit(self.tab_8)
-        self.By.setObjectName(u"By")
-
-        self.gridLayout.addWidget(self.By, 3, 1, 1, 1)
-
         self.label_fermi = BodyLabel(self.tab_8)
         self.label_fermi.setObjectName(u"label_fermi")
 
@@ -251,11 +216,6 @@ class Ui_MainWindow(object):
         self.label_kanemele.setObjectName(u"label_kanemele")
 
         self.gridLayout.addWidget(self.label_kanemele, 6, 0, 1, 1)
-
-        self.label_4 = BodyLabel(self.tab_8)
-        self.label_4.setObjectName(u"label_4")
-
-        self.gridLayout.addWidget(self.label_4, 3, 0, 1, 1)
 
         self.fermi = LineEdit(self.tab_8)
         self.fermi.setObjectName(u"fermi")
@@ -273,10 +233,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.rashba, 5, 1, 1, 1)
 
-        self.Bx = LineEdit(self.tab_8)
-        self.Bx.setObjectName(u"Bx")
+        self.exchange = LineEdit(self.tab_8)
+        self.exchange.setObjectName(u"exchange")
 
-        self.gridLayout.addWidget(self.Bx, 2, 1, 1, 1)
+        self.gridLayout.addWidget(self.exchange, 2, 1, 1, 1)
 
         self.antihaldane = LineEdit(self.tab_8)
         self.antihaldane.setObjectName(u"antihaldane")
@@ -848,20 +808,19 @@ class Ui_MainWindow(object):
         self.nparts.setItemText(3, QCoreApplication.translate("MainWindow", u"5", None))
         self.nparts.setItemText(4, QCoreApplication.translate("MainWindow", u"6", None))
 
-        self.label_38.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jz", None))
-        self.Bz_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.mAF_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_42.setText(QCoreApplication.translate("MainWindow", u"swave pairing", None))
-        self.label_36.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jx", None))
-        self.Bx_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_36.setText(QCoreApplication.translate("MainWindow", u"Exchange field", None))
+#if QT_CONFIG(tooltip)
+        self.exchange_2.setToolTip(QCoreApplication.translate("MainWindow", u"Exchange field in the system, taken as a vector with component Jx, Jy and Jz", None))
+#endif // QT_CONFIG(tooltip)
+        self.exchange_2.setText(QCoreApplication.translate("MainWindow", u"0.0, 0.0, 0.0", None))
         self.label_22.setText(QCoreApplication.translate("MainWindow", u"Sublattice imbalance", None))
         self.fermi_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_34.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jy", None))
         self.mAB_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_41.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))
         self.haldane_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.antihaldane_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.By_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_32.setText(QCoreApplication.translate("MainWindow", u"Rashba", None))
         self.kanemele_2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_39.setText(QCoreApplication.translate("MainWindow", u"Antiferromagnetism", None))
@@ -876,25 +835,24 @@ class Ui_MainWindow(object):
         self.mAF.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_rashba.setText(QCoreApplication.translate("MainWindow", u"Rashba", None))
         self.label_mAF.setText(QCoreApplication.translate("MainWindow", u"Antiferromagnetism", None))
-        self.label_5.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jz", None))
         self.label_antihaldane.setText(QCoreApplication.translate("MainWindow", u"Anti-Haldane", None))
         self.kanemele.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.haldane.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.Bz.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.By.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
         self.label_kanemele.setText(QCoreApplication.translate("MainWindow", u"Kane-Mele", None))
-        self.label_4.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jy", None))
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.mAB.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.rashba.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.Bx.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+#if QT_CONFIG(tooltip)
+        self.exchange.setToolTip(QCoreApplication.translate("MainWindow", u"Exchange field in the system, taken as a vector with component Jx, Jy and Jz", None))
+#endif // QT_CONFIG(tooltip)
+        self.exchange.setText(QCoreApplication.translate("MainWindow", u"0.0, 0.0, 0.0", None))
         self.antihaldane.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_mAB.setText(QCoreApplication.translate("MainWindow", u"Sublattice imbalance", None))
         self.label_haldane.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))
         self.label_swave.setText(QCoreApplication.translate("MainWindow", u"swave pairing", None))
         self.swave.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_3.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jx", None))
+        self.label_3.setText(QCoreApplication.translate("MainWindow", u"Exchange field", None))
         self.label_14.setText(QCoreApplication.translate("MainWindow", u"Magnetic field", None))
         self.peierls.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.tabWidget_4.setTabText(self.tabWidget_4.indexOf(self.tab_8), QCoreApplication.translate("MainWindow", u"Upper", None))

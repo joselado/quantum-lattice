@@ -71,8 +71,7 @@ def initialize():
     h = g.get_hamiltonian(fun) # get the Hamiltonian
   else:
     h = g.get_hamiltonian(has_spin=True)
-  j = np.array([get("Bx"),get("By"),get("Bz")])
-  h.add_zeeman(j) # Zeeman field
+  h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman field
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   if check("rashba"): h.add_rashba(get("rashba"))  # Rashba field
   h.add_antiferromagnetism(get("mAF"))  # AF order

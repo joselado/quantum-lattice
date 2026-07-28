@@ -491,7 +491,6 @@ def set_formulas(qtwrap):
     terms += ["exchange_impurity","fermi_impurity"]
     terms += ["crystalfield","peierls","inplaneb","interlayer","tinter"]
     terms += ["bias","interlayer_bias","ising_SOC","cdw","strain"]
-    terms += ["Bx","By","Bz"]
     # mean-field (many-body) terms: scfterms.py narrows their number field
     # to give the formula column the room, so render these into a larger
     # box than the single-particle terms above

@@ -52,9 +52,6 @@ TERM_TOOLTIPS = {
 "ising_SOC": "An Ising-type spin-orbit coupling that pins spin out of plane with a sign tied to the valley index, characteristic of monolayer transition-metal dichalcogenides. It locks spin and valley together, suppressing spin-flip scattering within a valley.",
 "cdw": "A charge-density-wave order parameter that modulates the onsite energy periodically in space with wavevector Q, as seen in materials like NbSe2. It reflects a lattice/electronic instability that spontaneously breaks translational symmetry.",
 "strain": "A local modification of the hopping amplitude along a specific bond direction, mimicking the effect of mechanical strain on that bond. It lets you probe strain-induced band structure changes, such as pseudo-magnetic fields in honeycomb lattices.",
-"Bx": "The x-component of an external Zeeman magnetic field coupled to the electron spin. Together with By and Bz it sets the direction and strength of an applied field, splitting spin-up and spin-down bands.",
-"By": "The y-component of an external Zeeman magnetic field coupled to the electron spin. Together with Bx and Bz it sets the direction and strength of an applied field, splitting spin-up and spin-down bands.",
-"Bz": "The z-component of an external Zeeman magnetic field coupled to the electron spin. Together with Bx and By it sets the direction and strength of an applied field, splitting spin-up and spin-down bands.",
 }
 
 

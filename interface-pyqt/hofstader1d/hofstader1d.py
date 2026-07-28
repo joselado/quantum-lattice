@@ -65,7 +65,7 @@ def initialize():
   fun = multilayers.multilayer_hopping(ti=get("ti"))
   h = g.get_hamiltonian(fun=fun)
   h.add_peierls(get("peierls")) # magnetic field
-  h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
+  h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   h.add_rashba(get("rashba"))  # Rashba field
   h.add_antiferromagnetism(get("mAF"))  # AF order

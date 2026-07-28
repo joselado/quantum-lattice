@@ -24,7 +24,7 @@ connect() only manages widgets (building/showing/hiding part-3+ tabs, and
 - see _add_formula_column() below - giving every part's field its own
 formula image/tooltip from the shared TERM_TOOLTIPS/interface-pyqt/logos
 convention, the per-part equivalent of common.py:set_formulas()); the
-region_of_factory/part_interpolator/part_check/part_vector_interpolator
+region_of_factory/part_interpolator/part_check/part_array_interpolator
 helpers below only deal in plain values, so a mode's initialize() stays
 free to define its own axis (2/z for hybridfilm, 1/y for hybridribbon)
 and its own set of Hamiltonian terms.
@@ -35,6 +35,15 @@ from qfluentwidgets import BodyLabel, LineEdit
 from .termtooltips import TERM_TOOLTIPS
 
 MAX_PARTS = 6
+
+# Per-part fields that hold a 3-component array (typed like 0d's "exchange"
+# field, e.g. "0.0, 0.0, 0.0", read back with qtwrap.get_array) instead of
+# a plain scalar - only the Zeeman/exchange field needs this so far.
+VECTOR_FIELDS = {"exchange"}
+
+
+def _default_text(name):
+    return "0.0, 0.0, 0.0" if name in VECTOR_FIELDS else "0.0"
 
 
 def part_suffix(i):
@@ -84,10 +93,12 @@ def part_interpolator(get, name, nparts, axis, region_of):
     return fun
 
 
-def part_vector_interpolator(get, names, nparts, axis, region_of):
-    """Same as part_interpolator, but for a vector parameter (e.g. the
-    Zeeman field Bx/By/Bz) made of several same-part-suffixed fields."""
-    vals = [np.array([get(n + part_suffix(i)) for n in names]) for i in range(1, nparts + 1)]
+def part_array_interpolator(get_array, name, nparts, axis, region_of):
+    """Same as part_interpolator, but for a vector-valued parameter (e.g.
+    the exchange/Zeeman field) whose per-part field holds a 0d-style array
+    ("0.0, 0.0, 0.0"), read with qtwrap.get_array, instead of a single
+    scalar - see VECTOR_FIELDS."""
+    vals = [get_array(name + part_suffix(i)) for i in range(1, nparts + 1)]
     def fun(r1, r2=None):
         r = (r1 + r2) / 2. if r2 is not None else r1
         return vals[region_of(r[axis])]
@@ -109,7 +120,7 @@ def _build_tab(params, i):
     for row, (name, label_text) in enumerate(params):
         layout.addWidget(BodyLabel(label_text, tab), row, 0)
         field = LineEdit(tab)
-        field.setText("0.0")
+        field.setText(_default_text(name))
         field.setObjectName(name + suffix)
         layout.addWidget(field, row, 1)
     return tab

@@ -58,24 +58,10 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="0">
-           <widget class="BodyLabel" name="label_4">
-            <property name="text">
-             <string>Zeeman Jy</string>
-            </property>
-           </widget>
-          </item>
           <item row="2" column="0">
            <widget class="BodyLabel" name="label_3">
             <property name="text">
-             <string>Zeeman Jx</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
-           <widget class="BodyLabel" name="label_5">
-            <property name="text">
-             <string>Zeeman Jz</string>
+             <string>Exchange field</string>
             </property>
            </widget>
           </item>
@@ -142,13 +128,6 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
-           <widget class="LineEdit" name="By">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
           <item row="1" column="0">
            <widget class="BodyLabel" name="label_fermi">
             <property name="text">
@@ -156,17 +135,13 @@
             </property>
            </widget>
           </item>
-          <item row="4" column="1">
-           <widget class="LineEdit" name="Bz">
-            <property name="text">
-             <string>0.0</string>
-            </property>
-           </widget>
-          </item>
           <item row="2" column="1">
-           <widget class="LineEdit" name="Bx">
+           <widget class="LineEdit" name="exchange">
+            <property name="toolTip">
+             <string>Exchange field in the system, taken as a vector with component Jx, Jy and Jz</string>
+            </property>
             <property name="text">
-             <string>0.0</string>
+             <string>0.0, 0.0, 0.0</string>
             </property>
            </widget>
           </item>

@@ -41,9 +41,7 @@ latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
 PART_FIELDS = [
   ("fermi","Fermi energy"),
   ("peierls","Magnetic field"),
-  ("Bx","Zeeman Jx"),
-  ("By","Zeeman Jy"),
-  ("Bz","Zeeman Jz"),
+  ("exchange","Exchange field"),
   ("rashba","Rashba"),
   ("kanemele","Kane-Mele"),
   ("haldane","Haldane"),
@@ -89,7 +87,7 @@ def initialize():
   def check(name): return hybridparts.part_check(get,name,nparts)
   def fint(name): return hybridparts.part_interpolator(get,name,nparts,1,region_of) # axis 1 = y
   h = g.get_hamiltonian(has_spin=True)
-  h.add_zeeman(hybridparts.part_vector_interpolator(get,["Bx","By","Bz"],nparts,1,region_of)) # Zeeman fields
+  h.add_zeeman(hybridparts.part_array_interpolator(qtwrap.get_array,"exchange",nparts,1,region_of)) # Zeeman fields
   h.add_sublattice_imbalance(fint("mAB"))  # sublattice imbalance
   if check("rashba"): h.add_rashba(fint("rashba"))  # Rashba field
   h.add_antiferromagnetism(fint("mAF"))  # AF order

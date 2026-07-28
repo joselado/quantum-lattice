@@ -34,7 +34,7 @@ def initialize():
   """ Initialize the calculation"""
   from pyqula import specialhamiltonian
   h = specialhamiltonian.NbSe2(soc=get("ising_SOC"),cdw=get("cdw"))
-  h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
+  h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
   h.add_rashba(get("rashba"))  # Rashba field
   h.set_filling(0.5,nk=10) # half filling
   h.shift_fermi(get("fermi")) # shift fermi energy

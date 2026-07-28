@@ -43,25 +43,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.swave, 8, 1, 1, 1)
 
-        self.Bz = LineEdit(self.tab_3)
-        self.Bz.setObjectName(u"Bz")
+        self.exchange = LineEdit(self.tab_3)
+        self.exchange.setObjectName(u"exchange")
 
-        self.gridLayout.addWidget(self.Bz, 5, 1, 1, 1)
-
-        self.Bx = LineEdit(self.tab_3)
-        self.Bx.setObjectName(u"Bx")
-
-        self.gridLayout.addWidget(self.Bx, 3, 1, 1, 1)
-
-        self.label_5 = BodyLabel(self.tab_3)
-        self.label_5.setObjectName(u"label_5")
-
-        self.gridLayout.addWidget(self.label_5, 5, 0, 1, 1)
-
-        self.By = LineEdit(self.tab_3)
-        self.By.setObjectName(u"By")
-
-        self.gridLayout.addWidget(self.By, 4, 1, 1, 1)
+        self.gridLayout.addWidget(self.exchange, 3, 1, 1, 1)
 
         self.label_fermi = BodyLabel(self.tab_3)
         self.label_fermi.setObjectName(u"label_fermi")
@@ -93,11 +78,6 @@ class Ui_MainWindow(object):
         self.label_3.setObjectName(u"label_3")
 
         self.gridLayout.addWidget(self.label_3, 3, 0, 1, 1)
-
-        self.label_4 = BodyLabel(self.tab_3)
-        self.label_4.setObjectName(u"label_4")
-
-        self.gridLayout.addWidget(self.label_4, 4, 0, 1, 1)
 
         self.ising_SOC = LineEdit(self.tab_3)
         self.ising_SOC.setObjectName(u"ising_SOC")
@@ -638,13 +618,10 @@ class Ui_MainWindow(object):
         self.swave.setToolTip(QCoreApplication.translate("MainWindow", u"swave superconducting order", None))
 #endif // QT_CONFIG(tooltip)
         self.swave.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.Bz.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
 #if QT_CONFIG(tooltip)
-        self.Bx.setToolTip(QCoreApplication.translate("MainWindow", u"Exchange proximity in x direction", None))
+        self.exchange.setToolTip(QCoreApplication.translate("MainWindow", u"Exchange field in the system, taken as a vector with component Jx, Jy and Jz", None))
 #endif // QT_CONFIG(tooltip)
-        self.Bx.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_5.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jz", None))
-        self.By.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.exchange.setText(QCoreApplication.translate("MainWindow", u"0.0, 0.0, 0.0", None))
         self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
         self.label_swave.setText(QCoreApplication.translate("MainWindow", u"swave pairing", None))
 #if QT_CONFIG(tooltip)
@@ -656,8 +633,7 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.rashba.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_rashba.setText(QCoreApplication.translate("MainWindow", u"Rashba", None))
-        self.label_3.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jx", None))
-        self.label_4.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jy", None))
+        self.label_3.setText(QCoreApplication.translate("MainWindow", u"Exchange field", None))
 #if QT_CONFIG(tooltip)
         self.ising_SOC.setToolTip(QCoreApplication.translate("MainWindow", u"Ising SOC", None))
 #endif // QT_CONFIG(tooltip)
