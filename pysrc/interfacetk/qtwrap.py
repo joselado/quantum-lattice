@@ -363,14 +363,23 @@ class _AppBase:
 
     def _on_runner_ok(self,runner):
         self._cleanup_runner(runner)
+        release_busy()
 
     def _on_runner_error(self,runner,tb):
+        # report before release_busy(), not after: release_busy() fires a
+        # synchronous same-thread signal that can reenter
+        # _retry_pending_page()->ensure_built()->load_mode() right here
+        # (see the busy-lock-reentrancy gotcha, and
+        # bin/versions/quantum-lattice-pyqt's _on_update_noop/_on_update_error
+        # which follow the same order for the same reason) - if that
+        # reentrant call ever raises, it must not be able to swallow this
+        # handler's own error report.
         self._cleanup_runner(runner)
         self._report_error(tb,runner.robust)
+        release_busy()
 
     def _cleanup_runner(self,runner):
         self._hide_progress()
-        release_busy()
         if runner in self._runners: self._runners.remove(runner)
 
     def _ensure_progress_widgets(self):

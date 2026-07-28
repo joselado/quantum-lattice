@@ -54,14 +54,21 @@ def current_nparts(qtwrap, nparts_box="nparts"):
 
 def region_of_factory(coord_min, coord_max, nparts):
     """Return a function mapping one coordinate value to a 0-indexed part
-    (0..nparts-1), by splitting [coord_min,coord_max] into nparts equal
-    bins - generalizing the old hardcoded "r[axis]<0.0" two-way split
-    (equivalent to it when nparts==2 and the geometry is centered, as
-    get_geometry() already leaves it)."""
-    span = coord_max - coord_min
+    (0..nparts-1), by splitting equal-width bins centered on the
+    geometry's own center (coord 0 - get_geometry() already recenters the
+    geometry there via geometry.center()), not on the raw
+    [coord_min,coord_max] midpoint - generalizing the old hardcoded
+    "r[axis]<0.0" two-way split so nparts==2 reproduces it exactly.
+    geometry.center() centers on the mean atom position, which isn't the
+    same as (coord_min+coord_max)/2 for a lattice whose basis isn't
+    symmetric about its own center (e.g. Kagome - the old midpoint-based
+    version silently moved the part boundary and reassigned boundary
+    atoms/bonds to the wrong part for such lattices)."""
+    half_width = max(abs(coord_min), abs(coord_max))
+    span = 2*half_width
     def region_of(coord):
         if nparts <= 1 or span <= 0: return 0
-        idx = int((coord - coord_min) / span * nparts)
+        idx = int((coord + half_width) / span * nparts)
         return min(max(idx, 0), nparts - 1)
     return region_of
 
@@ -159,13 +166,18 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
     qtwrap.get()/getbox() resolve widgets with getattr(form,name)
     regardless of whether they came from Designer or here.
 
-    on_new_part, if given, is called (no args) right after a new tab's
-    fields are added to `form` - e.g. so a mode can re-run
-    latticeterms.apply_term_restrictions() and hide the new tab's
-    haldane/kanemele fields too if the current lattice isn't honeycomb
-    (latticeterms only reacts to the "lattice" combobox changing, so
-    without this a newly-built part's restricted fields would default to
-    visible until the user touches "lattice" again)."""
+    on_new_part, if given, is called with this page's own `form` (not
+    read back via qtwrap.form/getbox() - see the "nparts" combobox
+    comment below for why: apply_count()/ensure_built() can run from a
+    marshaled call already on the GUI thread, where qtwrap.form is the
+    shell's currently-*visible* page, not necessarily the page this
+    callback belongs to) right after a new tab's fields are added to
+    `form` - e.g. so a mode can re-run
+    latticeterms.apply_term_restrictions(form,...) and hide the new
+    tab's haldane/kanemele fields too if the current lattice isn't
+    honeycomb (latticeterms only reacts to the "lattice" combobox
+    changing, so without this a newly-built part's restricted fields
+    would default to visible until the user touches "lattice" again)."""
     form = qtwrap.form
     tabs = getattr(form, tabs_widget)
     base_name = params[0][0]
@@ -205,7 +217,7 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
                 # (params_dirty_time() would stay at its pre-edit value).
                 field.textEdited.connect(form._mark_dirty)
             extra_tabs[i] = tab
-            if on_new_part is not None: on_new_part()
+            if on_new_part is not None: on_new_part(form)
         return extra_tabs[i]
 
     def apply_count(n):

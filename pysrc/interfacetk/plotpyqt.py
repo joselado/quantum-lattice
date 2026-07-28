@@ -26,8 +26,23 @@ class NavigationToolbar(_StockToolbar):
     (see _user_view above/below, which is what actually makes zoom/pan
     survive a redraw here) - so there's no meaningful "previous view" for
     Back/Forward to return to across a redraw, only within one, which
-    isn't a distinction a user clicking Back would expect."""
+    isn't a distinction a user clicking Back would expect.
+
+    home() is overridden here (a real subclass method, the documented way
+    to customize NavigationToolbar2's button behavior - toolitems' own
+    "home" entry resolves to getattr(self,"home") at __init__ time, so a
+    subclass override is picked up automatically via normal Python method
+    dispatch) rather than reaching into the private, undocumented
+    NavigationToolbar2QT._actions dict from outside the class to hook the
+    QAction's triggered signal - that private dict is an implementation
+    detail liable to change across matplotlib versions (this project
+    doesn't pin one), where a plain method override isn't."""
     toolitems = [t for t in _StockToolbar.toolitems if t[0] not in ("Back","Forward")]
+    on_home = None # set by Window.__init__ below to clear its _user_view
+
+    def home(self,*args,**kwargs):
+        super().home(*args,**kwargs)
+        if self.on_home is not None: self.on_home()
 
 
 def get_interface(plot_figure,i=0):
@@ -70,15 +85,10 @@ def get_interface(plot_figure,i=0):
             # toolbar's Home button to clear it gives an explicit way
             # back to the auto-fit view.
             self._user_view = {}
-            # NavigationToolbar2QT connects its Home button to a bound
-            # self.home captured at construction time (see its __init__),
-            # so overriding self.toolbar.home afterwards would never be
-            # called by an actual click - hook the QAction itself instead
-            # (an extra listener alongside the toolbar's own, not a
-            # replacement) to also clear the remembered view on Home.
-            home_action = self.toolbar._actions.get("home")
-            if home_action is not None:
-                home_action.triggered.connect(lambda: self._user_view.clear())
+            # see NavigationToolbar.home() above - overriding the method
+            # there, then hooking it here via a plain callback attribute,
+            # is what actually clears the remembered view on Home.
+            self.toolbar.on_home = lambda: self._user_view.clear()
         def plot(self):
             '''Plot the figure'''
             # instead of ax.hold(False)

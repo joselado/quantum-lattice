@@ -239,6 +239,23 @@ every other `ql-*` script finds its own directory).
 - **Busy-lock signal reentrancy**: `qtwrap.py`'s `release_busy()` fires a
   synchronous same-thread signal — mutate any state that depends on "am I
   busy" *before* releasing the lock, not after, or a handler triggered by
-  the release can observe stale state.
+  the release can observe stale state. This also means anything that must
+  happen unconditionally (reporting an error, showing an InfoBar) has to
+  run *before* `release_busy()`, not after — a reentrant rebuild triggered
+  by the release can itself raise and abort whatever comes after it. See
+  `qtwrap.py::_on_runner_error()`, `_LazyPage.ensure_built()`, and
+  `bin/versions/quantum-lattice-pyqt`'s `_on_update_noop`/`_on_update_error`
+  for the established "report, then release" ordering.
+- **`qtwrap.form`/`getbox()` resolve against the shell's currently
+  *visible* page, not necessarily the page a callback logically belongs
+  to** — safe from a live widget signal (only the visible page's widgets
+  can receive a click) or during a page's own construction, but not from
+  a callback that can run later on the GUI thread after a marshaled
+  cross-thread call (`@_gui_thread_only`) or a reentrant busy-lock release
+  (previous bullet), by which point the shell may have navigated
+  elsewhere. `hybridparts.connect()`'s `on_new_part` callback takes the
+  page's own `form` as an explicit argument for exactly this reason — a
+  new callback wired through shared per-page state should follow the same
+  pattern instead of reading `qtwrap.form`/`getbox()` directly.
 - **The QTabWidget naming trap** above — always verify tab parentage via
   generated `interface.py`, never via `.ui` XML adjacency.

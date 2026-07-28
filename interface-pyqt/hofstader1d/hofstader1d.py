@@ -132,7 +132,10 @@ def show_dos():
     # dispatcher the other modes' "show_dos" already relies on instead
     dos.dos(h,delta=get("DOS_smearing"),energies=np.linspace(-3.1,3.1,500))
   elif h.dimensionality==2:
-    dos.dos2d(h,ndos=500,delta=get("DOS_smearing"))
+    # dos.dos2d() hits a numba typing error inside pyqula's
+    # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
+    # dispatcher the other modes' "show_dos" already relies on instead
+    dos.dos(h,delta=get("DOS_smearing"),energies=np.linspace(-3.1,3.1,500))
   else: raise
   execute_script("ql-dos  ")
 

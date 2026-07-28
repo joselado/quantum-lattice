@@ -233,6 +233,7 @@ def solve_scf(h,window):
   extrae = get("extra_electron")
   filling += extrae/h.intra.shape[0] # extra electron
   mix = get("mix_scf")
+  T = get("smearing_scf") # thermal smearing of the SCF loop's occupations
   if h.has_spin: # J1/J2/J3 exchange has no meaning without a spin degree
                  # of freedom - meanfield.VJinteraction itself refuses a
                  # spinless h (returns NotImplemented), so route those to
@@ -242,11 +243,11 @@ def solve_scf(h,window):
     J3 = get("J3")
     scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   J1=J1,J2=J2,J3=J3,
-                  mf=mf,mix=mix,verbose=1
+                  mf=mf,mix=mix,T=T,verbose=1
                   )
   else:
     scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
-                  mf=mf,load_mf=False,#T=get("smearing_scf"),
+                  mf=mf,load_mf=False,T=T,
                   mix=mix,
                   verbose=1
                   )

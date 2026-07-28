@@ -53,7 +53,7 @@ PART_FIELDS = [
   ("swave","swave pairing"),
 ]
 hybridparts.connect(qtwrap,PART_FIELDS,
-    on_new_part=lambda: latticeterms.apply_term_restrictions(qtwrap.form,getbox("lattice")))
+    on_new_part=lambda form: latticeterms.apply_term_restrictions(form,form.lattice.currentText()))
 
 
 def get_geometry():

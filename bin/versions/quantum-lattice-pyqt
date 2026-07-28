@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import traceback
 import zipfile
 import urllib.request
 import importlib.util
@@ -18,6 +19,18 @@ sys.path.append(qlroot+"/pysrc/") # python libraries
 from interfacetk import qtwrap # import the library with simple wrappers to Qt
 qtwrap.ensure_app()
 
+
+def _read_version():
+    """VERSION.TXT's contents (e.g. "26.5.3"), or None if unreadable - the
+    old system_selection landing page this HomePage replaces read the
+    same file and showed a "Version X.Y" label; HomePage.__init__ below
+    restores that so the running app's version is still visible somewhere."""
+    try:
+        with open(os.path.join(qlroot,"VERSION.TXT")) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QFont, QFontMetrics, QColor
 from PySide6.QtCore import Qt, QRectF, QThread, Signal
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -25,7 +38,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 
 from qfluentwidgets import (FluentWindow, FluentIcon as FIF, setTheme, Theme,
     NavigationItemPosition, SwitchButton, BodyLabel, StrongBodyLabel,
-    PushButton, FlowLayout, InfoBar, InfoBarPosition)
+    CaptionLabel, PushButton, FlowLayout, InfoBar, InfoBarPosition)
 
 from interpreter import pycommand
 
@@ -123,6 +136,7 @@ class _LazyPage(QWidget):
   def __init__(self,mode,label):
     super().__init__()
     self.mode = mode
+    self.label = label
     self.real_page = None
     # see the addSubInterface loop below for why this has to be
     # transparent too, not just the real page once built
@@ -154,21 +168,40 @@ class _LazyPage(QWidget):
       return self
     try:
       real_page = load_mode(self.mode)
-      real_page.setStyleSheet("QWidget { background: transparent; }")
-      self._layout.removeWidget(self._loading_label)
-      self._loading_label.deleteLater()
-      self._layout.addWidget(real_page)
-      # must be set before release_busy() below: release_busy() emits
-      # became_free synchronously (same-thread signal), which
-      # Shell._retry_pending_page() is connected to and which re-enters
-      # ensure_built() on this same page if it still sees real_page as
-      # None - re-acquiring the now-free lock and rebuilding the page
-      # again, releasing the lock again, and so on forever. Setting
-      # real_page first makes that reentrant check see the page as
-      # already built, so it's a no-op instead of infinite recursion.
-      self.real_page = real_page
-    finally:
+    except Exception:
+      # A mode's <mode>.py can raise at import time (bad widget lookup,
+      # a broken pyqula call, ...) - report it instead of letting it
+      # propagate uncaught (which used to leave this nav item stuck on
+      # "Loading..." forever with nothing but a stderr traceback, no
+      # InfoBar - unlike every button-handler failure elsewhere in the
+      # app). self.real_page stays None, so navigating here again retries
+      # the build. Reported before release_busy() below, not after -
+      # release_busy() fires a synchronous became_free signal that can
+      # reenter ensure_built() on some other pending page right here (see
+      # the busy-lock-reentrancy gotcha); if that reentrant build also
+      # fails, it must not be able to swallow this report.
+      tb = traceback.format_exc()
+      last_line = tb.strip().splitlines()[-1] if tb.strip() else "Something went wrong"
+      self._loading_label.setText("Failed to load "+self.label+" - "+last_line)
+      InfoBar.error(title="Failed to load "+self.label,content=last_line,
+          parent=self,duration=6000,position=InfoBarPosition.TOP)
+      print(tb)
       qtwrap.release_busy()
+      return self
+    real_page.setStyleSheet("QWidget { background: transparent; }")
+    self._layout.removeWidget(self._loading_label)
+    self._loading_label.deleteLater()
+    self._layout.addWidget(real_page)
+    # must be set before release_busy() below: release_busy() emits
+    # became_free synchronously (same-thread signal), which
+    # Shell._retry_pending_page() is connected to and which re-enters
+    # ensure_built() on this same page if it still sees real_page as
+    # None - re-acquiring the now-free lock and rebuilding the page
+    # again, releasing the lock again, and so on forever. Setting
+    # real_page first makes that reentrant check see the page as
+    # already built, so it's a no-op instead of infinite recursion.
+    self.real_page = real_page
+    qtwrap.release_busy()
     return real_page
 
 
@@ -195,6 +228,13 @@ class HomePage(QWidget):
     logo_pixmap = QPixmap(logo_path)
     logo.setPixmap(logo_pixmap.scaledToWidth(640,Qt.TransformationMode.SmoothTransformation))
     outer.addWidget(logo)
+
+    version = _read_version()
+    if version is not None:
+      version_label = CaptionLabel("Version "+version)
+      version_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+      outer.addWidget(version_label)
+
     outer.addSpacing(28)
 
     scroll = QScrollArea()
