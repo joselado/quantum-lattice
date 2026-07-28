@@ -153,12 +153,21 @@ def solve_scf():
 #  compute_normal = window.is_checked("compute_normal",default=True)
   error = window.get("scf_error",default=1e-5) # error in the mean field
 #  if compute_anomalous: h.add_swave(0.)
-  scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
-                mf=mf,load_mf=False,
-                mix = get("mix_scf"),
-                maxerror=error,
-                verbose=1,
-                )
+  mix = get("mix_scf")
+  if h.has_spin: # J1/J2/J3 exchange has no meaning without a spin degree
+                 # of freedom - see common.solve_scf, which this mirrors
+    J1 = get("J1")
+    J2 = get("J2")
+    J3 = get("J3")
+    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+                  J1=J1,J2=J2,J3=J3,
+                  mf=mf,mix=mix,maxerror=error,verbose=1,
+                  )
+  else:
+    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+                  mf=mf,load_mf=False,
+                  mix=mix,maxerror=error,verbose=1,
+                  )
   mfname = scf.identify_symmetry_breaking(as_string=True)
   window.set("identified_mean_field",mfname)  
   scf.hamiltonian.save() # save in a file
