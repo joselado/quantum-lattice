@@ -57,6 +57,10 @@ def _build_grid(form, parent, terms, images):
         field.setObjectName(name)
         field.setToolTip(tooltip)
         field.setText(default)
+        # kept narrow so the formula column (below) gets the space to
+        # render its LaTeX image bigger, instead of the two splitting the
+        # row's width evenly
+        field.setMaximumWidth(60)
         layout.addWidget(field, row, 1)
         setattr(form, name, field)
         field.textEdited.connect(form._mark_dirty)
@@ -66,6 +70,10 @@ def _build_grid(form, parent, terms, images):
             image.setObjectName(f"{name}_image")
             layout.addWidget(image, row, 2)
             setattr(form, f"{name}_image", image)
+
+    if images:
+        layout.setColumnStretch(1, 0)
+        layout.setColumnStretch(2, 1)
 
 
 def build(qtwrap, container="scf_terms_container", grid="gridLayout_10", images=True):

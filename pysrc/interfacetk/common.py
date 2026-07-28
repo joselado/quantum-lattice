@@ -427,9 +427,13 @@ def set_formulas(qtwrap):
     terms += ["antihaldane","antikanemele","mAB","mAF","swave","pwave"]
     terms += ["rashba","bfield","kondo","kexchange","cf"]
     terms += ["exchange_impurity","fermi_impurity"]
-    terms += ["U","V1","V2","J1","J2","J3"]
-    for t in terms:
-        qtwrap.set_logo(t+"_image",t+".png",width=400,height=30)
+    # mean-field (many-body) terms: scfterms.py narrows their number field
+    # to give the formula column the room, so render these into a larger
+    # box than the single-particle terms above
+    meanfield_terms = ["U","V1","V2","J1","J2","J3"]
+    for t in terms + meanfield_terms:
+        width, height = (600,50) if t in meanfield_terms else (400,30)
+        qtwrap.set_logo(t+"_image",t+".png",width=width,height=height)
         tip = TERM_TOOLTIPS.get(t)
         if tip is not None:
             qtwrap.set_tooltip(t,tip)
