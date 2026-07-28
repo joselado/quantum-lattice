@@ -729,6 +729,11 @@ class Ui_MainWindow(object):
 
         self.gridLayout_10.addWidget(self.U, 1, 1, 1, 1)
 
+        self.U_image = BodyLabel(self.tab_12)
+        self.U_image.setObjectName(u"U_image")
+
+        self.gridLayout_10.addWidget(self.U_image, 1, 2, 1, 1)
+
         self.label_34 = BodyLabel(self.tab_12)
         self.label_34.setObjectName(u"label_34")
 
@@ -749,6 +754,11 @@ class Ui_MainWindow(object):
 
         self.gridLayout_10.addWidget(self.V1, 3, 1, 1, 1)
 
+        self.V1_image = BodyLabel(self.tab_12)
+        self.V1_image.setObjectName(u"V1_image")
+
+        self.gridLayout_10.addWidget(self.V1_image, 3, 2, 1, 1)
+
         self.label_v2 = BodyLabel(self.tab_12)
         self.label_v2.setObjectName(u"label_v2")
 
@@ -758,6 +768,11 @@ class Ui_MainWindow(object):
         self.V2.setObjectName(u"V2")
 
         self.gridLayout_10.addWidget(self.V2, 4, 1, 1, 1)
+
+        self.V2_image = BodyLabel(self.tab_12)
+        self.V2_image.setObjectName(u"V2_image")
+
+        self.gridLayout_10.addWidget(self.V2_image, 4, 2, 1, 1)
 
         self.label_j1 = BodyLabel(self.tab_12)
         self.label_j1.setObjectName(u"label_j1")
@@ -769,6 +784,11 @@ class Ui_MainWindow(object):
 
         self.gridLayout_10.addWidget(self.J1, 5, 1, 1, 1)
 
+        self.J1_image = BodyLabel(self.tab_12)
+        self.J1_image.setObjectName(u"J1_image")
+
+        self.gridLayout_10.addWidget(self.J1_image, 5, 2, 1, 1)
+
         self.label_j2 = BodyLabel(self.tab_12)
         self.label_j2.setObjectName(u"label_j2")
 
@@ -779,6 +799,11 @@ class Ui_MainWindow(object):
 
         self.gridLayout_10.addWidget(self.J2, 6, 1, 1, 1)
 
+        self.J2_image = BodyLabel(self.tab_12)
+        self.J2_image.setObjectName(u"J2_image")
+
+        self.gridLayout_10.addWidget(self.J2_image, 6, 2, 1, 1)
+
         self.label_j3 = BodyLabel(self.tab_12)
         self.label_j3.setObjectName(u"label_j3")
 
@@ -788,6 +813,11 @@ class Ui_MainWindow(object):
         self.J3.setObjectName(u"J3")
 
         self.gridLayout_10.addWidget(self.J3, 7, 1, 1, 1)
+
+        self.J3_image = BodyLabel(self.tab_12)
+        self.J3_image.setObjectName(u"J3_image")
+
+        self.gridLayout_10.addWidget(self.J3_image, 7, 2, 1, 1)
 
 
         self.gridLayout_18.addLayout(self.gridLayout_10, 0, 0, 1, 2)
@@ -1211,6 +1241,7 @@ class Ui_MainWindow(object):
         self.label_22.setText(QCoreApplication.translate("MainWindow", u"Initialization", None))
         self.label_23.setText(QCoreApplication.translate("MainWindow", u"Hubbard", None))
         self.U.setText(QCoreApplication.translate("MainWindow", u"2.0", None))
+        self.U_image.setText("")
         self.label_34.setText(QCoreApplication.translate("MainWindow", u"Filling", None))
         self.filling_scf.setText(QCoreApplication.translate("MainWindow", u"0.5", None))
         self.label_v1.setText(QCoreApplication.translate("MainWindow", u"V1", None))
@@ -1218,26 +1249,31 @@ class Ui_MainWindow(object):
         self.V1.setToolTip(QCoreApplication.translate("MainWindow", u"First neighbor interaction", None))
 #endif // QT_CONFIG(tooltip)
         self.V1.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.V1_image.setText("")
         self.label_v2.setText(QCoreApplication.translate("MainWindow", u"V2", None))
 #if QT_CONFIG(tooltip)
         self.V2.setToolTip(QCoreApplication.translate("MainWindow", u"Second neighbor interaction", None))
 #endif // QT_CONFIG(tooltip)
         self.V2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.V2_image.setText("")
         self.label_j1.setText(QCoreApplication.translate("MainWindow", u"J1", None))
 #if QT_CONFIG(tooltip)
         self.J1.setToolTip(QCoreApplication.translate("MainWindow", u"First neighbor Heisenberg exchange", None))
 #endif // QT_CONFIG(tooltip)
         self.J1.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.J1_image.setText("")
         self.label_j2.setText(QCoreApplication.translate("MainWindow", u"J2", None))
 #if QT_CONFIG(tooltip)
         self.J2.setToolTip(QCoreApplication.translate("MainWindow", u"Second neighbor Heisenberg exchange", None))
 #endif // QT_CONFIG(tooltip)
         self.J2.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.J2_image.setText("")
         self.label_j3.setText(QCoreApplication.translate("MainWindow", u"J3", None))
 #if QT_CONFIG(tooltip)
         self.J3.setToolTip(QCoreApplication.translate("MainWindow", u"Third neighbor Heisenberg exchange", None))
 #endif // QT_CONFIG(tooltip)
         self.J3.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.J3_image.setText("")
         self.do_scf.setText(QCoreApplication.translate("MainWindow", u"Include mean field", None))
         self.solve_scf.setText(QCoreApplication.translate("MainWindow", u"Solve SCF", None))
         self.tabWidget_4.setTabText(self.tabWidget_4.indexOf(self.tab_12), QCoreApplication.translate("MainWindow", u"Basic", None))

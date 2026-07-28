@@ -885,6 +885,13 @@
                  </widget>
                 </item>
                 <item>
+                 <widget class="BodyLabel" name="U_image">
+                  <property name="text">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="BodyLabel" name="label_23">
                   <property name="text">
                    <string>V1</string>
@@ -898,6 +905,13 @@
                   </property>
                   <property name="text">
                    <string>0.0</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="BodyLabel" name="V1_image">
+                  <property name="text">
+                   <string/>
                   </property>
                  </widget>
                 </item>
@@ -919,6 +933,13 @@
                  </widget>
                 </item>
                 <item>
+                 <widget class="BodyLabel" name="V2_image">
+                  <property name="text">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="BodyLabel" name="label_j1">
                   <property name="text">
                    <string>J1</string>
@@ -932,6 +953,13 @@
                   </property>
                   <property name="text">
                    <string>0.0</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="BodyLabel" name="J1_image">
+                  <property name="text">
+                   <string/>
                   </property>
                  </widget>
                 </item>
@@ -953,6 +981,13 @@
                  </widget>
                 </item>
                 <item>
+                 <widget class="BodyLabel" name="J2_image">
+                  <property name="text">
+                   <string/>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="BodyLabel" name="label_j3">
                   <property name="text">
                    <string>J3</string>
@@ -966,6 +1001,13 @@
                   </property>
                   <property name="text">
                    <string>0.0</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="BodyLabel" name="J3_image">
+                  <property name="text">
+                   <string/>
                   </property>
                  </widget>
                 </item>

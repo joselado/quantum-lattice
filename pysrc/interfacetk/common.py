@@ -424,6 +424,7 @@ def set_formulas(qtwrap):
     terms += ["antihaldane","antikanemele","mAB","mAF","swave","pwave"]
     terms += ["rashba","bfield","kondo","kexchange","cf"]
     terms += ["exchange_impurity","fermi_impurity"]
+    terms += ["U","V1","V2","J1","J2","J3"]
     for t in terms:
         qtwrap.set_logo(t+"_image",t+".png",width=400,height=30)
 
