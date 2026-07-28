@@ -97,10 +97,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.label_mAF, 10, 0, 1, 1)
 
-        self.bfield_image = BodyLabel(self.tab_3)
-        self.bfield_image.setObjectName(u"bfield_image")
+        self.peierls_image = BodyLabel(self.tab_3)
+        self.peierls_image.setObjectName(u"peierls_image")
 
-        self.gridLayout.addWidget(self.bfield_image, 3, 1, 1, 1)
+        self.gridLayout.addWidget(self.peierls_image, 3, 1, 1, 1)
 
         self.pwave_image = BodyLabel(self.tab_3)
         self.pwave_image.setObjectName(u"pwave_image")
@@ -213,10 +213,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.label_exchange, 4, 0, 1, 1)
 
-        self.cf_image = BodyLabel(self.tab_3)
-        self.cf_image.setObjectName(u"cf_image")
+        self.crystalfield_image = BodyLabel(self.tab_3)
+        self.crystalfield_image.setObjectName(u"crystalfield_image")
 
-        self.gridLayout.addWidget(self.cf_image, 2, 1, 1, 1)
+        self.gridLayout.addWidget(self.crystalfield_image, 2, 1, 1, 1)
 
         self.haldane = LineEdit(self.tab_3)
         self.haldane.setObjectName(u"haldane")
@@ -856,7 +856,7 @@ class Ui_MainWindow(object):
         self.label_kanemele.setText(QCoreApplication.translate("MainWindow", u"Kane-Mele", None))
         self.label_rashba.setText(QCoreApplication.translate("MainWindow", u"Rashba", None))
         self.label_mAF.setText(QCoreApplication.translate("MainWindow", u"Antiferromagnetism", None))
-        self.bfield_image.setText("")
+        self.peierls_image.setText("")
         self.pwave_image.setText("")
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.exchange.setText(QCoreApplication.translate("MainWindow", u"0.0, 0.0, 0.0", None))
@@ -879,7 +879,7 @@ class Ui_MainWindow(object):
         self.hoppings.setText(QCoreApplication.translate("MainWindow", u"1.0", None))
         self.antihaldane_image.setText("")
         self.label_exchange.setText(QCoreApplication.translate("MainWindow", u"Exchange field", None))
-        self.cf_image.setText("")
+        self.crystalfield_image.setText("")
         self.haldane.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_mAB.setText(QCoreApplication.translate("MainWindow", u"Sublattice imbalance", None))
         self.label_14.setText(QCoreApplication.translate("MainWindow", u"Magnetic field", None))

@@ -192,15 +192,15 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.fermi_image, 1, 1, 1, 1)
 
-        self.cf_image = BodyLabel(self.tab_3)
-        self.cf_image.setObjectName(u"cf_image")
+        self.crystalfield_image = BodyLabel(self.tab_3)
+        self.crystalfield_image.setObjectName(u"crystalfield_image")
 
-        self.gridLayout.addWidget(self.cf_image, 2, 1, 1, 1)
+        self.gridLayout.addWidget(self.crystalfield_image, 2, 1, 1, 1)
 
-        self.bfield_image = BodyLabel(self.tab_3)
-        self.bfield_image.setObjectName(u"bfield_image")
+        self.peierls_image = BodyLabel(self.tab_3)
+        self.peierls_image.setObjectName(u"peierls_image")
 
-        self.gridLayout.addWidget(self.bfield_image, 3, 1, 1, 1)
+        self.gridLayout.addWidget(self.peierls_image, 3, 1, 1, 1)
 
         self.exchange_image = BodyLabel(self.tab_3)
         self.exchange_image.setObjectName(u"exchange_image")
@@ -1009,8 +1009,8 @@ class Ui_MainWindow(object):
         self.mAB.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.hopping_image.setText("")
         self.fermi_image.setText("")
-        self.cf_image.setText("")
-        self.bfield_image.setText("")
+        self.crystalfield_image.setText("")
+        self.peierls_image.setText("")
         self.exchange_image.setText("")
         self.rashba_image.setText("")
         self.kanemele_image.setText("")

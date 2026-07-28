@@ -487,7 +487,7 @@ def set_formulas(qtwrap):
     """Set all the formulas and their physics tooltips in the interface"""
     terms = ["hopping","fermi","exchange","haldane","kanemele"]
     terms += ["antihaldane","antikanemele","mAB","mAF","swave","pwave"]
-    terms += ["rashba","bfield","kondo","kexchange","cf"]
+    terms += ["rashba","kondo","kexchange"]
     terms += ["exchange_impurity","fermi_impurity"]
     terms += ["crystalfield","peierls","inplaneb","interlayer","tinter"]
     terms += ["bias","interlayer_bias","ising_SOC","cdw","strain"]
