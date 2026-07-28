@@ -26,7 +26,7 @@ common.initialize(qtwrap) # do several common initializations
 from interfacetk import interfacetk
 modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
-pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True,solve=solve_scf)
 
 qtwrap.set_combobox("scf_initialization",meanfield.spinful_guesses)
 qtwrap.set_combobox("bands_color",operators.operator_list)
@@ -170,8 +170,9 @@ def solve_scf():
                   mix=mix,maxerror=error,verbose=1,
                   )
   mfname = scf.identify_symmetry_breaking(as_string=True)
-  window.set("identified_mean_field",mfname)  
+  window.set("identified_mean_field",mfname)
   scf.hamiltonian.save() # save in a file
+  common.mark_scf_solved(qtwrap)
 
 
 

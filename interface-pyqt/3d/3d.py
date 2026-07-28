@@ -23,7 +23,7 @@ from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # do several common initializations
 qtwrap.set_combobox("dos_operator",operators.operator_list)
 
-pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True,solve=solve_scf)
 
 
 LATTICES = {
@@ -211,6 +211,7 @@ def solve_scf():
   mfname = scf.identify_symmetry_breaking(as_string=True)
   window.set("identified_mean_field",mfname)
   scf.hamiltonian.save() # save in a file
+  common.mark_scf_solved(qtwrap)
 
 
 

@@ -56,6 +56,7 @@ from numpy import * # this may not be a good idea
 from .debugging import holler
 from qfluentwidgets import InfoBar, InfoBarPosition, IndeterminateProgressBar
 from qfluentwidgets import qconfig, isDarkTheme
+from qfluentwidgets import SwitchButton
 
 QtGui = QtWidgets
 app = None  # the single QApplication for the whole process, built lazily
@@ -684,7 +685,7 @@ def save_interface(self,output=None):
             out[name] = {"type":"line","value":obj.text()}
         elif isinstance(obj,QtWidgets.QComboBox):
             out[name] = {"type":"combo","value":obj.currentText()}
-        elif isinstance(obj,(QtWidgets.QCheckBox,QtWidgets.QRadioButton)):
+        elif isinstance(obj,(QtWidgets.QCheckBox,QtWidgets.QRadioButton,SwitchButton)):
             out[name] = {"type":"check","value":obj.isChecked()}
     with open(output, 'w') as outf: # write as json file
         json.dump(out, outf)

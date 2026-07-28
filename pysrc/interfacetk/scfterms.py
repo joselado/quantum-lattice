@@ -82,8 +82,12 @@ def _wire_interaction_field(form, field):
     """Mark the SCF result stale on every edit, and turn the do_scf switch
     on the moment this field leaves zero - but never turn it back off,
     so a manual "off" sticks even if the field stays non-zero afterwards
-    (see this module's docstring)."""
+    (see this module's docstring). Tagged _scf_directly_wired so
+    _connect_scf_dirty_tracking()'s later blanket sweep (which would
+    otherwise also find this same QLineEdit) doesn't connect
+    form._mark_scf_dirty to it a second time."""
     field._scf_was_nonzero = _is_nonzero(field.text())
+    field._scf_directly_wired = True
     def on_edit(text, field=field):
         form._mark_scf_dirty()
         now_nonzero = _is_nonzero(text)
@@ -197,6 +201,16 @@ def _build_scf_switch_row(form):
     switch.setChecked(False)
     switch.setObjectName("do_scf")
     setattr(form, "do_scf", switch)
+    # The old CheckBox got this wired by _AppBase._connect_dirty_tracking()
+    # at page-construction time, before this replaces it - without rewiring
+    # it here, toggling SCF on/off wouldn't bump params_dirty_time(), so
+    # save_state()'s "are these output files still fresh" check (qlinterface.py)
+    # would keep treating results computed under the old on/off state as
+    # current even though they now come from a physically different
+    # Hamiltonian. Deliberately not form._mark_scf_dirty - see this
+    # module's docstring for why toggling the switch itself shouldn't
+    # force an SCF re-solve.
+    switch.checkedChanged.connect(form._mark_dirty)
 
     row = QWidget(form)
     row_layout = QHBoxLayout(row)
@@ -217,11 +231,14 @@ def _connect_scf_dirty_tracking(form):
     moved out of it, so by this point tabWidget_3 holds only those).
     Mirrors _AppBase._connect_dirty_tracking()'s isinstance-based walk,
     but scoped narrower so tweaking a plot setting doesn't force an
-    expensive SCF re-solve on the next click."""
+    expensive SCF re-solve on the next click. Skips the interaction
+    (U/V1/V2/J1/J2/J3) fields too - _wire_interaction_field() already
+    wired those directly, so this would otherwise double-connect them."""
     exclude = getattr(form, "tabWidget_3", None)
     switch = getattr(form, "do_scf", None)
     def excluded(widget):
         if widget is switch: return True
+        if getattr(widget, "_scf_directly_wired", False): return True
         w = widget
         while w is not None:
             if w is exclude: return True

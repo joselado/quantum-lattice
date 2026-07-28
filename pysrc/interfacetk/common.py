@@ -253,9 +253,18 @@ def solve_scf(h,window):
                   verbose=1
                   )
   scf.hamiltonian.save() # save in a file
-  page = window._current_page()
-  if hasattr(page,"_scf_dirty"): page._scf_dirty = False # solved: no
-                                  # longer stale for the current parameters
+  mark_scf_solved(window)
+
+
+def mark_scf_solved(qtwrap):
+    """Call right after any solve_scf implementation - this file's own,
+    or a mode's own richer copy (2d.py/3d.py mirror this function but add
+    maxerror/identify_symmetry_breaking, so they can't just call this one)
+    - saves its converged Hamiltonian. Clears page._scf_dirty so
+    pickup_hamiltonian() knows the cached result is still valid for the
+    current parameters and won't silently re-solve on the next click."""
+    page = qtwrap._current_page()
+    if hasattr(page,"_scf_dirty"): page._scf_dirty = False
 
 
 
@@ -322,19 +331,29 @@ def get_nk(h,delta=1e-2,fac=1.0):
 
 
 
-def pickup_hamiltonian(qtwrap,initialize,do_scf=False):
+def pickup_hamiltonian(qtwrap,initialize,do_scf=False,solve=None):
     """Return the working Hamiltonian: if do_scf is enabled for this mode
-    and the SCF switch (scfterms.py's "do_scf") is on, (re)run solve_scf()
-    first when nothing has been solved yet this session or a
+    and the SCF switch (scfterms.py's "do_scf") is on, (re)run the SCF
+    solve first when nothing has been solved yet this session or a
     Hamiltonian-affecting parameter changed since the last solve
     (page._scf_dirty, set by scfterms.py's dirty tracking), then return
     the saved mean-field result - so the user doesn't have to remember to
     click "Solve SCF" by hand every time a term changes. Otherwise build
-    fresh every time, as before."""
+    fresh every time, as before.
+
+    `solve`, if given, is the mode's own zero-arg "Solve SCF" button
+    handler (it calls initialize() itself) - pass it so an automatic
+    solve triggered here runs the exact same code a manual click would,
+    which matters for 2d.py/3d.py: their own solve_scf() differs from
+    this file's solve_scf() (adds maxerror/identify_symmetry_breaking), so
+    defaulting to this file's version here would silently give a
+    different (and overwrite an already-converged) result for those two
+    modes. Falls back to this file's own solve_scf() if not given."""
     if do_scf and qtwrap.is_checked("do_scf"):
         page = qtwrap._current_page()
         if getattr(page,"_scf_dirty",True) or not os.path.exists("hamiltonian.pkl"):
-            solve_scf(initialize(),qtwrap)
+            if solve is not None: solve()
+            else: solve_scf(initialize(),qtwrap)
         return hamiltonians.load() # load the Hamiltonian
     return initialize() # generate from scratch
 
