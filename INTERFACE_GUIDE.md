@@ -76,11 +76,27 @@ placeholder/page rather than editing generated code:
 - **`scfterms.py`** — replaces the `scf_terms_container` placeholder
   `QWidget` (Designer already reserves its grid cell) with a real
   `QTabWidget` holding the U/V1/V2 ("Density-density") and J1/J2/J3
-  ("Spin-spin") fields, then (`_nest_scf_tab`) moves the whole "SCF" tab
-  page into a new inner `QTabWidget` alongside the "Terms in the
-  Hamiltonian" page, renaming both to "Single particle" and "Many-body
-  interactions". Called once per mode, right after `qtwrap.new_page()`,
-  before `common.set_formulas()`/`connect_clicks()` — see any of
+  ("Spin-spin") fields (all defaulting to `"0.0"`), then (`_nest_scf_tab`)
+  moves the whole "SCF" tab page into a new inner `QTabWidget` alongside
+  the "Terms in the Hamiltonian" page, renaming both to "Single particle"
+  and "Many-body interactions", and wraps that inner tab widget in a
+  container with a `SwitchButton` pinned to the bottom - visible
+  regardless of which sub-tab is open. That switch **replaces** (and
+  reuses the object name of) `interface.ui`'s Designer-authored `do_scf`
+  `CheckBox`, deleting it at runtime (`_retire_old_checkbox()`) - a mode
+  retrofitting SCF no longer needs a `do_scf` widget in its `interface.ui`
+  at all, `scfterms.build()` builds one unconditionally. The switch starts
+  off, is turned on automatically the instant one of the six interaction
+  fields leaves zero (never auto-off, so a manual "off" sticks), and
+  every Hamiltonian-affecting field on the page (everything except
+  calculation/plotting-only tabs under `tabWidget_3` and the switch
+  itself) is wired to set `form._scf_dirty = True`
+  (`_connect_scf_dirty_tracking()`) - `common.pickup_hamiltonian()` reads
+  that flag to decide whether it must silently re-run `solve_scf()` before
+  handing back the cached mean-field Hamiltonian, so a stale SCF solution
+  is never reused after a parameter changes. Called once per mode, right
+  after `qtwrap.new_page()`, before `common.set_formulas()`/
+  `connect_clicks()` — see any of
   `interface-pyqt/{0d,1d,2d,3d,2dslab,multilayergraphene,hybridfilm,hybridribbon}/<mode>.py`.
 - **`hybridparts.py`** — grows/shrinks a `tabWidget_4`-style tab widget's
   tab count based on an `nparts` combobox (`addTab`/`removeTab`;
@@ -188,9 +204,11 @@ object names matter, they're not derived dynamically (see `scfterms.build()`'s
 
 Adding mean-field support to a mode that never had it (done for
 `hybridribbon`/`hybridfilm`) means copying a whole "SCF" tab (`Basic`/
-`Convergence` sub-tabs: `do_scf`/`solve_scf`/`scf_initialization`/
+`Convergence` sub-tabs: `solve_scf`/`scf_initialization`/
 `filling_scf`/`nk_scf`/`mix_scf`/`smearing_scf`, plus the `scf_terms_container`
-placeholder) from an existing SCF+formulas mode's `interface.ui` (`1d`/`2d`/`0d`)
+placeholder - **not** `do_scf`, `scfterms.build()` builds that widget itself
+at runtime, see the `scfterms.py` bullet above) from an existing SCF+formulas
+mode's `interface.ui` (`1d`/`2d`/`0d`)
 into the target mode's `tabWidget_3`, as raw XML - Designer isn't used for
 this. Two gotchas found doing it:
 
@@ -204,7 +222,7 @@ this. Two gotchas found doing it:
   the block you're copying against the target file first
   (`grep -c 'name="X"' interface.ui`) and rename every colliding one to
   something unique before inserting - except the names `common.py`/
-  `scfterms.py` read by exact string (`do_scf`, `solve_scf`,
+  `scfterms.py` read by exact string (`solve_scf`,
   `scf_initialization`, `filling_scf`, `nk_scf`, `mix_scf`, `smearing_scf`,
   `scf_terms_container`), which must stay as-is. If the target mode already
   has its own real `tabWidget_4` for something else (e.g. `hybridparts.py`'s
@@ -212,15 +230,17 @@ this. Two gotchas found doing it:
   inner Basic/Convergence `QTabWidget` and pass a non-default `grid=` to
   `scfterms.build(qtwrap, grid="...")` instead of leaving the default
   `"gridLayout_10"` - same collision risk, checked the same way.
-- **Missing `<customwidget>` declaration.** If the target mode never had a
-  `CheckBox`-promoted widget before (`do_scf` is one), its `interface.ui`
-  `<customwidgets>` block won't declare the `CheckBox`→`QCheckBox` promotion
-  yet, even though other promoted types (`BodyLabel`, `ComboBox`, `LineEdit`,
-  `PushButton`) are already there. `pyside6-uic` doesn't error on this - it
-  emits `WriteImports::add(): Unknown Qt class CheckBox` to stderr and
-  silently generates a plain `QCheckBox` instead of the styled one. Add the
-  missing `<customwidget>` block (copy the pattern from any of the other four)
-  and re-run `tools/convert_ui.sh` until the warning is gone.
+- **`<customwidget>` declarations.** The copied block's fields are all
+  `LineEdit`/`ComboBox`/`PushButton` promotions - if any of those types is
+  new to the target mode's `interface.ui`, its `<customwidgets>` block
+  won't declare that promotion yet. `pyside6-uic` doesn't error on this -
+  it emits `WriteImports::add(): Unknown Qt class <Type>` to stderr and
+  silently generates the plain Qt base class instead of the styled one.
+  Add the missing `<customwidget>` block (copy the pattern from one of the
+  types already declared) and re-run `tools/convert_ui.sh` until the
+  warning is gone. (`do_scf` itself needs no such declaration - it's a
+  runtime `SwitchButton`, not a Designer-promoted widget at all, see the
+  `scfterms.py` bullet above.)
 
 Then wire the mode's `<mode>.py` like `1d.py`: `pickup_hamiltonian =
 common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)`, a `solve_scf()`

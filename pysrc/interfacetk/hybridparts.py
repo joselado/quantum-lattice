@@ -227,6 +227,14 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
                 # this line an edit to one would never mark results stale
                 # (params_dirty_time() would stay at its pre-edit value).
                 field.textEdited.connect(form._mark_dirty)
+                # Same reasoning for scfterms.py's SCF-staleness tracking
+                # (scfterms._connect_scf_dirty_tracking() only walks
+                # widgets that exist at that call time, before nparts is
+                # ever raised past 2) - only present on modes that called
+                # scfterms.build(), i.e. every mode hybridparts.py is used
+                # by (hybridfilm/hybridribbon).
+                if hasattr(form,"_mark_scf_dirty"):
+                    field.textEdited.connect(form._mark_scf_dirty)
             extra_tabs[i] = tab
             if on_new_part is not None: on_new_part(form)
         return extra_tabs[i]

@@ -1,4 +1,5 @@
 from .qlinterface import execute_script
+from . import qtwrap
 import os
 import numpy as np
 from pyqula import klist
@@ -252,6 +253,9 @@ def solve_scf(h,window):
                   verbose=1
                   )
   scf.hamiltonian.save() # save in a file
+  page = window._current_page()
+  if hasattr(page,"_scf_dirty"): page._scf_dirty = False # solved: no
+                                  # longer stale for the current parameters
 
 
 
@@ -319,10 +323,18 @@ def get_nk(h,delta=1e-2,fac=1.0):
 
 
 def pickup_hamiltonian(qtwrap,initialize,do_scf=False):
-    """Return the working Hamiltonian: reload the last self-consistent
-    result if do_scf is enabled for this mode and the checkbox is
-    checked, otherwise build it fresh"""
+    """Return the working Hamiltonian: if do_scf is enabled for this mode
+    and the SCF switch (scfterms.py's "do_scf") is on, (re)run solve_scf()
+    first when nothing has been solved yet this session or a
+    Hamiltonian-affecting parameter changed since the last solve
+    (page._scf_dirty, set by scfterms.py's dirty tracking), then return
+    the saved mean-field result - so the user doesn't have to remember to
+    click "Solve SCF" by hand every time a term changes. Otherwise build
+    fresh every time, as before."""
     if do_scf and qtwrap.is_checked("do_scf"):
+        page = qtwrap._current_page()
+        if getattr(page,"_scf_dirty",True) or not os.path.exists("hamiltonian.pkl"):
+            solve_scf(initialize(),qtwrap)
         return hamiltonians.load() # load the Hamiltonian
     return initialize() # generate from scratch
 
@@ -373,6 +385,11 @@ def select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry"):
     g = get_geometry(modify=False) # get the unmodified geometry
     g.write() # write geometry
     execute_script(script)
+    # sculpting the geometry changes the Hamiltonian modify_geometry()
+    # will build next, even though no form field/signal fires for it -
+    # invalidate any cached SCF result so it gets recomputed on next use
+    page = qtwrap._current_page()
+    if hasattr(page,"_scf_dirty"): page._scf_dirty = True
 
 
 
