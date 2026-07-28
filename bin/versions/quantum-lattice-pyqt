@@ -73,24 +73,26 @@ def text_icon(text,box=96,color="#e8e8e8"):
 
 
 # (mode dir, nav label, short code shown as the nav icon, nav group) -
-# replaces the old system_selection .ui grid of buttons; grouping matches
-# its former dimensionality columns
+# replaces the old system_selection .ui grid of buttons; grouping is by
+# physics family rather than raw dimensionality (see CLAUDE.md discussion):
+# plain dimensionality ladder, van der Waals/moire materials, single-impurity
+# embedding, explicit hybrid/composite structures, and everything else
 MODES = [
-    ("0d",                  "Islands",                            "0D",     "0D systems"),
-    ("huge_0d",             "Huge islands",                       "0D+",    "0D systems"),
-    ("1d",                  "Ribbons",                             "1D",     "1D systems"),
-    ("hybridribbon",        "Hybrid ribbons",                     "Hy1D",   "1D systems"),
-    ("hofstader1d",         "Hofstadter butterflies",             "Hof",    "1D systems"),
-    ("ribbon_embedding",    "Single impurities",                  "Imp",    "1D systems"),
-    ("2d",                  "Sheets",                             "2D",     "2D systems"),
-    ("2dslab",              "Films",                              "Film",   "2D systems"),
-    ("hybridfilm",          "Hybrid films",                       "Hy2D",   "2D systems"),
-    ("impurity_embedding",  "Single impurities",                  "Imp",    "2D systems"),
-    ("multilayergraphene",  "Multilayer graphene",                "MLG",    "2D systems"),
-    ("tmdc",                "Transition metal dichalcogenides",   "TMD",    "2D systems"),
-    ("tbg",                 "Twisted multilayer graphene",        "moire",  "2D systems"),
-    ("heavyfermion",        "Heavy fermion Kondo lattice",        "Kondo",  "2D systems"),
-    ("3d",                  "3D crystals",                        "3D",     "3D systems"),
+    ("0d",                  "Islands",                            "0D",     "Multidimensional models"),
+    ("1d",                  "Ribbons",                             "1D",     "Multidimensional models"),
+    ("2d",                  "Sheets",                             "2D",     "Multidimensional models"),
+    ("3d",                  "3D crystals",                        "3D",     "Multidimensional models"),
+    ("multilayergraphene",  "Multilayer graphene",                "MLG",    "Van der Waals"),
+    ("tbg",                 "Twisted multilayer graphene",        "moire",  "Van der Waals"),
+    ("tmdc",                "Transition metal dichalcogenides",   "TMD",    "Van der Waals"),
+    ("huge_0d",             "Huge islands",                       "0D+",    "Van der Waals"),
+    ("ribbon_embedding",    "Single impurities (ribbon)",         "Imp1D",  "Embedded impurities"),
+    ("impurity_embedding",  "Single impurities (sheet)",          "Imp2D",  "Embedded impurities"),
+    ("hybridribbon",        "Hybrid ribbons",                     "Hy1D",   "Hybrid systems"),
+    ("hybridfilm",          "Hybrid films",                       "Hy2D",   "Hybrid systems"),
+    ("hofstader1d",         "Hofstadter butterflies",             "Hof",    "Misc"),
+    ("heavyfermion",        "Heavy fermion Kondo lattice",        "Kondo",  "Misc"),
+    ("2dslab",              "Films",                              "Film",   "Misc"),
 ]
 
 
