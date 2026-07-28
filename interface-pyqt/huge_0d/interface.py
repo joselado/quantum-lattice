@@ -743,7 +743,7 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.crystalfield.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_38.setText(QCoreApplication.translate("MainWindow", u"Crystal field", None))
-        self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_3), QCoreApplication.translate("MainWindow", u"Global parameters", None))
+        self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_3), QCoreApplication.translate("MainWindow", u"Terms in the Hamiltonian", None))
 #if QT_CONFIG(tooltip)
         self.edge_potential.setToolTip(QCoreApplication.translate("MainWindow", u"This term will introduce an onsite term in the edge atoms", None))
 #endif // QT_CONFIG(tooltip)

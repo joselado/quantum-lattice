@@ -28,7 +28,7 @@
       </property>
       <widget class="QWidget" name="tab_3">
        <attribute name="title">
-        <string>Global parameters</string>
+        <string>Terms in the Hamiltonian</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_19">
         <item row="0" column="0">
