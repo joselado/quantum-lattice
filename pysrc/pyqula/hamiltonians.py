@@ -131,11 +131,19 @@ class Hamiltonian():
         from . import chi
         return chi.chiAB_trace(self,**kwargs)
     def get_spinchi_ladder(self,**kwargs):
-        """Spin-spin response function with ladder operators"""
+        """Spin-spin response function with ladder operators.
+
+        RPA=True (the default) requires H.V to be a plain onsite
+        (Hubbard-like) interaction -- raises ValueError otherwise, see
+        chitk.spinchi._require_onsite_only_V's docstring."""
         from . import chi
         return chi.spinchi_ladder(self,**kwargs)
     def get_spinchi_full(self,**kwargs):
-        """Full spin-spin response function"""
+        """Full spin-spin response function.
+
+        RPA=True (the default) requires H.V to be a plain onsite
+        (Hubbard-like) interaction -- raises ValueError otherwise, see
+        chitk.spinchi._require_onsite_only_V's docstring."""
         from . import chi
         return chi.spinchi_full(self,**kwargs)
     def get_iets_ldos(self,**kwargs):
@@ -155,9 +163,25 @@ class Hamiltonian():
     def get_magnon_bands(self,**kwargs):
         """Return the magnon bands: the poles of the full spin RPA kernel
         (the Sx,Sy,Sz channel used by get_spinchi_full/get_iets_ldos),
-        scanned along a q-path"""
+        scanned along a q-path.
+
+        Requires H.V to be a plain onsite (Hubbard-like) interaction --
+        raises ValueError for any non-onsite H.V (bond exchange,
+        density-density, or a combination, e.g. from VJinteraction), see
+        chitk.spinchi._require_onsite_only_V's docstring for why."""
         from . import chi
         return chi.magnon_bands(self,**kwargs)
+    def get_densitychi_RPA(self,**kwargs):
+        """Density (charge) RPA response function for a V1/V2/V3/U/Vr
+        neighbor-shell density-density interaction"""
+        from . import chi
+        return chi.densitychi_RPA(self,**kwargs)
+    def get_plasmon_bands(self,**kwargs):
+        """Return the plasmon/charge-order bands: the poles of the density
+        RPA kernel for a V1/V2/V3/U/Vr neighbor-shell density-density
+        interaction, scanned along a q-path"""
+        from . import chi
+        return chi.plasmon_bands(self,**kwargs)
     def get_hopping_dict(self):
         """Return the dictionary with the hoppings"""
         return multicell.get_hopping_dict(self)
@@ -237,7 +261,7 @@ class Hamiltonian():
               frac_r = self.geometry.frac_r # fractional coordinates
               # start in zero
               U = np.diag([self.geometry.bloch_phase(k,r) for r in frac_r])
-              U = np.matrix(U) # this is without .H
+              U = np.array(U) # this is without .H
               # increase the space if necessary
               U = self.spinless2full(U,is_hamiltonian=False) 
               Ud = algebra.dagger(U) # dagger
@@ -775,7 +799,7 @@ def get_first_neighbors(r1,r2):
 
 def create_fn_hopping(r1,r2):
   n=len(r1)
-  mat=np.matrix([[0.0j for i in range(n)] for j in range(n)])
+  mat=np.array([[0.0j for i in range(n)] for j in range(n)])
   pairs = get_first_neighbors(r1,r2) # get pairs of first neighbors
   for p in pairs: # loop over pairs
     mat[p[0],p[1]] = 1.0 
@@ -815,7 +839,7 @@ def diagonalize(h,nkpoints=100):
     for k in klist: # loop over kpoints
       bf = np.exp(1j*np.pi*2.*k)  # bloch factor for the intercell terms
       inter_k = inter*bf  # bloch hopping
-      hk = intra + inter_k + inter_k.H # k dependent hamiltonian
+      hk = intra + inter_k + inter_k.conj().T # k dependent hamiltonian
       energies += [lg.eigvalsh(hk)] # get eigenvalues of the current hamiltonian
     energies = np.array(energies).transpose() # each kpoint in a line
     return (klist,energies) # return the klist and the energies
@@ -880,7 +904,7 @@ def build_eh_nonh(hin,c1=None,c2=None):
         the non vanishing elments are (0,1),(2,3),(4,5) and so on..."""
   n = len(hin)  # dimension of input
   nn = 2*n  # dimension of output
-  hout = np.matrix(np.zeros((nn,nn),dtype=complex))  # output hamiltonian
+  hout = np.array(np.zeros((nn,nn),dtype=complex))  # output hamiltonian
   for i in range(n):
     for j in range(n):
       hout[2*i,2*j] = hin[i,j]  # electron term

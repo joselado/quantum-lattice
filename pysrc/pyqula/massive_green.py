@@ -19,15 +19,15 @@ def round_folder(input_folder,output_folder,prec=prec):
     value = n[1].split(".dat")[0] # value
     value = round(float(value),prec) # value with new precision
     name = pre + "_"+str(value)+".dat"
-    os.system("cp "+input_folder+"/"+ni+"  "+output_folder+"/"+name) # copy to the new
+    fs.cpfile(input_folder+"/"+ni, output_folder+"/"+name) # copy to the new
 
 
 
 
 def clean():
   """ Clena all the directories"""
-  os.system("rm -rf green_storage*")
-  os.system("rm -rf pdos_storage*")
+  fs.rmglob("green_storage*")
+  fs.rmglob("pdos_storage*")
 
 
 def get_green(fun_gf,name="",energy=0.0,prec=prec):
@@ -41,7 +41,7 @@ def get_green(fun_gf,name="",energy=0.0,prec=prec):
   namefile = "green_"+str(er)+".npy" # name of the file
   files = os.listdir(dirname) # files in the directory
   if namefile in files: # check if it has been calculated
-    m = np.matrix(np.load(dirname+"/"+namefile)) # get the matrix
+    m = np.array(np.load(dirname+"/"+namefile)) # get the matrix
     return m # return the matrix
   else: # if it hasn't been calculated
     m = fun_gf(er) # calcualte green function

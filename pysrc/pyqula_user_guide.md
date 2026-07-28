@@ -933,6 +933,28 @@ than `integration="ed"` at the small/moderate sizes actually tested (order
 100-500 sites, see the reference entry below for numbers)**, so benchmark
 before relying on it for a given system.
 
+The same combined SCF loop can instead be solved with a JAX-derivative-based
+solver, `use_jax=True`: rather than the default plain-mixing loop, this
+builds a JAX-differentiable version of one SCF iteration $x=f(x)$ and drives
+it to its fixed point with a genuine root-finder using JAX-computed
+derivatives of $f$ (`solver="newton"`, the default once `use_jax=True`), a
+matrix-free variant that scales to larger systems (`solver="newton_krylov"`),
+or by minimizing the squared residual $\|f(x)-x\|^2$ with `jax.grad` and
+`scipy`'s L-BFGS-B (`solver="lbfgs"`) -- see the reference entry below for
+the full solver list and scope restrictions (normal-state only, no
+`constrains`), and `selfconsistency.vjinteraction_jax`'s module docstring
+for why `solver="lbfgs"` minimizes the SCF residual rather than the
+physical free energy directly:
+
+```python
+h = g.get_hamiltonian(has_spin=True)
+h = h.get_combined_mean_field_hamiltonian(U=5.0,J1=-1.0,filling=0.2,
+                                            mf="ferroZ",use_jax=True,
+                                            solver="newton")
+```
+
+Needs the optional `jax` extra (`pip install pyqula[jax]`).
+
 All of the spin-spin exchange functions above also work on BdG (Nambu) Hamiltonians (`h.turn_nambu()`/`h.setup_nambu_spinor()`). `get_szsz_mean_field_hamiltonian`/`get_sxsx_mean_field_hamiltonian`/`get_sysy_mean_field_hamiltonian` need no special handling: `get_mean_field_hamiltonian`'s existing Hartree-Fock-plus-anomalous decoupling already dispatches generically for any density-density-shaped interaction, including $S^z_iS^z_j$'s. `get_combined_mean_field_hamiltonian`/`get_exchange_mean_field_hamiltonian` decouple the exchange ($J$) channels in the normal (electron) sector only for a Nambu Hamiltonian -- exchange does not itself induce superconducting pairing here, only $U$/$V_1$/$V_2$/$V_3$ can (the same mechanism as the spin-triplet example above); a state with both magnetic and superconducting order can still emerge from combining an exchange field with an attractive $V_1$:
 
 ```python
@@ -1266,6 +1288,31 @@ qs,ws,gammas = hmf.get_magnon_bands(nq=40,energies=np.linspace(0.01,3.,200),delt
 ```
 
 Since different q-points can have a different number of poles, `qs`,`ws`,`gammas` are flat 1D arrays of equal length ready for a scatter-style dispersion plot -- `qs` holds the integer index of the q-point along the path (the same convention `get_bands` uses for its k-axis), `ws` the pole frequency and `gammas` its (signed) residual imaginary part, so filtering `np.abs(gammas) < threshold` keeps only the sharp, well-defined branches. See `examples/1d/magnon_bands/main.py` for a runnable version (an antiferromagnetic Hubbard chain, showing both its acoustic and optical magnon branches).
+
+### Interactions beyond onsite
+
+`V` (passed to `get_rpa_kernel_poles`/`get_chi`) and `h.V` (the mean-field interaction `get_magnon_bands` reads automatically) are not restricted to a single onsite matrix: they can also be a real-space hopping-like dictionary `{(n1,n2,n3): matrix}`, keyed by lattice-vector offset in the same convention as `h.get_hopping_dict()`, for an interaction with support beyond the same unit cell (e.g. a neighbor-shell exchange `J1`/`V1` from `VJinteraction`, whose `h.V` after convergence typically has more than just the `(0,0,0)` key). It is Fourier-transformed to $V(q)$ at whatever `q` the response is evaluated at, using the same Bloch-phase convention as the Hamiltonian's own hoppings -- an extended interaction is dressed exactly like an extended hopping:
+
+```python
+from pyqula.selfconsistency.spinspin import _build_v
+g = geometry.chain()
+h = g.get_hamiltonian(has_spin=True)
+h.V = _build_v(h,J1=-1.0) # nearest-neighbor ferromagnetic exchange, no onsite U at all
+poles = h.get_rpa_kernel_poles(V=h.V,q=[0.1,0.,0.],energies=np.linspace(0.,1.,100),delta=2e-2,nk=200)
+```
+
+A 1D chain's density of states diverges at the bottom of the band, so at low filling even a weak nearest-neighbor exchange like this pushes the system towards a ferromagnetic (Stoner) instability -- see `tests/chi/test_rpa_nononsite_interaction.py` and `tests/scf/test_rpa_nononsite_ferro_chain.py` for worked examples (both the bare-interaction and the self-consistent, `V1`-only-density-density-interaction routes to the same instability).
+
+### Density (charge) response
+
+`h.get_densitychi_RPA` and `h.get_plasmon_bands` are the density-density (charge) channel analogs of `get_spinchi_full`/`get_magnon_bands`, for a `V1`/`V2`/`V3`-neighbor-shell (+ onsite `U`, + a general `Vr(r)`) density-density interaction, same convention as `Vinteraction`/`VJinteraction`. Unlike the spin-channel functions, they take the interaction directly as parameters instead of reading it from `h.V`, so no mean-field convergence is needed first -- they dress the bare susceptibility of whatever Hamiltonian is passed in (which can also be an already-converged one, if the RPA response about that reference state is wanted):
+
+```python
+qs,ws,gammas = h.get_plasmon_bands(V1=0.6,qpath=[[0.3,0.,0.],[0.4,0.,0.],[0.5,0.,0.]],nq=3,
+                                    energies=np.linspace(0.,1.,100),delta=2e-2,nk=2000)
+```
+
+A 1D chain at half filling has perfect Fermi-surface nesting at $q=\pi$, strongly enhancing the static charge susceptibility there -- the charge-channel analog of the low-filling ferromagnetic instability above, driven by a repulsive `V1` instead (see `tests/chi/test_plasmon_bands.py`).
 
 # Quantum transport
 
@@ -1642,18 +1689,18 @@ Optional arguments:
 - RPA=True: dress with the random-phase approximation; `False` for the bare response
 
 ### h.get_rpa_kernel_poles()
-Compute the poles of the generic RPA kernel $1-V\chi(q,\omega)$: the frequencies of the collective modes/instabilities of the interacting response.
+Compute the poles of the generic RPA kernel $1-V(q)\chi(q,\omega)$: the frequencies of the collective modes/instabilities of the interacting response.
 
 Optional arguments:
 
-- V=None (required): the interaction matrix; a `ValueError` is raised if not given
+- V=None (required): the interaction; a `ValueError` is raised if not given. Either a plain matrix (q-independent, onsite-only) or a real-space hopping dict/`MultiHopping` `{(n1,n2,n3): matrix}` for an interaction with support beyond the onsite cell, Fourier-transformed to $V(q)$ at this call's `q` (see "Interactions beyond onsite")
 
 - A=None, B=None, q=[0,0,0], energies, delta, nk: as in `get_chi`
 
 Returns an `(npoles,2)` array: pole frequency and its (signed) residual imaginary part -- filter on its magnitude, not its raw value, to keep only sharp/well-defined modes -- one row per collective mode found, sorted by frequency.
 
 ### h.get_magnon_bands()
-Compute the magnon bands: the poles of the full spin RPA kernel (the same $S_x,S_y,S_z$ channel as `get_spinchi_full`/`get_iets_ldos`, with `U` taken automatically from the mean-field `h.V`), scanned along a q-path.
+Compute the magnon bands: the poles of the full spin RPA kernel (the same $S_x,S_y,S_z$ channel as `get_spinchi_full`/`get_iets_ldos`, with the interaction taken automatically from the mean-field `h.V` -- which can have neighbor-shell, not just onsite, support), scanned along a q-path.
 
 Optional arguments:
 
@@ -1662,6 +1709,26 @@ Optional arguments:
 - energies, delta, nk: as above
 
 Returns `(qs,ws,gammas)`, three flat 1D arrays of equal length: `qs` the integer q-point index along the path, `ws` the pole frequency, `gammas` its residual imaginary part.
+
+### h.get_densitychi_RPA()
+Compute the density (charge) RPA response function for a `V1`/`V2`/`V3`-neighbor-shell (+ onsite `U`, + general `Vr(r)`) density-density interaction, same convention as `Vinteraction`/`VJinteraction`. Unlike `get_spinchi_full`, the interaction is taken directly as parameters, not read from `h.V` -- no mean-field convergence is needed first.
+
+Optional arguments:
+
+- V1=0.0, V2=0.0, V3=0.0, U=0.0, Vr=None: the density-density interaction, built the same way as `Vinteraction`/`VJinteraction`'s
+
+- q=[0,0,0], energies, delta, nk: as in `get_chi`
+
+### h.get_plasmon_bands()
+Compute the plasmon/charge-order bands: the poles of the density RPA kernel for a `V1`/`V2`/`V3`/`U`/`Vr` neighbor-shell density-density interaction, scanned along a q-path -- the charge-channel analog of `get_magnon_bands`.
+
+Optional arguments:
+
+- V1=0.0, V2=0.0, V3=0.0, U=0.0, Vr=None: as in `get_densitychi_RPA`
+
+- qpath=None, nq=20, energies, delta, nk: as in `get_magnon_bands`
+
+Returns `(qs,ws,gammas)`, same convention as `get_magnon_bands`.
 
 ### h.get_fermi_surface()
 Compute the spectral weight on a 2D k-mesh at a single energy.
@@ -1819,6 +1886,37 @@ pairing (see the example above).
   principle win for a large/sparse enough system, but that crossover was
   not reached in the sizes tested. Only use `"kpm"` after confirming it is
   actually faster for your system.
+- `use_jax=True, solver="newton"`: solve the same SCF fixed point
+  $x=f(x)$ ($x$ the mean-field parameters, $f$ one SCF iteration) a
+  different way -- instead of the default plain-mixing loop above, build a
+  JAX-differentiable version of $f$ and solve it with a JAX-derivative-based
+  root-finder. `solver="newton"` (the default once `use_jax=True`) uses
+  `jax.jacfwd` for the exact Jacobian; `"newton_krylov"` is the matrix-free
+  variant (`jax.jvp` Jacobian-vector products + GMRES), which scales to
+  larger systems than the dense-Jacobian `"newton"` (`gmres_tol=1e-6`,
+  `gmres_restart=20` tune its linear solve); `"fsolve"` wraps
+  `scipy.optimize.fsolve`/MINPACK with the same `jax.jacfwd` Jacobian as
+  `fprime`; `"fixed_point"` is plain linear mixing routed through the same
+  machinery, for comparison; `"lbfgs"` instead minimizes the squared SCF
+  residual $\|f(x)-x\|^2$ with `jax.grad` + `scipy`'s L-BFGS-B (not the
+  physical free energy directly -- see `selfconsistency.vjinteraction_jax`'s
+  module docstring for why that alternative was tried and abandoned: the
+  physical SCF solution turned out to be a saddle point, not a minimum, of
+  the free-energy functional). `"lbfgs"` scales per-iteration like
+  `"newton_krylov"`/`"fixed_point"` (no dense Jacobian), and matches
+  `"newton"` well on small/moderate systems, but as a local optimizer it can
+  stall short of `maxerror` on a harder landscape from a generic starting
+  guess -- always check `.converged`. Restricted to a normal-state (non-BdG)
+  Hamiltonian, dense exact diagonalization only (no `integration="kpm"`),
+  and no `constrains`; needs the optional `jax` extra
+  (`pip install pyqula[jax]`). See `selfconsistency.vjinteraction_jax`'s
+  module docstring for how this reuses (unmodified) the solver
+  infrastructure `selfconsistency.densitydensity_jax` already built for the
+  simpler `Vinteraction` (V/U-only) case:
+```python
+hmf = h.get_combined_mean_field_hamiltonian(U=4.0,J1=-0.5,filling=0.5,
+        use_jax=True,solver="newton") # JAX-derivative-based SCF solver
+```
 
 Returns the converged Hamiltonian (or `None` if the SCF did not converge)
 

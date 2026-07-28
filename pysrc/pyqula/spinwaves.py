@@ -83,7 +83,7 @@ def hp_heisenberg(sm,fun=None,d=None,k=None):
   if sm.dimensionality == 0: pass # one dimensional
   elif sm.dimensionality == 1: # one dimensional
     (mons,mhop) = c2h(sm.hamiltonian.inter)
-    (mons2,mhop2) = c2h(sm.hamiltonian.inter.H)
+    (mons2,mhop2) = c2h(dagger(sm.hamiltonian.inter))
     sm.hamiltonian.inter = mhop
     sm.hamiltonian.intra += mons + mons2
   elif sm.dimensionality == 2: # one dimensional
@@ -116,7 +116,7 @@ def sites2coupling(genij,spins):
   # S+ S- terms
       sij = np.sqrt(spins[i]*spins[j]) # denominator
       hop[i,j] = -(cij[0,0] + cij[1,1])*sij/2.
-  return (np.matrix(ons),np.matrix(hop)) # return matrices
+  return (np.array(ons),np.array(hop)) # return matrices
 
 
 
@@ -144,7 +144,7 @@ def szsz(sm,fun=None):
   if sm.dimensionality == 0: pass # one dimensional
   elif sm.dimensionality == 1: # one dimensional
     (mons,mhop) = c2h(sm.hamiltonian.inter)
-    (mons2,mhop2) = c2h(sm.hamiltonian.inter.H)
+    (mons2,mhop2) = c2h(dagger(sm.hamiltonian.inter))
     mout += mons + mons2
   elif sm.dimensionality == 2: # one dimensional
     for name in ["tx","ty","txy","txmy"]: # loop over attributes
@@ -179,7 +179,7 @@ def sites2coupling_sparse(mij,spins):
   # S+ S- terms
       sij = np.sqrt(spins[i]*spins[j]) # denominator
       hop[i,j] = -(cij[0,0] + cij[1,1])*sij/2.
-  return (np.matrix(ons),np.matrix(hop)) # return matrices
+  return (np.array(ons),np.array(hop)) # return matrices
 
 
 
