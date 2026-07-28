@@ -116,6 +116,7 @@ def show_dos(silent=False):
 def show_structure():
   """Show the lattice of the system"""
   g = get_geometry() # get the geometry
+  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()
@@ -142,6 +143,7 @@ def show_magnetism():
 def show_structure_3d():
   """Show the lattice of the system"""
   g = get_geometry() # get the geometry
+  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
   nsuper = int(get("nsuper_struct"))
   g = g.supercell(nsuper)
   g.write()

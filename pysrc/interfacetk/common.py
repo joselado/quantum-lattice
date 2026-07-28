@@ -412,6 +412,16 @@ def select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry"):
 
 
 
+def write_unit_cell(g):
+    """Write g's lattice vectors to CELL.OUT, before any --nsuper repetition
+    is applied for the on-screen view. The ql-structure-* scripts read this
+    (alongside DIMENSIONALITY.OUT, written the same way) to outline the
+    primitive unit cell on top of the (possibly enlarged) plotted structure."""
+    from pyqula.geometrytk.write import write_lattice
+    write_lattice(g,output_file="CELL.OUT")
+
+
+
 def check_parallel(qtwrap):
   """Check if there is parallelization"""
   if qtwrap.getbox("use_parallelization") =="Yes":

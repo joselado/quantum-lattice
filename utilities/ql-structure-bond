@@ -25,6 +25,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import plotstyle
 plotstyle.apply()
+import _cell
 
 fig = plt.figure()
 plt.gcf().canvas.setWindowTitle('Structure')
@@ -55,7 +56,17 @@ for i in range(len(x)):
     if 0.8<dd<bondl:
       plt.plot([x[i],x[j]],[y[i],y[j]],c=plotstyle.PRIMARY)
 
-
+cell = _cell.read_cell()
+if cell is not None:
+  dim, vecs = cell
+  if dim==1:
+    span = (np.max(y)-np.min(y)+1)*0.05 or 0.3
+    edges = _cell.cell_1d_ticks(vecs,span)
+  else:
+    edges = _cell.cell_edges(dim,vecs)
+  for (p0,p1) in edges:
+    plt.plot([p0[0],p1[0]],[p0[1],p1[1]],color=plotstyle.ACCENT,
+              linestyle="--",linewidth=1.8,zorder=10)
 
 plt.axis("equal")
 plt.show()

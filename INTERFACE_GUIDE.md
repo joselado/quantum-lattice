@@ -263,6 +263,37 @@ add/extend a script to read and plot it (`utilities/_pv3d.py` if it's a
 3D/PyVista view — import it via `sys.path.insert(0, dirname)`, same as
 every other `ql-*` script finds its own directory).
 
+### Unit-cell outline on structure plots
+
+Every `show_structure`/`show_structure_3d` handler follows the same
+`g = get_geometry(); nsuper = int(get("nsuper_struct")); g =
+g.supercell(nsuper); g.write()` pattern — the geometry gets enlarged to
+an `nsuper`-repeated supercell *before* `g.write()` runs, purely so the
+on-screen plot shows more than one cell. `common.write_unit_cell(g)`,
+called on the *primitive* `g` right before that `supercell()` call,
+writes `CELL.OUT`/`DIMENSIONALITY.OUT` (via pyqula's own
+`geometrytk.write.write_lattice`) from the un-enlarged geometry, so a
+plotting script can outline one real unit cell instead of the whole
+displayed supercell. `utilities/_cell.py` (`read_cell()`,
+`cell_edges()`, `cell_1d_ticks()`) turns those two files into a list of
+edges to draw — `cell_edges()` for dim 2/3 (a parallelogram/
+parallelepiped anchored at the origin), `cell_1d_ticks()` for dim 1
+(two perpendicular tick marks bracketing the cell, since a bare segment
+along `a1` would be indistinguishable from the chain of bonds itself).
+`read_cell()` returns `None` for a finite/non-periodic geometry
+(dimensionality 0, e.g. `0d`/`huge_0d`'s islands) so callers don't need
+their own dimensionality check. `ql-structure-bond`/`ql-structure` (flat
+and mpl-3D matplotlib views) plot the edges directly in `plotstyle.ACCENT`;
+`ql-structure3d`/`ql-structure-tbg` (PyVista views) go through the new
+`_pv3d.add_cell()` helper, which tubes the edges the same way
+`add_bonds()` tubes atom-atom bonds. **Whenever a new structure-plotting
+`ql-*` script is added for a periodic mode, wire it up the same way** —
+call `write_unit_cell(g)` on the primitive geometry in the handler (if
+not already done for that mode), then `_cell.read_cell()`/`cell_edges()`
+in the script — rather than reading `LATTICE.OUT` directly, which (after
+`g.write()` on the *supercell*) holds the enlarged, not primitive,
+vectors.
+
 ## Known gotchas
 
 - **Busy-lock signal reentrancy**: `qtwrap.py`'s `release_busy()` fires a

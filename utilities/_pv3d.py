@@ -125,6 +125,17 @@ def add_bonds(pl,rs1,rs2,pairs=None,dmin=0.0,dmax=1.1,color="gray",radius=0.1):
     return tubes
 
 
+def add_cell(pl,edges,color="yellow",radius=0.03):
+    """Draw a wireframe outline (e.g. a unit cell) as tubes between the
+    given list of (start,end) 3-vector pairs - see utilities/_cell.py,
+    which computes those pairs from CELL.OUT/DIMENSIONALITY.OUT."""
+    if not edges: return None
+    rs1 = np.array([e[0] for e in edges])
+    rs2 = np.array([e[1] for e in edges])
+    pairs = [(i,i) for i in range(len(edges))]
+    return add_bonds(pl,rs1,rs2,pairs=pairs,color=color,radius=radius)
+
+
 def add_arrows(pl,xyz,vec,color="red",mag=1.0):
     """Draw arrows at positions xyz with direction/magnitude vec"""
     points = np.asarray(xyz).T

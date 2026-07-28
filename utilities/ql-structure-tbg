@@ -7,6 +7,7 @@ import numpy as np
 dirname = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0,dirname)
 import _pv3d
+import _cell
 
 
 def read_positions():
@@ -20,4 +21,13 @@ ca = (z1-np.min(z1))/(np.max(z1)-np.min(z1)+1e-3) # scaled height, used for colo
 
 pl = _pv3d.new_plotter("Structure")
 _pv3d.add_atoms_colored(pl,(x1,y1,z1),ca,cmap="cool",opacity=1.0)
+
+cell = _cell.read_cell()
+if cell is not None:
+  dim, vecs = cell
+  nn = _pv3d.nearest_neighbor_distance(np.column_stack([x1,y1,z1]))
+  if dim==1: edges = _cell.cell_1d_ticks(vecs,nn)
+  else: edges = _cell.cell_edges(dim,vecs)
+  _pv3d.add_cell(pl,edges,radius=nn/10.)
+
 pl.show()
