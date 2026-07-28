@@ -42,7 +42,7 @@
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="BodyLabel" name="label_4">
+           <widget class="BodyLabel" name="label_fermi">
             <property name="text">
              <string>Fermi energy</string>
             </property>

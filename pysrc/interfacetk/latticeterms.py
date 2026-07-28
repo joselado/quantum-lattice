@@ -139,14 +139,13 @@ def _find_layout_item(layout, widget):
 def _row_label_siblings(layout, index):
     """The label(s) Designer placed in the same row as the widget at
     `index` in `layout` - the descriptive text to a term's left (e.g.
-    "Haldane"), which almost never shares its field's own widget name
-    (that field is "haldane", but its label is some Designer
-    auto-generated "label_24", "label_11", ... with no relation to it),
-    so _apply_widget_restriction's name-based matching can never find
-    it on its own. Grid layouts: every QLabel sharing this item's row.
-    Box layouts (e.g. a horizontal "label, field, label, field, ..."
-    row like the mean field tab's U/V1/V2/J1/J2/J3): the item
-    immediately before this one, if it's a label."""
+    "Haldane"), which doesn't share its field's own widget name (that
+    field is "haldane", but its label is "label_haldane" - a different
+    attribute name, not one _apply_widget_restriction's name-based
+    matching resolves on its own), so this positional walk is still
+    needed to find it. Grid layouts: every QLabel sharing this item's
+    row. Box layouts (a horizontal "label, field, label, field, ..."
+    row): the item immediately before this one, if it's a label."""
     from PySide6.QtWidgets import QGridLayout, QBoxLayout, QLabel
     siblings = []
     if isinstance(layout, QGridLayout):

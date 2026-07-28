@@ -14,7 +14,8 @@ get = qtwrap.get  # get the value of a certain variable
 getbox = qtwrap.getbox  # get the value of a certain variable
 window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mode's page
 
-
+from interfacetk import scfterms
+scfterms.build(qtwrap,images=False) # build the Density-density/Spin-spin mean field tabs
 
 from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries

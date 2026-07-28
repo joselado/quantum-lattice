@@ -49,10 +49,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.label_2, 1, 0, 1, 1)
 
-        self.label_4 = BodyLabel(self.tab_12)
-        self.label_4.setObjectName(u"label_4")
+        self.label_fermi = BodyLabel(self.tab_12)
+        self.label_fermi.setObjectName(u"label_fermi")
 
-        self.gridLayout.addWidget(self.label_4, 2, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_fermi, 2, 0, 1, 1)
 
         self.tinter = LineEdit(self.tab_12)
         self.tinter.setObjectName(u"tinter")
@@ -669,7 +669,7 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Twisted multilayer graphene", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"Interlayer", None))
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Electric bias", None))
-        self.label_4.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
+        self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
         self.tinter.setText(QCoreApplication.translate("MainWindow", u"0.4", None))
         self.interlayer_bias.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))

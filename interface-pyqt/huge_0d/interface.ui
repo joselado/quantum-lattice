@@ -34,14 +34,14 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_3">
           <item row="1" column="0">
-           <widget class="BodyLabel" name="label_9">
+           <widget class="BodyLabel" name="label_fermi">
             <property name="text">
              <string>Fermi shift</string>
             </property>
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="BodyLabel" name="label_8">
+           <widget class="BodyLabel" name="label_mAB">
             <property name="text">
              <string>AB imbalance</string>
             </property>
@@ -85,7 +85,7 @@
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="BodyLabel" name="label_36">
+           <widget class="BodyLabel" name="label_haldane">
             <property name="text">
              <string>Haldane</string>
             </property>

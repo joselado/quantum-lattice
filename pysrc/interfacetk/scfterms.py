@@ -1,0 +1,84 @@
+"""Runtime builder for the mean-field terms' "Density-density"
+(U/V1/V2)/"Spin-spin" (J1/J2/J3) sub-tabs, shared by every mode that has
+them (2d, 0d, 1d, 3d, 2dslab, multilayergraphene) instead of duplicating
+the same QTabWidget block in each mode's interface.ui.
+
+A mode wires this up with one call, after new_page() builds the page and
+before common.set_formulas(qtwrap) (which needs the "<term>_image"
+labels built below to already exist) / window.connect_clicks():
+
+    from interfacetk import scfterms
+    scfterms.build(qtwrap)  # images=False for 3d/2dslab/multilayergraphene,
+                             # which don't use the formula-image convention
+                             # for any of their other terms either
+
+build() replaces interface.ui's "scf_terms_container" placeholder (a bare
+QWidget Designer already places at the mean-field terms' row) with the
+QTabWidget. Every label/field/image widget is set as a plain attribute of
+the page (`form`) - qtwrap.get()/getbox()/set_logo() resolve widgets with
+getattr(form,name) (or QObject.findChild by name, for images) regardless
+of whether they came from Designer or here - and each field's textEdited
+is wired to form._mark_dirty, since _AppBase._connect_dirty_tracking()
+only walks the widgets that exist at page-construction time, before this
+runs (same reasoning as hybridparts.py's part 3+ fields)."""
+from PySide6.QtWidgets import QWidget, QGridLayout, QTabWidget
+from qfluentwidgets import BodyLabel, LineEdit
+
+DENSITY_DENSITY = [
+    ("U", "U", "Local Hubbard interaction", "2.0"),
+    ("V1", "V1", "First neighbor interaction", "0.0"),
+    ("V2", "V2", "Second neighbor interaction", "0.0"),
+]
+SPIN_SPIN = [
+    ("J1", "J1", "First neighbor Heisenberg exchange", "0.0"),
+    ("J2", "J2", "Second neighbor Heisenberg exchange", "0.0"),
+    ("J3", "J3", "Third neighbor Heisenberg exchange", "0.0"),
+]
+
+
+def _build_grid(form, parent, terms, images):
+    layout = QGridLayout(parent)
+    for row, (name, text, tooltip, default) in enumerate(terms):
+        label = BodyLabel(text, parent)
+        label.setObjectName(f"label_{name}")
+        layout.addWidget(label, row, 0)
+        setattr(form, f"label_{name}", label)
+
+        field = LineEdit(parent)
+        field.setObjectName(name)
+        field.setToolTip(tooltip)
+        field.setText(default)
+        layout.addWidget(field, row, 1)
+        setattr(form, name, field)
+        field.textEdited.connect(form._mark_dirty)
+
+        if images:
+            image = BodyLabel("", parent)
+            image.setObjectName(f"{name}_image")
+            layout.addWidget(image, row, 2)
+            setattr(form, f"{name}_image", image)
+
+
+def build(qtwrap, container="scf_terms_container", images=True):
+    """Replace `container` with a QTabWidget with "Density-density"
+    (U/V1/V2) and "Spin-spin" (J1/J2/J3) tabs, in the same grid cell."""
+    form = qtwrap.form
+    placeholder = getattr(form, container)
+    layout = placeholder.parentWidget().layout()
+    idx = layout.indexOf(placeholder)
+    row, col, rowspan, colspan = layout.getItemPosition(idx)
+    layout.removeWidget(placeholder)
+    placeholder.setParent(None)
+    placeholder.deleteLater()
+
+    tabs = QTabWidget(placeholder.parentWidget())
+    dd_tab, ss_tab = QWidget(tabs), QWidget(tabs)
+    _build_grid(form, dd_tab, DENSITY_DENSITY, images)
+    _build_grid(form, ss_tab, SPIN_SPIN, images)
+    tabs.addTab(dd_tab, "Density-density")
+    tabs.addTab(ss_tab, "Spin-spin")
+    tabs.setObjectName(container)
+
+    layout.addWidget(tabs, row, col, rowspan, colspan)
+    setattr(form, container, tabs)
+    return tabs

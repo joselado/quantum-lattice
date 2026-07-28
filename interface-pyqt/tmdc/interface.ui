@@ -69,14 +69,14 @@
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="BodyLabel" name="label">
+           <widget class="BodyLabel" name="label_fermi">
             <property name="text">
              <string>Fermi energy</string>
             </property>
            </widget>
           </item>
           <item row="8" column="0">
-           <widget class="BodyLabel" name="label_26">
+           <widget class="BodyLabel" name="label_swave">
             <property name="text">
              <string>Superconducting pairing</string>
             </property>
@@ -106,7 +106,7 @@
            </widget>
           </item>
           <item row="6" column="0">
-           <widget class="BodyLabel" name="label_10">
+           <widget class="BodyLabel" name="label_rashba">
             <property name="text">
              <string>Rashba SOC</string>
             </property>

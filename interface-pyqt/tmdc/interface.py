@@ -63,15 +63,15 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.By, 4, 1, 1, 1)
 
-        self.label = BodyLabel(self.tab_3)
-        self.label.setObjectName(u"label")
+        self.label_fermi = BodyLabel(self.tab_3)
+        self.label_fermi.setObjectName(u"label_fermi")
 
-        self.gridLayout.addWidget(self.label, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_fermi, 0, 0, 1, 1)
 
-        self.label_26 = BodyLabel(self.tab_3)
-        self.label_26.setObjectName(u"label_26")
+        self.label_swave = BodyLabel(self.tab_3)
+        self.label_swave.setObjectName(u"label_swave")
 
-        self.gridLayout.addWidget(self.label_26, 8, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_swave, 8, 0, 1, 1)
 
         self.fermi = LineEdit(self.tab_3)
         self.fermi.setObjectName(u"fermi")
@@ -84,10 +84,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.rashba, 6, 1, 1, 1)
 
-        self.label_10 = BodyLabel(self.tab_3)
-        self.label_10.setObjectName(u"label_10")
+        self.label_rashba = BodyLabel(self.tab_3)
+        self.label_rashba.setObjectName(u"label_rashba")
 
-        self.gridLayout.addWidget(self.label_10, 6, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_rashba, 6, 0, 1, 1)
 
         self.label_3 = BodyLabel(self.tab_3)
         self.label_3.setObjectName(u"label_3")
@@ -645,8 +645,8 @@ class Ui_MainWindow(object):
         self.Bx.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_5.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jz", None))
         self.By.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
-        self.label_26.setText(QCoreApplication.translate("MainWindow", u"Superconducting pairing", None))
+        self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
+        self.label_swave.setText(QCoreApplication.translate("MainWindow", u"Superconducting pairing", None))
 #if QT_CONFIG(tooltip)
         self.fermi.setToolTip(QCoreApplication.translate("MainWindow", u"CHemical potential with respect to charge neutrality", None))
 #endif // QT_CONFIG(tooltip)
@@ -655,7 +655,7 @@ class Ui_MainWindow(object):
         self.rashba.setToolTip(QCoreApplication.translate("MainWindow", u"Rashba spin orbit coupling", None))
 #endif // QT_CONFIG(tooltip)
         self.rashba.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_10.setText(QCoreApplication.translate("MainWindow", u"Rashba SOC", None))
+        self.label_rashba.setText(QCoreApplication.translate("MainWindow", u"Rashba SOC", None))
         self.label_3.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jx", None))
         self.label_4.setText(QCoreApplication.translate("MainWindow", u"Zeeman Jy", None))
 #if QT_CONFIG(tooltip)

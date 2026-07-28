@@ -123,15 +123,15 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.mAB, 7, 2, 1, 1)
 
-        self.label = BodyLabel(self.tab_3)
-        self.label.setObjectName(u"label")
+        self.label_fermi = BodyLabel(self.tab_3)
+        self.label_fermi.setObjectName(u"label_fermi")
 
-        self.gridLayout.addWidget(self.label, 0, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_fermi, 0, 0, 1, 1)
 
-        self.label_16 = BodyLabel(self.tab_3)
-        self.label_16.setObjectName(u"label_16")
+        self.label_antikanemele = BodyLabel(self.tab_3)
+        self.label_antikanemele.setObjectName(u"label_antikanemele")
 
-        self.gridLayout.addWidget(self.label_16, 6, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_antikanemele, 6, 0, 1, 1)
 
         self.pwave_image = BodyLabel(self.tab_3)
         self.pwave_image.setObjectName(u"pwave_image")
@@ -153,15 +153,15 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.antihaldane_image, 5, 1, 1, 1)
 
-        self.label_10 = BodyLabel(self.tab_3)
-        self.label_10.setObjectName(u"label_10")
+        self.label_rashba = BodyLabel(self.tab_3)
+        self.label_rashba.setObjectName(u"label_rashba")
 
-        self.gridLayout.addWidget(self.label_10, 2, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_rashba, 2, 0, 1, 1)
 
-        self.label_5 = BodyLabel(self.tab_3)
-        self.label_5.setObjectName(u"label_5")
+        self.label_exchange = BodyLabel(self.tab_3)
+        self.label_exchange.setObjectName(u"label_exchange")
 
-        self.gridLayout.addWidget(self.label_5, 1, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_exchange, 1, 0, 1, 1)
 
         self.mAB_image = BodyLabel(self.tab_3)
         self.mAB_image.setObjectName(u"mAB_image")
@@ -190,10 +190,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.pwave, 10, 2, 1, 1)
 
-        self.label_25 = BodyLabel(self.tab_3)
-        self.label_25.setObjectName(u"label_25")
+        self.label_antihaldane = BodyLabel(self.tab_3)
+        self.label_antihaldane.setObjectName(u"label_antihaldane")
 
-        self.gridLayout.addWidget(self.label_25, 5, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_antihaldane, 5, 0, 1, 1)
 
         self.swave_image = BodyLabel(self.tab_3)
         self.swave_image.setObjectName(u"swave_image")
@@ -212,15 +212,15 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.fermi_image, 0, 1, 1, 1)
 
-        self.label_13 = BodyLabel(self.tab_3)
-        self.label_13.setObjectName(u"label_13")
+        self.label_mAF = BodyLabel(self.tab_3)
+        self.label_mAF.setObjectName(u"label_mAF")
 
-        self.gridLayout.addWidget(self.label_13, 8, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_mAF, 8, 0, 1, 1)
 
-        self.label_26 = BodyLabel(self.tab_3)
-        self.label_26.setObjectName(u"label_26")
+        self.label_swave = BodyLabel(self.tab_3)
+        self.label_swave.setObjectName(u"label_swave")
 
-        self.gridLayout.addWidget(self.label_26, 9, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_swave, 9, 0, 1, 1)
 
         self.kanemele = LineEdit(self.tab_3)
         self.kanemele.setObjectName(u"kanemele")
@@ -233,10 +233,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.antikanemele_image, 6, 1, 1, 1)
 
-        self.label_24 = BodyLabel(self.tab_3)
-        self.label_24.setObjectName(u"label_24")
+        self.label_haldane = BodyLabel(self.tab_3)
+        self.label_haldane.setObjectName(u"label_haldane")
 
-        self.gridLayout.addWidget(self.label_24, 4, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_haldane, 4, 0, 1, 1)
 
         self.exchange_image = BodyLabel(self.tab_3)
         self.exchange_image.setObjectName(u"exchange_image")
@@ -254,10 +254,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.antihaldane, 5, 2, 1, 1)
 
-        self.label_12 = BodyLabel(self.tab_3)
-        self.label_12.setObjectName(u"label_12")
+        self.label_mAB = BodyLabel(self.tab_3)
+        self.label_mAB.setObjectName(u"label_mAB")
 
-        self.gridLayout.addWidget(self.label_12, 7, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_mAB, 7, 0, 1, 1)
 
         self.antikanemele = LineEdit(self.tab_3)
         self.antikanemele.setObjectName(u"antikanemele")
@@ -265,10 +265,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.antikanemele, 6, 2, 1, 1)
 
-        self.label_39 = BodyLabel(self.tab_3)
-        self.label_39.setObjectName(u"label_39")
+        self.label_pwave = BodyLabel(self.tab_3)
+        self.label_pwave.setObjectName(u"label_pwave")
 
-        self.gridLayout.addWidget(self.label_39, 10, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_pwave, 10, 0, 1, 1)
 
         self.swave = LineEdit(self.tab_3)
         self.swave.setObjectName(u"swave")
@@ -282,10 +282,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.fermi, 0, 2, 1, 1)
 
-        self.label_11 = BodyLabel(self.tab_3)
-        self.label_11.setObjectName(u"label_11")
+        self.label_kanemele = BodyLabel(self.tab_3)
+        self.label_kanemele.setObjectName(u"label_kanemele")
 
-        self.gridLayout.addWidget(self.label_11, 3, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_kanemele, 3, 0, 1, 1)
 
         self.haldane_image = BodyLabel(self.tab_3)
         self.haldane_image.setObjectName(u"haldane_image")
@@ -565,37 +565,37 @@ class Ui_MainWindow(object):
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_7), QCoreApplication.translate("MainWindow", u"Modify geometry", None))
         self.info_tab.setText("")
         self.mAB.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
-        self.label_16.setText(QCoreApplication.translate("MainWindow", u"Anti Kane-Mele", None))
+        self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
+        self.label_antikanemele.setText(QCoreApplication.translate("MainWindow", u"Anti Kane-Mele", None))
         self.pwave_image.setText("")
         self.haldane.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.rashba_image.setText("")
         self.antihaldane_image.setText("")
-        self.label_10.setText(QCoreApplication.translate("MainWindow", u"Rashba", None))
-        self.label_5.setText(QCoreApplication.translate("MainWindow", u"Exchange", None))
+        self.label_rashba.setText(QCoreApplication.translate("MainWindow", u"Rashba", None))
+        self.label_exchange.setText(QCoreApplication.translate("MainWindow", u"Exchange", None))
         self.mAB_image.setText("")
         self.mAF_image.setText("")
         self.exchange.setText(QCoreApplication.translate("MainWindow", u"0.0, 0.0, 0.0", None))
         self.kanemele_image.setText("")
         self.pwave.setText(QCoreApplication.translate("MainWindow", u"0.0, 0.0, 0.0", None))
-        self.label_25.setText(QCoreApplication.translate("MainWindow", u"Anti-Haldane", None))
+        self.label_antihaldane.setText(QCoreApplication.translate("MainWindow", u"Anti-Haldane", None))
         self.swave_image.setText("")
         self.mAF.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.fermi_image.setText("")
-        self.label_13.setText(QCoreApplication.translate("MainWindow", u"Antiferromagnetism", None))
-        self.label_26.setText(QCoreApplication.translate("MainWindow", u"s-wave superconductivity", None))
+        self.label_mAF.setText(QCoreApplication.translate("MainWindow", u"Antiferromagnetism", None))
+        self.label_swave.setText(QCoreApplication.translate("MainWindow", u"s-wave superconductivity", None))
         self.kanemele.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.antikanemele_image.setText("")
-        self.label_24.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))
+        self.label_haldane.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))
         self.exchange_image.setText("")
         self.rashba.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.antihaldane.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_12.setText(QCoreApplication.translate("MainWindow", u"Sublattice imbalance", None))
+        self.label_mAB.setText(QCoreApplication.translate("MainWindow", u"Sublattice imbalance", None))
         self.antikanemele.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_39.setText(QCoreApplication.translate("MainWindow", u"p-wave superconductivity", None))
+        self.label_pwave.setText(QCoreApplication.translate("MainWindow", u"p-wave superconductivity", None))
         self.swave.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"-3.5", None))
-        self.label_11.setText(QCoreApplication.translate("MainWindow", u"Kane-Mele", None))
+        self.label_kanemele.setText(QCoreApplication.translate("MainWindow", u"Kane-Mele", None))
         self.haldane_image.setText("")
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_3), QCoreApplication.translate("MainWindow", u"Pristine Hamiltonian", None))
         self.fermi_impurity_image.setText("")

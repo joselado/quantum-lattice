@@ -183,14 +183,14 @@
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="BodyLabel" name="label">
+           <widget class="BodyLabel" name="label_fermi">
             <property name="text">
              <string>Fermi energy</string>
             </property>
            </widget>
           </item>
           <item row="6" column="0">
-           <widget class="BodyLabel" name="label_16">
+           <widget class="BodyLabel" name="label_antikanemele">
             <property name="text">
              <string>Anti Kane-Mele</string>
             </property>
@@ -225,14 +225,14 @@
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="BodyLabel" name="label_10">
+           <widget class="BodyLabel" name="label_rashba">
             <property name="text">
              <string>Rashba</string>
             </property>
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="BodyLabel" name="label_5">
+           <widget class="BodyLabel" name="label_exchange">
             <property name="text">
              <string>Exchange</string>
             </property>
@@ -283,7 +283,7 @@
            </widget>
           </item>
           <item row="5" column="0">
-           <widget class="BodyLabel" name="label_25">
+           <widget class="BodyLabel" name="label_antihaldane">
             <property name="text">
              <string>Anti-Haldane</string>
             </property>
@@ -320,14 +320,14 @@
            </widget>
           </item>
           <item row="8" column="0">
-           <widget class="BodyLabel" name="label_13">
+           <widget class="BodyLabel" name="label_mAF">
             <property name="text">
              <string>Antiferromagnetism</string>
             </property>
            </widget>
           </item>
           <item row="9" column="0">
-           <widget class="BodyLabel" name="label_26">
+           <widget class="BodyLabel" name="label_swave">
             <property name="text">
              <string>s-wave superconductivity</string>
             </property>
@@ -351,7 +351,7 @@
            </widget>
           </item>
           <item row="4" column="0">
-           <widget class="BodyLabel" name="label_24">
+           <widget class="BodyLabel" name="label_haldane">
             <property name="text">
              <string>Haldane</string>
             </property>
@@ -382,7 +382,7 @@
            </widget>
           </item>
           <item row="7" column="0">
-           <widget class="BodyLabel" name="label_12">
+           <widget class="BodyLabel" name="label_mAB">
             <property name="text">
              <string>Sublattice imbalance</string>
             </property>
@@ -399,7 +399,7 @@
            </widget>
           </item>
           <item row="10" column="0">
-           <widget class="BodyLabel" name="label_39">
+           <widget class="BodyLabel" name="label_pwave">
             <property name="text">
              <string>p-wave superconductivity</string>
             </property>
@@ -426,7 +426,7 @@
            </widget>
           </item>
           <item row="3" column="0">
-           <widget class="BodyLabel" name="label_11">
+           <widget class="BodyLabel" name="label_kanemele">
             <property name="text">
              <string>Kane-Mele</string>
             </property>

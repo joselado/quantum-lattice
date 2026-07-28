@@ -40,15 +40,15 @@ class Ui_MainWindow(object):
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.gridLayout_3 = QGridLayout()
         self.gridLayout_3.setObjectName(u"gridLayout_3")
-        self.label_9 = BodyLabel(self.tab_3)
-        self.label_9.setObjectName(u"label_9")
+        self.label_fermi = BodyLabel(self.tab_3)
+        self.label_fermi.setObjectName(u"label_fermi")
 
-        self.gridLayout_3.addWidget(self.label_9, 1, 0, 1, 1)
+        self.gridLayout_3.addWidget(self.label_fermi, 1, 0, 1, 1)
 
-        self.label_8 = BodyLabel(self.tab_3)
-        self.label_8.setObjectName(u"label_8")
+        self.label_mAB = BodyLabel(self.tab_3)
+        self.label_mAB.setObjectName(u"label_mAB")
 
-        self.gridLayout_3.addWidget(self.label_8, 0, 0, 1, 1)
+        self.gridLayout_3.addWidget(self.label_mAB, 0, 0, 1, 1)
 
         self.mAB = LineEdit(self.tab_3)
         self.mAB.setObjectName(u"mAB")
@@ -70,10 +70,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout_3.addWidget(self.label_10, 2, 0, 1, 1)
 
-        self.label_36 = BodyLabel(self.tab_3)
-        self.label_36.setObjectName(u"label_36")
+        self.label_haldane = BodyLabel(self.tab_3)
+        self.label_haldane.setObjectName(u"label_haldane")
 
-        self.gridLayout_3.addWidget(self.label_36, 3, 0, 1, 1)
+        self.gridLayout_3.addWidget(self.label_haldane, 3, 0, 1, 1)
 
         self.haldane = LineEdit(self.tab_3)
         self.haldane.setObjectName(u"haldane")
@@ -718,8 +718,8 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Huge islands", None))
-        self.label_9.setText(QCoreApplication.translate("MainWindow", u"Fermi shift", None))
-        self.label_8.setText(QCoreApplication.translate("MainWindow", u"AB imbalance", None))
+        self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi shift", None))
+        self.label_mAB.setText(QCoreApplication.translate("MainWindow", u"AB imbalance", None))
 #if QT_CONFIG(tooltip)
         self.mAB.setToolTip(QCoreApplication.translate("MainWindow", u"Sublattice imbalance in a bipartite lattice", None))
 #endif // QT_CONFIG(tooltip)
@@ -733,7 +733,7 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_10.setText(QCoreApplication.translate("MainWindow", u"Magnetic field", None))
-        self.label_36.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))
+        self.label_haldane.setText(QCoreApplication.translate("MainWindow", u"Haldane", None))
 #if QT_CONFIG(tooltip)
         self.haldane.setToolTip(QCoreApplication.translate("MainWindow", u"Haldane coupling, creates a quantum anomalous Hall state", None))
 #endif // QT_CONFIG(tooltip)

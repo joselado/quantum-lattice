@@ -54,10 +54,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.label_39, 4, 0, 1, 1)
 
-        self.label_60 = BodyLabel(self.tab_3)
-        self.label_60.setObjectName(u"label_60")
+        self.label_hopping = BodyLabel(self.tab_3)
+        self.label_hopping.setObjectName(u"label_hopping")
 
-        self.gridLayout.addWidget(self.label_60, 1, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_hopping, 1, 0, 1, 1)
 
         self.fermi = LineEdit(self.tab_3)
         self.fermi.setObjectName(u"fermi")
@@ -65,15 +65,15 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.fermi, 2, 2, 1, 1)
 
-        self.label_26 = BodyLabel(self.tab_3)
-        self.label_26.setObjectName(u"label_26")
+        self.label_kondo = BodyLabel(self.tab_3)
+        self.label_kondo.setObjectName(u"label_kondo")
 
-        self.gridLayout.addWidget(self.label_26, 3, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_kondo, 3, 0, 1, 1)
 
-        self.label = BodyLabel(self.tab_3)
-        self.label.setObjectName(u"label")
+        self.label_fermi = BodyLabel(self.tab_3)
+        self.label_fermi.setObjectName(u"label_fermi")
 
-        self.gridLayout.addWidget(self.label, 2, 0, 1, 1)
+        self.gridLayout.addWidget(self.label_fermi, 2, 0, 1, 1)
 
         self.exchange = LineEdit(self.tab_3)
         self.exchange.setObjectName(u"exchange")
@@ -707,10 +707,10 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.hoppings.setText(QCoreApplication.translate("MainWindow", u"1.0", None))
         self.label_39.setText(QCoreApplication.translate("MainWindow", u"Spinon Kondo dispersion", None))
-        self.label_60.setText(QCoreApplication.translate("MainWindow", u"Hoppings", None))
+        self.label_hopping.setText(QCoreApplication.translate("MainWindow", u"Hoppings", None))
         self.fermi.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
-        self.label_26.setText(QCoreApplication.translate("MainWindow", u"Kondo hybridization", None))
-        self.label.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
+        self.label_kondo.setText(QCoreApplication.translate("MainWindow", u"Kondo hybridization", None))
+        self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
 #if QT_CONFIG(tooltip)
         self.exchange.setToolTip(QCoreApplication.translate("MainWindow", u"d-vector of the spin triplet order p-wave order. The momentum dependence is taken of the form px + i py", None))
 #endif // QT_CONFIG(tooltip)

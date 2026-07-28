@@ -35,21 +35,21 @@
            </widget>
           </item>
           <item row="15" column="0">
-           <widget class="BodyLabel" name="label_13">
+           <widget class="BodyLabel" name="label_mAF">
             <property name="text">
              <string>Antiferromagnetism</string>
             </property>
            </widget>
           </item>
           <item row="13" column="0">
-           <widget class="BodyLabel" name="label_25">
+           <widget class="BodyLabel" name="label_antihaldane">
             <property name="text">
              <string>Anti-Haldane</string>
             </property>
            </widget>
           </item>
           <item row="14" column="0">
-           <widget class="BodyLabel" name="label_12">
+           <widget class="BodyLabel" name="label_mAB">
             <property name="text">
              <string>Sublattice imbalance</string>
             </property>
@@ -98,7 +98,7 @@
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="BodyLabel" name="label">
+           <widget class="BodyLabel" name="label_fermi">
             <property name="text">
              <string>Fermi energy</string>
             </property>
@@ -112,7 +112,7 @@
            </widget>
           </item>
           <item row="12" column="0">
-           <widget class="BodyLabel" name="label_24">
+           <widget class="BodyLabel" name="label_haldane">
             <property name="text">
              <string>Haldane</string>
             </property>
@@ -126,7 +126,7 @@
            </widget>
           </item>
           <item row="16" column="0">
-           <widget class="BodyLabel" name="label_26">
+           <widget class="BodyLabel" name="label_swave">
             <property name="text">
              <string>swave pairing</string>
             </property>
@@ -164,14 +164,14 @@
            </widget>
           </item>
           <item row="9" column="0">
-           <widget class="BodyLabel" name="label_10">
+           <widget class="BodyLabel" name="label_rashba">
             <property name="text">
              <string>Rashba</string>
             </property>
            </widget>
           </item>
           <item row="10" column="0">
-           <widget class="BodyLabel" name="label_11">
+           <widget class="BodyLabel" name="label_kanemele">
             <property name="text">
              <string>Kane-Mele</string>
             </property>
@@ -220,7 +220,7 @@
            </widget>
           </item>
           <item row="11" column="0">
-           <widget class="BodyLabel" name="label_41">
+           <widget class="BodyLabel" name="label_antikanemele">
             <property name="text">
              <string>Anti Kane-Mele</string>
             </property>
@@ -907,6 +907,9 @@
            <layout class="QGridLayout" name="gridLayout_14">
             <item row="0" column="0" colspan="2">
              <layout class="QGridLayout" name="gridLayout_10">
+              <item row="1" column="0" colspan="2">
+              <widget class="QWidget" name="scf_terms_container"/>
+             </item>
               <item row="0" column="1">
                <widget class="ComboBox" name="scf_initialization">
                 <item>
@@ -933,21 +936,7 @@
                 </property>
                </widget>
               </item>
-              <item row="1" column="0">
-               <widget class="BodyLabel" name="label_23">
-                <property name="text">
-                 <string>Hubbard</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="LineEdit" name="U">
-                <property name="text">
-                 <string>2.0</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
+                                          <item row="2" column="0">
                <widget class="BodyLabel" name="label_34">
                 <property name="text">
                  <string>Filling</string>
@@ -961,92 +950,7 @@
                 </property>
                </widget>
               </item>
-              <item row="3" column="0">
-               <widget class="BodyLabel" name="label_v1">
-                <property name="text">
-                 <string>V1</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
-               <widget class="LineEdit" name="V1">
-                <property name="toolTip">
-                 <string>First neighbor interaction</string>
-                </property>
-                <property name="text">
-                 <string>0.0</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0">
-               <widget class="BodyLabel" name="label_v2">
-                <property name="text">
-                 <string>V2</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="1">
-               <widget class="LineEdit" name="V2">
-                <property name="toolTip">
-                 <string>Second neighbor interaction</string>
-                </property>
-                <property name="text">
-                 <string>0.0</string>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="0">
-               <widget class="BodyLabel" name="label_j1">
-                <property name="text">
-                 <string>J1</string>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="1">
-               <widget class="LineEdit" name="J1">
-                <property name="toolTip">
-                 <string>First neighbor Heisenberg exchange</string>
-                </property>
-                <property name="text">
-                 <string>0.0</string>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="0">
-               <widget class="BodyLabel" name="label_j2">
-                <property name="text">
-                 <string>J2</string>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="1">
-               <widget class="LineEdit" name="J2">
-                <property name="toolTip">
-                 <string>Second neighbor Heisenberg exchange</string>
-                </property>
-                <property name="text">
-                 <string>0.0</string>
-                </property>
-               </widget>
-              </item>
-              <item row="7" column="0">
-               <widget class="BodyLabel" name="label_j3">
-                <property name="text">
-                 <string>J3</string>
-                </property>
-               </widget>
-              </item>
-              <item row="7" column="1">
-               <widget class="LineEdit" name="J3">
-                <property name="toolTip">
-                 <string>Third neighbor Heisenberg exchange</string>
-                </property>
-                <property name="text">
-                 <string>0.0</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
+                                                                                                                                                         </layout>
             </item>
             <item row="1" column="0">
              <widget class="CheckBox" name="do_scf">
