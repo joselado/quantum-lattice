@@ -10,6 +10,8 @@ Quantum Lattice is a PySide6 desktop GUI, styled with `qfluentwidgets` (dark Flu
 
 See `INTERFACE_GUIDE.md` for a mechanics-level companion to this file: task checklists (adding a term, adding a mode, adding a `ql-*` script) and recorded structural gotchas (e.g. how tabs are actually parented across the shared `QTabWidget`s) that aren't obvious from reading a `.ui` file cold. **Whenever a change touches how the interface is built or wired** — a new dynamic-widget pattern, a new shared convention in `pysrc/interfacetk/`, a newly-discovered structural quirk, a new per-mode checklist item — update `INTERFACE_GUIDE.md` in the same change, not as a follow-up.
 
+`docs/user_guide.md` is the end-user-facing counterpart: how to use the app (navigating modes, the shared Geometry/Terms/calculation-tab workflow, SCF, saving results), plus reference tables for every Hamiltonian term and calculation button and a per-mode summary. **Whenever a change is user-visible** — a new mode, a new Hamiltonian term or calculation button, a changed default/behavior, a new mode-specific mechanic — update `docs/user_guide.md` in the same change, not as a follow-up. Unlike `INTERFACE_GUIDE.md`, it should stay free of implementation detail (file names, object names, internal function names) — it's written for someone running the app, not modifying it.
+
 ## Running the app
 
 ```bash

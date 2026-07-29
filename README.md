@@ -55,6 +55,13 @@ a version of [Ubuntu](https://releases.ubuntu.com/20.04/)
 in that virtual machine, and following the previous
 instructions. 
 
+# How to use #
+
+See [docs/user_guide.md](docs/user_guide.md) for a full guide to the
+interface: navigating modes, the geometry/terms/calculation workflow,
+self-consistent mean-field calculations, and reference tables for every
+Hamiltonian term and calculation button.
+
 # FUNCTIONALITIES #
 ## Single particle Hamiltonians ##
 - Spinless, spinful and Nambu basis for orbitals
