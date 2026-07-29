@@ -246,26 +246,31 @@ class HomePage(QWidget):
     content = QWidget()
     content.setStyleSheet("QWidget { background: transparent; }")
     scroll.setWidget(content)
-    content_layout = QVBoxLayout(content)
+    # One column per group (side by side, wrapping to a new row only if the
+    # window is too narrow to fit them all), rather than the old layout of
+    # one full-width group section stacked above the next - each column
+    # holds that group's header followed by its modes stacked vertically.
+    content_layout = FlowLayout(content,needAni=False)
     content_layout.setContentsMargins(0,0,12,0)
-    content_layout.setSpacing(20)
+    content_layout.setHorizontalSpacing(32)
+    content_layout.setVerticalSpacing(20)
 
-    last_group = None
-    flow = None
+    columns = {} # group -> its QVBoxLayout, in first-seen order
     for label,code,group,wrapper in mode_entries:
-      if group != last_group:
-        content_layout.addWidget(StrongBodyLabel(group))
-        flow_container = QWidget()
-        flow_container.setStyleSheet("QWidget { background: transparent; }")
-        flow = FlowLayout(flow_container,needAni=False)
-        flow.setContentsMargins(0,0,0,0)
-        content_layout.addWidget(flow_container)
-        last_group = group
+      if group not in columns:
+        column = QWidget()
+        column.setStyleSheet("QWidget { background: transparent; }")
+        column_layout = QVBoxLayout(column)
+        column_layout.setContentsMargins(0,0,0,0)
+        column_layout.setSpacing(8)
+        column_layout.addWidget(StrongBodyLabel(group))
+        columns[group] = column_layout
+        content_layout.addWidget(column)
       btn = PushButton(text_icon(code),label)
       btn.setFixedHeight(36)
+      btn.setMinimumWidth(260)
       btn.clicked.connect(lambda checked=False,w=wrapper: switch_to(w))
-      flow.addWidget(btn)
-    content_layout.addStretch(1)
+      columns[group].addWidget(btn)
     outer.addWidget(scroll,1)
 
 

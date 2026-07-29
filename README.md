@@ -49,11 +49,30 @@ You can see [here](https://youtu.be/4H1mNLYdUOU) a short video demonstrating the
 
 ## Windows ##
 
-For using this program in Windows, the easiest solution is to create a virtual
-machine using [Virtual Box](https://www.virtualbox.org/), installing
-a version of [Ubuntu](https://releases.ubuntu.com/20.04/) 
-in that virtual machine, and following the previous
-instructions. 
+The program also runs natively on Windows, no virtual machine needed.
+
+Install [Python](https://www.python.org/downloads/) (3.9 or newer), making
+sure to tick "Add python.exe to PATH" in the installer. Then, using a
+terminal (Command Prompt or PowerShell), clone the GitHub repository
+```bash
+git clone https://github.com/joselado/quantum-lattice
+cd quantum-lattice
+```
+(if `git` isn't installed, download the repository as a ZIP from GitHub
+instead and extract it, then `cd` into the extracted folder)
+
+and execute the install script
+```bash
+python install.py
+```
+
+The script will install all the required dependencies if they are not already
+present, and create a `quantum-lattice.bat` launcher in the repository folder
+that you can double-click or pin to the Start menu/taskbar. You can also run
+the program from the same terminal with
+```bash
+quantum-lattice
+```
 
 # How to use #
 
