@@ -11,9 +11,10 @@ catches import errors and wiring mistakes.
 Two checks per mode, plus one for the shell:
   1. static  - every QPushButton in interface.ui has a matching entry in
                the module's `signals` dict: either an explicit
-               signals["x"] = ... / extra={"x": ...} entry, or (if the
-               module calls common.wire_standard_signals) one of the
-               button names common.py's STANDARD_HANDLERS auto-wires.
+               signals["x"] = ... / extra={"x": ...} entry, or one of the
+               button names auto-wired by a shared helper the module calls
+               (common.wire_standard_signals's STANDARD_HANDLERS, or
+               common.finalize_page's save_results/load_results).
                Regex-based, no code execution.
   2. dynamic - `python <mode>.py` (run standalone, its own top-level
                window) builds and reaches the blocking event loop without
@@ -61,6 +62,10 @@ AUTO_WIRED_BUTTONS = {
     "show_qpi", "show_multildos", "show_site_dos",
 }
 
+# Buttons pysrc/interfacetk/common.py's finalize_page() auto-wires (if the
+# page has them) for any mode that calls it in its footer
+FINALIZE_PAGE_BUTTONS = {"save_results", "load_results"}
+
 
 def check_signal_wiring(mode):
     """Static check: every QPushButton in interface.ui has a signals[...] entry."""
@@ -80,6 +85,8 @@ def check_signal_wiring(mode):
     wired |= set(re.findall(r'"([a-zA-Z_0-9]+)"\s*:', py_text))  # extra={"x": ...} dict-literal keys
     if "wire_standard_signals(" in py_text:
         wired |= AUTO_WIRED_BUTTONS
+    if "finalize_page(" in py_text:
+        wired |= FINALIZE_PAGE_BUTTONS
     missing = sorted(buttons - wired)
     if missing:
         return [f"{mode}: button(s) with no signals[] handler: {', '.join(missing)}"]

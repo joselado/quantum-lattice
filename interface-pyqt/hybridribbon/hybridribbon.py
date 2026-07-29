@@ -162,14 +162,7 @@ def show_magnetism():
 
 def show_structure():
   """Show the lattice of the system"""
-  g = get_geometry() # get the geometry
-  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
-  nsuper = int(get("nsuper_struct"))
-  g = g.supercell(nsuper)
-  g.write()
-#  execute_script("ql-light-structure POSITIONS.OUT")
-  execute_script("ql-structure-bond POSITIONS.OUT")
-#  execute_script("ql-structure  ")
+  common.show_structure(qtwrap,get_geometry,script="ql-structure-bond POSITIONS.OUT")
 
 
 
@@ -211,35 +204,23 @@ def show_interactive_ldos():
 
 
 
-def save_results():  save_state(inipath,tmppath,window) # function to save
-def load_results():  load_state(inipath,tmppath,window) # function to load
-
-
 # create signals
 # STANDARD_HANDLERS covers the plain "pickup_hamiltonian + common.get_X"
 # buttons automatically; only the buttons with mode-specific behavior
-# need to be listed explicitly here
+# need to be listed explicitly here (save_results/load_results are wired
+# automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,  # show bandstructure
   "show_interactive_ldos": show_interactive_ldos,  # show DOS
   "solve_scf": solve_scf,
-  "save_results": save_results,
-  "load_results": load_results,
 })
-
-# set all the formulas
-common.set_formulas(qtwrap)
-
 
 common.initialize(qtwrap) # initialize
 qtwrap.set_combobox("dos_operator",operators.operator_list)
 
-window.connect_clicks(signals)
-common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
-inipath = os.getcwd() # get the initial directory
-folder = create_folder()
-window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
-tmppath = os.getcwd() # get the initial directory
+inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
+common.finalize_page(qtwrap,window,signals,inipath)
+
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block
 

@@ -89,27 +89,13 @@ def initialize():
 
 def show_structure():
   """Show the lattice of the system"""
-  g = get_geometry() # get the geometry
-  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
-  nsuper = int(get("nsuper_struct"))
-  g = g.supercell(nsuper)
-  g.write()
-#  execute_script("ql-light-structure POSITIONS.OUT")
-  execute_script("ql-structure-bond --input POSITIONS.OUT")
-#  execute_script("ql-structure  ")
-
-
+  common.show_structure(qtwrap,get_geometry)
 
 
 
 def show_structure_3d():
     """Show the lattice of the system"""
-    g = get_geometry() # get the geometry
-    common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
-    nsuper = int(get("nsuper_struct"))
-    g = g.supercell(nsuper)
-    g.write()
-    execute_script("ql-structure3d POSITIONS.OUT")
+    common.show_structure_3d(qtwrap,get_geometry)
 
 
 def show_embedding_ldos():
@@ -183,12 +169,10 @@ def select_impurity_sites():
 
 
 
-inipath = os.getcwd() # get the initial directory
+inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
 
-def save_results():  save_state(inipath,tmppath,window) # function to save
-def load_results():  load_state(inipath,tmppath,window) # function to load
-
-# create signals
+# create signals (save_results/load_results are wired automatically by
+# common.finalize_page())
 signals = dict()
 signals["show_structure"] = show_structure  # show bandstructure
 signals["show_structure_3d"] = show_structure_3d
@@ -196,21 +180,11 @@ signals["select_atoms_removal"] = select_atoms_removal
 signals["show_embedding_ldos"] = show_embedding_ldos
 signals["show_embedding_ldos_sweep"] = show_embedding_ldos_sweep
 signals["select_impurity_sites"] = select_impurity_sites
-signals["save_results"] = save_results
-signals["load_results"] = load_results
-
-
-# set all the formulas
-common.set_formulas(qtwrap)
 
 window.set("info_tab","Results will be saved to "+inipath)
 
+common.finalize_page(qtwrap,window,signals,inipath,robust=False)
 
-window.connect_clicks(signals,robust=False)
-common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
-folder = create_folder()
-window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
-tmppath = os.getcwd() # get the initial directory
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block
 

@@ -1,4 +1,4 @@
-from .qlinterface import execute_script
+from .qlinterface import execute_script, create_folder, save_state, load_state
 from . import qtwrap
 import os
 import numpy as np
@@ -397,6 +397,33 @@ def wire_standard_signals(qtwrap,pickup_hamiltonian,extra=None):
     return signals
 
 
+def finalize_page(qtwrap,window,signals,inipath,robust=True):
+    """Standard <mode>.py footer, called once signals is fully built:
+    create this page's own scratch folder, wire the shared Save/Load
+    Results buttons (every mode calls save_state/load_state identically -
+    only wired if this page actually has those buttons), set the
+    Hamiltonian-term formulas/tooltips, and connect every button. Every
+    mode used to repeat this sequence by hand, byte-for-byte identical
+    apart from `robust`.
+
+    `inipath` is the directory the mode was launched from - callers must
+    capture it themselves with os.getcwd() *before* calling this (the
+    create_folder() below chdirs away from it), since a few modes also
+    display it directly (e.g. impurity_embedding's info_tab) and so
+    already keep their own copy rather than reading it back out of here."""
+    folder = create_folder()
+    window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
+    tmppath = os.getcwd() # get the initial directory
+    signals = dict(signals)
+    if hasattr(window,"save_results"):
+        signals.setdefault("save_results",lambda: save_state(inipath,tmppath,window))
+    if hasattr(window,"load_results"):
+        signals.setdefault("load_results",lambda: load_state(inipath,tmppath,window))
+    set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
+    window.connect_clicks(signals,robust=robust)
+    set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
+
+
 
 def select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry"):
     """Write the unmodified geometry and launch the picker script so the
@@ -419,6 +446,29 @@ def write_unit_cell(g):
     primitive unit cell on top of the (possibly enlarged) plotted structure."""
     from pyqula.geometrytk.write import write_lattice
     write_lattice(g,output_file="CELL.OUT")
+
+
+def _write_and_plot_structure(qtwrap,get_geometry,script):
+    """geometry->CELL.OUT->supercell->POSITIONS.OUT->script sequence shared
+    by show_structure()/show_structure_3d() below - only the plotting
+    `script` itself ever differs between modes (or between the 2D/3D view
+    of the same mode)."""
+    g = get_geometry() # get the geometry
+    write_unit_cell(g) # primitive cell, before the --nsuper repetition
+    nsuper = int(qtwrap.get("nsuper_struct"))
+    g = g.supercell(nsuper)
+    g.write()
+    execute_script(script)
+
+
+def show_structure(qtwrap,get_geometry,script="ql-structure-bond --input POSITIONS.OUT"):
+    """Show the lattice of the system"""
+    _write_and_plot_structure(qtwrap,get_geometry,script)
+
+
+def show_structure_3d(qtwrap,get_geometry,script="ql-structure3d POSITIONS.OUT"):
+    """Show the lattice of the system in 3D"""
+    _write_and_plot_structure(qtwrap,get_geometry,script)
 
 
 

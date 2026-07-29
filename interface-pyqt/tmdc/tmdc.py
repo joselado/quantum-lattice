@@ -63,12 +63,7 @@ def show_dos(silent=False):
 
 def show_structure():
   """Show the lattice of the system"""
-  g = get_geometry() # get the geometry
-  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
-  nsuper = int(get("nsuper_struct"))
-  g = g.supercell(nsuper)
-  g.write()
-  execute_script("ql-structure-bond --input POSITIONS.OUT")
+  common.show_structure(qtwrap,get_geometry)
 
 
 def show_qpi():
@@ -93,12 +88,7 @@ def show_magnetism():
 
 def show_structure_3d():
   """Show the lattice of the system"""
-  g = get_geometry() # get the geometry
-  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
-  nsuper = int(get("nsuper_struct"))
-  g = g.supercell(nsuper)
-  g.write()
-  execute_script("ql-structure3d POSITIONS.OUT")
+  common.show_structure_3d(qtwrap,get_geometry)
 
 
 
@@ -158,34 +148,19 @@ def sweep_parameter():
 
 
 
-def save_results():  save_state(inipath,tmppath,window) # function to save
-def load_results():  load_state(inipath,tmppath,window) # function to load
-
-
-# create signals
 # create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
 # + common.get_X" buttons automatically; only the buttons with mode-specific
-# behavior need to be listed explicitly here
+# behavior need to be listed explicitly here (save_results/load_results are
+# wired automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,  # show bandstructure
   "show_dos": show_dos,  # also used by sweep_parameter
   "show_structure_3d": show_structure_3d,
-  "save_results": save_results,
-  "load_results": load_results,
 })
 
+inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
+common.finalize_page(qtwrap,window,signals,inipath,robust=False)
 
-
-
-
-
-window.connect_clicks(signals,robust=False)
-common.set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
-common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
-inipath = os.getcwd() # get the initial directory
-folder = create_folder()
-window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
-tmppath = os.getcwd() # get the initial directory
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block
 

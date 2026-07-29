@@ -193,43 +193,25 @@ def show_structure():
 
 def show_structure_3d():
   """Show the lattice of the system"""
-  g = get_geometry() # get the geometry
-  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
-  nsuper = int(get("nsuper_struct"))
-  g = g.supercell(nsuper)
-  g.write()
-  execute_script("ql-structure-tbg POSITIONS.OUT")
+  common.show_structure_3d(qtwrap,get_geometry,script="ql-structure-tbg POSITIONS.OUT")
 
-
-
-def save_results():  save_state(inipath,tmppath,window) # function to save
-def load_results():  load_state(inipath,tmppath,window) # function to load
 
 
 # create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
 # + common.get_X" buttons automatically; only the buttons with mode-specific
-# behavior need to be listed explicitly here
+# behavior need to be listed explicitly here (save_results/load_results are
+# wired automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,  # show bandstructure
   "show_structure_3d": show_structure_3d,  # show bandstructure
   "show_dos": show_dos,  # custom dimensionality-dependent DOS
   "show_ldos": show_ldos,  # show DOS
   "solve_scf": solve_scf,
-  "save_results": save_results,
-  "load_results": load_results,
 })
 
-# set all the formulas
-common.set_formulas(qtwrap)
+inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
+common.finalize_page(qtwrap,window,signals,inipath)
 
-
-
-window.connect_clicks(signals)
-common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
-inipath = os.getcwd() # get the initial directory
-folder = create_folder()
-window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
-tmppath = os.getcwd() # get the initial directory
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block
 

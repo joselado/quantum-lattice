@@ -33,6 +33,9 @@ maintenance doc, not a one-time snapshot.
 - **Change the save/load-results naming dialogs** —
   `qtwrap.ask_save_name()`/`ask_load_name()`, called from
   `qlinterface.save_state()`/`load_state()`.
+- **Change the standard `<mode>.py` footer (scratch folder, Save/Load
+  Results wiring, formulas/tooltips, `connect_clicks`)** —
+  `common.finalize_page()`; see "Adding a mode" below.
 
 ## The QTabWidget naming trap
 
@@ -232,6 +235,52 @@ shell's `MODES` list in `bin/versions/quantum-lattice-pyqt`, and add it to
 object names matter, they're not derived dynamically (see `scfterms.build()`'s
 `container`/`grid` args).
 
+Every `<mode>.py`'s tail end follows the same shape, factored into shared
+`common.py` helpers so a new mode doesn't have to hand-copy it:
+
+```python
+signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
+  "show_structure": show_structure,
+  # ... mode-specific handlers only; save_results/load_results are wired
+  # automatically by finalize_page() below, don't list them here
+})
+
+inipath = os.getcwd() # before finalize_page()'s create_folder() chdirs away
+common.finalize_page(qtwrap,window,signals,inipath)  # add robust=False for a
+                                                       # full traceback on
+                                                       # handler failure
+
+if __name__ == "__main__":
+    window.run()
+```
+
+`common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
+what used to be five separate repeated lines: it calls `create_folder()`
+and sets `window.scratch_dir`, wires `save_results`/`load_results` (only if
+the page actually has those buttons — via `save_state`/`load_state`, using
+`inipath` and its own freshly-captured `tmppath`), calls
+`set_formulas(qtwrap)`/`set_button_tooltips(qtwrap)`, and finally
+`window.connect_clicks(signals,robust=robust)`. `inipath` must still be
+captured by the caller (with `os.getcwd()`) *before* calling this, since
+`create_folder()` chdirs away from it — a few modes
+(`impurity_embedding`/`ribbon_embedding`/`huge_0d`) also display it
+directly (e.g. in an `info_tab` label) and so keep that same variable
+around for their own use, rather than it living only inside the helper.
+`tools/smoke_test.py`'s static wiring check knows about this: it treats
+`save_results`/`load_results` as wired whenever a mode's source contains
+`finalize_page(`, the same way it already treats `wire_standard_signals(`
+as auto-wiring `common.STANDARD_HANDLERS`'s button names.
+
+Similarly, a mode's `show_structure`/`show_structure_3d` handlers are
+almost always exactly `common.show_structure(qtwrap,get_geometry)` /
+`common.show_structure_3d(qtwrap,get_geometry)` — both take an optional
+`script=` if the mode plots something other than the default
+`ql-structure-bond --input POSITIONS.OUT` / `ql-structure3d POSITIONS.OUT`
+(e.g. `tbg.py` passes its own `ql-potential ...`/`ql-structure-tbg ...`
+commands). Only write a custom `show_structure()` body by hand if the mode
+needs to do something extra before plotting (e.g. `hybridfilm.py` writes a
+`PROFILE.OUT` z-sign profile first).
+
 ## Retrofitting SCF onto an existing mode
 
 Adding mean-field support to a mode that never had it (done for
@@ -276,10 +325,11 @@ this. Two gotchas found doing it:
 
 Then wire the mode's `<mode>.py` like `1d.py`: `pickup_hamiltonian =
 common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)`, a `solve_scf()`
-handler (`h = initialize(); common.solve_scf(h,qtwrap)`), `"solve_scf":
-solve_scf` in the signals dict, and `common.set_formulas(qtwrap)` once at
-the end (plus `common.set_button_tooltips(qtwrap)` for the calculation
-buttons - see "Adding a calculation button" above). `common.set_formulas()`
+handler (`h = initialize(); common.solve_scf(h,qtwrap)`), and `"solve_scf":
+solve_scf` in the signals dict - `common.finalize_page()` (see "Adding a
+mode" above) already calls `common.set_formulas(qtwrap)` and
+`common.set_button_tooltips(qtwrap)` for you, so nothing extra is needed
+for those. `common.set_formulas()`
 tries every single-particle term's `<term>_image` (`hopping_image`,
 `fermi_image`, ...) and creates any that's missing next to its field (see
 the "Adding a Hamiltonian term" checklist above) - a term this mode has no

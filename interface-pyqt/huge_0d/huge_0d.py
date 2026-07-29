@@ -71,11 +71,8 @@ def select_atoms_dos():  handlers.select_atoms_dos()
 def select_path():  _ensure_initialized(); handlers.select_path_atoms()
 def show_site_dos():  _ensure_initialized(); common.get_site_dos(handlers.load_hamiltonian(),qtwrap,use_kpm=True) # islands here are too large for ED
 
-def save_results():  save_state(inipath,tmppath,window) # function to save
-def load_results():  load_state(inipath,tmppath,window) # function to load
-
-
-# create signals
+# create signals (save_results/load_results are wired automatically by
+# common.finalize_page())
 signals = dict()
 signals["show_ldos"] = show_ldos  # show LDOS
 signals["show_dos"] = show_dos  # show DOS
@@ -86,21 +83,13 @@ signals["show_path"] = show_path  # show the path
 signals["show_eigenvalues"] = show_eigenvalues  # show the path
 signals["show_path_dos"] = show_path_dos  # show the path
 signals["show_potential"] = show_potential  # show the potential added
-signals["save_results"] = save_results  # save the results
-signals["load_results"] = load_results  # load the results
 #signals["clear_removal"] = clear_removal  # clear the file
 #signals["select_atoms"] = select_atoms  # select_atoms
 signals["select_atoms_dos"] = select_atoms_dos  # select_atoms
 signals["select_path"] = select_path  # draw a line to pick the initial/final atom
 signals["show_site_dos"] = show_site_dos  # interactive DOS projected onto a picked site
 
+common.finalize_page(qtwrap,window,signals,inipath)
 
-
-window.connect_clicks(signals)
-common.set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
-common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
-folder = create_folder()
-window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
-tmppath = os.getcwd() # get the initial directory
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block

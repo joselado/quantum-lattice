@@ -148,12 +148,7 @@ pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
 def show_structure():
   """Show the lattice of the system"""
-  g = get_geometry() # get the geometry
-  common.write_unit_cell(g) # primitive cell, before the --nsuper repetition
-  nsuper = int(get("nsuper_struct"))
-  g = g.supercell(nsuper)
-  g.write()
-  execute_script("ql-structure-bond --input POSITIONS.OUT")
+  common.show_structure(qtwrap,get_geometry)
 
 
 def show_hofstader():
@@ -195,11 +190,8 @@ def show_hofstader():
 
 
 
-def save_results():  save_state(inipath,tmppath,window) # function to save
-def load_results():  load_state(inipath,tmppath,window) # function to load
-
-
-# create signals
+# create signals (save_results/load_results are wired automatically by
+# common.finalize_page())
 signals = dict()
 #signals["initialize"] = initialize  # initialize and run
 signals["show_bands"] = show_bands  # show bandstructure
@@ -209,21 +201,12 @@ signals["show_dosbands"] = show_dosbands  # show DOS
 signals["show_hofstader"] = show_hofstader  # show DOS
 signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
 signals["show_site_dos"] = lambda: common.get_site_dos(pickup_hamiltonian(),qtwrap,use_kpm=True) # magnetic-field supercells are too large for ED
-signals["save_results"] = save_results
-signals["load_results"] = load_results
 
 
 
+inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
+common.finalize_page(qtwrap,window,signals,inipath,robust=False)
 
-
-
-window.connect_clicks(signals,robust=False)
-common.set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
-common.set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
-inipath = os.getcwd() # get the initial directory
-folder = create_folder()
-window.scratch_dir = folder # so qtwrap.connect_clicks() can restore this page's cwd before each handler runs
-tmppath = os.getcwd() # get the initial directory
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block
 
