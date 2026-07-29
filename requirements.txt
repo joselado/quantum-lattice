@@ -7,7 +7,14 @@
 # does not block the rest of the install.
 PySide6
 PySide6-Fluent-Widgets
-numpy
-scipy
-numba
+# numpy/scipy/numba/matplotlib/multiprocess/dill/threadpoolctl mirror pyqula's
+# own required `dependencies` (pysrc/pyqula/../pyproject.toml upstream) -
+# recheck this list against upstream's pyproject.toml whenever pysrc/pyqula
+# is refreshed via tools/update_pyqula.sh.
+numpy>=1.26.4
+scipy>=1.13.1
+numba>=0.60.0
 matplotlib
+multiprocess
+dill
+threadpoolctl
