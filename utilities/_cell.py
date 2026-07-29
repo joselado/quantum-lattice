@@ -57,16 +57,23 @@ def cell_edges(dim, vecs):
     raise ValueError("unexpected dimensionality "+str(dim))
 
 
-def cell_1d_ticks(vecs, span):
+def cell_1d_ticks(vecs, positions):
     """For dim==1, the bare segment along a1 overlaps the row of atoms and
-    is hard to see - return two short tick segments perpendicular to a1,
-    at each cell boundary (0 and a1), of half-length `span`, to bracket
-    the cell instead."""
+    is hard to see - return two tick segments perpendicular to a1, at each
+    cell boundary (0 and a1), that bracket the cell instead. Sized from
+    `positions` (the (N,3) atom coordinates being plotted) so each tick
+    spans the full width of the ribbon - from its narrowest to its widest
+    atom along the in-plane direction perpendicular to a1 - rather than an
+    arbitrary fixed length."""
     a1 = vecs[0]
     norm = np.linalg.norm(a1[:2])
-    if norm == 0: perp = np.array([0., span, 0.])
-    else: perp = np.array([-a1[1], a1[0], 0.]) / norm * span
+    if norm == 0: perp = np.array([0., 1., 0.])
+    else: perp = np.array([-a1[1], a1[0], 0.]) / norm
+    positions = np.asarray(positions)
+    proj = positions[:, 0]*perp[0] + positions[:, 1]*perp[1] + positions[:, 2]*perp[2]
+    pmin, pmax = (np.min(proj), np.max(proj)) if len(proj) else (0., 0.)
+    if pmax - pmin < 1e-9: pmin, pmax = -0.3, 0.3
     ticks = []
     for p in (np.zeros(3), a1):
-        ticks.append((p - perp, p + perp))
+        ticks.append((p + perp*pmin, p + perp*pmax))
     return ticks

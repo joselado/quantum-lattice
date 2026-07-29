@@ -45,8 +45,7 @@ cell = _cell.read_cell()
 if cell is not None:
     dim, vecs = cell
     if dim==1:
-        span = (np.max(rs[:,1])-np.min(rs[:,1])+1)*0.05 or 0.3
-        edges = _cell.cell_1d_ticks(vecs,span)
+        edges = _cell.cell_1d_ticks(vecs,rs)
     else:
         edges = _cell.cell_edges(dim,vecs)
     for (p0,p1) in edges:

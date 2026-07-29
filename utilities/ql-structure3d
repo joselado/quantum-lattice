@@ -30,7 +30,7 @@ cell = _cell.read_cell()
 if cell is not None:
   dim, vecs = cell
   nn = _pv3d.nearest_neighbor_distance(rs)
-  if dim==1: edges = _cell.cell_1d_ticks(vecs,nn)
+  if dim==1: edges = _cell.cell_1d_ticks(vecs,rs)
   else: edges = _cell.cell_edges(dim,vecs)
   _pv3d.add_cell(pl,edges,radius=nn/10.)
 
