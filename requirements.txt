@@ -14,7 +14,7 @@ PySide6-Fluent-Widgets
 numpy>=1.26.4
 scipy>=1.13.1
 numba>=0.60.0
-matplotlib
-multiprocess
-dill
-threadpoolctl
+matplotlib>=3.10.0
+multiprocess>=0.70.19
+dill>=0.4.1
+threadpoolctl>=3.5.0
