@@ -413,9 +413,8 @@ class Shell(FluentWindow):
     last_group = None
     for mode,label,code,group in MODES:
       if group != last_group:
-        if last_group is not None:
-          self.navigationInterface.addSeparator(position=NavigationItemPosition.SCROLL)
         last_group = group
+        self.navigationInterface.addItemHeader(group,position=NavigationItemPosition.SCROLL)
       icon = text_icon(code)
       wrapper = _LazyPage(mode,label)
       wrapper.setObjectName(mode) # addSubInterface requires a unique object name
