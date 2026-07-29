@@ -54,9 +54,11 @@ import traceback
 
 from numpy import * # this may not be a good idea
 from .debugging import holler
+from . import termhighlight
 from qfluentwidgets import InfoBar, InfoBarPosition, IndeterminateProgressBar
 from qfluentwidgets import qconfig, isDarkTheme
 from qfluentwidgets import SwitchButton
+from qfluentwidgets import MessageBoxBase, MessageBox, SubtitleLabel, LineEdit, ComboBox
 
 QtGui = QtWidgets
 app = None  # the single QApplication for the whole process, built lazily
@@ -701,10 +703,148 @@ def load_interface(self,inputfile):
         except AttributeError: continue # widget no longer exists
         entry = out[name]
         try:
-            if entry["type"]=="line": obj.setText(entry["value"])
+            if entry["type"]=="line":
+                obj.setText(entry["value"])
+                # setText() doesn't fire textEdited (only real user
+                # keystrokes do - see wire_highlight()), so a Hamiltonian-
+                # term field restored here would otherwise keep showing
+                # whatever highlight state it had before this load
+                if getattr(obj,"_term_highlight",False):
+                    termhighlight.apply_highlight(obj,termhighlight.is_nonzero_value(entry["value"]))
             elif entry["type"]=="combo": obj.setCurrentText(entry["value"])
             elif entry["type"]=="check": obj.setChecked(entry["value"])
         except Exception: pass # widget type changed since the save
+
+
+# --- Naming a saved-results folder ---------------------------------------
+#
+# save_state()/load_state() (qlinterface.py) used to always write/read a
+# single hardcoded "QL_save" folder, silently overwriting whatever was
+# there before - the user_guide.md workaround was "rename or move QL_save
+# in between" if you wanted to keep two results. ask_save_name()/
+# ask_load_name() below let a save be given its own name instead, via a
+# small Fluent-styled modal dialog. Both are called from save_state()/
+# load_state() while running on a handler's worker thread (see
+# _HandlerRunner), so - like save_interface/load_interface above - they're
+# @_gui_thread_only: the dialog itself always has to run on the GUI
+# thread, and marshaling blocks the worker thread until the user answers,
+# which is fine since only one handler runs at a time anyway.
+
+_WINDOWS_RESERVED_CHARS = set('<>:"|?*')
+_WINDOWS_RESERVED_NAMES = ({"CON","PRN","AUX","NUL"}
+    | {"COM%d"%i for i in range(1,10)} | {"LPT%d"%i for i in range(1,10)})
+
+
+def _sanitize_save_name(name):
+    """Turn free-form dialog text into a safe, flat folder name - reject
+    anything empty, anything that would escape the save directory (a path
+    separator or '..' component), and anything that's a legal folder name
+    on Linux/Mac but not on Windows (this app explicitly supports all
+    three - see pysrc/pyqula/filesystem.py's own docstring) - rather than
+    letting an illegal name reach fs.mkdir() and surface as an opaque
+    OSError."""
+    name = name.strip()
+    if not name or name in (".",".."): return None
+    if os.sep in name or (os.altsep and os.altsep in name): return None
+    # not any(c in ... for c in name): this module does `from numpy import
+    # *` above, which shadows the builtin any() with numpy.any() - given a
+    # generator expression (rather than an array), numpy.any() just tests
+    # the generator object's own (always-truthy) boolean value instead of
+    # iterating it, so it would reject every name unconditionally
+    if set(name) & _WINDOWS_RESERVED_CHARS: return None
+    if name.endswith(".") or name.upper() in _WINDOWS_RESERVED_NAMES: return None
+    return name
+
+
+class _SaveNameDialog(MessageBoxBase):
+    def __init__(self,parent,default):
+        super().__init__(parent)
+        self.titleLabel = SubtitleLabel("Save results as",self)
+        self.nameEdit = LineEdit(self)
+        self.nameEdit.setText(default)
+        self.nameEdit.setPlaceholderText("Folder name")
+        self.nameEdit.selectAll()
+        self.viewLayout.addWidget(self.titleLabel)
+        self.viewLayout.addWidget(self.nameEdit)
+        self.widget.setMinimumWidth(320)
+
+    def validate(self):
+        return _sanitize_save_name(self.nameEdit.text()) is not None
+
+
+class _LoadNameDialog(MessageBoxBase):
+    def __init__(self,parent,options):
+        super().__init__(parent)
+        self.titleLabel = SubtitleLabel("Load saved results",self)
+        self.nameCombo = ComboBox(self)
+        self.nameCombo.addItems(options)
+        self.viewLayout.addWidget(self.titleLabel)
+        self.viewLayout.addWidget(self.nameCombo)
+        self.widget.setMinimumWidth(320)
+
+
+@_gui_thread_only
+def ask_save_name(parent,default="QL_save"):
+    """Prompt for a name for the results folder about to be saved.
+    Returns the sanitized name, or None if the user cancelled."""
+    dlg = _SaveNameDialog(parent,default)
+    if dlg.exec():
+        return _sanitize_save_name(dlg.nameEdit.text())
+    return None
+
+
+@_gui_thread_only
+def ask_load_name(parent,options):
+    """Prompt which previously-saved results folder to load, from
+    `options` (folder names found under the launch directory). Returns the
+    chosen name, or None if the user cancelled or there was nothing to
+    choose from (an InfoBar explains which, in the latter case)."""
+    if not options:
+        InfoBar.warning(title="Nothing to load",
+            content="No saved results were found",
+            parent=parent,duration=4000,position=InfoBarPosition.TOP)
+        return None
+    dlg = _LoadNameDialog(parent,options)
+    if dlg.exec():
+        return dlg.nameCombo.currentText()
+    return None
+
+
+@_gui_thread_only
+def notify_success(parent,title,content):
+    """Same InfoBar convention as the "Please wait"/"Calculation failed"
+    bars above, for save_state()/load_state() (qlinterface.py) to confirm
+    a save/load actually happened - neither had any success feedback
+    before, so it was easy to miss whether a click did anything."""
+    InfoBar.success(title=title,content=content,parent=parent,
+        duration=4000,position=InfoBarPosition.TOP)
+
+
+@_gui_thread_only
+def notify_cancelled(parent,content):
+    """Same idea as notify_success(), for the "nothing happened" path
+    (dialog dismissed, overwrite declined) - printing to stdout alone,
+    the previous behavior, is invisible when launched with no terminal
+    attached (e.g. the desktop icon)."""
+    InfoBar.warning(title="Cancelled",content=content,parent=parent,
+        duration=4000,position=InfoBarPosition.TOP)
+
+
+@_gui_thread_only
+def confirm_overwrite(parent,name):
+    """Ask before save_state() (qlinterface.py) deletes and replaces a
+    folder named `name` that doesn't look like a previous save of its own
+    (see qlinterface._looks_like_prior_save()) - True lets the overwrite
+    proceed, False (Cancel, or the dialog closed) aborts it. Deliberately
+    not asked when `name` *does* look like a prior save: repeatedly saving
+    under the same name to update it in place is the expected, common
+    case (matches the old always-overwrite "QL_save" behavior), so only
+    the surprising case - a name that collides with something else
+    entirely - needs a confirmation click."""
+    box = MessageBox("Overwrite existing folder?",
+        'A folder named "%s" already exists here and does not look like a '
+        'previous "Save results" - overwrite it anyway?'%name,parent)
+    return box.exec()
 
 
 

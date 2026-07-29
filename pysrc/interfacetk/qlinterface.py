@@ -38,6 +38,8 @@ from pyqula import timeevolution
 from pyqula import embedding
 from pyqula import filesystem as fs
 
+from . import qtwrap
+
 import platform
 
 
@@ -78,10 +80,39 @@ def save_outputs(inipath,tmppath):
   fs.cpdir(tmppath,savepath) # copy folder
 
 
+def _looks_like_prior_save(path):
+  """Whether `path` is a folder that itself looks like a save_state()
+  result (i.e. it holds an interface.json) - used both to list candidates
+  for ask_load_name()'s picker and, in save_state(), to tell "the user is
+  re-saving under a name they already used" (fine to silently overwrite,
+  matching the old fixed-"QL_save" behavior) apart from "this name
+  collides with something else entirely" (needs confirmation first)."""
+  return os.path.isfile(os.path.join(path,"interface.json"))
+
+
 def save_state(inipath,tmppath,window):
   """Save the interface parameters together with the results computed
-  since those parameters were last changed"""
-  savepath = inipath+"/QL_save" # name of the folder where to save
+  since those parameters were last changed, into a folder the user names
+  via a prompt (qtwrap.ask_save_name(), defaulting to "QL_save") - rather
+  than always overwriting one fixed "QL_save" folder, so two results can
+  be kept side by side without the user having to rename it by hand
+  in between saves. A chosen name that collides with something that isn't
+  itself a prior save is confirmed first (qtwrap.confirm_overwrite()),
+  since fs.rmdir() below deletes whatever is already there before writing
+  the new save - unlike the old fixed name, an arbitrary user-typed name
+  can easily collide with an unrelated file/folder."""
+  save_name = qtwrap.ask_save_name(window)
+  if save_name is None:
+      qtwrap.notify_cancelled(window,"Save cancelled")
+      return
+  savepath = inipath+"/"+save_name # name of the folder where to save
+  if os.path.exists(savepath):
+      if not os.path.isdir(savepath):
+          raise ValueError('"%s" already exists here and is not a folder - '
+              'pick a different name'%save_name)
+      if not _looks_like_prior_save(savepath) and not qtwrap.confirm_overwrite(window,save_name):
+          qtwrap.notify_cancelled(window,"Save cancelled")
+          return
   print("Saving state in",savepath)
   fs.rmdir(savepath) # remove the folder
   fs.mkdir(savepath) # create a fresh folder
@@ -91,11 +122,37 @@ def save_state(inipath,tmppath,window):
     full = os.path.join(tmppath,name)
     if os.path.isfile(full) and os.path.getmtime(full)>=cutoff:
         shutil.copy(full,savepath) # only results under current parameters
+  qtwrap.notify_success(window,"Saved",f"Results saved to {save_name}/")
+
+
+def _list_save_folders(inipath):
+  """Names of subfolders directly under `inipath` that look like a
+  save_state() result (see _looks_like_prior_save()), for
+  ask_load_name()'s picker - sorted most-recently-modified first so the
+  save the user probably wants defaults to the top of the list. Entries
+  that vanish or become unreadable between the listdir() and the mtime
+  sort (another process, or just bad luck) are treated as oldest rather
+  than raising, so the picker still shows whatever else is there."""
+  try: names = os.listdir(inipath)
+  except OSError: return []
+  out = [n for n in names if _looks_like_prior_save(os.path.join(inipath,n))]
+  def _mtime(n):
+    try: return os.path.getmtime(os.path.join(inipath,n))
+    except OSError: return 0
+  out.sort(key=_mtime,reverse=True)
+  return out
 
 
 def load_state(inipath,tmppath,window):
-  """Restore the parameters and results saved by save_state()"""
-  savepath = inipath+"/QL_save" # name of the folder to load from
+  """Restore the parameters and results saved by save_state(), from a
+  folder the user picks among those found under `inipath`
+  (qtwrap.ask_load_name())."""
+  options = _list_save_folders(inipath)
+  save_name = qtwrap.ask_load_name(window,options)
+  if save_name is None:
+      if options: qtwrap.notify_cancelled(window,"Load cancelled")
+      return # cancelled, or nothing to load (ask_load_name already warned)
+  savepath = inipath+"/"+save_name # name of the folder to load from
   infile = savepath+"/interface.json"
   if not os.path.isfile(infile):
       print("No saved state found in",savepath)
@@ -106,6 +163,7 @@ def load_state(inipath,tmppath,window):
     if name=="interface.json": continue # not a result file
     full = os.path.join(savepath,name)
     if os.path.isfile(full): shutil.copy(full,tmppath) # bring result back
+  qtwrap.notify_success(window,"Loaded",f"Restored results from {save_name}/")
 
 
 

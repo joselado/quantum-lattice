@@ -33,6 +33,7 @@ import numpy as np
 from PySide6.QtWidgets import QWidget, QGridLayout
 from qfluentwidgets import BodyLabel, LineEdit
 from .termtooltips import TERM_TOOLTIPS
+from . import termhighlight
 
 MAX_PARTS = 6
 
@@ -142,6 +143,7 @@ def _add_formula_column(qtwrap, tab, name, suffix):
     slightly per mode) or no entry in TERM_TOOLTIPS."""
     field = tab.findChild(LineEdit, name + suffix)
     if field is None: return
+    termhighlight.wire_highlight(field)
     grid = qtwrap.find_layout_of(field)
     if grid is None: return
     idx = grid.indexOf(field)
@@ -235,6 +237,10 @@ def connect(qtwrap, params, tabs_widget="tabWidget_4", nparts_box="nparts", max_
                 # by (hybridfilm/hybridribbon).
                 if hasattr(form,"_mark_scf_dirty"):
                     field.textEdited.connect(form._mark_scf_dirty)
+                # highlight wiring happens once below, in apply_count()'s
+                # call to _add_formula_column() for this same newly-built
+                # field - not here too, or its textEdited would end up
+                # with two independent highlight listeners
             extra_tabs[i] = tab
             if on_new_part is not None: on_new_part(form)
         return extra_tabs[i]

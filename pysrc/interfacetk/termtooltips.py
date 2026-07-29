@@ -103,6 +103,6 @@ BUTTON_TOOLTIPS = {
 "show_embedding_ldos": "Compute the local density of states of the host lattice with the impurity embedded (via Green's-function embedding), at the chosen energy.",
 "show_embedding_ldos_sweep": "Compute the local density of states of the host lattice with the impurity embedded (via Green's-function embedding), swept over a range of energies.",
 "select_impurity_sites": "Open an interactive picker on the geometry to select which sites the embedded impurity terms are applied to.",
-"save_results": "Save all the results from this calculation into a local QL_save folder - pressing this again overwrites that folder.",
-"load_results": "Load a previously saved interface configuration (parameter values) back into the form.",
+"save_results": "Save all the results from this calculation into a named local folder (you'll be asked for a name) - pick a new name to keep multiple saves side by side.",
+"load_results": "Load a previously saved interface configuration (parameter values) back into the form - you'll be asked which saved folder to restore.",
 }

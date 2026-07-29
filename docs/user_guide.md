@@ -73,7 +73,10 @@ can use them all:
    (hopping, exchange field, spin-orbit coupling, pairing, ...), each with a
    rendered formula and a hover tooltip explaining its physical meaning. A
    term set to `0.0` (the default) is simply absent from the Hamiltonian, so
-   you only need to touch the fields relevant to what you're studying. If
+   you only need to touch the fields relevant to what you're studying — a
+   field currently set away from `0.0` shows its text in **bold**, so you
+   can tell which terms are actually active at a glance without checking
+   every field. If
    the mode supports mean-field interactions, this area is itself split into
    two sub-tabs, "Single particle" and "Many-body interactions" — see
    [Self-consistent mean-field calculations](#self-consistent-mean-field-scf-calculations).
@@ -159,12 +162,12 @@ Each button click runs in a scratch folder that is discarded when you close
 the app, so results are not kept automatically. Where a mode has one, the
 **Save results** button copies everything computed since your last
 parameter change — plus a snapshot of every field/combobox/checkbox value —
-into a `QL_save/` folder created next to wherever you launched
-`quantum-lattice` from. Pressing it again overwrites that folder, so if you
-want to keep two results, rename or move `QL_save/` in between. **Load
-results** restores a previously saved `QL_save/interface.json` back into the
-form fields (values only — it does not replay the calculations
-themselves).
+into a folder created next to wherever you launched `quantum-lattice` from.
+You'll be prompted for a name (defaulting to `QL_save`); pick a new name
+each time to keep multiple results side by side instead of overwriting the
+previous one. **Load results** prompts you to pick among the saved folders
+found there and restores that folder's `interface.json` back into the form
+fields (values only — it does not replay the calculations themselves).
 
 ## While a calculation is running
 
@@ -257,8 +260,8 @@ left at its default (`0.0`) is not included in the Hamiltonian.
 | Show embedding LDOS | LDOS of the host lattice with an impurity embedded (Green's-function embedding), at one chosen energy. |
 | Show embedding LDOS sweep | The same, swept over a range of energies. |
 | Select impurity sites | Interactive picker to choose which sites an embedded impurity's terms apply to. |
-| Save results | Copies this session's results into a local `QL_save/` folder (overwrites on repeated use). |
-| Load results | Restores a previously saved `QL_save/interface.json` back into the form fields. |
+| Save results | Copies this session's results into a folder you name (a new name keeps it alongside earlier saves instead of overwriting them). |
+| Load results | Prompts you to pick a previously saved folder and restores its parameters back into the form fields. |
 
 ## Reference: modes
 
@@ -355,8 +358,8 @@ current session — save any results you want to keep first.
   empty geometry after removing too many atoms) — check the values you just
   changed.
 - **I want to compare two parameter sets.** Use **Save results** before
-  changing parameters, then move or rename the resulting `QL_save/` folder
-  before saving again, since a second save overwrites the first.
+  changing parameters, giving it a distinct name each time — **Load
+  results** lets you pick which saved folder to bring back later.
 - **My SCF calculation seems to be reusing an old result.** It shouldn't —
   any Hamiltonian-affecting change automatically invalidates the cached SCF
   solution, so the next calculation re-solves it. If you suspect otherwise,

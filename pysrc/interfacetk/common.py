@@ -468,6 +468,7 @@ from .labels import set_labels
 
 
 from .termtooltips import TERM_TOOLTIPS, BUTTON_TOOLTIPS
+from . import termhighlight
 
 
 def set_button_tooltips(qtwrap):
@@ -541,6 +542,7 @@ def set_formulas(qtwrap):
     # to give the formula column the room, so render these into a larger
     # box than the single-particle terms above
     meanfield_terms = ["U","V1","V2","J1","J2","J3"]
+    form = qtwrap.form
     for t in terms + meanfield_terms:
         width, height = (600,50) if t in meanfield_terms else (400,30)
         if t not in meanfield_terms: _ensure_formula_image(qtwrap,t) # meanfield
@@ -550,6 +552,11 @@ def set_formulas(qtwrap):
         if tip is not None:
             qtwrap.set_tooltip(t,tip)
             qtwrap.set_tooltip(t+"_image",tip)
+        if t not in meanfield_terms: # meanfield fields wire their own
+            # highlight in scfterms.py, where the field is already known
+            # directly rather than looked up by (possibly mismatched) name
+            field = termhighlight.find_term_field(form,t)
+            if field is not None: termhighlight.wire_highlight(field)
 
 
 

@@ -54,6 +54,7 @@ import inspect
 from PySide6 import QtWidgets
 from PySide6.QtWidgets import QWidget, QGridLayout, QTabWidget, QHBoxLayout, QVBoxLayout
 from qfluentwidgets import BodyLabel, LineEdit, SwitchButton
+from . import termhighlight
 from .termtooltips import TERM_TOOLTIPS  # single source of truth for term
                                     # tooltips, shared with common.py's
                                     # set_formulas() - needed here too since
@@ -79,21 +80,30 @@ def _is_nonzero(text):
 
 
 def _wire_interaction_field(form, field):
-    """Mark the SCF result stale on every edit, and turn the do_scf switch
-    on the moment this field leaves zero - but never turn it back off,
-    so a manual "off" sticks even if the field stays non-zero afterwards
-    (see this module's docstring). Tagged _scf_directly_wired so
-    _connect_scf_dirty_tracking()'s later blanket sweep (which would
-    otherwise also find this same QLineEdit) doesn't connect
-    form._mark_scf_dirty to it a second time."""
+    """Mark the SCF result stale on every edit, turn the do_scf switch on
+    the moment this field leaves zero - but never turn it back off, so a
+    manual "off" sticks even if the field stays non-zero afterwards (see
+    this module's docstring) - and bold the field while it's non-zero
+    (termhighlight.apply_highlight()). One listener drives all three,
+    reusing the same _is_nonzero() parse rather than also wiring
+    termhighlight.wire_highlight()'s own separate textEdited listener,
+    which would parse the same text a second time on every keystroke.
+    Tagged _scf_directly_wired so _connect_scf_dirty_tracking()'s later
+    blanket sweep (which would otherwise also find this same QLineEdit)
+    doesn't connect form._mark_scf_dirty to it a second time, and
+    _term_highlight so qtwrap.load_interface() knows to refresh this
+    field's highlight after restoring it from a saved interface.json."""
     field._scf_was_nonzero = _is_nonzero(field.text())
     field._scf_directly_wired = True
+    field._term_highlight = True
+    termhighlight.apply_highlight(field, field._scf_was_nonzero)
     def on_edit(text, field=field):
         form._mark_scf_dirty()
         now_nonzero = _is_nonzero(text)
         if now_nonzero and not field._scf_was_nonzero:
             form.do_scf.setChecked(True)
         field._scf_was_nonzero = now_nonzero
+        termhighlight.apply_highlight(field, now_nonzero)
     field.textEdited.connect(on_edit)
 
 

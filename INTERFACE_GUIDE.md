@@ -28,6 +28,11 @@ maintenance doc, not a one-time snapshot.
 - **Restrict a term/operator to certain lattice families** — `pysrc/interfacetk/latticeterms.py`.
 - **Add a new plot/postprocessing view** — write/extend a `ql-*` script
   under `utilities/`; see "Adding a ql-* script" below.
+- **Change how "this term is currently active" is shown** —
+  `pysrc/interfacetk/termhighlight.py`.
+- **Change the save/load-results naming dialogs** —
+  `qtwrap.ask_save_name()`/`ask_load_name()`, called from
+  `qlinterface.save_state()`/`load_state()`.
 
 ## The QTabWidget naming trap
 
@@ -129,6 +134,29 @@ placeholder/page rather than editing generated code:
   `connect(qtwrap, lambda: getbox("lattice"))` show/hides the registered
   widgets and combobox items on every lattice-combobox change. Adding a
   new geometry-restricted term is a one-line registry addition.
+- **`termhighlight.py`** — not a widget-building module like the three
+  above, but the same "one shared helper called from `common.py`,
+  `scfterms.py` and `hybridparts.py`" shape: `wire_highlight(field)` bolds
+  a term's `QLineEdit` text while it holds a nonzero value (parsing both a
+  plain number and comma-separated vectors like `exchange`'s `"Jx,Jy,Jz"`),
+  and keeps it in sync on every `textEdited`. `common.py:set_formulas()`
+  calls it once per single-particle term, looking the field up via
+  `termhighlight.find_term_field()` (falls back to `FIELD_ALIASES` for the
+  handful of terms whose field isn't named after its term key — see the
+  "Term key vs. field object name" gotcha below); `scfterms.py`'s
+  `_wire_interaction_field()` calls `apply_highlight()` directly instead
+  (folded into its own single `textEdited` handler, alongside its
+  pre-existing SCF-dirty/do_scf-autotoggle logic, rather than adding a
+  second listener), and `hybridparts.py`'s `_add_formula_column()` calls
+  `wire_highlight()` on each part's field exactly once (`ensure_built()`
+  deliberately does *not* also call it — that field is guaranteed to reach
+  `_add_formula_column()` too, once, right after `ensure_built()` returns
+  it; wiring in both places double-listens on the same field).
+  `qtwrap.load_interface()` also calls `termhighlight.apply_highlight()`
+  directly for any field tagged `_term_highlight` (set by both
+  `wire_highlight()` and `_wire_interaction_field()`) when restoring a
+  saved `interface.json`, since `setText()` there doesn't fire
+  `textEdited`.
 
 When a field's visibility/tab membership needs to change based on other
 UI state or needs to be shared identically across many modes without
@@ -168,6 +196,10 @@ checklist form.)
 3. Add a 2-3 sentence physical-meaning entry to `TERM_TOOLTIPS` in
    `pysrc/interfacetk/termtooltips.py` — this is required independent of
    step 2 (it's shared by `common.py`, `scfterms.py`, and `hybridparts.py`).
+   `termhighlight.wire_highlight()` (bolding the field while it's
+   non-default) comes for free from the same `terms`-list entry in step 2
+   as long as the `interface.ui` field is actually named `<term>` — see
+   the "Term key vs. field object name" gotcha below if it isn't.
 4. If the term is lattice-family-restricted, register it in
    `latticeterms.py` instead of hand-wiring show/hide logic in the mode.
 5. Wire the field into whatever builds the Hamiltonian in `<mode>.py`.
@@ -319,3 +351,19 @@ vectors.
   pattern instead of reading `qtwrap.form`/`getbox()` directly.
 - **The QTabWidget naming trap** above — always verify tab parentage via
   generated `interface.py`, never via `.ui` XML adjacency.
+- **Term key vs. field object name** — `common.py:set_formulas()`'s
+  `terms` list uses a term's logical name (e.g. `"hopping"`,
+  `"fermi_impurity"`) to look up tooltip/highlight targets, but several
+  `interface.ui` fields aren't actually named that: the hopping field is
+  `"hoppings"` everywhere, and `impurity_embedding`/`ribbon_embedding` name
+  their impurity fields `"impurity_potential"`/`"impurity_exchange"`
+  (reversed word order from `"fermi_impurity"`/`"exchange_impurity"`).
+  `termhighlight.find_term_field()` knows about these three via its
+  `FIELD_ALIASES` table, so highlighting still reaches the real field —
+  but `qtwrap.set_tooltip(term,...)`'s own `form.findChild(...,term)`
+  lookup does not use that table, so it still silently no-ops on the field
+  itself for these three (only the `<term>_image` label gets the tooltip)
+  — a pre-existing gap `FIELD_ALIASES` doesn't attempt to fix. A new term
+  with the same kind of mismatch either needs its own `FIELD_ALIASES`
+  entry (highlighting only) or, better, should just be named to match its
+  term key in `interface.ui` in the first place.
