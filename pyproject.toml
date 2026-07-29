@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantum-lattice"
-version = "26.5.3"
+version = "1.0.0"
 description = "PySide6 interface for tight-binding calculations with pyqula"
 readme = "README.md"
 requires-python = ">=3.8"
