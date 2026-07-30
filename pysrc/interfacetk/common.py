@@ -564,8 +564,10 @@ def show_structure_3d(qtwrap,get_geometry,script="ql-structure3d POSITIONS.OUT")
 
 
 def check_parallel(qtwrap):
-  """Check if there is parallelization"""
-  if qtwrap.getbox("use_parallelization") =="Yes":
+  """Set pyqula's core count from the shell-wide serial/parallel switch
+  (see qtwrap.set_parallel_execution) - a single process-wide setting
+  shared by every mode, rather than a per-mode widget."""
+  if qtwrap.is_parallel_execution():
       parallel.set_cores(os.cpu_count())
   else: parallel.cores = 1 # single core
 

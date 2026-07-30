@@ -19,8 +19,6 @@ from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # do several common initializations
 
-from pyqula import parallel
-
 from interfacetk import interfacetk
 modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
@@ -97,10 +95,10 @@ def initialize():
 
 
 def check_parallel():
-  """Check if there is parallelization"""
-  if qtwrap.getbox("use_parallelization") =="Yes":
-      parallel.set_cores(os.cpu_count())
-  else: parallel.cores = 1 # single core
+  """Delegates to the shell-wide serial/parallel switch (see
+  common.check_parallel) - superseded by the shell's single nav-panel
+  switch, no longer this mode's own "Parallelization" combo box."""
+  common.check_parallel(qtwrap)
 
 
 

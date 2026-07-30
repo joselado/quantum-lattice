@@ -481,3 +481,18 @@ vectors.
   with the same kind of mismatch either needs its own `FIELD_ALIASES`
   entry (highlighting only) or, better, should just be named to match its
   term key in `interface.ui` in the first place.
+- **Serial vs. parallel execution is a single shell-wide flag, not a
+  per-mode widget** — `qtwrap.is_parallel_execution()`/
+  `set_parallel_execution()` back a single "Parallel execution" switch in
+  the shell's nav panel (`bin/versions/quantum-lattice-pyqt`'s
+  `_add_parallel_switch`, same pattern as `_add_interface_theme_switch`/
+  `_add_plot_theme_switch`), and `common.py:check_parallel(qtwrap)` reads
+  that flag to set `pyqula.parallel.cores` before every calculation that
+  calls it. Defaults to serial (`cores = 1`). `tbg` used to have its own
+  per-mode "Parallelization" combo box (`use_parallelization`) driving an
+  identical local `check_parallel()` in `tbg.py` — that widget was removed
+  from `tbg/interface.ui` (regenerate via `tools/convert_ui.sh` after any
+  such removal) and `tbg.py`'s `check_parallel()` now just delegates to
+  `common.check_parallel(qtwrap)`, so the one shell-wide switch governs
+  every mode uniformly. A future mode should never add its own
+  parallelization widget — call `common.check_parallel(qtwrap)` instead.

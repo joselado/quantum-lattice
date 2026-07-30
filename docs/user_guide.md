@@ -194,6 +194,15 @@ If a calculation fails (e.g. an invalid parameter combination), you'll see
 an error message in the window itself rather than a silent failure, even
 when the app was launched from a desktop icon with no terminal attached.
 
+**Serial vs. parallel execution.** A **Parallel execution** switch at the
+bottom of the sidebar controls whether calculations use a single CPU core
+(serial, the default) or all available cores (parallel). It applies to
+every mode — there is one switch for the whole application, not one per
+mode. Leave it off on a shared machine to avoid tying up every core; turn
+it on for a faster single-user run of anything CPU-heavy (large k-point
+meshes, big geometries). Changes take effect on the next calculation you
+run, with no restart needed.
+
 ## Reference: Hamiltonian terms
 
 Every term below appears as a form field on the modes that support it, with

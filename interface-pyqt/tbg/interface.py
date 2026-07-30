@@ -619,23 +619,6 @@ class Ui_MainWindow(object):
 
         self.gridLayout_17.addWidget(self.tabWidget_2, 1, 0, 1, 1)
 
-        self.gridLayout_7 = QGridLayout()
-        self.gridLayout_7.setObjectName(u"gridLayout_7")
-        self.use_parallelization = ComboBox(self.centralwidget)
-        self.use_parallelization.addItem("")
-        self.use_parallelization.addItem("")
-        self.use_parallelization.setObjectName(u"use_parallelization")
-
-        self.gridLayout_7.addWidget(self.use_parallelization, 0, 1, 1, 1)
-
-        self.label_21 = BodyLabel(self.centralwidget)
-        self.label_21.setObjectName(u"label_21")
-
-        self.gridLayout_7.addWidget(self.label_21, 0, 0, 1, 1)
-
-
-        self.gridLayout_17.addLayout(self.gridLayout_7, 2, 0, 1, 1)
-
         self.save_results = PushButton(self.centralwidget)
         self.save_results.setObjectName(u"save_results")
 
@@ -804,10 +787,6 @@ class Ui_MainWindow(object):
         self.remove_selected.setText(QCoreApplication.translate("MainWindow", u"Remove selected atoms", None))
         self.select_atoms_removal.setText(QCoreApplication.translate("MainWindow", u"Select atoms to remove", None))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_9), QCoreApplication.translate("MainWindow", u"Modify geometry", None))
-        self.use_parallelization.setItemText(0, QCoreApplication.translate("MainWindow", u"Yes", None))
-        self.use_parallelization.setItemText(1, QCoreApplication.translate("MainWindow", u"No", None))
-
-        self.label_21.setText(QCoreApplication.translate("MainWindow", u"Parallelization", None))
         self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save results", None))
         self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load results", None))
     # retranslateUi

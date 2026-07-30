@@ -453,6 +453,7 @@ class Shell(FluentWindow):
     self.navigationInterface.setExpandWidth(260)
     self._add_interface_theme_switch()
     self._add_plot_theme_switch()
+    self._add_parallel_switch()
     self.navigationInterface.addItem(
         routeKey="update_qh",icon=FIF.UPDATE,text="Update Quantum Lattice",
         onClick=self._update_qh,position=NavigationItemPosition.BOTTOM)
@@ -522,6 +523,31 @@ class Shell(FluentWindow):
     # no explicit env=, so it inherits this process's current os.environ
     # at that moment - no restart needed for the new value to take effect
     os.environ["QL_THEME"] = "dark" if checked else "light"
+
+  def _add_parallel_switch(self):
+    """Switch for serial vs. parallel execution of calculations
+    (pyqula.parallel.cores, via qtwrap.set_parallel_execution() and
+    common.check_parallel()) - a single switch here rather than a
+    per-mode control, since every mode shares this one process/core
+    count. Defaults off (serial): parallel numpy/scipy workers can
+    oversubscribe a shared machine's cores if left on unconditionally,
+    so a user has to opt in."""
+    container = QWidget(self.navigationInterface)
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(20,8,16,8)
+    label = BodyLabel("Parallel execution",container)
+    switch = SwitchButton(container)
+    switch.setOnText("")
+    switch.setOffText("")
+    switch.setChecked(False) # default: serial
+    switch.checkedChanged.connect(self._on_parallel_execution_changed)
+    layout.addWidget(label)
+    layout.addStretch(1)
+    layout.addWidget(switch)
+    self.navigationInterface.panel.bottomLayout.addWidget(container)
+
+  def _on_parallel_execution_changed(self,checked):
+    qtwrap.set_parallel_execution(checked)
 
   def _on_page_changed(self,index):
     widget = self.stackedWidget.widget(index)

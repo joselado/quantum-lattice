@@ -69,6 +69,25 @@ form = None  # the currently *active* page - the one whose widgets get/getbox/
              # single "active page" pointer is enough even with several
              # pages' widgets alive in the same process.
 
+_parallel_execution = False  # whether calculations should use multiple cores
+                              # (pyqula.parallel.cores), toggled by the single
+                              # shell-wide switch in the nav panel (see
+                              # bin/versions/quantum-lattice-pyqt's
+                              # _add_parallel_switch) rather than per-mode -
+                              # every mode shares this one process, so one
+                              # flag is enough. Defaults to serial: parallel
+                              # numpy/scipy workers can oversubscribe a shared
+                              # machine's cores if left on unconditionally.
+
+
+def is_parallel_execution():
+    return _parallel_execution
+
+
+def set_parallel_execution(flag):
+    global _parallel_execution
+    _parallel_execution = bool(flag)
+
 
 def ensure_app():
     """Return the process-wide QApplication, creating it on first use.
