@@ -25,6 +25,7 @@ maintenance doc, not a one-time snapshot.
 - **Change the mean-field (U/V1/V2/J1/J2/J3) fields** — `pysrc/interfacetk/scfterms.py`.
 - **Change a term's tooltip** — `pysrc/interfacetk/termtooltips.py` (`TERM_TOOLTIPS`).
 - **Change a calculation button's tooltip** — `pysrc/interfacetk/termtooltips.py` (`BUTTON_TOOLTIPS`); see "Adding a calculation button" below.
+- **Change any other form field's tooltip** (a numeric parameter, combobox, or checkbox that isn't a Hamiltonian term or a calculation button) — `pysrc/interfacetk/termtooltips.py` (`PARAM_TOOLTIPS`); see "Tooltip conventions" below.
 - **Restrict a term/operator to certain lattice families** — `pysrc/interfacetk/latticeterms.py`.
 - **Add a new plot/postprocessing view** — write/extend a `ql-*` script
   under `utilities/`; see "Adding a ql-* script" below.
@@ -255,6 +256,33 @@ checklist form.)
    over forking a near-identical copy of a `ql-*` script for a second
    physical quantity.
 
+## Tooltip conventions
+
+Every interactive form field should carry a hover tooltip. There are three
+registries in `pysrc/interfacetk/termtooltips.py`, applied by three
+`common.py` passes all called from `finalize_page()` (see "Adding a mode"
+below) - `TERM_TOOLTIPS`/`set_formulas()` for Hamiltonian terms,
+`BUTTON_TOOLTIPS`/`set_button_tooltips()` for calculation `PushButton`s, and
+`PARAM_TOOLTIPS`/`set_param_tooltips()` for everything else (a numeric
+`LineEdit`, `ComboBox`, or `CheckBox`/`RadioButton` that controls how a
+calculation is run rather than being a Hamiltonian term or a calculation
+trigger - e.g. `nk_bands`, `dos_delta`, `scf_initialization`). All three work
+the same way: keyed by the widget's object name, applied once per mode by
+`findChild(name)`, and skipped for a widget that already carries a tooltip
+(most commonly a more specific one hand-authored in that mode's
+`interface.ui`, but also one `scfterms.py`/`hybridparts.py` already set at
+build time) - so adding an entry never overwrites a more specific existing
+one, and a mode-specific hand-authored tooltip in Designer always wins.
+Field names are reused across modes for the same kind of setting (nearly
+every mode has its own `nk_bands`/`dos_delta`/`do_scf`/...), so one
+`PARAM_TOOLTIPS` entry typically covers that field in every mode that has
+it - check whether an existing entry already fits before adding a
+near-duplicate, the same way `TERM_TOOLTIPS`/`BUTTON_TOOLTIPS` already work.
+**Whenever a new non-term, non-button field is added to any mode's
+interface, add its tooltip to `PARAM_TOOLTIPS`** (2-3 sentences, focused on
+what the value controls and any accuracy/cost trade-off it implies) unless
+an existing entry with the same name already covers it.
+
 ## Adding a mode
 
 Follow the three-file pattern in `CLAUDE.md`'s "Per-module structure"
@@ -291,8 +319,9 @@ what used to be five separate repeated lines: it calls `create_folder()`
 and sets `window.scratch_dir`, wires `save_results`/`load_results` (only if
 the page actually has those buttons — via `save_state`/`load_state`, using
 `inipath` and its own freshly-captured `tmppath`), calls
-`set_formulas(qtwrap)`/`set_button_tooltips(qtwrap)`, and finally
-`window.connect_clicks(signals,robust=robust)`. `inipath` must still be
+`set_formulas(qtwrap)`, `window.connect_clicks(signals,robust=robust)`,
+then `set_button_tooltips(qtwrap)`/`set_param_tooltips(qtwrap)` (see
+"Tooltip conventions" above). `inipath` must still be
 captured by the caller (with `os.getcwd()`) *before* calling this, since
 `create_folder()` chdirs away from it — a few modes
 (`impurity_embedding`/`ribbon_embedding`/`huge_0d`) also display it
@@ -359,9 +388,9 @@ Then wire the mode's `<mode>.py` like `1d.py`: `pickup_hamiltonian =
 common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)`, a `solve_scf()`
 handler (`h = initialize(); common.solve_scf(h,qtwrap)`), and `"solve_scf":
 solve_scf` in the signals dict - `common.finalize_page()` (see "Adding a
-mode" above) already calls `common.set_formulas(qtwrap)` and
-`common.set_button_tooltips(qtwrap)` for you, so nothing extra is needed
-for those. `common.set_formulas()`
+mode" above) already calls `common.set_formulas(qtwrap)`,
+`common.set_button_tooltips(qtwrap)`, and `common.set_param_tooltips(qtwrap)`
+for you, so nothing extra is needed for those. `common.set_formulas()`
 tries every single-particle term's `<term>_image` (`hopping_image`,
 `fermi_image`, ...) and creates any that's missing next to its field (see
 the "Adding a Hamiltonian term" checklist above) - a term this mode has no

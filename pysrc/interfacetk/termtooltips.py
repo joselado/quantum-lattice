@@ -1,22 +1,31 @@
-"""Physical-meaning tooltips for Hamiltonian terms (TERM_TOOLTIPS) and
-calculation buttons (BUTTON_TOOLTIPS), shared across every mode.
+"""Physical-meaning tooltips for Hamiltonian terms (TERM_TOOLTIPS),
+calculation buttons (BUTTON_TOOLTIPS), and other form parameters
+(PARAM_TOOLTIPS), shared across every mode.
 
 Kept as its own module (rather than living inline in common.py) so it can be
-imported both by common.py:set_formulas()/set_button_tooltips() (which show
-these as hover text next to a term's formula image/field, or on a
-calculation's PushButton) and by scfterms.py/hybridparts.py (which build
-term fields of their own - the mean-field U/V1/V2/J1/J2/J3 tabs and the
-hybrid modes' per-part fields, respectively - ahead of set_formulas()'s own
-pass) without any of these modules depending on each other. This also
-leaves room to grow each dict's value into {lang: text} for multi-language
-support later without touching any caller.
+imported both by common.py:set_formulas()/set_button_tooltips()/
+set_param_tooltips() (which show these as hover text next to a term's
+formula image/field, on a calculation's PushButton, or on any other
+LineEdit/ComboBox/CheckBox/RadioButton field) and by scfterms.py/
+hybridparts.py (which build term fields of their own - the mean-field
+U/V1/V2/J1/J2/J3 tabs and the hybrid modes' per-part fields, respectively -
+ahead of set_formulas()'s own pass) without any of these modules depending
+on each other. This also leaves room to grow each dict's value into
+{lang: text} for multi-language support later without touching any caller.
 
 Whenever a new term is added to a mode's interface (see the "Hamiltonian-term
 formulas" convention in CLAUDE.md), add its tooltip to TERM_TOOLTIPS too.
 Whenever a new calculation button is added, add its tooltip to
 BUTTON_TOOLTIPS - button names are reused across modes for the same kind of
 calculation (e.g. every mode's "Show bands" button is named show_bands), so
-one entry there covers that button in every mode that has it.
+one entry there covers that button in every mode that has it. Whenever a new
+non-term, non-button field is added (a numeric parameter, combobox, or
+checkbox controlling how a calculation is run rather than a Hamiltonian term
+or a calculation trigger), add its tooltip to PARAM_TOOLTIPS the same way -
+field names are reused across modes for the same kind of setting (e.g.
+"nk_bands", "dos_delta", "scf_initialization") wherever the underlying
+meaning is the same, so check whether an existing entry already fits before
+adding a near-duplicate.
 """
 
 TERM_TOOLTIPS = {
@@ -107,4 +116,170 @@ BUTTON_TOOLTIPS = {
 "select_impurity_sites": "Open an interactive picker on the geometry to select which sites the embedded impurity terms are applied to.",
 "save_results": "Save all the results from this calculation into a named local folder (you'll be asked for a name) - pick a new name to keep multiple saves side by side.",
 "load_results": "Load a previously saved interface configuration (parameter values) back into the form - you'll be asked which saved folder to restore.",
+}
+
+
+# Physical-meaning tooltips for the remaining form parameters - numeric
+# fields, comboboxes, and checkboxes that control how a calculation is run
+# rather than a Hamiltonian term (TERM_TOOLTIPS) or a calculation trigger
+# (BUTTON_TOOLTIPS). Keyed by object name and consumed the same way as
+# BUTTON_TOOLTIPS: common.py:set_param_tooltips(qtwrap), called once per
+# mode from finalize_page() alongside set_button_tooltips(), skips any
+# field that already carries a more specific, hand-authored tooltip set in
+# interface.ui (e.g. 2d's "hoppings" field), so this dict only fills in
+# fields that would otherwise have none - one entry here covers a field
+# name in every mode that has it, since e.g. "nk_bands" or "dos_delta"
+# mean the same thing wherever they appear.
+PARAM_TOOLTIPS = {
+# --- lattice / geometry ---
+"lattice": "Selects which lattice geometry family to build (e.g. honeycomb, square, triangular, kagome, ...). This determines the unit cell and coordination number, and which lattice-restricted terms/operators (Haldane, Kane-Mele, valley) are available - changing it rebuilds the geometry and Hamiltonian from scratch.",
+"nsuper": "Number of times the unit cell is repeated (supercell size) when building the geometry/Hamiltonian used in the calculation. A larger supercell gives a bigger, more expensive system - needed e.g. to host a real-space defect, impurity, or disorder pattern that wouldn't fit in a single unit cell.",
+"nsuper_struct": "Number of times the unit cell is repeated only for the structure/hopping plot (Show lattice/Show hoppings), independent of the supercell actually used in the calculation - lets you visualize a bigger chunk of the lattice without paying the cost of computing on it.",
+"width": "Number of unit cells across the ribbon's finite (confined) direction, controlling how many parallel rows/chains make up the ribbon and hence how far its two edges are from each other.",
+"nsides": "Number of edges of the polygon used to cut a finite island out of the infinite lattice (e.g. 6 for a hexagonal flake).",
+"rotation": "Rotation angle applied to the lattice/unit cell before cutting out the finite island, changing which edge terminations end up on its boundary.",
+"remove_selected": "If checked, the atoms previously chosen with the atom-removal picker are excluded when the geometry/Hamiltonian is (re)built.",
+"hoppings": "Hopping amplitudes for successive neighbor shells, entered as comma-separated numbers - the first number is the 1st-neighbor hopping, the second the 2nd-neighbor hopping, and so on.",
+"strain_strength": "Magnitude of the bond-dependent hopping modification applied by the strain term.",
+"strain_decay": "Decay length controlling how quickly the strain-induced hopping modification falls off with distance from the strained bond/region.",
+"strain_type": "Selects the spatial pattern of the applied strain - a radial scalar modulation, or a radial vector (direction-dependent) modulation of the hoppings.",
+"thickness": "Number of atomic layers stacked to build the slab/film.",
+"inplaneb_phi": "Angle (in units of pi) of the in-plane magnetic field direction within the layer plane, entering the Peierls phase together with the in-plane field's magnitude.",
+"ti": "Interlayer hopping amplitude between the two stacked layers of the bilayer whose Hofstadter spectrum is being computed.",
+"cell_size": "Size of the moire/multilayer unit cell (unit cells per side) used when constructing the twisted-multilayer geometry - larger values give a bigger moire supercell at higher computational cost.",
+"multilayer_type": "Selects which twisted or aligned multilayer stacking (bilayer, trilayer, ...) is built.",
+"nbands": "Number of bands computed and plotted around the Fermi level; leave blank/zero to compute and show every band instead.",
+"set_half_filling": "If checked, the Fermi level is shifted so the system sits exactly at half filling before computing, instead of using the fixed Fermi-energy value.",
+"nparts": "Number of spatial parts (regions along the film/ribbon's finite direction) the Hamiltonian is split into, each with its own independent set of parameters below - increase it to build a heterostructure/junction out of more than the default two regions.",
+# --- huge_0d island construction ---
+"geometry_mode": "Selects how the island geometry is generated: from a stored shape recipe, from explicit atomic positions, or from an image used as a mask to cut the island's outline.",
+"target_diameter": "If checked, the island is regenerated with a corrected size until its actual diameter matches the desired diameter below, instead of using the raw recipe parameters as-is.",
+"desired_dameter": "Target diameter (in units of the lattice constant) the island should have when Target diameter is checked.",
+"nedges": "Number of edges of the polygon used to cut the island's outline out of the lattice.",
+"clean_island": "If checked, atoms left with only a single bond after cutting the island are removed, avoiding spurious dangling-atom states at the edge.",
+"LDOS_num_atom": "Comma-separated indices of the specific atoms whose local density of states is computed and plotted.",
+"LDOS_polynomials": "Number of Chebyshev polynomials used in the KPM expansion of the per-atom LDOS - more polynomials resolve finer energy features at higher computational cost.",
+"smearing_local_dos": "Energy broadening (smearing) applied when reconstructing the per-atom LDOS from its KPM expansion.",
+"num_ene_ldos": "Number of energy points at which the per-atom LDOS is evaluated and plotted.",
+"energy_cutoff_local_dos": "Maximum energy shown on the per-atom LDOS energy axis.",
+"DOS_polynomials": "Number of Chebyshev polynomials used in the KPM expansion of the total DOS - more polynomials resolve finer spectral features at higher computational cost.",
+"DOS_iterations": "Number of random vectors used in the stochastic trace estimate of the KPM density of states - more iterations reduce statistical noise in the result.",
+"smearing_dos": "Energy broadening (smearing) applied when reconstructing the total DOS from its KPM expansion.",
+"num_ene_dos": "Number of energy points at which the total density of states is evaluated and plotted.",
+"mode_dosmap": "Single shot computes and plots the spatial DOS/STM map at one energy; Movie sweeps over a range of energies instead, producing one frame per energy played back as an animation.",
+"mode_stm": "Selects the algorithm used to compute the spatial DOS/STM map: Full inverts the Green's function directly (accurate, more expensive), Eigen restricts the calculation to a sparse window of eigenstates found via Arnoldi iteration (faster for large systems).",
+"smearing_spatial_DOS": "Energy broadening (smearing) applied when computing the spatial DOS/STM map.",
+"nwaves_dos": "Number of eigenstates computed by the sparse Arnoldi solver for the Eigen STM mode - more waves capture a wider energy window around the target energy.",
+"energy_spatial_DOS": "Energy at which the spatial DOS/STM map (Single shot mode) is evaluated.",
+"mine_movie": "Starting energy of the sweep used to render the spatial-DOS movie.",
+"maxe_movie": "Final energy of the sweep used to render the spatial-DOS movie.",
+"stepse_movie": "Number of energy steps (frames) in the spatial-DOS movie.",
+"pols_path": "Number of Chebyshev polynomials used in the KPM expansion of the DOS along the selected path.",
+"ecut_path": "Maximum energy considered in the DOS-along-a-path calculation.",
+"num_ene_path": "Number of energy points sampled along the path DOS.",
+"smearing_path_dos": "Energy broadening (smearing) applied to the DOS computed along the selected path.",
+"initial_atom": "Index of the atom where the selected path begins.",
+"final_atom": "Index of the atom where the selected path ends.",
+"width_path": "Half-width of the strip of atoms around the drawn path line that are accepted as part of the path.",
+# --- Hofstadter butterfly ---
+"numb_hofs": "Number of magnetic-field values sampled between the initial and final field for the Hofstadter butterfly.",
+"minb_hofs": "Minimum magnetic field (flux) value in the Hofstadter butterfly scan.",
+"maxb_hofs": "Maximum magnetic field (flux) value in the Hofstadter butterfly scan.",
+"ewindow_hofs": "Energy window shown around the Fermi level at each magnetic field value in the Hofstadter butterfly.",
+"nume_hofs": "Number of energy points computed at each magnetic field value in the Hofstadter butterfly.",
+"hofstader_mode": "Restricts the Hofstadter spectrum to all states, bulk-projected states, or edge-projected states, letting you distinguish bulk Landau levels from edge/chiral states.",
+"nsuper_ldos": "Number of times the unit cell is repeated when plotting the interactive multi-energy LDOS.",
+# --- k-point mesh density (Brillouin-zone sampling) for a given calculation ---
+"nk_bands": "Number of k-points sampled along the band-structure path (or per KPM stochastic evaluation) - denser sampling gives a smoother band structure at higher computational cost.",
+"nk_dos": "Density of the k-point mesh used to compute the density of states - a denser mesh gives a smoother DOS at higher computational cost.",
+"dos_nk": "Density of the k-point mesh used to compute the density of states - a denser mesh gives a smoother DOS at higher computational cost.",
+"nk_ldos": "Density of the k-point mesh used to compute the local density of states.",
+"nk_ldos_single": "Density of the k-point mesh used for the single-energy LDOS calculation.",
+"nk_scf": "Density of the k-point mesh used to converge the self-consistent mean-field loop - too coarse a mesh can give an inaccurate, or falsely converged, order parameter.",
+"fs_nk": "Density of the k-mesh used to sample the Brillouin zone for the Fermi-surface map.",
+"qpi_nk": "Density of the k-mesh used to compute the joint density of states underlying the QPI pattern.",
+"topology_nk": "Density of the k-mesh used to integrate the Berry curvature for the Chern number / Berry-curvature map.",
+"site_dos_nk": "Density of the k-point mesh used when recomputing the density of states at the clicked site.",
+"band_ldos_nk": "Density of the k-point mesh used for the LDOS resolved along the band structure.",
+"nk_iets": "Density of the k-mesh (Brillouin-zone sampling) used in the RPA spin-susceptibility calculation underlying the IETS signal.",
+"nk_kbands": "Number of k-points used in the KDOS-resolved-along-bands calculation.",
+"kdos_mesh": "Number of k-points sampled along the path for the k-resolved density of states.",
+"mesh_kdos": "Number of k-points sampled along the path for the k-resolved density of states.",
+"nq_iets": "Number of q-points sampled along the path for the momentum-resolved IETS calculation.",
+# --- energy broadening (smearing) ---
+"delta_kbands": "Energy broadening (smearing) applied to each band when coloring/computing the KPM-based band structure.",
+"delta_iets": "Energy broadening (smearing) applied to the excitation spectrum in the IETS calculation.",
+"dos_delta": "Energy broadening (smearing) of each computed energy level, controlling how much neighboring states blur together in the plotted density of states.",
+"delta_dos": "Energy broadening (smearing) of each computed energy level, controlling how much neighboring states blur together in the plotted density of states.",
+"DOS_smearing": "Energy broadening (smearing) of each computed energy level, controlling how much neighboring states blur together in the plotted density of states.",
+"multildos_delta": "Energy broadening (smearing) applied at each of the sampled energies in the multi-energy LDOS calculation.",
+"fs_delta": "Energy broadening (smearing) applied when selecting states near each target energy for the Fermi-surface map.",
+"qpi_delta": "Energy broadening (smearing) applied to the states entering the QPI joint density of states.",
+"delta_ldos": "Energy broadening (smearing) applied when computing the local density of states.",
+"delta_ldos_single": "Energy broadening (smearing) applied to the single-energy LDOS calculation.",
+"energy_ldos_single": "Energy at which the single-shot LDOS is evaluated.",
+"nsuper_ldos_single": "Number of repeated supercells shown around the plotted single-energy LDOS.",
+"site_dos_delta": "Energy broadening (smearing) applied when recomputing the density of states at the clicked site.",
+"sdos_delta": "Energy broadening (smearing) applied to the spatial density of states calculation.",
+"smearing_scf": "Energy broadening (smearing) used for the occupations/Green's functions inside the self-consistent mean-field loop.",
+"delta_embedding_ldos": "Energy broadening (smearing) applied to the host+impurity embedding LDOS calculation.",
+# --- energy window (range around the Fermi level) ---
+"window_kbands": "Energy window (range around the Fermi level) shown in the KPM-based band structure / DOS-along-bands plot.",
+"window_iets": "Energy window over which the IETS spectrum is computed and plotted.",
+"window_ldos": "Energy window over which the local density of states is computed.",
+"dos_ewindow": "Energy window (range around the Fermi level) over which the density of states is computed and plotted.",
+"multildos_ewindow": "Energy window from which the set of energies for the multi-energy LDOS calculation is drawn.",
+"fs_ewindow": "Energy window around the target energies used when selecting states for the Fermi-surface map.",
+"qpi_ewindow": "Energy window over which the QPI pattern is computed.",
+"kdos_ewindow": "Energy window (range around the Fermi level) shown in the k-resolved density of states plot.",
+"ewindow_kdos": "Energy window (range around the Fermi level) shown in the k-resolved density of states plot.",
+"site_dos_ewindow": "Energy window over which the density of states at the clicked site is computed.",
+"sdos_ewindow": "Energy window over which the spatial density of states is computed.",
+# --- number of energy points sampled within a window ---
+"ne_kbands": "Number of energy points sampled within the energy window for the KPM-based band structure / DOS-along-bands plot.",
+"ne_iets": "Number of energy points sampled within the energy window for the IETS spectrum.",
+"ne_ldos": "Number of energy points sampled within the energy window for the local density of states.",
+"num_energies_embedding_ldos_sweep": "Number of energy points sampled in the host+impurity embedding LDOS energy sweep.",
+# --- KPM accuracy knobs ---
+"nv_kbands": "Number of random vectors used in the stochastic trace estimate for the KPM-based band coloring - more vectors reduce statistical noise at higher computational cost.",
+"scale_kbands": "Rescaling factor bringing the Hamiltonian's spectrum within the [-1,1] range the Chebyshev (KPM) expansion requires - increase it if the KPM band plot shows spurious features from an under-rescaled spectrum.",
+"fs_numw": "Number of eigenstates computed sparsely around the target energies for the Fermi-surface map, instead of diagonalizing the full Hamiltonian.",
+# --- operator/mode selectors ---
+"operator_kdos": "Operator whose expectation value colors/weights the k-resolved density of states plot.",
+"dos_operator": "Operator whose expectation value the density of states is projected onto (None for the total, unprojected DOS).",
+"bands_color": "Operator whose expectation value colors the plotted band structure, letting you see e.g. spin, valley, or edge/bulk character band by band.",
+"bands_colormap": "Colormap used to render the operator-colored band structure.",
+"fs_operator": "Operator whose expectation value colors the plotted Fermi surface.",
+"topology_operator": "Operator used when computing the reciprocal-space Berry curvature map / Chern number, restricting the calculation to a subspace (e.g. one spin or valley) rather than all bands.",
+"ldos_operator": "Operator whose expectation value the local density of states is projected onto.",
+"operator_chern": "Operator used when computing the real-space (local) Chern marker, restricting it to a particular subspace (e.g. spin or valley) rather than all bands.",
+"dos_mode": "Selects the DOS algorithm: exact diagonalization (small systems), k-space Green's function integration, or the kernel polynomial method (KPM, for large systems).",
+"mode_dos": "Selects the DOS algorithm: Lowest computes only the states nearest the Fermi level via a sparse eigensolver, KPM expands the full spectrum with Chebyshev polynomials - Lowest is faster when only the moire/flat bands near zero energy matter.",
+# --- LDOS basis ---
+"basis_ldos": "Chooses the basis the LDOS is expressed in: directly in the tight-binding orbital basis, or projected onto real-space atomic-like orbitals of a chosen radius (Real space atomic orbitals).",
+"ratomic_ldos": "Radii of the atomic-like wavefunctions put on every site. Only affects the result for the \"Real space atomic orbitals\" basis.",
+# --- magnetism plot ---
+"magnetization_nrep": "Number of repeated unit cells shown around the plotted magnetic moments.",
+"magnetization_plot_mode": "2D draws the magnetic moments as arrows over a flat view of the lattice; 3D opens an interactive three-dimensional view instead.",
+# --- SCF ---
+"scf_initialization": "Initial guess for the mean-field order parameter the SCF loop starts from (e.g. an antiferromagnetic or a ferromagnetic axis, or a random configuration) - a poor initial guess can converge to a different, possibly metastable, self-consistent solution.",
+"filling_scf": "Target electron filling the SCF loop's chemical potential is adjusted to reach, instead of using the Fermi energy field directly.",
+"do_scf": "Turns the self-consistent mean-field loop on, so calculations use the converged interacting Hamiltonian instead of the bare single-particle one - turned on automatically once any interaction term (U/V1/V2/J1/J2/J3) is set nonzero.",
+"mix_scf": "Linear mixing fraction between the previous and newly computed order parameter at each SCF iteration - lower values converge more slowly but more stably.",
+"extra_electron": "Extra electrons (beyond charge neutrality) added to the SCF target filling - equivalent to doping the system away from half filling.",
+# --- parameter sweep ---
+"sweep_parameter": "Hamiltonian parameter that is varied over the sweep (e.g. sublattice imbalance, exchange components, Haldane/Kane-Mele coupling, s-wave pairing, Fermi energy).",
+"sweep_task": "Quantity recomputed at each sweep point: the indirect gap, the density of states, the Chern number, or the full eigenvalue spectrum.",
+"sweep_initial": "Starting value of the swept parameter.",
+"sweep_final": "Final value of the swept parameter.",
+"sweep_steps": "Number of values sampled between the initial and final value of the sweep.",
+# --- time evolution ---
+"channel_time_evolution": "Spin channel (up or down) of the initial localized wavepacket used in the time-evolution calculation.",
+"tmax_time_evolution": "Maximum simulation time the wavepacket is evolved for.",
+# --- impurity embedding ---
+"impurity_potential": "Onsite energy shift added at the embedded impurity site(s), detuning them relative to the host lattice.",
+"impurity_exchange": "Exchange/Zeeman field added at the embedded impurity site(s), polarizing their local spin independently of the host lattice.",
+"nsuper_impurity": "Supercell size used when embedding the impurity/impurities, controlling how many host unit cells surround them.",
+"energy_embedding_ldos": "Energy at which the host+impurity local density of states is evaluated.",
+"ncells_embedding_ldos": "Number of host unit cells plotted around the embedded impurity in the embedding LDOS map.",
 }

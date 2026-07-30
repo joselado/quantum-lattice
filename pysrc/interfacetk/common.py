@@ -515,6 +515,7 @@ def finalize_page(qtwrap,window,signals,inipath,robust=True):
     set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
     window.connect_clicks(signals,robust=robust)
     set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
+    set_param_tooltips(qtwrap) # hover tooltips on the other form fields
 
 
 
@@ -612,7 +613,7 @@ def generate_hamiltonian(window,g=None):
 from .labels import set_labels
 
 
-from .termtooltips import TERM_TOOLTIPS, BUTTON_TOOLTIPS
+from .termtooltips import TERM_TOOLTIPS, BUTTON_TOOLTIPS, PARAM_TOOLTIPS
 from . import termhighlight
 
 
@@ -630,6 +631,20 @@ def set_button_tooltips(qtwrap):
     generic BUTTON_TOOLTIPS text."""
     form = qtwrap.form
     for name, tip in BUTTON_TOOLTIPS.items():
+        widget = form.findChild(QtWidgets.QWidget,name)
+        if widget is None or widget.toolTip(): continue
+        qtwrap.set_tooltip(name, tip)
+
+
+def set_param_tooltips(qtwrap):
+    """Set a hover tooltip on every other form field (a LineEdit/ComboBox/
+    CheckBox/RadioButton that isn't a Hamiltonian term or a calculation
+    button) this mode's page has, from the shared PARAM_TOOLTIPS registry -
+    same skip-if-already-tooltipped convention as set_button_tooltips()
+    above, so a hand-authored interface.ui tooltip (or one set by
+    scfterms.py/hybridparts.py) is never overwritten."""
+    form = qtwrap.form
+    for name, tip in PARAM_TOOLTIPS.items():
         widget = form.findChild(QtWidgets.QWidget,name)
         if widget is None or widget.toolTip(): continue
         qtwrap.set_tooltip(name, tip)
