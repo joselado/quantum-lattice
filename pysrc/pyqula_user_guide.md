@@ -940,10 +940,10 @@ it to its fixed point with a genuine root-finder using JAX-computed
 derivatives of $f$ (`solver="newton"`, the default once `use_jax=True`), a
 matrix-free variant that scales to larger systems (`solver="newton_krylov"`),
 or by minimizing the squared residual $\|f(x)-x\|^2$ with `jax.grad` and
-`scipy`'s L-BFGS-B (`solver="lbfgs"`) -- see the reference entry below for
-the full solver list and scope restrictions (normal-state only, no
+`scipy`'s L-BFGS-B (`solver="error_gradient"`) -- see the reference entry
+below for the full solver list and scope restrictions (normal-state only, no
 `constrains`), and `selfconsistency.vjinteraction_jax`'s module docstring
-for why `solver="lbfgs"` minimizes the SCF residual rather than the
+for why `solver="error_gradient"` minimizes the SCF residual rather than the
 physical free energy directly:
 
 ```python
@@ -992,6 +992,8 @@ h = gs.get_hamiltonian() # Hamiltonian of the supercell
 ```
 
 `d` holds the unfolded spectral weight at each `(k,e)`; plotting a scatter of `k,e` colored/sized by `d` recovers the primitive-cell band structure out of the supercell calculation. The same `operator="unfold"` can be passed to `h.get_multi_fermi_surface()` to unfold constant-energy cuts. See `examples/2d/unfolding/main.py`, `examples/1d/unfolding/main.py` and `examples/readme_examples/unfolding_FS/main.py` for runnable versions.
+
+Unfolding also works when atoms have been removed from the supercell (e.g. `gs = gs.remove([...])` before `gs.get_hamiltonian()`), such as a vacancy or an irregularly-shaped flake cut out of a supercell: pyqula matches each remaining atom back to its primitive-cell replica by position instead of assuming every replica is fully present, so no extra arguments are needed — `operator="unfold"` transparently falls back to this slower, defect-tolerant path whenever the supercell's atom count doesn't match a complete replication of the primitive cell, and uses the original fast path otherwise. This position match requires the remaining atoms to sit exactly where they were in the original, undefective supercell, so don't call anything that moves atoms (e.g. `gs.center()`, a geometry relaxation) between `gs.remove(...)` and `gs.get_hamiltonian()` — doing so raises a `ValueError` rather than silently unfolding onto the wrong replica.
 
 # Surface spectral functions
 
@@ -1896,14 +1898,14 @@ pairing (see the example above).
   larger systems than the dense-Jacobian `"newton"` (`gmres_tol=1e-6`,
   `gmres_restart=20` tune its linear solve); `"fsolve"` wraps
   `scipy.optimize.fsolve`/MINPACK with the same `jax.jacfwd` Jacobian as
-  `fprime`; `"fixed_point"` is plain linear mixing routed through the same
-  machinery, for comparison; `"lbfgs"` instead minimizes the squared SCF
-  residual $\|f(x)-x\|^2$ with `jax.grad` + `scipy`'s L-BFGS-B (not the
+  `fprime`; `"linear_mixing"` is plain linear mixing routed through the same
+  machinery, for comparison; `"error_gradient"` instead minimizes the squared
+  SCF residual $\|f(x)-x\|^2$ with `jax.grad` + `scipy`'s L-BFGS-B (not the
   physical free energy directly -- see `selfconsistency.vjinteraction_jax`'s
   module docstring for why that alternative was tried and abandoned: the
   physical SCF solution turned out to be a saddle point, not a minimum, of
-  the free-energy functional). `"lbfgs"` scales per-iteration like
-  `"newton_krylov"`/`"fixed_point"` (no dense Jacobian), and matches
+  the free-energy functional). `"error_gradient"` scales per-iteration like
+  `"newton_krylov"`/`"linear_mixing"` (no dense Jacobian), and matches
   `"newton"` well on small/moderate systems, but as a local optimizer it can
   stall short of `maxerror` on a harder landscape from a generic starting
   guess -- always check `.converged`. Restricted to a normal-state (non-BdG)
