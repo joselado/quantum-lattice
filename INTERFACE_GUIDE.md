@@ -236,7 +236,24 @@ checklist form.)
    `ql-dosbands`/`ql-dosbands1d` unmodified instead of adding a new
    script. Check whether an existing `ql-*` script's input format already
    fits before writing a new one - see "Adding a `ql-*` script" below for
-   when it doesn't.
+   when it doesn't. Sometimes the format fits but the script's on-screen
+   text doesn't (it was written assuming only one physical quantity would
+   ever feed it): `common.py`'s `get_iets_ldos` (0d) writes the same
+   `MULTILDOS/` folder layout (`MULTILDOS.TXT` + one `LDOS_<e>_.OUT` per
+   energy + `DOS.OUT`) that `get_multildos`'s `ldos.multi_ldos` call
+   writes, by hand - `pyqula.ldos.multi_ldos_tb` has no "give me an
+   arbitrary per-site quantity at N energies" mode, only real LDOS, so
+   there's no pyqula call to reuse, just the file format it produces.
+   Rather than duplicate `ql-multildos`'s slider/spatial-map-next-to-
+   total-curve viewer wholesale, its previously-hardcoded strings
+   ("Spatially resolved DOS", "LDOS", "Density of states", ...) were
+   pulled out into `--title`/`--zlabel`/`--dlabel`/`--dtitle` args
+   (defaulting to the original text, so `get_multildos`'s own
+   `execute_script` calls needed no changes) and `get_iets_ldos` passes
+   IETS-appropriate labels instead. Prefer this - generalizing a script's
+   hardcoded labels into args with the original text as the default -
+   over forking a near-identical copy of a `ql-*` script for a second
+   physical quantity.
 
 ## Adding a mode
 

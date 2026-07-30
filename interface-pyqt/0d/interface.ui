@@ -740,14 +740,14 @@
           <item row="0" column="0">
            <widget class="BodyLabel" name="label_iets_ldos_1">
             <property name="text">
-             <string>Energy</string>
+             <string>Energy window</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="LineEdit" name="energy_iets">
+           <widget class="LineEdit" name="window_iets">
             <property name="text">
-             <string>0.0</string>
+             <string>1.5</string>
             </property>
            </widget>
           </item>

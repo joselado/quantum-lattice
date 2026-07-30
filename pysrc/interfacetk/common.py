@@ -206,17 +206,35 @@ def get_iets_qdos(h,window):
 
 
 def get_iets_ldos(h,window):
-    """Get the real-space inelastic (spin-flip) response at a single
-    energy, i.e. the site-resolved IETS map - the 0d (finite system)
-    analog of get_iets_qdos, since a 0d system has no Brillouin zone to
-    scan a q-path over. Needs a mean-field Hamiltonian with an onsite H.V,
-    same requirement as get_iets_qdos above."""
+    """Get the real-space inelastic (spin-flip) response over a range of
+    energies, all computed in a single call (h.get_iets_ldos accepts an
+    energy array) - the 0d (finite system) analog of get_iets_qdos, since
+    a 0d system has no Brillouin zone to scan a q-path over. Mirrors
+    get_multildos: reuses ql-multildos's spatial-map-next-to-total-curve
+    viewer (with an energy slider) instead of a single-energy snapshot, by
+    writing the same MULTILDOS/ folder layout multi_ldos_tb writes (see
+    pyqula/ldos.py) by hand - there is no pyqula "multi-energy IETS"
+    helper to call, and pysrc/pyqula/ is vendored/black-box so one isn't
+    added there. Needs a mean-field Hamiltonian with an onsite H.V, same
+    requirement as get_iets_qdos above."""
     get = window.get
-    e = get("energy_iets")
+    ewin = get("window_iets")
     delta = get("delta_iets")
-    r,d = h.get_iets_ldos(e=e,delta=delta)
-    np.savetxt("IETS_LDOS.OUT",np.array([r[:,0],r[:,1],d]).T)
-    execute_script("ql-ldos --input IETS_LDOS.OUT")
+    ne = 100 # match get_multildos's fixed energy count
+    energies = np.linspace(-ewin,ewin,ne)
+    r,ds = h.get_iets_ldos(e=energies,delta=delta) # (ne,nsites), all energies at once
+    fs.rmdir("MULTILDOS") # remove any previous folder
+    fs.mkdir("MULTILDOS") # create folder
+    fo = open("MULTILDOS/MULTILDOS.TXT","w") # names of the per-energy files
+    for (e,d) in zip(energies,ds): # loop over energies
+        name0 = "LDOS_"+str(e)+"_.OUT"
+        ldos.write_ldos(r[:,0],r[:,1],d,output_file="MULTILDOS/"+name0)
+        fo.write(name0+"\n")
+    fo.close()
+    total = np.array([np.sum(d) for d in ds]) # total (site-summed) IETS vs energy
+    dos.write_dos(energies,total,output_file="MULTILDOS/DOS.OUT")
+    execute_script("ql-multildos --title 'Real-space IETS' --zlabel 'Im \\chi' "
+                   "--dlabel 'Total IETS' --dtitle 'Total IETS vs energy'")
 
 
 

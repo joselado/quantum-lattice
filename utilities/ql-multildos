@@ -29,6 +29,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--input",default="MULTILDOS",help='Input folder')
 parser.add_argument("--grid",default="False",help='Use grid mode')
 parser.add_argument("--site",default="-1",help='Plot also the DOS in a specific site')
+parser.add_argument("--title",default="Local DOS",help='Window title')
+parser.add_argument("--zlabel",default="LDOS",help='Label for the spatial (per-site) colormap')
+parser.add_argument("--dlabel",default="DOS",help='Y-axis label for the total energy-resolved curve')
+parser.add_argument("--dtitle",default="Density of states",help='Title for the total energy-resolved curve panel')
 args = parser.parse_args() # get the arguments
 
 #fig.set_facecolor(plotstyle.BACKGROUND) # white
@@ -49,7 +53,7 @@ md = np.genfromtxt(folder+"DOS.OUT").transpose()
 def plot(main):
   """Plotting function"""
   fig = plt.gcf()
-  plt.gcf().canvas.setWindowTitle('Spatially resolved DOS')
+  plt.gcf().canvas.setWindowTitle(args.title)
  # site = int(main.get_slider("Site")) # get the site to plot, if any
   site = -1 # this needs to be fixed
   if site>=0:
@@ -99,7 +103,7 @@ def plot(main):
             cmap = cmap,interpolation=main.get_combobox("Interpolation"),
             vmin=0,vmax=1,
             extent = (np.min(x), np.max(x), np.min(y), np.max(y)))
-  cb = fig.colorbar(cplot,ticks=[0,1],label="LDOS")
+  cb = fig.colorbar(cplot,ticks=[0,1],label=args.zlabel)
   cb.ax.set_yticklabels([0,'Max'])
   ax.axis("equal")
   zoom = main.get_slider("Zoom")
@@ -107,7 +111,7 @@ def plot(main):
   ax.set_yticks([])
   ax.set_xlim([np.min(x)*zoom,np.max(x)*zoom])
   ax.set_ylim([np.min(y)*zoom,np.max(y)*zoom])
-  ax.set_title("LDOS E="+str(round(float(energy),3)))
+  ax.set_title(args.zlabel+" E="+str(round(float(energy),3)))
   axd.clear()  # clear DOS
   axd.plot(md[0],md[1]) # plot DOS
   yys = np.array([0,max(md[1])]) # y positions
@@ -117,9 +121,9 @@ def plot(main):
   axd.set_ylim([0.,max(md[1])]) # ylim
   axd.set_xlim([min(md[0]),max(md[0])]) # xlim
   axd.set_xticks(np.linspace(min(md[0]),max(md[0]),3,endpoint=True)) # xlim
-  axd.set_ylabel("DOS")
+  axd.set_ylabel(args.dlabel)
   axd.set_xlabel("Energy")
-  axd.set_title("Density of states")
+  axd.set_title(args.dtitle)
   axd.set_yticks([])
   return fig
 
@@ -141,7 +145,7 @@ if args.grid=="False":
   main.add_combobox(["black","white"],label="Background") # Slider for the dots
 if not args.grid=="False":
   main.add_combobox(["bicubic","none",'bilinear'],label="Interpolation") 
-main.setWindowTitle("Local DOS")
+main.setWindowTitle(args.title)
 
 main.plot()
 main.show()
