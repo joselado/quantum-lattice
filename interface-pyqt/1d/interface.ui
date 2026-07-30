@@ -767,7 +767,7 @@
           <item row="2" column="1">
            <widget class="LineEdit" name="window_iets">
             <property name="text">
-             <string>2.0</string>
+             <string>5.0</string>
             </property>
            </widget>
           </item>
@@ -781,7 +781,7 @@
           <item row="3" column="1">
            <widget class="LineEdit" name="nq_iets">
             <property name="text">
-             <string>40</string>
+             <string>80</string>
             </property>
            </widget>
           </item>
@@ -795,7 +795,7 @@
           <item row="4" column="1">
            <widget class="LineEdit" name="nk_iets">
             <property name="text">
-             <string>20</string>
+             <string>80</string>
             </property>
            </widget>
           </item>
