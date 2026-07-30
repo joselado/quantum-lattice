@@ -654,6 +654,23 @@ def find_layout_of(widget):
   return None
 
 
+def find_any_layout_of(widget):
+  """Like find_layout_of() above, but not restricted to QGridLayout - a
+  calculation button (unlike a term field) is just as often the direct
+  item of a QVBoxLayout (e.g. 2d/interface.ui's "DOS" tab: a QGridLayout of
+  parameter fields followed by the show_dos button, both items of one
+  verticalLayout_2) as of a QGridLayout. Used by
+  common.py:_ensure_button_formula_image() to find wherever the button
+  actually lives, so it can insert a formula-image label next to it
+  regardless of which layout type Designer used for that particular tab."""
+  parent = widget.parentWidget()
+  if parent is None: return None
+  for layout in parent.findChildren(QtWidgets.QLayout):
+    if layout.indexOf(widget) != -1:
+      return layout
+  return None
+
+
 @_form_thread_only
 def set_image(page,name,path,width=None,height=None):
   """Set a certain image"""

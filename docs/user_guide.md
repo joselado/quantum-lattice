@@ -84,7 +84,9 @@ can use them all:
    LDOS, Fermi surface, QPI, Topology, Magnetism, Sweep, ... Each has its own
    button(s) ("Show bands", "Show DOS", ...) plus any options specific to
    that calculation (energy window, k-mesh density, which operator to
-   project onto). Pressing a button runs the calculation and opens a plot
+   project onto). Most buttons also show the rendered formula for the
+   quantity they compute, next to the button, with the same hover tooltip as
+   the button itself. Pressing a button runs the calculation and opens a plot
    window with the result; the main window stays responsive.
 
 A progress bar appears in the page's status area while a calculation is
@@ -244,6 +246,11 @@ left at its default (`0.0`) is not included in the Hamiltonian.
 | Strain (`strain`) | A local modification of hopping along a specific bond direction, mimicking mechanical strain — e.g. to probe strain-induced pseudo-magnetic fields in honeycomb lattices. |
 
 ## Reference: calculation buttons
+
+Most buttons below also show a rendered formula next to them in the app, with
+this same explanation as its hover tooltip - buttons that only pick/view
+something rather than computing a physical quantity (Select atoms to remove,
+Save results, ...) don't.
 
 | Button | What it computes |
 |---|---|

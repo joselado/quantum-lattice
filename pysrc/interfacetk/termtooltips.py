@@ -26,6 +26,15 @@ field names are reused across modes for the same kind of setting (e.g.
 "nk_bands", "dos_delta", "scf_initialization") wherever the underlying
 meaning is the same, so check whether an existing entry already fits before
 adding a near-duplicate.
+
+CALC_FORMULAS (near the end of this file, after BUTTON_TOOLTIPS) is the
+calculation-button analog of a term's formula PNG: it maps a button name to
+a formula *key*, and tools/gen_calc_formula_logos.py renders one PNG per key
+(interface-pyqt/logos/calc_<key>.png) - so if a new button computes a
+quantity some other button already has a formula for (e.g. another kind of
+LDOS), just map it to that existing key instead of adding a new one.
+Consumed by common.py:set_calculation_formulas(), called once per mode from
+finalize_page() alongside set_formulas()/set_button_tooltips().
 """
 
 TERM_TOOLTIPS = {
@@ -116,6 +125,53 @@ BUTTON_TOOLTIPS = {
 "select_impurity_sites": "Open an interactive picker on the geometry to select which sites the embedded impurity terms are applied to.",
 "save_results": "Save all the results from this calculation into a named local folder (you'll be asked for a name) - pick a new name to keep multiple saves side by side.",
 "load_results": "Load a previously saved interface configuration (parameter values) back into the form - you'll be asked which saved folder to restore.",
+}
+
+
+# Button name -> formula key, for calculation buttons whose result is a
+# well-defined physical quantity with a formula worth showing (e.g.
+# show_bands). Deliberately excludes buttons that only display/pick
+# something rather than computing a physical quantity (show_structure,
+# select_atoms_removal, save_results, compute_sweep, ...). Several button
+# names across different modes/formulas map to the *same* key - e.g.
+# show_ldos/show_multildos/show_embedding_ldos are all just "LDOS via the
+# Green's function", so they render the same PNG - the same "reuse across
+# modules" convention as BUTTON_TOOLTIPS above, but at the image level: one
+# key here is one PNG (tools/gen_calc_formula_logos.py, output
+# interface-pyqt/logos/calc_<key>.png), reused by every button mapped to
+# it. Consumed by common.py:set_calculation_formulas(), which places the
+# image next to the button (see _ensure_button_formula_image()) and reuses
+# the matching BUTTON_TOOLTIPS text as its hover tooltip too.
+CALC_FORMULAS = {
+"show_bands": "bands",
+"show_eigenvalues": "eigenvalues",
+"show_dos": "dos",
+"show_kdos": "kdos",
+"show_dosbands": "kdos",
+"show_ldos": "ldos",
+"show_ldos_single": "ldos",
+"show_interactive_ldos": "ldos",
+"show_multildos": "ldos",
+"show_site_dos": "ldos",
+"show_spatial_dos": "ldos",
+"show_edge_dos": "ldos",
+"show_path_dos": "ldos",
+"show_embedding_ldos": "ldos",
+"show_embedding_ldos_sweep": "ldos",
+"show_band_ldos": "wavefunction",
+"show_berry2d": "berry_curvature",
+"show_berry1d": "berry_phase",
+"show_chern": "chern",
+"show_local_chern": "local_chern",
+"show_z2": "z2",
+"show_fermi_surface": "fermi_surface",
+"show_qpi": "qpi",
+"show_iets_qdos": "iets_q",
+"show_iets_ldos": "iets_r",
+"show_magnetism": "magnetism",
+"solve_scf": "scf",
+"show_hofstader": "hofstadter",
+"show_time_evolution": "time_evolution",
 }
 
 

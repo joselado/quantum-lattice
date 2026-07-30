@@ -25,6 +25,7 @@ maintenance doc, not a one-time snapshot.
 - **Change the mean-field (U/V1/V2/J1/J2/J3) fields** — `pysrc/interfacetk/scfterms.py`.
 - **Change a term's tooltip** — `pysrc/interfacetk/termtooltips.py` (`TERM_TOOLTIPS`).
 - **Change a calculation button's tooltip** — `pysrc/interfacetk/termtooltips.py` (`BUTTON_TOOLTIPS`); see "Adding a calculation button" below.
+- **Add/change a calculation button's formula image** — `pysrc/interfacetk/termtooltips.py` (`CALC_FORMULAS`) + `tools/gen_calc_formula_logos.py`; see "Adding a calculation button" below.
 - **Change any other form field's tooltip** (a numeric parameter, combobox, or checkbox that isn't a Hamiltonian term or a calculation button) — `pysrc/interfacetk/termtooltips.py` (`PARAM_TOOLTIPS`); see "Tooltip conventions" below.
 - **Restrict a term/operator to certain lattice families** — `pysrc/interfacetk/latticeterms.py`.
 - **Add a new plot/postprocessing view** — write/extend a `ql-*` script
@@ -133,6 +134,25 @@ placeholder/page rather than editing generated code:
   formula image/tooltip just by calling `common.set_formulas(qtwrap)`,
   without needing a matching `interface.ui` edit - see "Adding a
   Hamiltonian term" below.
+- **`common.py:set_calculation_formulas()`'s `_ensure_button_formula_image()`**
+  — the calculation-button analog of `_ensure_formula_image()` above: creates
+  a `<button>_formula` label at runtime next to a calculation `PushButton`,
+  the first time `set_calculation_formulas()` runs (every button starts
+  without a Designer-authored image - no mode predates this convention, so
+  it always creates one, unlike the term version). A button doesn't reliably
+  sit in a `QGridLayout` the way a term field does (e.g. 2d's DOS tab's
+  `show_dos` is the second item of a plain `QVBoxLayout`), so this branches
+  on the actual layout type via `qtwrap.find_any_layout_of()` (not
+  `find_layout_of()`, which only searches `QGridLayout`s): in a grid, it
+  prefers the free cell beside the button and falls back to the row below if
+  that cell is already occupied (checked with `itemAtPosition()`, since
+  several buttons often share one grid, e.g. 2d's "Topology 2D" tab has all
+  four of `show_berry1d`/`show_berry2d`/`show_z2`/`show_chern` stacked as
+  separate grid rows); in a box layout, it just inserts right after the
+  button's own item via `insertWidget()`. Several button names map to the
+  same formula PNG (`CALC_FORMULAS` in `termtooltips.py` maps button name ->
+  formula key; `tools/gen_calc_formula_logos.py` renders one PNG per key) -
+  see "Adding a calculation button" below.
 - **`latticeterms.py`** — a registry (`RESTRICTED_TERMS`) of
   lattice-family-only widgets (Haldane/Kane-Mele/valley, honeycomb-only).
   `connect(qtwrap, lambda: getbox("lattice"))` show/hides the registered
@@ -229,6 +249,25 @@ checklist form.)
    once per mode, right after `connect_clicks()`). Check whether an
    existing entry already fits (most calculation buttons are named and
    behave the same way across modes) before adding a near-duplicate.
+3b. If the button computes a genuine physical quantity worth showing a
+   formula for (most calculations - not a picker/viewer button like
+   `show_structure`/`select_atoms_removal`/`save_results`), add an entry to
+   `CALC_FORMULAS` in `pysrc/interfacetk/termtooltips.py` mapping the
+   button's object name to a formula *key*. If an existing key already
+   matches the physics (e.g. another kind of LDOS, or another mode's
+   identically-computed quantity), reuse it instead of adding a new one -
+   that's what makes the same PNG show up for every button that needs it.
+   For a genuinely new key, add `{key: r"<mathtext>"}` to `FORMULAS` in
+   `tools/gen_calc_formula_logos.py` (check `pysrc/pyqula_user_guide.md` or
+   the vendored docstring for the exact convention/prefactor first, same as
+   a term formula) and run `python tools/gen_calc_formula_logos.py` to
+   render `interface-pyqt/logos/calc_<key>.png` - matplotlib mathtext only
+   (no `\oint`/`\big`/`\substack`; test render the string standalone before
+   committing if unsure a construct is supported). No `interface.ui` edit is
+   needed - `common.set_calculation_formulas(qtwrap)` (called once per mode
+   from `finalize_page()`) creates the `<button>_formula` label next to the
+   button at runtime for every mode that has it, the same way term formulas
+   don't need one either (see `_ensure_button_formula_image()` above).
 4. A new calculation doesn't need a new `ql-*` script if its output
    happens to match an existing one's file format: `common.py`'s
    `get_iets_qdos` (momentum-resolved IETS, the magnetic analog of
@@ -320,7 +359,8 @@ and sets `window.scratch_dir`, wires `save_results`/`load_results` (only if
 the page actually has those buttons — via `save_state`/`load_state`, using
 `inipath` and its own freshly-captured `tmppath`), calls
 `set_formulas(qtwrap)`, `window.connect_clicks(signals,robust=robust)`,
-then `set_button_tooltips(qtwrap)`/`set_param_tooltips(qtwrap)` (see
+then `set_button_tooltips(qtwrap)`, `set_calculation_formulas(qtwrap)` (see
+"Adding a calculation button" above), and `set_param_tooltips(qtwrap)` (see
 "Tooltip conventions" above). `inipath` must still be
 captured by the caller (with `os.getcwd()`) *before* calling this, since
 `create_folder()` chdirs away from it — a few modes
@@ -389,7 +429,8 @@ common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)`, a `solve_scf()`
 handler (`h = initialize(); common.solve_scf(h,qtwrap)`), and `"solve_scf":
 solve_scf` in the signals dict - `common.finalize_page()` (see "Adding a
 mode" above) already calls `common.set_formulas(qtwrap)`,
-`common.set_button_tooltips(qtwrap)`, and `common.set_param_tooltips(qtwrap)`
+`common.set_button_tooltips(qtwrap)`, `common.set_calculation_formulas(qtwrap)`,
+and `common.set_param_tooltips(qtwrap)`
 for you, so nothing extra is needed for those. `common.set_formulas()`
 tries every single-particle term's `<term>_image` (`hopping_image`,
 `fermi_image`, ...) and creates any that's missing next to its field (see

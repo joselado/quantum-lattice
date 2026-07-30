@@ -515,6 +515,7 @@ def finalize_page(qtwrap,window,signals,inipath,robust=True):
     set_formulas(qtwrap) # Hamiltonian-term formula images + tooltips
     window.connect_clicks(signals,robust=robust)
     set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
+    set_calculation_formulas(qtwrap) # formula images on the calculation buttons
     set_param_tooltips(qtwrap) # hover tooltips on the other form fields
 
 
@@ -613,7 +614,7 @@ def generate_hamiltonian(window,g=None):
 from .labels import set_labels
 
 
-from .termtooltips import TERM_TOOLTIPS, BUTTON_TOOLTIPS, PARAM_TOOLTIPS
+from .termtooltips import TERM_TOOLTIPS, BUTTON_TOOLTIPS, PARAM_TOOLTIPS, CALC_FORMULAS
 from . import termhighlight
 
 
@@ -717,6 +718,54 @@ def set_formulas(qtwrap):
             # directly rather than looked up by (possibly mismatched) name
             field = termhighlight.find_term_field(form,t)
             if field is not None: termhighlight.wire_highlight(field)
+
+
+def _ensure_button_formula_image(qtwrap, button_name):
+    """Make sure this page has a "<button_name>_formula" label next to the
+    named calculation PushButton, creating it on the fly - the calculation
+    analog of _ensure_formula_image() above, but for buttons rather than
+    term fields. A button has no Designer-authored image widget to reuse
+    (unlike a term field, no mode predates this convention), so this always
+    creates one. Unlike a term field, a button isn't reliably inside a
+    QGridLayout (see find_any_layout_of()'s docstring), so this branches on
+    the actual layout type: in a grid, prefer the free cell beside the
+    button (same row, next column) and fall back to the row right below it
+    if that's already occupied; in a box layout (QVBoxLayout/QHBoxLayout),
+    just insert right after the button's own item."""
+    form = qtwrap.form
+    image_name = button_name+"_formula"
+    if form.findChild(QtWidgets.QWidget,image_name) is not None: return
+    button = form.findChild(QtWidgets.QWidget,button_name)
+    if button is None: return
+    layout = qtwrap.find_any_layout_of(button)
+    if layout is None: return
+    image = BodyLabel("",button.parentWidget())
+    image.setObjectName(image_name)
+    if isinstance(layout,QtWidgets.QGridLayout):
+        idx = layout.indexOf(button)
+        row,col,rowspan,colspan = layout.getItemPosition(idx)
+        if layout.itemAtPosition(row,col+colspan) is None:
+            layout.addWidget(image,row,col+colspan,rowspan,1)
+        else:
+            layout.addWidget(image,row+rowspan,col,1,colspan)
+    else: # QBoxLayout (vertical/horizontal)
+        idx = layout.indexOf(button)
+        layout.insertWidget(idx+1,image)
+    setattr(form,image_name,image)
+
+
+def set_calculation_formulas(qtwrap):
+    """Set a formula image next to every calculation button this page has,
+    for every button name present in CALC_FORMULAS (silently skipped
+    otherwise - same convention as set_formulas()/set_button_tooltips()).
+    Several button names share the same formula key (e.g. every kind of
+    LDOS button), so the same PNG is reused across them rather than
+    re-rendered - see CALC_FORMULAS's docstring in termtooltips.py."""
+    for name,key in CALC_FORMULAS.items():
+        _ensure_button_formula_image(qtwrap,name)
+        qtwrap.set_logo(name+"_formula","calc_"+key+".png",width=500,height=40)
+        tip = BUTTON_TOOLTIPS.get(name)
+        if tip is not None: qtwrap.set_tooltip(name+"_formula",tip)
 
 
 
