@@ -260,7 +260,7 @@ left at its default (`0.0`) is not included in the Hamiltonian.
 | Show Fermi surface | Diagonalizes on a k-mesh near chosen energies and plots the resulting constant-energy contours. |
 | Show QPI | The quasiparticle interference pattern (Fourier transform of the joint DOS) — mimics STM scattering interference. |
 | Show multi-energy LDOS | Local density of states at several energies, plotted spatially. |
-| Show site DOS | Interactive: click a site in the geometry to compute and plot the LDOS at that site. |
+| Show site DOS | Interactive: click a site in the geometry to compute and plot the LDOS at that site, or drag a lasso around an area to select several sites at once and plot their combined DOS. |
 | Show structure (2D) | Writes the geometry and plots the lattice (atomic positions, optionally bonds). |
 | Show structure (3D) | Writes the geometry and opens an interactive 3D view (atomic positions and bonds). |
 | Show magnetism | Computes self-consistent or externally-set magnetic moments per site and overlays them as arrows on the geometry. |

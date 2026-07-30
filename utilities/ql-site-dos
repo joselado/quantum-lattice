@@ -4,11 +4,16 @@
 Unlike every other ql-* script (which only ever plots files a <mode>.py
 handler already computed - see CLAUDE.md's "utilities/" section), this
 one imports pyqula and recomputes the DOS itself, on every click. That
-recomputation has to happen wherever matplotlib's pick_event fires, and
-that's this subprocess's own event loop, not the GUI process's - so
-common.get_site_dos() saves the built Hamiltonian to a pickle
-(hamiltonian.pkl) before launching this script instead of writing a
-DOS.OUT for a single site up front.
+recomputation has to happen wherever matplotlib's pick_event/lasso
+callback fires, and that's this subprocess's own event loop, not the
+GUI process's - so common.get_site_dos() saves the built Hamiltonian to
+a pickle (hamiltonian.pkl) before launching this script instead of
+writing a DOS.OUT for a single site up front.
+
+Sites can be selected one at a time (click) or in bulk (drag a lasso
+around an area), the same LassoSelector-based engine as
+ql-remove-atoms-geometry (the "modify geometry" atom picker) - dragging
+adds every enclosed atom to the group instead of removing them.
 """
 import argparse
 import os
@@ -16,6 +21,8 @@ import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.path import Path
+from matplotlib.widgets import LassoSelector
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import plotstyle
@@ -23,7 +30,7 @@ plotstyle.apply()
 
 qlroot = os.path.dirname(os.path.realpath(__file__)) + "/.."
 sys.path.append(qlroot + "/pysrc/")
-from pyqula import hamiltonians, dos
+from pyqula import hamiltonians, dos, operators
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--hamiltonian", default="hamiltonian.pkl",
@@ -41,8 +48,10 @@ h = hamiltonians.load(args.hamiltonian)
 
 r = np.array(h.geometry.r)
 x,y,z = r[:,0],r[:,1],r[:,2]
+pts = np.column_stack([x,y]) # for the lasso's point-in-polygon test
 sizes = [60 if abs(iz)<1e-5 else 20 for iz in z]
 colors = [plotstyle.PRIMARY if abs(iz)<1e-5 else plotstyle.SECONDARY for iz in z]
+selected = np.zeros(len(x),dtype=bool) # sites currently in the DOS group
 
 fig,(ax_geom,ax_dos) = plt.subplots(1,2,figsize=(11,5))
 fig.canvas.setWindowTitle("Site DOS")
@@ -51,7 +60,7 @@ fig.set_facecolor(plotstyle.BACKGROUND)
 ax_geom.set_facecolor(plotstyle.BACKGROUND)
 ax_geom.scatter(x,y,sizes,colors,picker=True)
 ax_geom.set_aspect("equal")
-ax_geom.set_title("Click a site")
+ax_geom.set_title("Click a site, or drag to lasso-select several")
 
 ax_dos.set_facecolor(plotstyle.BACKGROUND)
 ax_dos.set_xlabel("Energy [t]")
@@ -61,34 +70,38 @@ ax_dos.set_title("Pick a site")
 fig.tight_layout()
 
 
-def compute_dos(i):
-    op = h.get_operator("site",index=i)
+def compute_dos(indices):
+    """DOS of the group of sites in `indices`, as a single projector
+    operator built as the sum of each site's own (h.get_operator("site",
+    index=i) only ever projects onto one site at a time) - a
+    projector's expectation value is linear in the operator, so this is
+    exactly the DOS of the selected group, not just one site in it."""
+    op_matrix = sum(h.get_operator("site",index=i).get_matrix() for i in indices)
+    op = operators.Operator(op_matrix)
     energies = np.linspace(-args.ewindow,args.ewindow,int(args.ewindow/delta*5))
     return dos.dos(h,delta=delta,nk=args.nk,energies=energies,
             use_kpm=use_kpm,operator=op)
 
 
-def onpick(event):
-    ind = event.ind
-    if len(ind)==0: return
-    i = int(ind[0]) # first site under the click
-    # nothing else needs to read this index back - pick and compute both
-    # happen right here in this one process - so it isn't written to a
-    # file. (SELECTED_SINGLE_ATOM.INFO in particular must stay untouched:
-    # it's 0d.py's "Perform time evolution" feature's own handoff file,
-    # in the same page-level scratch dir every handler shares.)
-
+def redraw_selection():
     colors_now = list(colors)
-    colors_now[i] = plotstyle.ACCENT
+    ind = np.nonzero(selected)[0]
+    for i in ind: colors_now[i] = plotstyle.ACCENT
     ax_geom.collections[0].set_facecolor(colors_now)
-    ax_geom.set_title("Site "+str(i))
+    if len(ind)==0: ax_geom.set_title("Click a site, or drag to lasso-select several")
+    elif len(ind)==1: ax_geom.set_title("Site "+str(ind[0]))
+    else: ax_geom.set_title(str(len(ind))+" sites selected")
     fig.canvas.draw_idle()
 
+
+def update_dos():
+    indices = np.nonzero(selected)[0]
+    if len(indices)==0: return
     ax_dos.set_title("Computing...")
     fig.canvas.draw_idle()
     fig.canvas.flush_events()
 
-    e,d = compute_dos(i)
+    e,d = compute_dos(indices)
     dmax = np.max(d)
     ax_dos.clear()
     ax_dos.set_facecolor(plotstyle.BACKGROUND)
@@ -98,9 +111,67 @@ def onpick(event):
     ax_dos.set_yticks([0,dmax],["0","max"]) # exact numbers aren't meaningful here
     ax_dos.set_xlabel("Energy [t]")
     ax_dos.set_ylabel("DOS")
-    ax_dos.set_title("Site "+str(i))
+    title = "Site "+str(indices[0]) if len(indices)==1 else str(len(indices))+" sites"
+    ax_dos.set_title(title)
     fig.canvas.draw_idle()
 
 
+def onpick(event):
+    """A plain click toggles just that one site in/out of the group,
+    the same convention as ql-remove-atoms-geometry's pick_sites()."""
+    ind = event.ind
+    if len(ind)==0: return
+    i = int(ind[0]) # first site under the click
+    selected[i] = not selected[i]
+    redraw_selection()
+    update_dos()
+
+
+def lasso_select(verts):
+    """Dragging a closed area adds every enclosed atom to the group,
+    for bulk selection instead of clicking sites one by one - the same
+    LassoSelector engine as ql-remove-atoms-geometry. A plain click (no
+    real drag) produces a near-empty/degenerate path here that never
+    contains any atom, so it falls through to onpick above without
+    double-toggling anything."""
+    if len(verts)<3: return
+    enclosed = np.nonzero(Path(verts).contains_points(pts))[0]
+    if len(enclosed)==0: return
+    selected[enclosed] = True
+    redraw_selection()
+    update_dos()
+
+
 fig.canvas.mpl_connect("pick_event",onpick)
+lasso = LassoSelector(ax_geom,lasso_select)
+
+
+def add_selection_toolbar_buttons(fig):
+    """The navigation toolbar's pan/zoom tools grab the canvas's
+    widgetlock while active, which silently disables picking and the
+    lasso (LassoSelector/pick_event never fire until the lock is
+    released) - same issue and fix as ql-remove-atoms-geometry's
+    add_selection_mode_button(). Also adds a "Clear selection" action
+    since, unlike that script, this one stays open across many DOS
+    queries instead of exiting right after one selection is written."""
+    toolbar = getattr(fig.canvas, "toolbar", None)
+    if toolbar is None: return # non-interactive backend, nothing to add to
+    def back_to_selection_mode():
+        if not toolbar.mode: return
+        if "pan" in toolbar.mode: toolbar.pan()
+        elif "zoom" in toolbar.mode: toolbar.zoom()
+    def clear_selection():
+        selected[:] = False
+        redraw_selection()
+    toolbar.addSeparator()
+    action = toolbar.addAction("Selection mode",back_to_selection_mode)
+    action.setToolTip("Release the pan/zoom tool and go back to "
+                       "clicking/lasso-selecting sites")
+    clear_action = toolbar.addAction("Clear selection",clear_selection)
+    clear_action.setToolTip("Deselect every site")
+
+
+add_selection_toolbar_buttons(fig)
+
+fig.canvas.manager.set_window_title("Site DOS")
 plt.show()

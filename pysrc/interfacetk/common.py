@@ -112,10 +112,12 @@ def get_dos(h,window,silent=False):
 
 def get_site_dos(h,window,use_kpm=False):
     """Open the interactive Site DOS view: a geometry subplot on the
-    left (click a site) and a DOS subplot on the right, recomputed on
-    every click - see utilities/ql-site-dos. The DOS itself has to be
-    (re)computed inside that subprocess, in response to its own
-    matplotlib pick_event, so what's handed off here is the built
+    left (click a site, or drag a lasso to select several at once - the
+    same LassoSelector engine as the "Select atoms to remove" picker)
+    and a DOS subplot on the right, recomputed on every selection change
+    - see utilities/ql-site-dos. The DOS itself has to be (re)computed
+    inside that subprocess, in response to its own matplotlib
+    pick_event/lasso callback, so what's handed off here is the built
     Hamiltonian (pickled) rather than a single precomputed DOS.OUT.
     use_kpm picks the diagonalization method: KPM for the modes whose
     Hamiltonians are too large for exact diagonalization (huge_0d, tbg,
