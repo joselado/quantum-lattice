@@ -159,11 +159,13 @@ def solve_scf():
     scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   J1=J1,J2=J2,J3=J3,
                   mf=mf,mix=mix,maxerror=error,verbose=1,
+                  **common.get_scf_solver_kwargs(h,window,for_vjinteraction=True)
                   )
   else:
     scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   mf=mf,load_mf=False,
                   mix=mix,maxerror=error,verbose=1,
+                  **common.get_scf_solver_kwargs(h,window,for_vjinteraction=False)
                   )
   mfname = scf.identify_symmetry_breaking(as_string=True)
   window.set("identified_mean_field",mfname)

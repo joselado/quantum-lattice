@@ -318,7 +318,7 @@ needs to do something extra before plotting (e.g. `hybridfilm.py` writes a
 Adding mean-field support to a mode that never had it (done for
 `hybridribbon`/`hybridfilm`) means copying a whole "SCF" tab (`Basic`/
 `Convergence` sub-tabs: `solve_scf`/`scf_initialization`/
-`filling_scf`/`nk_scf`/`mix_scf`/`smearing_scf`, plus the `scf_terms_container`
+`filling_scf`/`nk_scf`/`mix_scf`/`smearing_scf`/`scf_solver`, plus the `scf_terms_container`
 placeholder - **not** `do_scf`, `scfterms.build()` builds that widget itself
 at runtime, see the `scfterms.py` bullet above) from an existing SCF+formulas
 mode's `interface.ui` (`1d`/`2d`/`0d`)
@@ -337,7 +337,7 @@ this. Two gotchas found doing it:
   something unique before inserting - except the names `common.py`/
   `scfterms.py` read by exact string (`solve_scf`,
   `scf_initialization`, `filling_scf`, `nk_scf`, `mix_scf`, `smearing_scf`,
-  `scf_terms_container`), which must stay as-is. If the target mode already
+  `scf_solver`, `scf_terms_container`), which must stay as-is. If the target mode already
   has its own real `tabWidget_4` for something else (e.g. `hybridparts.py`'s
   per-part tabs, which default to that exact name), rename the SCF block's
   inner Basic/Convergence `QTabWidget` and pass a non-default `grid=` to
@@ -367,6 +367,38 @@ tries every single-particle term's `<term>_image` (`hopping_image`,
 the "Adding a Hamiltonian term" checklist above) - a term this mode has no
 field for at all still prints a harmless `"<name> label not found"` to
 stderr from `set_logo()`; that's expected, not a wiring bug.
+
+### The SCF `scf_solver` dropdown and `use_jax`
+
+`scf_solver` (Convergence sub-tab, right after `smearing_scf`) lists
+`error_gradient`/`linear_mixing` and is read by
+`common.get_scf_solver_kwargs(h,window,for_vjinteraction)`, called from
+every `solve_scf()` (the shared `common.py` one, and `2d.py`/`3d.py`'s own
+richer copies) right inside the `meanfield.VJinteraction(...)`/
+`meanfield.Vinteraction(...)` call via `**common.get_scf_solver_kwargs(...)`.
+Two things to know before touching this:
+
+- **The two entry points name the same pair of algorithms differently.**
+  `VJinteraction`'s own `use_jax=True` solver names are `"error_gradient"`/
+  `"linear_mixing"` (matching the dropdown verbatim - pass `for_vjinteraction=True`),
+  but `Vinteraction`'s `use_jax=True` path (`densitydensity_jax.py`) still
+  uses the older internal names `"lbfgs"`/`"fixed_point"` for the exact same
+  two algorithms - `get_scf_solver_kwargs(...,for_vjinteraction=False)`
+  translates via its own `_VINTERACTION_SOLVER_NAMES` dict. Don't pass the
+  dropdown's raw value straight to `Vinteraction` or it raises
+  `ValueError: unrecognised solver`.
+- **It silently no-ops instead of raising** when `h.has_eh` (a BdG/
+  superconducting Hamiltonian - swave/pwave pairing added in
+  `generate_hamiltonian`) or when the optional `jax` package isn't
+  importable (`get_scf_solver_kwargs` returns `{}` in both cases) - `Solve
+  SCF` then just falls back to its pre-existing plain-mixing loop, exactly
+  as it behaved before this dropdown existed. This is intentional (the
+  dropdown has no explicit "default/old behavior" option to fall back to),
+  but it means a solver choice can look like it did nothing with no error
+  at all if you're testing on a pairing-enabled Hamiltonian or a jax-less
+  interpreter - check `h.has_eh` and `importlib.util.find_spec("jax")`
+  first if `error_gradient` vs `linear_mixing` ever seem to make no
+  difference.
 
 ## Adding a ql-* script
 

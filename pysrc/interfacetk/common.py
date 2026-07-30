@@ -281,6 +281,32 @@ def get_qpi(h,window):
 
 
 
+# VJinteraction's use_jax=True path names its solvers "linear_mixing"/
+# "error_gradient" (its public, physically-descriptive names - see
+# pysrc/pyqula/selfconsistency/spinspin.py's docstring); Vinteraction's own
+# use_jax=True path (densitydensity_jax.py) still uses the older internal
+# names "fixed_point"/"lbfgs" for the same two algorithms - translated here
+# rather than in pyqula, since VJinteraction and Vinteraction are two
+# different upstream entry points that happen to expose the same pair of
+# algorithms under different names.
+_VINTERACTION_SOLVER_NAMES = {"error_gradient": "lbfgs", "linear_mixing": "fixed_point"}
+
+def get_scf_solver_kwargs(h,window,for_vjinteraction):
+    """use_jax=True/solver=... kwargs for the SCF solver dropdown, or {}
+    when not applicable. use_jax=True only supports a normal-state
+    (has_eh=False) Hamiltonian, and needs the optional jax extra installed
+    (`pip install pyqula[jax]`) - a BdG Hamiltonian (swave/pwave pairing
+    added in generate_hamiltonian) or a missing jax both silently fall back
+    to the existing plain-mixing behavior instead of raising, since the
+    dropdown offers no "default" option to fall back to explicitly."""
+    if h.has_eh: return {}
+    import importlib.util
+    if importlib.util.find_spec("jax") is None: return {} # optional extra, not installed
+    solver = window.getbox("scf_solver")
+    if not for_vjinteraction: solver = _VINTERACTION_SOLVER_NAMES[solver]
+    return dict(use_jax=True,solver=solver)
+
+
 def solve_scf(h,window):
   """Perform a selfconsistent calculation"""
   get = window.get # redefine
@@ -305,13 +331,15 @@ def solve_scf(h,window):
     J3 = get("J3")
     scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   J1=J1,J2=J2,J3=J3,
-                  mf=mf,mix=mix,T=T,verbose=1
+                  mf=mf,mix=mix,T=T,verbose=1,
+                  **get_scf_solver_kwargs(h,window,for_vjinteraction=True)
                   )
   else:
     scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   mf=mf,load_mf=False,T=T,
                   mix=mix,
-                  verbose=1
+                  verbose=1,
+                  **get_scf_solver_kwargs(h,window,for_vjinteraction=False)
                   )
   scf.hamiltonian.save() # save in a file
   mark_scf_solved(window)

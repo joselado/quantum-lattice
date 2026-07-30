@@ -490,6 +490,18 @@ class Ui_MainWindow(object):
 
         self.gridLayout_12.addWidget(self.smearing_scf, 2, 1, 1, 1)
 
+        self.label_scf_solver = BodyLabel(self.tab_11)
+        self.label_scf_solver.setObjectName(u"label_scf_solver")
+
+        self.gridLayout_12.addWidget(self.label_scf_solver, 3, 0, 1, 1)
+
+        self.scf_solver = ComboBox(self.tab_11)
+        self.scf_solver.addItem("")
+        self.scf_solver.addItem("")
+        self.scf_solver.setObjectName(u"scf_solver")
+
+        self.gridLayout_12.addWidget(self.scf_solver, 3, 1, 1, 1)
+
 
         self.gridLayout_19.addLayout(self.gridLayout_12, 0, 0, 1, 1)
 
@@ -737,6 +749,13 @@ class Ui_MainWindow(object):
         self.mix_scf.setText(QCoreApplication.translate("MainWindow", u"0.9", None))
         self.label_33.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
         self.smearing_scf.setText(QCoreApplication.translate("MainWindow", u"0.01", None))
+        self.label_scf_solver.setText(QCoreApplication.translate("MainWindow", u"Solver", None))
+        self.scf_solver.setItemText(0, QCoreApplication.translate("MainWindow", u"error_gradient", None))
+        self.scf_solver.setItemText(1, QCoreApplication.translate("MainWindow", u"linear_mixing", None))
+
+#if QT_CONFIG(tooltip)
+        self.scf_solver.setToolTip(QCoreApplication.translate("MainWindow", u"Iterative algorithm used to converge the self-consistent mean field (requires the optional jax extra; falls back to the default plain-mixing solver for a Hamiltonian with superconducting pairing)", None))
+#endif // QT_CONFIG(tooltip)
         self.tabWidget_4.setTabText(self.tabWidget_4.indexOf(self.tab_11), QCoreApplication.translate("MainWindow", u"Convergence", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_8), QCoreApplication.translate("MainWindow", u"SCF", None))
         self.magnetization_nrep.setText(QCoreApplication.translate("MainWindow", u"3", None))

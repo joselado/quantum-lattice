@@ -3,8 +3,9 @@
 # (done automatically by `python install.py`)
 #
 # pyvista (optional, only needed for the 3D plotting utilities in utilities/)
-# is installed separately by install.py, best-effort, so a failure there
-# does not block the rest of the install.
+# and jax (optional, only needed for the SCF tab's "error_gradient"/
+# "linear_mixing" solver choice) are installed separately by install.py,
+# best-effort, so a failure there does not block the rest of the install.
 PySide6
 PySide6-Fluent-Widgets
 # numpy/scipy/numba/matplotlib/multiprocess/dill/threadpoolctl mirror pyqula's

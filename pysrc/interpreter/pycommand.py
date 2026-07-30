@@ -111,6 +111,17 @@ def install_requirements(python=None):
         except subprocess.CalledProcessError:
             print("Optional dependency 'pyvista' could not be installed;")
             print("3D plotting utilities (ql-plot3d, ql-moments, ...) will not work")
+    # jax is optional too: only the SCF tab's "error_gradient"/"linear_mixing"
+    # solver choice needs it (pyqula's VJinteraction/Vinteraction use_jax=True
+    # path - see common.py:get_scf_solver_kwargs). Without it, Solve SCF
+    # silently keeps using its previous plain-mixing behavior regardless of
+    # what's selected there, so a failure here is reported but never fatal
+    if not _module_available(python,"jax"):
+        try:
+            subprocess.check_call([python,"-m","pip","install","jax"])
+        except subprocess.CalledProcessError:
+            print("Optional dependency 'jax' could not be installed;")
+            print("the SCF tab's Solver dropdown will have no effect")
 
 
 def install_editable(python=None):
