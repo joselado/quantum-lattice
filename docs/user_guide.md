@@ -231,6 +231,8 @@ left at its default (`0.0`) is not included in the Hamiltonian.
 | Show DOS | Computes the density of states (k-space integration or kernel polynomial method), optionally projected onto an operator. |
 | Show KDOS | Computes the k-resolved density of states along a path — useful for visualizing surface/edge states. |
 | Show DOS-bands | Computes the DOS resolved along the band-structure path (a smeared version of the bands). |
+| Show IETS QDOS | Momentum-resolved inelastic tunneling spectroscopy: the RPA spin-excitation response along a q-path, showing the magnon/spin-wave-like dispersion of the converged magnetic state. Needs SCF solved first (mean field with an onsite interaction). 1D/2D/3D modes only. |
+| Show IETS LDOS | Real-space inelastic tunneling spectroscopy at a single energy: which sites carry the spin-flip response of the converged magnetic state. Needs SCF solved first (mean field with an onsite interaction). Islands (0D) only. |
 | Show Berry phase (1D) | Berry curvature/phase along a 1D Brillouin-zone path, the diagnostic for 1D topological invariants such as edge polarization. |
 | Show Berry curvature (2D) | Berry curvature over a 2D Brillouin-zone mesh, plotted as a map. |
 | Show Z2 | The Z2 topological invariant via the Wannier charge center (Vanderbilt) method — trivial vs. quantum-spin-Hall insulator. |
@@ -273,20 +275,24 @@ variation on one of them.
 - **Islands (0D)** — a finite flake cut to a polygon (choose the number of
   edges and a rotation) from a 2D lattice (Chain, Honeycomb, Square, Kagome,
   Lieb, Triangular, plus pre-cut zigzag/armchair honeycomb ribbons).
-  Supports interactive single-atom time evolution and a real-space (local)
-  Chern-number map, in addition to the standard calculations. Has SCF.
+  Supports interactive single-atom time evolution, a real-space (local)
+  Chern-number map, and (after SCF) a real-space IETS LDOS map, in addition
+  to the standard calculations. Has SCF.
 - **Ribbons (1D)** — infinite in one direction: intrinsically-1D lattices
   (Chain, Bichain) used directly, or 2D lattices cut to a chosen width.
   Adds an interactive band-LDOS view (click a point on the bands, see that
-  eigenstate's spatial density) and an edge-DOS button. Has SCF.
+  eigenstate's spatial density), an edge-DOS button, and (after SCF) an
+  IETS QDOS view. Has SCF.
 - **Sheets (2D)** — a bulk 2D periodic lattice (Honeycomb and several
   variants, Square, Kagome, Lieb, Triangular and variants). Adds a general
-  parameter-sweep tool and an explicit pairing-symmetry selector for the
-  s-wave term. Has the richest SCF support (U/V1/V2/J1/J2/J3 with automatic
-  symmetry-breaking identification).
+  parameter-sweep tool, an explicit pairing-symmetry selector for the
+  s-wave term, and (after SCF) an IETS QDOS view. Has the richest SCF
+  support (U/V1/V2/J1/J2/J3 with automatic symmetry-breaking
+  identification).
 - **3D crystals** — a bulk 3D periodic lattice (Cubic, Diamond, Pyrochlore,
-  Hyperhoneycomb). Adds a bond-strain field and 3D-native views (slab-style
-  LDOS heatmap, Z2 invariant, Berry curvature map). Has SCF.
+  Hyperhoneycomb). Adds a bond-strain field, 3D-native views (slab-style
+  LDOS heatmap, Z2 invariant, Berry curvature map), and (after SCF) an IETS
+  QDOS view. Has SCF.
 
 ### Van der Waals
 

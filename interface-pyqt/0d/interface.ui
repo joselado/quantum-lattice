@@ -730,6 +730,52 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_iets_ldos">
+       <attribute name="title">
+        <string>IETS LDOS</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_iets_ldos_outer">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout_iets_ldos">
+          <item row="0" column="0">
+           <widget class="BodyLabel" name="label_iets_ldos_1">
+            <property name="text">
+             <string>Energy</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="LineEdit" name="energy_iets">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="BodyLabel" name="label_iets_ldos_2">
+            <property name="text">
+             <string>Smearing</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="LineEdit" name="delta_iets">
+            <property name="text">
+             <string>0.05</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="PushButton" name="show_iets_ldos">
+            <property name="text">
+             <string>Show IETS LDOS</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
       <widget class="QWidget" name="tab_9">
        <attribute name="title">
         <string>DOS</string>

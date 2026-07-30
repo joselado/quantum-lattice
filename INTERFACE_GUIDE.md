@@ -214,7 +214,13 @@ checklist form.)
 1. Add the `PushButton` to `interface.ui` (`tools/convert_ui.sh` after).
 2. Wire its handler — either it's one of `common.STANDARD_HANDLERS`'s
    names (nothing to do beyond giving it that exact object name) or it
-   needs an entry in the mode's own `signals`/`extra={}` dict.
+   needs an entry in the mode's own `signals`/`extra={}` dict. If it's a
+   new `STANDARD_HANDLERS` entry, also add its name to
+   `tools/smoke_test.py`'s `AUTO_WIRED_BUTTONS` set - that file keeps its
+   own copy (it can't import `common.py`'s at check time, see the comment
+   above it) and the static wiring check fails a mode with the new button
+   otherwise, even though it's genuinely wired at runtime via
+   `wire_standard_signals()`.
 3. Add a 1-3 sentence "what does this compute/plot" entry to
    `BUTTON_TOOLTIPS` in `pysrc/interfacetk/termtooltips.py`, keyed by the
    button's object name - reused automatically by every mode that has a
@@ -222,6 +228,15 @@ checklist form.)
    once per mode, right after `connect_clicks()`). Check whether an
    existing entry already fits (most calculation buttons are named and
    behave the same way across modes) before adding a near-duplicate.
+4. A new calculation doesn't need a new `ql-*` script if its output
+   happens to match an existing one's file format: `common.py`'s
+   `get_iets_qdos` (momentum-resolved IETS, the magnetic analog of
+   `get_kdos_bands`) writes the same 3-column `(path-index, energy,
+   intensity)` layout as `get_kdos_bands`'s `KDOS_BANDS.OUT`, so it reuses
+   `ql-dosbands`/`ql-dosbands1d` unmodified instead of adding a new
+   script. Check whether an existing `ql-*` script's input format already
+   fits before writing a new one - see "Adding a `ql-*` script" below for
+   when it doesn't.
 
 ## Adding a mode
 

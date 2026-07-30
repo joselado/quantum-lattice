@@ -498,6 +498,41 @@ class Ui_MainWindow(object):
         self.gridLayout_11.addLayout(self.gridLayout_6, 0, 0, 1, 1)
 
         self.tabWidget_3.addTab(self.tab_7, "")
+        self.tab_iets_ldos = QWidget()
+        self.tab_iets_ldos.setObjectName(u"tab_iets_ldos")
+        self.gridLayout_iets_ldos_outer = QGridLayout(self.tab_iets_ldos)
+        self.gridLayout_iets_ldos_outer.setObjectName(u"gridLayout_iets_ldos_outer")
+        self.gridLayout_iets_ldos = QGridLayout()
+        self.gridLayout_iets_ldos.setObjectName(u"gridLayout_iets_ldos")
+        self.label_iets_ldos_1 = BodyLabel(self.tab_iets_ldos)
+        self.label_iets_ldos_1.setObjectName(u"label_iets_ldos_1")
+
+        self.gridLayout_iets_ldos.addWidget(self.label_iets_ldos_1, 0, 0, 1, 1)
+
+        self.energy_iets = LineEdit(self.tab_iets_ldos)
+        self.energy_iets.setObjectName(u"energy_iets")
+
+        self.gridLayout_iets_ldos.addWidget(self.energy_iets, 0, 1, 1, 1)
+
+        self.label_iets_ldos_2 = BodyLabel(self.tab_iets_ldos)
+        self.label_iets_ldos_2.setObjectName(u"label_iets_ldos_2")
+
+        self.gridLayout_iets_ldos.addWidget(self.label_iets_ldos_2, 1, 0, 1, 1)
+
+        self.delta_iets = LineEdit(self.tab_iets_ldos)
+        self.delta_iets.setObjectName(u"delta_iets")
+
+        self.gridLayout_iets_ldos.addWidget(self.delta_iets, 1, 1, 1, 1)
+
+        self.show_iets_ldos = PushButton(self.tab_iets_ldos)
+        self.show_iets_ldos.setObjectName(u"show_iets_ldos")
+
+        self.gridLayout_iets_ldos.addWidget(self.show_iets_ldos, 2, 0, 1, 2)
+
+
+        self.gridLayout_iets_ldos_outer.addLayout(self.gridLayout_iets_ldos, 0, 0, 1, 1)
+
+        self.tabWidget_3.addTab(self.tab_iets_ldos, "")
         self.tab_9 = QWidget()
         self.tab_9.setObjectName(u"tab_9")
         self.gridLayout_18 = QGridLayout(self.tab_9)
@@ -950,6 +985,12 @@ class Ui_MainWindow(object):
 #endif // QT_CONFIG(tooltip)
         self.ratomic_ldos.setText(QCoreApplication.translate("MainWindow", u"1.5", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_7), QCoreApplication.translate("MainWindow", u"LDOS", None))
+        self.label_iets_ldos_1.setText(QCoreApplication.translate("MainWindow", u"Energy", None))
+        self.energy_iets.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.label_iets_ldos_2.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
+        self.delta_iets.setText(QCoreApplication.translate("MainWindow", u"0.05", None))
+        self.show_iets_ldos.setText(QCoreApplication.translate("MainWindow", u"Show IETS LDOS", None))
+        self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_iets_ldos), QCoreApplication.translate("MainWindow", u"IETS LDOS", None))
         self.label_16.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
         self.dos_delta.setText(QCoreApplication.translate("MainWindow", u"0.01", None))
         self.dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"4.0", None))

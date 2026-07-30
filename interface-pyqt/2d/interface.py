@@ -451,6 +451,71 @@ class Ui_MainWindow(object):
         self.gridLayout_18.addLayout(self.gridLayout_11, 0, 0, 1, 1)
 
         self.tabWidget_3.addTab(self.tab_9, "")
+        self.tab_iets_qdos = QWidget()
+        self.tab_iets_qdos.setObjectName(u"tab_iets_qdos")
+        self.gridLayout_iets_qdos_outer = QGridLayout(self.tab_iets_qdos)
+        self.gridLayout_iets_qdos_outer.setObjectName(u"gridLayout_iets_qdos_outer")
+        self.gridLayout_iets_qdos = QGridLayout()
+        self.gridLayout_iets_qdos.setObjectName(u"gridLayout_iets_qdos")
+        self.label_iets_1 = BodyLabel(self.tab_iets_qdos)
+        self.label_iets_1.setObjectName(u"label_iets_1")
+
+        self.gridLayout_iets_qdos.addWidget(self.label_iets_1, 0, 0, 1, 1)
+
+        self.delta_iets = LineEdit(self.tab_iets_qdos)
+        self.delta_iets.setObjectName(u"delta_iets")
+
+        self.gridLayout_iets_qdos.addWidget(self.delta_iets, 0, 1, 1, 1)
+
+        self.label_iets_2 = BodyLabel(self.tab_iets_qdos)
+        self.label_iets_2.setObjectName(u"label_iets_2")
+
+        self.gridLayout_iets_qdos.addWidget(self.label_iets_2, 1, 0, 1, 1)
+
+        self.ne_iets = LineEdit(self.tab_iets_qdos)
+        self.ne_iets.setObjectName(u"ne_iets")
+
+        self.gridLayout_iets_qdos.addWidget(self.ne_iets, 1, 1, 1, 1)
+
+        self.label_iets_3 = BodyLabel(self.tab_iets_qdos)
+        self.label_iets_3.setObjectName(u"label_iets_3")
+
+        self.gridLayout_iets_qdos.addWidget(self.label_iets_3, 2, 0, 1, 1)
+
+        self.window_iets = LineEdit(self.tab_iets_qdos)
+        self.window_iets.setObjectName(u"window_iets")
+
+        self.gridLayout_iets_qdos.addWidget(self.window_iets, 2, 1, 1, 1)
+
+        self.label_iets_4 = BodyLabel(self.tab_iets_qdos)
+        self.label_iets_4.setObjectName(u"label_iets_4")
+
+        self.gridLayout_iets_qdos.addWidget(self.label_iets_4, 3, 0, 1, 1)
+
+        self.nq_iets = LineEdit(self.tab_iets_qdos)
+        self.nq_iets.setObjectName(u"nq_iets")
+
+        self.gridLayout_iets_qdos.addWidget(self.nq_iets, 3, 1, 1, 1)
+
+        self.label_iets_5 = BodyLabel(self.tab_iets_qdos)
+        self.label_iets_5.setObjectName(u"label_iets_5")
+
+        self.gridLayout_iets_qdos.addWidget(self.label_iets_5, 4, 0, 1, 1)
+
+        self.nk_iets = LineEdit(self.tab_iets_qdos)
+        self.nk_iets.setObjectName(u"nk_iets")
+
+        self.gridLayout_iets_qdos.addWidget(self.nk_iets, 4, 1, 1, 1)
+
+        self.show_iets_qdos = PushButton(self.tab_iets_qdos)
+        self.show_iets_qdos.setObjectName(u"show_iets_qdos")
+
+        self.gridLayout_iets_qdos.addWidget(self.show_iets_qdos, 5, 0, 1, 2)
+
+
+        self.gridLayout_iets_qdos_outer.addLayout(self.gridLayout_iets_qdos, 0, 0, 1, 1)
+
+        self.tabWidget_3.addTab(self.tab_iets_qdos, "")
         self.tab_6 = QWidget()
         self.tab_6.setObjectName(u"tab_6")
         self.verticalLayout_2 = QVBoxLayout(self.tab_6)
@@ -1228,6 +1293,18 @@ class Ui_MainWindow(object):
         self.show_dosbands.setText(QCoreApplication.translate("MainWindow", u"Show DOS Bands", None))
         self.label_4.setText(QCoreApplication.translate("MainWindow", u"Operator", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_9), QCoreApplication.translate("MainWindow", u"DOS Bands", None))
+        self.label_iets_1.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
+        self.delta_iets.setText(QCoreApplication.translate("MainWindow", u"0.05", None))
+        self.label_iets_2.setText(QCoreApplication.translate("MainWindow", u"# of energies", None))
+        self.ne_iets.setText(QCoreApplication.translate("MainWindow", u"100", None))
+        self.label_iets_3.setText(QCoreApplication.translate("MainWindow", u"Energy window", None))
+        self.window_iets.setText(QCoreApplication.translate("MainWindow", u"2.0", None))
+        self.label_iets_4.setText(QCoreApplication.translate("MainWindow", u"# q-points", None))
+        self.nq_iets.setText(QCoreApplication.translate("MainWindow", u"40", None))
+        self.label_iets_5.setText(QCoreApplication.translate("MainWindow", u"# k-points (BZ mesh)", None))
+        self.nk_iets.setText(QCoreApplication.translate("MainWindow", u"20", None))
+        self.show_iets_qdos.setText(QCoreApplication.translate("MainWindow", u"Show IETS QDOS", None))
+        self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_iets_qdos), QCoreApplication.translate("MainWindow", u"IETS QDOS", None))
         self.label_50.setText(QCoreApplication.translate("MainWindow", u"Number of kpoints", None))
         self.label_51.setText(QCoreApplication.translate("MainWindow", u"Energy window", None))
         self.dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"4.0", None))

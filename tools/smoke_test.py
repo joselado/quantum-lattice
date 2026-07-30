@@ -60,6 +60,7 @@ AUTO_WIRED_BUTTONS = {
     "show_bands", "show_dos", "show_kdos", "show_dosbands", "show_berry1d",
     "show_berry2d", "show_z2", "show_chern", "show_fermi_surface",
     "show_qpi", "show_multildos", "show_site_dos",
+    "show_iets_qdos", "show_iets_ldos",
 }
 
 # Buttons pysrc/interfacetk/common.py's finalize_page() auto-wires (if the

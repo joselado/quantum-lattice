@@ -178,6 +178,49 @@ def get_kdos_bands(h,window):
 
 
 
+def get_iets_qdos(h,window):
+    """Get the momentum-resolved inelastic (spin-flip) response, i.e. the
+    RPA spin-excitation dispersion along a q-path - the magnetic analog of
+    get_kdos_bands. Needs a mean-field Hamiltonian with an onsite H.V
+    (converged via "Solve SCF" with do_scf checked) - pyqula raises if H.V
+    is missing or has non-onsite (V1/V2/J-neighbor) support."""
+    get = window.get
+    energies = np.linspace(0.,get("window_iets"),int(get("ne_iets")))
+    nq = int(get("nq_iets"))
+    qout,es,chimap = h.get_qdos_iets(energies=energies,nq=nq,
+                nk=int(get("nk_iets")),delta=get("delta_iets"))
+    fo = open("IETS_QDOS.OUT","w") # open file
+    for iq in range(len(chimap)): # loop over q-points
+      for (ie,ce) in zip(es,chimap[iq]): # loop over energies
+        fo.write(str(iq/len(chimap))+"   ")
+        fo.write(str(ie)+"   ")
+        fo.write(str(ce)+"\n")
+      fo.flush()
+    fo.close()
+    if h.dimensionality==1:
+        execute_script("ql-dosbands1d --input IETS_QDOS.OUT --title 'IETS (momentum-resolved)'")
+    else:
+        execute_script("ql-dosbands --input IETS_QDOS.OUT --zlabel 'Im \\chi' --title 'IETS (momentum-resolved)'")
+
+
+
+
+def get_iets_ldos(h,window):
+    """Get the real-space inelastic (spin-flip) response at a single
+    energy, i.e. the site-resolved IETS map - the 0d (finite system)
+    analog of get_iets_qdos, since a 0d system has no Brillouin zone to
+    scan a q-path over. Needs a mean-field Hamiltonian with an onsite H.V,
+    same requirement as get_iets_qdos above."""
+    get = window.get
+    e = get("energy_iets")
+    delta = get("delta_iets")
+    r,d = h.get_iets_ldos(e=e,delta=delta)
+    np.savetxt("IETS_LDOS.OUT",np.array([r[:,0],r[:,1],d]).T)
+    execute_script("ql-ldos --input IETS_LDOS.OUT")
+
+
+
+
 def get_chern(h,window):
     """Get the Chern number"""
     nk = int(np.sqrt(window.get("topology_nk")))
@@ -371,6 +414,8 @@ STANDARD_HANDLERS = {
     "show_dos": get_dos,
     "show_kdos": get_kdos,
     "show_dosbands": get_kdos_bands,
+    "show_iets_qdos": get_iets_qdos,
+    "show_iets_ldos": get_iets_ldos,
     "show_berry1d": get_berry1d,
     "show_berry2d": get_berry2d,
     "show_z2": get_z2,
