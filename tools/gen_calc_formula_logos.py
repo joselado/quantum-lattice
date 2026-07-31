@@ -21,6 +21,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# Match the serif/italic "Computer Modern" look of the hand-made
+# Hamiltonian-term PNGs (haldane.png, kanemele.png, ...) - those predate
+# this script and were rendered with mathtext's "cm" fontset, whereas this
+# script previously left mathtext.fontset at its "dejavusans" default,
+# giving calculation-button formulas a visibly different (sans-serif)
+# font from the term formulas shown right next to their parameter fields.
+matplotlib.rcParams["mathtext.fontset"] = "cm"
+
 QLROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 OUTDIR = os.path.join(QLROOT, "interface-pyqt", "logos")
 
@@ -33,7 +41,7 @@ OUTDIR = os.path.join(QLROOT, "interface-pyqt", "logos")
 FORMULAS = {
 "bands": r"$H(\mathbf{k})\,|n,\mathbf{k}\rangle = E_n(\mathbf{k})\,|n,\mathbf{k}\rangle$",
 "eigenvalues": r"$\hat H\,|n\rangle = \varepsilon_n\,|n\rangle$",
-"dos": r"$\rho(E)=-\frac{1}{\pi}\,\mathrm{Im}\,\mathrm{Tr}\,G(E+i\delta)$",
+"dos": r"$\rho(E)=\mathrm{Tr}\,\delta(E-\hat H) = \sum_n \delta(E-E_n)$",
 "kdos": r"$\rho(\mathbf{k},E) = -\frac{1}{\pi}\,\mathrm{Im}\,\mathrm{Tr}\,G(\mathbf{k},E+i\delta)$",
 "ldos": r"$\rho(\mathbf{r},E) = -\frac{1}{\pi}\,\mathrm{Im}\,G(\mathbf{r},\mathbf{r},E+i\delta)$",
 "wavefunction": r"$|\psi_{n\mathbf{k}}(\mathbf{r})|^2$",

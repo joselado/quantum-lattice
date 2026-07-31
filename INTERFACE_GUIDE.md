@@ -136,23 +136,34 @@ placeholder/page rather than editing generated code:
   Hamiltonian term" below.
 - **`common.py:set_calculation_formulas()`'s `_ensure_button_formula_image()`**
   — the calculation-button analog of `_ensure_formula_image()` above: creates
-  a `<button>_formula` label at runtime next to a calculation `PushButton`,
-  the first time `set_calculation_formulas()` runs (every button starts
-  without a Designer-authored image - no mode predates this convention, so
-  it always creates one, unlike the term version). A button doesn't reliably
-  sit in a `QGridLayout` the way a term field does (e.g. 2d's DOS tab's
-  `show_dos` is the second item of a plain `QVBoxLayout`), so this branches
-  on the actual layout type via `qtwrap.find_any_layout_of()` (not
-  `find_layout_of()`, which only searches `QGridLayout`s): in a grid, it
-  prefers the free cell beside the button and falls back to the row below if
-  that cell is already occupied (checked with `itemAtPosition()`, since
-  several buttons often share one grid, e.g. 2d's "Topology 2D" tab has all
-  four of `show_berry1d`/`show_berry2d`/`show_z2`/`show_chern` stacked as
-  separate grid rows); in a box layout, it just inserts right after the
-  button's own item via `insertWidget()`. Several button names map to the
-  same formula PNG (`CALC_FORMULAS` in `termtooltips.py` maps button name ->
-  formula key; `tools/gen_calc_formula_logos.py` renders one PNG per key) -
-  see "Adding a calculation button" below.
+  a `<button>_formula` label at runtime directly below a calculation
+  `PushButton`, the first time `set_calculation_formulas()` runs (every
+  button starts without a Designer-authored image - no mode predates this
+  convention, so it always creates one, unlike the term version). A button
+  doesn't reliably sit in a `QGridLayout` the way a term field does (e.g.
+  2d's DOS tab's `show_dos` is the second item of a plain `QVBoxLayout`), so
+  this branches on the actual layout type via `qtwrap.find_any_layout_of()`
+  (not `find_layout_of()`, which only searches `QGridLayout`s): in a grid,
+  it always opens a new row directly below the button's row (shifting later
+  rows down via `_insert_grid_row_below()`) rather than placing the formula
+  beside the button in a free cell - formulas should read consistently
+  below their button everywhere, not below in some modes and beside in
+  others depending on whether a neighboring cell happened to be free.
+  Several buttons often share one grid row (e.g. 2d's "Topology 2D" tab has
+  `show_berry1d`/`show_berry2d`/`show_z2`/`show_chern` side by side as
+  separate cells of one row) - `set_calculation_formulas()` passes a
+  `formula_rows` dict (scoped to that one call) down so those buttons'
+  formulas land together in the single new row opened below them, at each
+  button's own column, instead of each button's insertion re-shifting the
+  grid and scattering the formulas at different depths. In a box layout
+  (always `QVBoxLayout` in practice - no calculation button in any mode's
+  `interface.ui` sits directly in a `QHBoxLayout`), it just inserts right
+  after the button's own item via `insertWidget()`, which already stacks
+  the image below it. Several button names map to the same formula PNG
+  (`CALC_FORMULAS` in `termtooltips.py` maps button name -> formula key;
+  `tools/gen_calc_formula_logos.py` renders one PNG per key, using
+  mathtext's `"cm"` fontset to match the serif/italic look of the
+  hand-made term formula PNGs) - see "Adding a calculation button" below.
 - **`latticeterms.py`** — a registry (`RESTRICTED_TERMS`) of
   lattice-family-only widgets (Haldane/Kane-Mele/valley, honeycomb-only).
   `connect(qtwrap, lambda: getbox("lattice"))` show/hides the registered
