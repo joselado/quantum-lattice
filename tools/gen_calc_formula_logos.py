@@ -45,7 +45,7 @@ FORMULAS = {
 "kdos": r"$\rho(\mathbf{k},E) = \mathrm{Tr}\,\delta(E-\hat H(\mathbf{k})) = \sum_n \delta(E-E_n(\mathbf{k}))$",
 "ldos": r"$\rho(\mathbf{r},E) = \sum_n |\psi_n(\mathbf{r})|^2\,\delta(E-E_n)$",
 "wavefunction": r"$|\psi_{n\mathbf{k}}(\mathbf{r})|^2$",
-"berry_curvature": r"$\Omega_n(\mathbf{k}) = -2\,\mathrm{Im}\sum_{m \neq n}\frac{\langle n\mathbf{k}|\hat v_x|m\mathbf{k}\rangle\langle m\mathbf{k}|\hat v_y|n\mathbf{k}\rangle}{(E_n-E_m)^2}$",
+"berry_curvature": r"$\mathbf{\Omega}_n(\mathbf{k}) = \nabla_{\mathbf{k}} \times \mathbf{A}_n(\mathbf{k}),\ \ \mathbf{A}_n(\mathbf{k}) = i\langle n\mathbf{k}|\nabla_{\mathbf{k}}|n\mathbf{k}\rangle$",
 "chern": r"$C = \frac{1}{2\pi}\int_{BZ} \Omega(\mathbf{k})\, d^2k$",
 "local_chern": r"$C(\mathbf{r}) = -4\pi\,\mathrm{Im}\langle \mathbf{r}|\hat P\,\hat x\,\hat Q\,\hat y\,\hat P|\mathbf{r}\rangle$",
 "z2": r"$\nu = N_{\mathrm{cross}}\left[\bar x_n(k_y)\right] \ \mathrm{mod}\ 2$",
@@ -54,7 +54,6 @@ FORMULAS = {
 "iets_q": r"$\mathrm{Im}\,\chi^{+-}(\mathbf{q},\omega)$",
 "iets_r": r"$\mathrm{Im}\,\chi^{+-}(\mathbf{r},\omega)$",
 "magnetism": r"$\langle \mathbf{S}(\mathbf{r})\rangle = \langle \Psi|\hat{\mathbf{S}}_{\mathbf{r}}|\Psi\rangle$",
-"scf": r"$\hat n_\uparrow \hat n_\downarrow \approx \langle \hat n_\uparrow\rangle \hat n_\downarrow + \hat n_\uparrow\langle \hat n_\downarrow\rangle - \langle \hat n_\uparrow\rangle\langle \hat n_\downarrow\rangle$",
 "hofstadter": r"$t_{ij}\rightarrow t_{ij}\,e^{i\phi_{ij}},\ \ \phi = 2\pi\,\Phi/\Phi_0$",
 "time_evolution": r"$|\psi(t)\rangle = e^{-i\hat H t/\hbar}\,|\psi(0)\rangle$",
 }

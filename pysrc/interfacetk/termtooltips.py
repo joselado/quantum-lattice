@@ -169,7 +169,6 @@ CALC_FORMULAS = {
 "show_iets_qdos": "iets_q",
 "show_iets_ldos": "iets_r",
 "show_magnetism": "magnetism",
-"solve_scf": "scf",
 "show_hofstader": "hofstadter",
 "show_time_evolution": "time_evolution",
 }
