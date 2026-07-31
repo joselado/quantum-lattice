@@ -167,10 +167,10 @@ means physically.
 - With the switch off, calculations always use the bare (non-interacting)
   Hamiltonian, regardless of what's in the U/V/J fields.
 - The SCF tab's **Solver** dropdown picks the iterative algorithm used to
-  converge the mean field: **linear_mixing** (the default) is the classical
-  fixed-point mixing scheme, while **error_gradient** instead minimizes the
+  converge the mean field: **error_gradient** (the default) minimizes the
   self-consistency residual directly and can be more robust on systems
-  where linear_mixing struggles to converge. This choice only applies to a
+  where linear mixing struggles to converge, while **linear_mixing** is the
+  classical fixed-point mixing scheme. This choice only applies to a
   normal-state (non-superconducting) Hamiltonian, and needs the optional
   `jax` package that the installer tries to set up automatically; with
   s-wave/p-wave pairing

@@ -1027,12 +1027,12 @@
                 </property>
                 <item>
                  <property name="text">
-                  <string>linear_mixing</string>
+                  <string>error_gradient</string>
                  </property>
                 </item>
                 <item>
                  <property name="text">
-                  <string>error_gradient</string>
+                  <string>linear_mixing</string>
                  </property>
                 </item>
                </widget>
