@@ -278,7 +278,12 @@ def _nest_scf_tab(qtwrap):
     "tabWidget". This reuses the two existing tab-page widgets whole (each
     already has its own self-contained layout/content from interface.ui),
     so it only ever reparents whole widgets via QTabWidget.addTab(), never
-    touches their internal layouts."""
+    touches their internal layouts.
+
+    Saves the newly-built inner QTabWidget as form._hamiltonian_subtabs -
+    codeview.py's "pyqula code" sub-tab (see that module) adds itself there
+    as a third sibling of "Single particle"/"Many-body interactions",
+    without needing to re-derive this structure."""
     form = qtwrap.form
     ham_tabs = form.tabWidget_2
     scf_tabs = form.tabWidget_3
@@ -303,6 +308,9 @@ def _nest_scf_tab(qtwrap):
     inner = QTabWidget()
     inner.addTab(ham_widget, "Single particle")
     inner.addTab(scf_widget, "Many-body interactions")
+    # exposed so other runtime tab-builders (codeview.py's "pyqula code"
+    # sub-tab) can add a sibling tab here without re-deriving this widget
+    form._hamiltonian_subtabs = inner
 
     # Wrap `inner` so the SCF switch sits below both sub-tabs, visible
     # regardless of which one is open, instead of being buried inside

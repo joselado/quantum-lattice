@@ -310,6 +310,64 @@ def get_scf_solver_kwargs(h,window,for_vjinteraction):
     return dict(use_jax=True,solver=solver)
 
 
+def _scf_has_pairing(qtwrap):
+    """Whether the swave/pwave fields currently describe a pairing
+    (BdG/has_eh-like) Hamiltonian - mirrors the h.has_eh check
+    get_scf_solver_kwargs() makes on a real Hamiltonian, but computed from
+    the raw form fields instead, for pyqula_code_scf_block() below (which
+    runs before any Hamiltonian is actually built)."""
+    form = qtwrap.form
+    for name in ("swave","pwave"):
+        field = getattr(form,name,None)
+        if field is not None and termhighlight.is_nonzero_value(field.text()):
+            return True
+    return False
+
+
+def pyqula_code_scf_block(qtwrap,richer=False):
+    """Return the lines of pyqula code that reproduce the mean-field solve
+    a "Solve SCF" click would run right now, for codeview.py's "pyqula
+    code" tab (called from a mode's own get_pyqula_code() when the SCF
+    switch is on) - a literal mirror of solve_scf() above (richer=False,
+    used by 0d.py/1d.py, which call this file's own solve_scf()) or of
+    2d.py's own richer solve_scf() (richer=True: passes maxerror=<scf_error>
+    instead of T=<smearing_scf>, and has no extra_electron term in its
+    filling). Every mode this is used from always builds a has_spin=True
+    Hamiltonian, so this only ever needs the meanfield.VJinteraction(...)
+    branch - never the spinless meanfield.Vinteraction(...) branch
+    solve_scf() also supports - and for_vjinteraction is always True, so
+    the scf_solver dropdown's value is used as-is (no
+    _VINTERACTION_SOLVER_NAMES translation needed, see
+    get_scf_solver_kwargs())."""
+    get = qtwrap.get
+    getbox = qtwrap.getbox
+    lines = []
+    lines.append("")
+    lines.append("# --- self-consistent mean field (SCF) ---")
+    lines.append("from pyqula import meanfield, scftypes")
+    lines.append("mf = scftypes.guess(h, mode=%r)" % getbox("scf_initialization"))
+    lines.append("filling = %r %% 1." % get("filling_scf"))
+    if not richer:
+        lines.append("filling += %r / h.intra.shape[0]" % get("extra_electron"))
+    kwargs = [
+      "nk=%d" % int(get("nk_scf")), "filling=filling",
+      "U=%r" % get("U"), "V1=%r" % get("V1"), "V2=%r" % get("V2"),
+      "J1=%r" % get("J1"), "J2=%r" % get("J2"), "J3=%r" % get("J3"),
+      "mf=mf", "mix=%r" % get("mix_scf"),
+    ]
+    if richer: kwargs.append("maxerror=%r" % get("scf_error",default=1e-5))
+    else: kwargs.append("T=%r" % get("smearing_scf"))
+    kwargs.append("verbose=1")
+    import importlib.util
+    if importlib.util.find_spec("jax") is not None and not _scf_has_pairing(qtwrap):
+        kwargs.append("use_jax=True")
+        kwargs.append("solver=%r" % getbox("scf_solver"))
+    lines.append("scf = meanfield.VJinteraction(h,")
+    lines.append("    " + ", ".join(kwargs) + ")")
+    lines.append("scf.hamiltonian.save()")
+    return lines
+
+
 def solve_scf(h,window):
   """Perform a selfconsistent calculation"""
   get = window.get # redefine

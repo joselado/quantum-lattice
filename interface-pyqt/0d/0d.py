@@ -17,6 +17,8 @@ window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mod
 from interfacetk import scfterms
 scfterms.build(qtwrap) # build the Density-density/Spin-spin mean field tabs
 
+from interfacetk import codeview
+
 from interfacetk.ql_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # several initilizations
@@ -119,6 +121,78 @@ def initialize():
     return h
 
 
+_LATTICE_CALLS = {
+  "Chain": "geometry.chain()",
+  "Honeycomb": "geometry.honeycomb_lattice()",
+  "Square": "geometry.single_square_lattice()",
+  "Kagome": "geometry.kagome_lattice()",
+  "Lieb": "geometry.lieb_lattice()",
+  "Triangular": "geometry.triangular_lattice_tripartite()",
+  "Honeycomb zigzag": "geometry.honeycomb_zigzag_ribbon(%s)",
+  "Honeycomb armchair": "geometry.honeycomb_armchair_ribbon(%s)",
+}
+
+
+def get_pyqula_code():
+  """Return the pyqula script that reproduces the Hamiltonian this page's
+  form fields currently describe (mirrors get_geometry()/initialize()
+  above) - only non-default (active) terms are included, see
+  codeview.is_active(). Atoms removed manually in the "Modify geometry"
+  tab are not reproduced, since that depends on a saved selection file
+  rather than a term value."""
+  fv = lambda name: codeview.format_value(qtwrap,name)
+  fa = lambda name: codeview.format_array(qtwrap,name)
+  active = lambda name: codeview.is_active(qtwrap,name)
+
+  lattice_name = getbox("lattice")
+  width = fv("width") # matches get_geometry()'s own float(get("width"))
+  nsides = str(int(get("nsides"))) # matches get_geometry()'s int(get("nsides"))
+  lattice_call = _LATTICE_CALLS[lattice_name]
+  if "%s" in lattice_call: lattice_call = lattice_call % width
+
+  lines = [
+    "from pyqula import geometry, islands",
+    "import numpy as np",
+    "",
+    "g = %s" % lattice_call,
+    "g = islands.get_geometry(n=%s, nedges=%s, rot=%s*np.pi/180., geo=g)"
+        % (width,nsides,fv("rotation")),
+    "# note: atoms removed manually in the \"Modify geometry\" tab are"
+        " not reproduced here",
+    "",
+    "h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"),
+  ]
+  if active("exchange"): lines.append("h.add_zeeman(%s)" % fa("exchange"))
+  if active("mAB"): lines.append("h.add_sublattice_imbalance(%s)" % fv("mAB"))
+  if active("rashba"): lines.append("h.add_rashba(%s)" % fv("rashba"))
+  if active("mAF"): lines.append("h.add_antiferromagnetism(%s)" % fv("mAF"))
+  if active("crystalfield"): lines.append("h.add_crystal_field(%s)" % fv("crystalfield"))
+  if active("fermi"): lines.append("h.shift_fermi(%s)" % fv("fermi"))
+  if active("kanemele"): lines.append("h.add_kane_mele(%s)" % fv("kanemele"))
+  if active("haldane"): lines.append("h.add_haldane(%s)" % fv("haldane"))
+  if active("antihaldane"): lines.append("h.add_antihaldane(%s)" % fv("antihaldane"))
+  if active("peierls"): lines.append("h.add_peierls(%s)" % fv("peierls"))
+  if active("strain_strength"):
+    v0 = repr(1.0+get("strain_strength"))
+    rl = repr(get("strain_decay"))
+    stype = getbox("strain_type")
+    if stype=="Radial scalar":
+      lines.append("from pyqula import potentials")
+      lines.append("fs = potentials.radial_decay(v0=%s, voo=1.0, rl=%s)" % (v0,rl))
+      lines.append("h.add_strain(fs, mode=\"scalar\")")
+    elif stype=="Radial vector":
+      lines.append("from pyqula.potentialtk.vectorprofile import radial_vector_decay")
+      lines.append("fs = radial_vector_decay(v0=%s, voo=1.0, rl=%s)" % (v0,rl))
+      lines.append("h.add_strain(fs, mode=\"non_uniform\")")
+  if active("swave"): lines.append("h.add_swave(%s)" % fv("swave"))
+  if active("pwave"): lines.append("h.add_pairing(d=%s, mode=\"triplet\", delta=1.0)" % fa("pwave"))
+
+  if qtwrap.is_checked("do_scf"):
+    lines += common.pyqula_code_scf_block(qtwrap,richer=False)
+
+  return "\n".join(lines)
+
+
 def show_interactive_ldos():
   h = pickup_hamiltonian()  # get the hamiltonian
   common.get_multildos(h,qtwrap) # compute
@@ -175,6 +249,8 @@ def show_local_chern():
   execute_script("ql-potential --input REAL_SPACE_CHERN.OUT --cmap rainbow")
 
 
+
+codeview.build(qtwrap,get_pyqula_code) # "pyqula code" sub-tab
 
 inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
 

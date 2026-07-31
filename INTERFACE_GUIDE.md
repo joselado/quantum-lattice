@@ -38,6 +38,10 @@ maintenance doc, not a one-time snapshot.
 - **Change the standard `<mode>.py` footer (scratch folder, Save/Load
   Results wiring, formulas/tooltips, `connect_clicks`)** —
   `common.finalize_page()`; see "Adding a mode" below.
+- **Change the "pyqula code" tab** (the read-only view of the pyqula
+  script that reproduces the current Hamiltonian) — `pysrc/interfacetk/codeview.py`
+  plus each mode's own `get_pyqula_code()`; see "Adding the 'pyqula code'
+  tab to a mode" below.
 
 ## The QTabWidget naming trap
 
@@ -212,6 +216,19 @@ placeholder/page rather than editing generated code:
   `wire_highlight()` and `_wire_interaction_field()`) when restoring a
   saved `interface.json`, since `setText()` there doesn't fire
   `textEdited`.
+- **`codeview.py`** — adds a third "pyqula code" sub-tab alongside "Single
+  particle"/"Many-body interactions" inside "Terms in the Hamiltonian",
+  showing a read-only, copyable pyqula script that reproduces the
+  Hamiltonian the page's fields currently describe. Depends on
+  `scfterms.build(qtwrap)` having already run (it reads
+  `form._hamiltonian_subtabs`, the inner `QTabWidget` `scfterms.py`'s
+  `_nest_scf_tab()` builds and saves there). `codeview.build(qtwrap,
+  code_fn)` just adds the tab/text box/Refresh+Copy buttons; the actual
+  script text comes from `code_fn`, a mode-supplied zero-argument function
+  (`get_pyqula_code()` in `0d.py`/`1d.py`/`2d.py`) that mirrors that mode's
+  own `get_geometry()`/`initialize()` by hand — see "Adding the 'pyqula
+  code' tab to a mode" below for the convention and the checklist for
+  keeping it in sync.
 
 When a field's visibility/tab membership needs to change based on other
 UI state or needs to be shared identically across many modes without
@@ -412,6 +429,68 @@ almost always exactly `common.show_structure(qtwrap,get_geometry)` /
 commands). Only write a custom `show_structure()` body by hand if the mode
 needs to do something extra before plotting (e.g. `hybridfilm.py` writes a
 `PROFILE.OUT` z-sign profile first).
+
+## Adding the "pyqula code" tab to a mode
+
+`0d`/`1d`/`2d` each have a "pyqula code" sub-tab (built by `codeview.py`,
+see the "Runtime dynamic-widget patterns" bullet above) showing a
+standalone pyqula script that reproduces the Hamiltonian the page's fields
+currently describe - copyable, so a user can take it and run it outside
+the GUI. Retrofitting this onto another mode:
+
+1. Call `codeview.build(qtwrap, get_pyqula_code)` after
+   `scfterms.build(qtwrap)` (hard prerequisite - it builds
+   `form._hamiltonian_subtabs`, which `codeview.build()` requires and
+   raises a clear `RuntimeError` without) and after `get_pyqula_code` is
+   defined - see the end of `0d.py`/`1d.py`/`2d.py` for the exact spot,
+   right before the `inipath = os.getcwd()` line.
+2. Write `get_pyqula_code()` in that mode's `<mode>.py` by hand-mirroring
+   its own `get_geometry()` and `initialize()` (or, for a mode that uses
+   `common.generate_hamiltonian()` instead of writing its own `initialize()`
+   inline, like `2d.py` does - mirror that function's term list instead).
+   This is deliberately **not** a generic call-tracing mechanism over
+   `pyqula` objects (`pysrc/pyqula/` is vendored/black-box, so wrapping its
+   Hamiltonian/geometry objects to auto-capture every call would be a much
+   larger, riskier piece of machinery than this feature needs) - it's a
+   second hand-written listing that must be kept in sync with
+   `initialize()` by hand, the same way `common.py:set_formulas()`'s
+   `terms` list already has to be (see "Adding a Hamiltonian term" above).
+   **Whenever you add, remove, or change a term in a mode's `initialize()`
+   (or `common.generate_hamiltonian()`), update that mode's
+   `get_pyqula_code()` to match** - nothing else enforces they agree.
+3. Every optional term line is guarded by `codeview.is_active(qtwrap,name)`
+   (a thin wrapper around `termhighlight.is_nonzero_value()`, the same test
+   that bolds a term's field) so the generated script only lists terms
+   currently away from their zero/default value - a clean, minimal listing
+   rather than a line-for-line dump of every possible `add_x(0.0)` no-op.
+   Geometry construction and the base `h = g.get_hamiltonian(...)` call are
+   always included unconditionally (there's no "zero" geometry or hopping).
+   Use `codeview.format_value(qtwrap,name)`/`format_array(qtwrap,name)` to
+   turn a field's raw text into the Python literal for that line - `format_value`
+   falls back to embedding the raw text verbatim as a `lambda r: <text>`
+   body for the handful of fields (e.g. `crystalfield`, strain profiles)
+   that can hold a position-dependent expression instead of a plain number,
+   mirroring `qtwrap.get()`'s own `eval("lambda r: "+text)` fallback.
+   A field the real code casts with `int(...)` (e.g. a mode's `nsides`/
+   `nsuper`/ribbon `width`) needs its own `int(get(name))` in the
+   generator instead of `format_value()` - the latter always keeps a
+   number as a float, which is wrong for a count/index argument.
+4. When the SCF switch (`do_scf`) is on, append
+   `common.pyqula_code_scf_block(qtwrap, richer=...)` - shared because
+   `0d.py`/`1d.py` both call this file's own `common.solve_scf()`
+   (`richer=False`) while `2d.py` (and `3d.py`, if/when it gets this
+   feature) has its own richer `solve_scf()` that passes `maxerror=`
+   instead of `T=` (`richer=True`) - see that function's docstring. This
+   only ever needs the `meanfield.VJinteraction(...)` branch, never the
+   spinless `meanfield.Vinteraction(...)` branch `solve_scf()` also
+   supports, since every mode that has this tab always builds a
+   `has_spin=True` Hamiltonian.
+5. Manual atom removal (the "Modify geometry" tab) is not reproduced in
+   the generated code - it depends on a saved `REMOVE_ATOMS.INFO`
+   selection file, not a term value, so `get_pyqula_code()` leaves a
+   one-line comment noting this instead of a saved-file-dependent
+   `modify_geometry(g)` call. That's an intentional scope limit, not a
+   bug, this tab's use case is Hamiltonian terms, not geometry sculpting.
 
 ## Retrofitting SCF onto an existing mode
 

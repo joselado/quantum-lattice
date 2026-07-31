@@ -80,6 +80,15 @@ can use them all:
    the mode supports mean-field interactions, this area is itself split into
    two sub-tabs, "Single particle" and "Many-body interactions" — see
    [Self-consistent mean-field calculations](#self-consistent-mean-field-scf-calculations).
+   A third sub-tab, **"pyqula code"** (currently in the Islands/Ribbons/Sheets
+   modes), shows the equivalent `pyqula` Python script for the terms you've
+   set — only the terms currently away from their default `0.0` are listed,
+   so it stays a short, clean recipe rather than a dump of every possible
+   term. It updates automatically whenever you switch to it (or press
+   Refresh), and a Copy button puts the script on your clipboard to paste
+   into your own script outside the GUI. If mean-field interactions are
+   switched on, the self-consistent solve is included too. Atoms removed by
+   hand on the "Modify geometry" tab are not reflected in the generated code.
 4. **Calculation tabs** — one tab per kind of result: Structure, Bands, DOS,
    LDOS, Fermi surface, QPI, Topology, Magnetism, Sweep, ... Each has its own
    button(s) ("Show bands", "Show DOS", ...) plus any options specific to

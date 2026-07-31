@@ -18,6 +18,8 @@ window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mod
 from interfacetk import scfterms
 scfterms.build(qtwrap) # build the Density-density/Spin-spin mean field tabs
 
+from interfacetk import codeview
+
 from interfacetk.ql_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 common.initialize(qtwrap) # do several common initializations
@@ -90,6 +92,75 @@ def initialize():
   return h
 
 
+_LATTICE_CALLS = {
+  "Chain": "geometry.chain()",
+  "Bichain": "geometry.bichain()",
+  "Honeycomb": "geometry.honeycomb_lattice()",
+  "Square": "geometry.square_lattice()",
+  "Kagome": "geometry.kagome_lattice()",
+  "Lieb": "geometry.lieb_lattice()",
+  "Triangular": "geometry.triangular_lattice_tripartite()",
+  "Honeycomb zigzag": "geometry.honeycomb_zigzag_ribbon(%s)",
+  "Honeycomb armchair": "geometry.honeycomb_armchair_ribbon(%s)",
+}
+# lattice names whose constructor builds a 2D bulk geometry that
+# get_geometry() then cuts into a ribbon (g.dimensionality==2 check) -
+# hardcoded here since it only depends on lattice_name, not on any UI
+# value, so it can be decided at code-generation time the same way
+# get_geometry()'s runtime check would resolve for that same name
+_NEEDS_RIBBON = {"Honeycomb","Square","Kagome","Lieb","Triangular"}
+
+
+def get_pyqula_code():
+  """Return the pyqula script that reproduces the Hamiltonian this page's
+  form fields currently describe (mirrors get_geometry()/initialize()
+  above) - only non-default (active) terms are included, see
+  codeview.is_active(). Atoms removed manually in the "Modify geometry"
+  tab are not reproduced, since that depends on a saved selection file
+  rather than a term value."""
+  fv = lambda name: codeview.format_value(qtwrap,name)
+  fa = lambda name: codeview.format_array(qtwrap,name)
+  active = lambda name: codeview.is_active(qtwrap,name)
+
+  lattice_name = getbox("lattice")
+  width = str(int(get("width"))) # matches get_geometry()'s own int(get("width"))
+  nsuper = str(int(get("nsuper"))) # matches get_geometry()'s int(get("nsuper"))
+  lattice_call = _LATTICE_CALLS[lattice_name]
+  if "%s" in lattice_call: lattice_call = lattice_call % width
+
+  lines = [
+    "from pyqula import geometry, ribbon",
+    "",
+    "g = %s" % lattice_call,
+  ]
+  if lattice_name in _NEEDS_RIBBON:
+    lines.append("g = ribbon.bulk2ribbon(g, n=%s)" % width)
+  lines.append("g = g.supercell(%s, store_primal=True)" % nsuper)
+  lines.append("# note: atoms removed manually in the \"Modify geometry\""
+      " tab are not reproduced here")
+  lines.append("")
+  lines.append("h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"))
+  lines.append("h.turn_multicell()")
+  if active("exchange"): lines.append("h.add_zeeman(%s)" % fa("exchange"))
+  if active("mAB"): lines.append("h.add_sublattice_imbalance(%s)" % fv("mAB"))
+  if active("rashba"): lines.append("h.add_rashba(%s)" % fv("rashba"))
+  if active("mAF"): lines.append("h.add_antiferromagnetism(%s)" % fv("mAF"))
+  if active("crystalfield"): lines.append("h.add_crystal_field(%s)" % fv("crystalfield"))
+  if active("fermi"): lines.append("h.shift_fermi(%s)" % fv("fermi"))
+  if active("kanemele"): lines.append("h.add_kane_mele(%s)" % fv("kanemele"))
+  if active("haldane"): lines.append("h.add_haldane(%s)" % fv("haldane"))
+  if active("antihaldane"): lines.append("h.add_antihaldane(%s)" % fv("antihaldane"))
+  if active("antikanemele"): lines.append("h.add_anti_kane_mele(%s)" % fv("antikanemele"))
+  if active("peierls"): lines.append("h.add_peierls(%s)" % fv("peierls"))
+  if active("swave"): lines.append("h.add_swave(%s)" % fv("swave"))
+  if active("pwave"): lines.append("h.add_pairing(d=%s, mode=\"triplet\", delta=1.0)" % fa("pwave"))
+
+  if qtwrap.is_checked("do_scf"):
+    lines += common.pyqula_code_scf_block(qtwrap,richer=False)
+
+  return "\n".join(lines)
+
+
 def show_edge_dos():
   h = pickup_hamiltonian() # get hamiltonian
   common.get_surface_dos(h,qtwrap) # wrapper
@@ -150,6 +221,7 @@ def solve_scf():
   common.solve_scf(h,qtwrap)
 
 
+codeview.build(qtwrap,get_pyqula_code) # "pyqula code" sub-tab
 
 
 

@@ -18,6 +18,8 @@ window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mod
 from interfacetk import scfterms
 scfterms.build(qtwrap) # build the Density-density/Spin-spin mean field tabs
 
+from interfacetk import codeview
+
 from interfacetk.qlinterface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 
@@ -77,6 +79,62 @@ def initialize():
   """ Initialize the calculation"""
   g = get_geometry() # get the geometry
   return common.generate_hamiltonian(qtwrap,g=g) # return Hamiltonian
+
+
+_LATTICE_CALLS = {
+  "Honeycomb": "geometry.honeycomb_lattice()",
+  "Honeycomb 4 sites": "geometry.honeycomb_lattice_square_cell()",
+  "Square": "geometry.square_lattice()",
+  "Single square": "geometry.single_square_lattice()",
+  "Kagome": "geometry.kagome_lattice()",
+  "Lieb": "geometry.lieb_lattice()",
+  "Triangular": "geometry.triangular_lattice()",
+  "Triangular tripartite": "geometry.triangular_lattice(n=3)",
+  "Honeycomb 6 sites": "geometry.honeycomb_lattice(n=3)",
+}
+
+
+def get_pyqula_code():
+  """Return the pyqula script that reproduces the Hamiltonian this page's
+  form fields currently describe (mirrors get_geometry()/
+  common.generate_hamiltonian() above) - only non-default (active) terms
+  are included, see codeview.is_active(). Atoms removed manually in the
+  "Modify geometry" tab are not reproduced, since that depends on a saved
+  selection file rather than a term value."""
+  fv = lambda name: codeview.format_value(qtwrap,name)
+  fa = lambda name: codeview.format_array(qtwrap,name)
+  active = lambda name: codeview.is_active(qtwrap,name)
+
+  lattice_name = getbox("lattice")
+
+  lines = [
+    "from pyqula import geometry",
+    "",
+    "g = %s" % _LATTICE_CALLS[lattice_name],
+    # matches get_geometry()'s own int(get("nsuper"))
+    "g = g.supercell(%s, store_primal=True)" % int(get("nsuper")),
+    "# note: atoms removed manually in the \"Modify geometry\" tab are"
+        " not reproduced here",
+    "",
+    "h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"),
+  ]
+  if active("exchange"): lines.append("h.add_exchange(%s)" % fa("exchange"))
+  if active("mAB"): lines.append("h.add_sublattice_imbalance(%s)" % fv("mAB"))
+  if active("rashba"): lines.append("h.add_rashba(%s)" % fv("rashba"))
+  if active("mAF"): lines.append("h.add_antiferromagnetism(%s)" % fv("mAF"))
+  if active("fermi"): lines.append("h.shift_fermi(%s)" % fv("fermi"))
+  if active("kanemele"): lines.append("h.add_kane_mele(%s)" % fv("kanemele"))
+  if active("haldane"): lines.append("h.add_haldane(%s)" % fv("haldane"))
+  if active("antihaldane"): lines.append("h.add_antihaldane(%s)" % fv("antihaldane"))
+  if active("antikanemele"): lines.append("h.add_anti_kane_mele(%s)" % fv("antikanemele"))
+  if active("swave"): lines.append("h.add_swave(%s)" % fv("swave"))
+  if active("pwave"): lines.append("h.add_pairing(d=%s, mode=\"triplet\", delta=1.0)" % fa("pwave"))
+  lines.append("h.turn_dense()")
+
+  if qtwrap.is_checked("do_scf"):
+    lines += common.pyqula_code_scf_block(qtwrap,richer=True)
+
+  return "\n".join(lines)
 
 
 def special_pairing(h):
@@ -240,6 +298,8 @@ def sweep_parameter():
     
 
 
+
+codeview.build(qtwrap,get_pyqula_code) # "pyqula code" sub-tab
 
 inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
 
