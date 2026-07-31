@@ -186,6 +186,12 @@ h = g.get_hamiltonian(has_spin=True)
 (k,e,c) = h.get_bands(operator="velocity") # bands colored by group velocity
 ```
 
+Passing a list of operators computes the expectation value of each of them for every eigenstate, returning one extra column per operator (`(k,e,c1,c2,...)` instead of `(k,e,c)`)
+
+```python
+(k,e,c_sz,c_site) = h.get_bands(operator=["sz","site"]) # two operators at once
+```
+
 For a very large system (e.g. a moire supercell), diagonalizing the full Hamiltonian at every k-point is wasteful if only a handful of bands around the Fermi level are of interest. Passing `num_bands` switches to a sparse ARPACK solver that targets only those bands
 
 ```python
@@ -939,12 +945,50 @@ builds a JAX-differentiable version of one SCF iteration $x=f(x)$ and drives
 it to its fixed point with a genuine root-finder using JAX-computed
 derivatives of $f$ (`solver="newton"`, the default once `use_jax=True`), a
 matrix-free variant that scales to larger systems (`solver="newton_krylov"`),
-or by minimizing the squared residual $\|f(x)-x\|^2$ with `jax.grad` and
-`scipy`'s L-BFGS-B (`solver="error_gradient"`) -- see the reference entry
-below for the full solver list and scope restrictions (normal-state only, no
-`constrains`), and `selfconsistency.vjinteraction_jax`'s module docstring
-for why `solver="error_gradient"` minimizes the SCF residual rather than the
-physical free energy directly:
+by minimizing the squared residual $\|f(x)-x\|^2$ as a proper nonlinear
+least-squares problem via matrix-free Levenberg-Marquardt (`jax.jvp`/
+`jax.vjp` plus `scipy`'s `lsqr`, `solver="error_gradient"`), or with a robust black-box
+mixing scheme, `solver="broyden_mixing"` -- a regularized, limited-memory
+multisecant form of Broyden's second method following Marks & Luke,
+*Robust Mixing for Ab-Initio Quantum Mechanical Calculations*
+(arXiv:0801.3098). Unlike the root-finder/gradient-based solvers above, it
+only ever evaluates $f$ itself (no Jacobian, no autodiff), tracking the last
+few SCF steps as simultaneous secant conditions, regularizing the resulting
+least-squares solve (Tikhonov), and adaptively bounding the step length --
+this is the combination the paper credits for converging on cases (e.g.
+"charge sloshing" between two badly-scaled subsets of the mean field) that
+defeat a single fixed linear-mixing factor. It first runs a plain-linear-
+mixing warm-up (reusing `mix`) until the residual drops below a threshold
+(`warmup_tol`, default 1e-2) before switching on the multisecant machinery --
+benchmarked across several small (5-13 atom) systems, starting the
+multisecant phase directly on a cold guess (the paper's own literal
+algorithm) regularly failed to converge, while the warm-up fixed every
+observed case and also converged 2-10x faster than plain linear mixing
+alone; see `selfconsistency.broydenmixing`'s module docstring for the
+algorithm and that benchmark. See the reference entry below for the full
+solver list and scope restrictions
+(normal-state only, no `constrains`), and
+`selfconsistency.vjinteraction_jax`'s module docstring for why
+`solver="error_gradient"` minimizes the SCF residual rather than the
+physical free energy directly.
+
+Which solver is most likely to converge at all (as opposed to fastest) matters
+more than raw speed when the system's symmetry properties aren't known in
+advance (e.g. no explicit symmetry-breaking bias applied to the Hamiltonian).
+Measured across a range of system sizes and both biased and fully generic
+(unbiased) Hamiltonians, `solver="error_gradient"` was consistently the most
+robust of the four `use_jax=True` solvers, converging in nearly every case
+tried -- including the hardest one, a larger unbiased system where
+`"linear_mixing"` failed outright and `"broyden_mixing"` converged only a
+minority of the time (outside the small-system regime it was validated on
+above). `"newton_krylov"` was also reliable at larger sizes but considerably
+slower there, and was the least robust solver of the four on small systems,
+where its GMRES step can fail outright against a near-singular Jacobian.
+Net recommendation: default to `solver="error_gradient"` for a generic
+system whose symmetry isn't known to be already broken; reach for
+`"newton_krylov"`/`"broyden_mixing"` instead once the system is known to be
+well-conditioned (or explicitly biased) and the extra speed matters more
+than robustness.
 
 ```python
 h = g.get_hamiltonian(has_spin=True)
@@ -994,6 +1038,18 @@ h = gs.get_hamiltonian() # Hamiltonian of the supercell
 `d` holds the unfolded spectral weight at each `(k,e)`; plotting a scatter of `k,e` colored/sized by `d` recovers the primitive-cell band structure out of the supercell calculation. The same `operator="unfold"` can be passed to `h.get_multi_fermi_surface()` to unfold constant-energy cuts. See `examples/2d/unfolding/main.py`, `examples/1d/unfolding/main.py` and `examples/readme_examples/unfolding_FS/main.py` for runnable versions.
 
 Unfolding also works when atoms have been removed from the supercell (e.g. `gs = gs.remove([...])` before `gs.get_hamiltonian()`), such as a vacancy or an irregularly-shaped flake cut out of a supercell: pyqula matches each remaining atom back to its primitive-cell replica by position instead of assuming every replica is fully present, so no extra arguments are needed — `operator="unfold"` transparently falls back to this slower, defect-tolerant path whenever the supercell's atom count doesn't match a complete replication of the primitive cell, and uses the original fast path otherwise. This position match requires the remaining atoms to sit exactly where they were in the original, undefective supercell, so don't call anything that moves atoms (e.g. `gs.center()`, a geometry relaxation) between `gs.remove(...)` and `gs.get_hamiltonian()` — doing so raises a `ValueError` rather than silently unfolding onto the wrong replica.
+
+Unfolding also works for a general, non-diagonal/non-orthogonal supercell, built by passing a 3x3 integer matrix `M` to `get_supercell` instead of a plain `(n1,n2,...)` size (`gs.a1,gs.a2,gs.a3` become integer combinations of the primitive vectors, `gs = M @ g`). No change is needed at the unfolding call site — `get_supercell(M,...)` records, per surviving atom, which primitive replica it came from, and `operator="unfold"` reads that bookkeeping directly (both for a complete supercell and after removing atoms):
+
+```python
+g = geometry.honeycomb_lattice() # primitive geometry
+M = [[2,1,0],[0,1,0],[0,0,1]] # non-diagonal supercell matrix, det(M)=2
+gs = g.get_supercell(M,store_primal=True) # supercell, keeping the primitive cell info
+h = gs.get_hamiltonian() # Hamiltonian of the supercell
+(k,e,d) = h.get_kdos_bands(operator="unfold",delta=1e-1) # unfolded spectral function
+```
+
+This bookkeeping-based path only supports 1D/2D lattices (matching the diagonal case); a 3x3 `M` on a 3D bulk geometry is not yet implemented.
 
 # Surface spectral functions
 
@@ -1361,6 +1417,27 @@ for T in np.linspace(1e-3,1.0,6): # loop over transparencies
     Gs = [HT.didv(energy=e) for e in es] # calculate conductance
 ```
 
+## Transport through an arbitrary finite region
+
+The two examples above build the central scattering region out of copies of the leads' own unit cell. `Hamiltonian.get_central_heterostructure(i,j,left=None,right=None)` instead lets *any* finite (0d) Hamiltonian act as the central region, contacted by two semi-infinite 1D chain leads attached at sites `i` and `j`:
+
+```python
+from pyqula import geometry
+
+g = geometry.chain()
+gc = g.get_supercell(5)
+gc.dimensionality = 0 # a finite, 5-site cluster (no periodicity)
+hc = gc.get_hamiltonian() # the central region -- can be any 0d Hamiltonian
+
+h_normal = g.get_hamiltonian() # normal lead
+h_sc = g.get_hamiltonian(); h_sc.add_swave(0.05) # superconducting lead
+
+ht = hc.get_central_heterostructure(0,4,left=h_normal,right=h_sc)
+G = ht.didv(energy=0.02) # Andreev conductance, via the BdG scattering-matrix formula
+```
+
+It returns a plain `Heterostructure`, so every existing method (`landauer`, `didv`, `get_dos`, `get_kappa`...) applies unmodified. `left`/`right` default to a plain spinless chain when omitted, and `j` defaults to the last site. At most one of `{hc, left, right}` may carry an actual pairing amplitude -- e.g. a normal lead + normal lead + superconducting central region (a proximitized molecule) is fine, as is the normal + superconducting lead case above, but two superconducting leads raise a `ValueError` (there would be no normal lead left to define a reflection amplitude against; use `heterostructures.build` + `get_dc_current` for that case instead, see below). Only 0d central regions are supported so far. See `examples/transport/central_region_ij/main.py` for a runnable script.
+
 ## Multiple Andreev reflection and AC-Josephson current
 
 `didv`/`landauer` above are equilibrium, zero-bias linear-response quantities. For a voltage-biased junction between two superconductors (an SNS junction), a finite bias makes each lead's pairing phase wind in time, giving rise to multiple Andreev reflections (MAR) and an AC Josephson effect; the physically meaningful, measurable quantity is the time-averaged (DC) current $I_{dc}(V)$. `Heterostructure.get_dc_current(voltage)` computes this with the Floquet-Keldysh formalism of San-Jose, Cayao, Prada and Aguado, *New J. Phys.* **15**, 075019 (2013) ([arXiv:1301.4408](https://arxiv.org/abs/1301.4408)): the bias is gauged away from the (static) leads into a single, periodically time-dependent "weak link" hopping, and the resulting Floquet-space Dyson/Keldysh equations are solved to get $I_{dc}(V)$. It works for any combination of normal and superconducting leads -- including the case of **two** superconducting leads, which the scattering-matrix formula behind `didv` cannot handle on its own (it has no normal lead to define a reflection amplitude against).
@@ -1569,7 +1646,7 @@ Generate a supercell
 
 Arguments
 
-- N: size of the supercell to create, number or tuple
+- N: size of the supercell to create, number or tuple, or a 3x3 integer matrix M for a general non-diagonal/non-orthogonal supercell (see "Electronic structure folding and unfolding" for how this interacts with `operator="unfold"`)
 
 Optional arguments
 
@@ -1585,8 +1662,9 @@ Compute band structure
 Optional arguments:
 
 - nk = 20: number of k-points
+- operator: a single operator, or a list of operators, to compute expectation values for at each eigenstate
 
-Returns kpoint index and energies
+Returns kpoint index and energies, plus one extra row per operator if `operator` is given
 
 ### h.get_kdos_bands()
 Compute a k-resolved spectral function (band structure dressed with a projection operator, or an unfolded spectral function) along a k-path.
@@ -1900,15 +1978,29 @@ pairing (see the example above).
   `scipy.optimize.fsolve`/MINPACK with the same `jax.jacfwd` Jacobian as
   `fprime`; `"linear_mixing"` is plain linear mixing routed through the same
   machinery, for comparison; `"error_gradient"` instead minimizes the squared
-  SCF residual $\|f(x)-x\|^2$ with `jax.grad` + `scipy`'s L-BFGS-B (not the
-  physical free energy directly -- see `selfconsistency.vjinteraction_jax`'s
-  module docstring for why that alternative was tried and abandoned: the
-  physical SCF solution turned out to be a saddle point, not a minimum, of
-  the free-energy functional). `"error_gradient"` scales per-iteration like
-  `"newton_krylov"`/`"linear_mixing"` (no dense Jacobian), and matches
-  `"newton"` well on small/moderate systems, but as a local optimizer it can
-  stall short of `maxerror` on a harder landscape from a generic starting
-  guess -- always check `.converged`. Restricted to a normal-state (non-BdG)
+  SCF residual $\|f(x)-x\|^2$ as a proper nonlinear least-squares problem,
+  via matrix-free Levenberg-Marquardt (`jax.jvp`/`jax.vjp` Jacobian-vector
+  and Jacobian-transpose-vector products of the residual + `scipy`'s `lsqr`
+  for each damped LM subproblem) -- not the physical free energy directly
+  (see `selfconsistency.vjinteraction_jax`'s module docstring for why that
+  alternative was tried and abandoned: the physical SCF solution turned out
+  to be a saddle point, not a minimum, of the free-energy functional).
+  `"error_gradient"` scales per-iteration like `"newton_krylov"`/
+  `"linear_mixing"` (no dense Jacobian), and matches `"newton"`/
+  `"newton_krylov"` well from small systems up through at least ~60
+  orbitals (see `selfconsistency.vjinteraction_jax`'s module docstring for
+  measured numbers), but as a local method it can in principle still stall
+  short of `maxerror` on a sufficiently hard landscape -- always check
+  `.converged`. `"broyden_mixing"` is a black-box
+  mixing scheme rather than a root-finder/gradient method (regularized,
+  limited-memory multisecant Broyden mixing, Marks & Luke arXiv:0801.3098 --
+  see `selfconsistency.broydenmixing`'s module docstring); it only ever
+  evaluates $f$ itself, so it plugs into the same solver dispatch with no
+  Jacobian/gradient machinery of its own, and is also reachable from the
+  plain (non-jax) engine as `solver="broyden_mixing"` (alongside the
+  existing `"broyden1"`/`"krylov"`/`"anderson"`/`"linear"` `scipy.optimize`
+  wrappers in `selfconsistency.densitydensity.generic_densitydensity`).
+  Restricted to a normal-state (non-BdG)
   Hamiltonian, dense exact diagonalization only (no `integration="kpm"`),
   and no `constrains`; needs the optional `jax` extra
   (`pip install pyqula[jax]`). See `selfconsistency.vjinteraction_jax`'s
@@ -1921,6 +2013,17 @@ hmf = h.get_combined_mean_field_hamiltonian(U=4.0,J1=-0.5,filling=0.5,
 ```
 
 Returns the converged Hamiltonian (or `None` if the SCF did not converge)
+
+### h.get_central_heterostructure()
+Build a two-terminal `Heterostructure` using `h` (a finite, 0d Hamiltonian) as the central scattering region, contacted by two semi-infinite 1D chain leads attached at sites `i`/`j` (see "Transport through an arbitrary finite region" above).
+
+Optional arguments:
+
+- i=0, j=None: 0-indexed sites `h` is contacted at; `j` defaults to the last site
+
+- left=None, right=None: lead Hamiltonians; default to a plain spinless `geometry.chain()`. Give one of them (or `h` itself) nonzero pairing (`add_swave`) for a normal-superconductor junction -- at most one of `{h, left, right}` may carry pairing
+
+Returns a `Heterostructure`, so `landauer`, `didv`, `get_dos`, `get_kappa`, etc. all apply unmodified. Only 0d central regions are supported so far (`h.dimensionality>0` raises `NotImplementedError`).
 
 ## Heterostructure functions and methods
 

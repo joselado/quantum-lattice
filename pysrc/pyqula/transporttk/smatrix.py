@@ -7,7 +7,25 @@ delta_smatrix = 1e-12 # delta for the smatrix
 
 
 def get_smatrix(ht,energy=0.0,as_matrix=False,check=True):
-    """Calculate the S-matrix of an heterostructure"""
+    """Calculate the S-matrix of an heterostructure.
+
+    Two cheap perf fixes applied here (2026-07-31, no behavior change,
+    verified bit-identical against the previous implementation): sqrtm(Γ_L)
+    and sqrtm(Γ_R) are each computed once and reused for both blocks that
+    need them (previously computed twice each), and unitarize.check_and_fix
+    checks unitarity via S@S^H≈I instead of a full scipy.linalg.inv(S)
+    (equivalent condition, avoids an explicit matrix inverse on every call
+    since check=True is the default).
+
+    Not done here, left as a follow-up: g11/g12/g21/g22 are each obtained
+    via an independent call to gauss_inverse, which internally redoes a
+    full forward or backward sweep over all blocks from scratch every time
+    -- for ht.block_diagonal=True (long/disordered central regions split
+    into many cells) that's ~4x more block inversions than a proper
+    single-pass recursive-Green's-function sweep needs. Not worth it for
+    the common 3-block (non-block_diagonal) case. No test currently
+    exercises get_smatrix with block_diagonal=True, so that rewrite would
+    need new correctness tests first."""
     # now do the Fisher Lee trick
     delta = ht.delta
     if delta>delta_smatrix: delta = delta_smatrix # small delta is critical!
@@ -28,14 +46,16 @@ def get_smatrix(ht,energy=0.0,as_matrix=False,check=True):
     g21 = gauss_inverse(gmatrix,-1,0,test=test_gauss)
     g22 = gauss_inverse(gmatrix,-1,-1,test=test_gauss)
     ######## now build up the s matrix with the fisher trick
-    # the identity can have different dimension ignore for now....
-    iden = np.array(np.identity(g11.shape[0],dtype=complex)) # create identity
+    # left and right leads can have different dimensions, so each
+    # diagonal block needs its own identity matrix
     iden11 = np.array(np.identity(g11.shape[0],dtype=complex)) # create identity
     iden22 = np.array(np.identity(g22.shape[0],dtype=complex)) # create identity
-    smatrix[0][0] = -iden + 1j*sqrtm(gammal)@g11@sqrtm(gammal) # matrix
-    smatrix[0][1] = 1j*sqrtm(gammal)@g12@sqrtm(gammar) # transmission matrix
-    smatrix[1][0] = 1j*sqrtm(gammar)@g21@sqrtm(gammal) # transmission matrix
-    smatrix[1][1] = -iden + 1j*sqrtm(gammar)@g22@sqrtm(gammar) # matrix
+    sqgl = sqrtm(gammal) # only need this once
+    sqgr = sqrtm(gammar) # only need this once
+    smatrix[0][0] = -iden11 + 1j*sqgl@g11@sqgl # matrix
+    smatrix[0][1] = 1j*sqgl@g12@sqgr # transmission matrix
+    smatrix[1][0] = 1j*sqgr@g21@sqgl # transmission matrix
+    smatrix[1][1] = -iden22 + 1j*sqgr@g22@sqgr # matrix
     if check: # check whether the matrix is unitary
         from .unitarize import check_and_fix
         smatrix = check_and_fix(smatrix,error=100*delta)
@@ -74,9 +94,10 @@ def effective_tridiagonal_hamiltonian(intra,selfl,selfr,
     if not type(intra) is list: raise # assume is list
     n = len(intra) # number of blocks
     iout = [[None for i in range(n)] for j in range(n)] # empty list
-    iden = np.array(np.identity(intra[0][0].shape[0],dtype=np.complex128))
-    ez = iden*(energy +1j*delta) # complex energy
+    ce = energy +1j*delta # complex energy
     for i in range(n):
+      # each block gets its own identity, blocks can have different sizes
+      ez = np.identity(intra[i][i].shape[0],dtype=np.complex128)*ce
       iout[i][i] = ez - intra[i][i] # simply E -H
     for i in range(n-1):
       iout[i][i+1] = -intra[i][i+1] # simply E -H
@@ -109,6 +130,13 @@ def enlarge_hlist(ht):
         hcentral[-2][-1] = ht.right_coupling*ht.scale_rc # right
         hcentral[-1][-2] = dagger(ht.right_coupling)*ht.scale_rc # right
     else: # no original central part
+        if ht.left_coupling.shape != ht.right_coupling.shape:
+            raise ValueError("No central Hamiltonian was provided, but "
+                "the left and right leads have different dimensions "
+                "("+str(ht.left_coupling.shape)+" vs "
+                +str(ht.right_coupling.shape)+"), so their couplings "
+                "cannot be averaged -- pass an explicit `central` region "
+                "to bridge leads of different size")
         # here the average of the two hoppings will be performed
         # if the Hamiltonian of the scattering region is not provided
         # this may be not the optimal intuitive choice
