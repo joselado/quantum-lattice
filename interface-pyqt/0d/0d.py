@@ -157,8 +157,9 @@ def get_pyqula_code():
     "g = %s" % lattice_call,
     "g = islands.get_geometry(n=%s, nedges=%s, rot=%s*np.pi/180., geo=g)"
         % (width,nsides,fv("rotation")),
-    "# note: atoms removed manually in the \"Modify geometry\" tab are"
-        " not reproduced here",
+  ]
+  lines += codeview.geometry_removal_code(qtwrap,center=True)
+  lines += [
     "",
     "h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"),
   ]

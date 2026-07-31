@@ -136,8 +136,7 @@ def get_pyqula_code():
   if lattice_name in _NEEDS_RIBBON:
     lines.append("g = ribbon.bulk2ribbon(g, n=%s)" % width)
   lines.append("g = g.supercell(%s, store_primal=True)" % nsuper)
-  lines.append("# note: atoms removed manually in the \"Modify geometry\""
-      " tab are not reproduced here")
+  lines += codeview.geometry_removal_code(qtwrap)
   lines.append("")
   lines.append("h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"))
   lines.append("h.turn_multicell()")

@@ -113,8 +113,9 @@ def get_pyqula_code():
     "g = %s" % _LATTICE_CALLS[lattice_name],
     # matches get_geometry()'s own int(get("nsuper"))
     "g = g.supercell(%s, store_primal=True)" % int(get("nsuper")),
-    "# note: atoms removed manually in the \"Modify geometry\" tab are"
-        " not reproduced here",
+  ]
+  lines += codeview.geometry_removal_code(qtwrap)
+  lines += [
     "",
     "h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"),
   ]

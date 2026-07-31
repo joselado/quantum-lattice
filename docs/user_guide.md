@@ -87,8 +87,8 @@ can use them all:
    term. It updates automatically whenever you switch to it (or press
    Refresh), and a Copy button puts the script on your clipboard to paste
    into your own script outside the GUI. If mean-field interactions are
-   switched on, the self-consistent solve is included too. Atoms removed by
-   hand on the "Modify geometry" tab are not reflected in the generated code.
+   switched on, the self-consistent solve is included too, and any atoms
+   removed on the "Modify geometry" tab are included as well.
 4. **Calculation tabs** — one tab per kind of result: Structure, Bands, DOS,
    LDOS, Fermi surface, QPI, Topology, Magnetism, Sweep, ... Each has its own
    button(s) ("Show bands", "Show DOS", ...) plus any options specific to

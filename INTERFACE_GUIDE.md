@@ -485,12 +485,23 @@ the GUI. Retrofitting this onto another mode:
    spinless `meanfield.Vinteraction(...)` branch `solve_scf()` also
    supports, since every mode that has this tab always builds a
    `has_spin=True` Hamiltonian.
-5. Manual atom removal (the "Modify geometry" tab) is not reproduced in
-   the generated code - it depends on a saved `REMOVE_ATOMS.INFO`
-   selection file, not a term value, so `get_pyqula_code()` leaves a
-   one-line comment noting this instead of a saved-file-dependent
-   `modify_geometry(g)` call. That's an intentional scope limit, not a
-   bug, this tab's use case is Hamiltonian terms, not geometry sculpting.
+5. Manual atom removal (the "Modify geometry" tab) is reproduced via
+   `codeview.geometry_removal_code(qtwrap, center=...)`, called right after
+   the geometry lines and before `h = g.get_hamiltonian(...)` - mirrors
+   `interfacetk.modify_geometry()`'s two checkboxes
+   (`remove_selected`/`remove_single_bonded`). `remove_selected`'s actual
+   atom indices are read once, from `REMOVE_ATOMS.INFO` in the page's own
+   scratch folder, and baked into the generated code as a literal list
+   (`sculpt.remove(g, [3, 7, 12])`) rather than the generated script
+   re-reading that scratch file itself, so it stays self-contained and
+   correct even if run later/elsewhere. This is why `build()`'s `refresh()`
+   restores the page's own `scratch_dir` as the process cwd before calling
+   `code_fn()` - the Refresh/Copy buttons aren't wired through
+   `connect_clicks()`'s own chdir-to-scratch-dir wrapper
+   (`qtwrap.py:_with_own_scratch_dir()`), so this module has to do the
+   equivalent itself. Pass `center=True` for a mode whose own
+   `modify_geometry()` wrapper also calls `g.center()` afterward (`0d.py`
+   does; `1d.py`/`2d.py` don't).
 
 ## Retrofitting SCF onto an existing mode
 

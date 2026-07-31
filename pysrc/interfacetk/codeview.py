@@ -25,6 +25,8 @@ correct, since a sibling tab can't be edited while this one is showing) and
 via an explicit Refresh button; a Copy button copies the current text to
 the clipboard, since the entire point is to give the user something to
 paste elsewhere."""
+import os
+import numpy as np
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QApplication
 from PySide6.QtGui import QFont
 from qfluentwidgets import PlainTextEdit, PushButton
@@ -70,6 +72,44 @@ def format_array(qtwrap, name):
     return "[" + ", ".join(repr(v) for v in vals) + "]"
 
 
+def geometry_removal_code(qtwrap, center=False):
+    """Return the code lines that reproduce interfacetk.modify_geometry()'s
+    atom sculpting - the "Modify geometry" tab's "remove_selected" (reads
+    the concrete atom indices out of REMOVE_ATOMS.INFO, written by the
+    ql-remove-atoms-geometry picker script select_atoms_removal() launches)
+    and "remove_single_bonded" checkboxes - plus a trailing g.center() for
+    the modes (0d) whose own modify_geometry() wrapper calls that right
+    after. The indices are read once now and baked into the generated code
+    as a literal list, rather than the generated script re-reading
+    REMOVE_ATOMS.INFO itself, so the script stays self-contained and
+    correct even if that scratch file later changes or is gone (e.g. run
+    outside the GUI, in a different directory).
+
+    Must be called with the process cwd already restored to this page's
+    own scratch_dir (see build()'s refresh()), since REMOVE_ATOMS.INFO is
+    scratch-dir-relative, the same way every pyqula-facing handler in this
+    codebase depends on qtwrap's own chdir-to-scratch-dir convention."""
+    lines = []
+    needs_sculpt_import = False
+    if qtwrap.is_checked("remove_selected"):
+        try:
+            inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO", dtype=np.int_))
+            if inds.shape == (): inds = [inds]
+            inds = [int(i) for i in inds]
+        except Exception:
+            inds = []
+        needs_sculpt_import = True
+        lines.append("g = sculpt.remove(g, %r)  # atoms removed in \"Modify geometry\"" % inds)
+    if qtwrap.is_checked("remove_single_bonded"):
+        needs_sculpt_import = True
+        lines.append("g = sculpt.remove_unibonded(g, iterative=True)")
+    if needs_sculpt_import:
+        lines.insert(0, "from pyqula import sculpt")
+    if center:
+        lines.append("g.center()")
+    return lines
+
+
 def build(qtwrap, code_fn):
     """Add the "pyqula code" sub-tab to form._hamiltonian_subtabs (built by
     scfterms.build(qtwrap) - call this after that)."""
@@ -101,6 +141,13 @@ def build(qtwrap, code_fn):
     layout.addWidget(button_row)
 
     def refresh():
+        # code_fn() may read scratch-dir-relative files (e.g.
+        # geometry_removal_code()'s REMOVE_ATOMS.INFO) - restore this
+        # page's own scratch_dir first, the same way qtwrap.py's
+        # _with_own_scratch_dir() does for connect_clicks() handlers,
+        # since this button isn't wired through that mechanism.
+        if getattr(form, "scratch_dir", None):
+            os.chdir(form.scratch_dir)
         text_edit.setPlainText(code_fn())
 
     def copy():
