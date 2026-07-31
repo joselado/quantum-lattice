@@ -46,7 +46,6 @@ FORMULAS = {
 "ldos": r"$\rho(\mathbf{r},E) = \sum_n |\psi_n(\mathbf{r})|^2\,\delta(E-E_n)$",
 "wavefunction": r"$|\psi_{n\mathbf{k}}(\mathbf{r})|^2$",
 "berry_curvature": r"$\Omega_n(\mathbf{k}) = -2\,\mathrm{Im}\sum_{m \neq n}\frac{\langle n\mathbf{k}|\hat v_x|m\mathbf{k}\rangle\langle m\mathbf{k}|\hat v_y|n\mathbf{k}\rangle}{(E_n-E_m)^2}$",
-"berry_phase": r"$\gamma = \int d\mathbf{k}\cdot \mathbf{A}(\mathbf{k}),\ \ \mathbf{A}_n(\mathbf{k}) = i\langle n\mathbf{k}|\nabla_{\mathbf{k}}|n\mathbf{k}\rangle$",
 "chern": r"$C = \frac{1}{2\pi}\int_{BZ} \Omega(\mathbf{k})\, d^2k$",
 "local_chern": r"$C(\mathbf{r}) = -4\pi\,\mathrm{Im}\langle \mathbf{r}|\hat P\,\hat x\,\hat Q\,\hat y\,\hat P|\mathbf{r}\rangle$",
 "z2": r"$\nu = N_{\mathrm{cross}}\left[\bar x_n(k_y)\right] \ \mathrm{mod}\ 2$",

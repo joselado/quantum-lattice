@@ -260,7 +260,7 @@ Save results, ...) don't.
 | Show DOS-bands | Computes the DOS resolved along the band-structure path (a smeared version of the bands). |
 | Show IETS QDOS | Momentum-resolved inelastic tunneling spectroscopy: the RPA spin-excitation response along a q-path, showing the magnon/spin-wave-like dispersion of the converged magnetic state. Needs SCF solved first (mean field with an onsite interaction). 1D/2D/3D modes only. |
 | Show IETS LDOS | Real-space inelastic tunneling spectroscopy across a sweep of energies: opens an interactive viewer (energy slider) showing the spatial map at that energy next to the total (site-summed) IETS vs energy - the same style of viewer as Show multi-energy LDOS. Needs SCF solved first (mean field with an onsite interaction). Islands (0D) only. |
-| Show Berry phase (1D) | Berry curvature/phase along a 1D Brillouin-zone path, the diagnostic for 1D topological invariants such as edge polarization. |
+| Show Berry curvature (1D) | Berry curvature along a 1D Brillouin-zone path — the same quantity as the 2D map below, evaluated along a path instead of over a mesh; used to diagnose 1D topological invariants such as edge polarization. |
 | Show Berry curvature (2D) | Berry curvature over a 2D Brillouin-zone mesh, plotted as a map. |
 | Show Z2 | The Z2 topological invariant via the Wannier charge center (Vanderbilt) method — trivial vs. quantum-spin-Hall insulator. |
 | Show Chern number | Integrates the Berry curvature over the Brillouin zone to give the (quantized anomalous Hall) Chern number. |
