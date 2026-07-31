@@ -6,6 +6,7 @@ from pyqula import klist
 from .qh_interface import *
 from pyqula import parallel
 from PySide6 import QtWidgets
+from PySide6.QtCore import Qt
 from qfluentwidgets import BodyLabel
 
 def get_operator(h,opname,projector=False):
@@ -723,7 +724,8 @@ def set_formulas(qtwrap):
 def _insert_grid_row_below(layout, row, col, colspan, image):
     """Open a new, empty grid row directly below `row` (shifting every
     existing item currently at that row or below down by one) and place
-    `image` there, spanning the same columns as the button it documents."""
+    `image` there, spanning the same columns as the button it documents,
+    centered within that span (see set_calculation_formulas())."""
     shifted = []
     for idx in range(layout.count()-1, -1, -1):
         r,c,rs,cs = layout.getItemPosition(idx)
@@ -736,7 +738,51 @@ def _insert_grid_row_below(layout, row, col, colspan, image):
         else:
             l = item.layout()
             if l is not None: layout.addLayout(l,r,c,rs,cs)
-    layout.addWidget(image,row,col,1,colspan)
+    layout.addWidget(image,row,col,1,colspan,Qt.AlignHCenter)
+
+
+def _move_params_above_buttons(layout, calc_button_names):
+    """Reorder `layout`'s rows so every "plain parameter" row (a number
+    field, combobox, or a nested grid of them) ends up above every row
+    that holds one of this page's calculation buttons, preserving the
+    relative order within each of those two groups - interface.ui was
+    never consistent about which came first (e.g. the Bands tab puts
+    show_bands at row 0 with its Operator/kpoints fields below it at row
+    1, while the DOS tab already puts its parameter grid first and
+    show_dos last), and the button should always read second-to-last with
+    its formula (added right after, by _ensure_button_formula_image())
+    truly last. A no-op if the layout is already in that order, or holds
+    no rows of one kind (e.g. a button-only grid like 2d's "Topology 2D"
+    tab, where every row is a button row sharing that tab with a *sibling*
+    grid of Operator/kpoints in a different grid layout entirely - nothing
+    to reorder there, and the buttons' relative order must stay intact).
+    Assumes every row has rowspan 1, true of every calculation button's
+    grid across the app currently."""
+    entries = [] # (row,col,rowspan,colspan,item)
+    for idx in range(layout.count()):
+        r,c,rs,cs = layout.getItemPosition(idx)
+        entries.append((r,c,rs,cs,layout.itemAt(idx)))
+    button_rows = set()
+    for r,c,rs,cs,item in entries:
+        w = item.widget()
+        if w is not None and w.objectName() in calc_button_names:
+            button_rows.add(r)
+    all_rows = set(r for r,c,rs,cs,item in entries)
+    param_rows = all_rows - button_rows
+    if not param_rows or not button_rows: return
+    if max(param_rows) < min(button_rows): return # already in order
+    for idx in range(layout.count()-1, -1, -1): layout.takeAt(idx)
+    new_row = {}
+    nr = 0
+    for r in sorted(param_rows): new_row[r] = nr; nr += 1
+    for r in sorted(button_rows): new_row[r] = nr; nr += 1
+    for r,c,rs,cs,item in entries:
+        target = new_row[r]
+        w = item.widget()
+        if w is not None: layout.addWidget(w,target,c,rs,cs)
+        else:
+            l = item.layout()
+            if l is not None: layout.addLayout(l,target,c,rs,cs)
 
 
 def _ensure_button_formula_image(qtwrap, button_name, formula_rows):
@@ -752,17 +798,23 @@ def _ensure_button_formula_image(qtwrap, button_name, formula_rows):
     down) rather than placing the formula beside the button, so every
     formula reads consistently below its button rather than some beside
     and some below depending on whether a neighboring cell happened to be
-    free. Several buttons often share one grid row (e.g. 2d's "Topology
-    2D" tab has show_chern/show_z2/show_berry2d/show_berry1d side by side)
-    - `formula_rows` (a dict scoped to one set_calculation_formulas() call)
-    remembers the new row already opened for a given (layout,row) so those
-    buttons' formulas land together in the one shared new row, at their
-    own button's column, instead of each button's insertion re-shifting
-    the grid and scattering the formulas at different depths. In a box
-    layout (QVBoxLayout - every calculation button that isn't in a
-    QGridLayout is in one, never a QHBoxLayout, checked across every
-    mode's interface.ui), inserting right after the button's own item
-    already stacks the image below it with no extra work."""
+    free. By the time this runs, set_calculation_formulas() has already
+    called _move_params_above_buttons() on this same grid, so "directly
+    below the button" already means "at the true bottom of the tab" - see
+    that function's docstring. Several buttons often share one grid row
+    (e.g. 2d's "Topology 2D" tab has show_chern/show_z2/show_berry2d/
+    show_berry1d side by side) - `formula_rows` (a dict scoped to one
+    set_calculation_formulas() call) remembers the new row already opened
+    for a given (layout,row) so those buttons' formulas land together in
+    the one shared new row, at their own button's column, instead of each
+    button's insertion re-shifting the grid and scattering the formulas at
+    different depths. In a box layout (QVBoxLayout - every calculation
+    button that isn't in a QGridLayout is in one, never a QHBoxLayout,
+    checked across every mode's interface.ui), inserting right after the
+    button's own item already stacks the image below it with no extra
+    work, and every such box-layout tab already puts its parameter grid
+    before the button in interface.ui, so no reordering is needed there
+    either."""
     form = qtwrap.form
     image_name = button_name+"_formula"
     if form.findChild(QtWidgets.QWidget,image_name) is not None: return
@@ -782,10 +834,10 @@ def _ensure_button_formula_image(qtwrap, button_name, formula_rows):
             _insert_grid_row_below(layout,target_row,col,colspan,image)
             formula_rows[key] = target_row
         else:
-            layout.addWidget(image,target_row,col,1,colspan)
+            layout.addWidget(image,target_row,col,1,colspan,Qt.AlignHCenter)
     else: # QBoxLayout (vertical - see docstring)
         idx = layout.indexOf(button)
-        layout.insertWidget(idx+1,image)
+        layout.insertWidget(idx+1,image,0,Qt.AlignHCenter)
     setattr(form,image_name,image)
 
 
@@ -795,7 +847,22 @@ def set_calculation_formulas(qtwrap):
     otherwise - same convention as set_formulas()/set_button_tooltips()).
     Several button names share the same formula key (e.g. every kind of
     LDOS button), so the same PNG is reused across them rather than
-    re-rendered - see CALC_FORMULAS's docstring in termtooltips.py."""
+    re-rendered - see CALC_FORMULAS's docstring in termtooltips.py. First
+    reorders each distinct grid layout that holds a calculation button so
+    its parameter rows sit above the button row(s) - see
+    _move_params_above_buttons() - so the button always reads
+    second-to-last and its formula (centered) truly last."""
+    form = qtwrap.form
+    calc_button_names = set(CALC_FORMULAS.keys())
+    reflowed = set()
+    for name in CALC_FORMULAS:
+        button = form.findChild(QtWidgets.QWidget,name)
+        if button is None: continue
+        layout = qtwrap.find_any_layout_of(button)
+        if layout is None or not isinstance(layout,QtWidgets.QGridLayout): continue
+        if id(layout) in reflowed: continue
+        reflowed.add(id(layout))
+        _move_params_above_buttons(layout,calc_button_names)
     formula_rows = {} # (id(grid layout),source row) -> already-opened new
                        # row below it, shared by buttons in the same row
     for name,key in CALC_FORMULAS.items():

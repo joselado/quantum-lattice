@@ -134,22 +134,39 @@ placeholder/page rather than editing generated code:
   formula image/tooltip just by calling `common.set_formulas(qtwrap)`,
   without needing a matching `interface.ui` edit - see "Adding a
   Hamiltonian term" below.
-- **`common.py:set_calculation_formulas()`'s `_ensure_button_formula_image()`**
-  — the calculation-button analog of `_ensure_formula_image()` above: creates
-  a `<button>_formula` label at runtime directly below a calculation
-  `PushButton`, the first time `set_calculation_formulas()` runs (every
-  button starts without a Designer-authored image - no mode predates this
-  convention, so it always creates one, unlike the term version). A button
-  doesn't reliably sit in a `QGridLayout` the way a term field does (e.g.
-  2d's DOS tab's `show_dos` is the second item of a plain `QVBoxLayout`), so
-  this branches on the actual layout type via `qtwrap.find_any_layout_of()`
-  (not `find_layout_of()`, which only searches `QGridLayout`s): in a grid,
-  it always opens a new row directly below the button's row (shifting later
-  rows down via `_insert_grid_row_below()`) rather than placing the formula
-  beside the button in a free cell - formulas should read consistently
-  below their button everywhere, not below in some modes and beside in
-  others depending on whether a neighboring cell happened to be free.
-  Several buttons often share one grid row (e.g. 2d's "Topology 2D" tab has
+- **`common.py:set_calculation_formulas()`'s `_move_params_above_buttons()`
+  and `_ensure_button_formula_image()`** — together these make every
+  calculation tab read as parameters, then its button(s) second-to-last,
+  then a centered formula truly last, regardless of what order
+  `interface.ui` originally put them in (some hand-authored tabs put the
+  button first with parameters below it - e.g. 2d's Bands tab had
+  `show_bands` at row 0 with its Operator/kpoints fields at row 1 - while
+  others already put parameters first). `_move_params_above_buttons()`
+  runs once per distinct grid layout (before any button's formula is
+  added): it classifies each row as a "button row" (contains a widget
+  whose name is a `CALC_FORMULAS` key) or a "parameter row" (everything
+  else - a plain field, combobox, or an unrelated result display like
+  `solve_scf`'s "Identified Mean field" caption), then rebuilds the grid
+  with every parameter row above every button row, preserving relative
+  order within each group - a no-op if that's already the order, or if
+  the grid holds only one kind of row (e.g. 2d's "Topology 2D" tab, whose
+  grid holds only the four Chern/Z2/Berry buttons - its Operator/kpoints
+  fields live in a *sibling* grid layout in a different column entirely,
+  so there's nothing to reorder and the buttons' relative order is left
+  alone). `_ensure_button_formula_image()` then creates a `<button>_formula`
+  label at runtime directly below the button, the first time
+  `set_calculation_formulas()` runs (every button starts without a
+  Designer-authored image - no mode predates this convention, so it always
+  creates one, unlike the term version). A button doesn't reliably sit in a
+  `QGridLayout` the way a term field does (e.g. 2d's DOS tab's `show_dos`
+  is the second item of a plain `QVBoxLayout`), so this branches on the
+  actual layout type via `qtwrap.find_any_layout_of()` (not
+  `find_layout_of()`, which only searches `QGridLayout`s): in a grid, it
+  opens a new row directly below the button's row (shifting later rows
+  down via `_insert_grid_row_below()`, centered there via `Qt.AlignHCenter`)
+  - by now that already means the true bottom of the tab, since
+  `_move_params_above_buttons()` already ran. Several buttons often share
+  one grid row (e.g. 2d's "Topology 2D" tab has
   `show_berry1d`/`show_berry2d`/`show_z2`/`show_chern` side by side as
   separate cells of one row) - `set_calculation_formulas()` passes a
   `formula_rows` dict (scoped to that one call) down so those buttons'
@@ -158,9 +175,12 @@ placeholder/page rather than editing generated code:
   grid and scattering the formulas at different depths. In a box layout
   (always `QVBoxLayout` in practice - no calculation button in any mode's
   `interface.ui` sits directly in a `QHBoxLayout`), it just inserts right
-  after the button's own item via `insertWidget()`, which already stacks
-  the image below it. Several button names map to the same formula PNG
-  (`CALC_FORMULAS` in `termtooltips.py` maps button name -> formula key;
+  after the button's own item via `insertWidget()` (also centered), which
+  already stacks the image below it - every such tab's `interface.ui`
+  already puts its parameter grid before the button, so
+  `_move_params_above_buttons()` (grid-only) has nothing to do there.
+  Several button names map to the same formula PNG (`CALC_FORMULAS` in
+  `termtooltips.py` maps button name -> formula key;
   `tools/gen_calc_formula_logos.py` renders one PNG per key, using
   mathtext's `"cm"` fontset to match the serif/italic look of the
   hand-made term formula PNGs) - see "Adding a calculation button" below.
