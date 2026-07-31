@@ -38,6 +38,15 @@ to RESTRICTED_TERMS below - no other code needs to change, every mode
 that already calls connect() picks it up for free. To add a new rule
 (a different geometry family entirely): write a new `is_..._family`
 predicate next to is_honeycomb_family and reference it from new entries.
+
+connect() also owns the SCF tab's "Initial guess" (scf_initialization)
+dropdown - not a lattice restriction itself, but built from the same
+per-term/per-lattice information this module already tracks, so it's
+kept here rather than duplicating that logic elsewhere. Every call to
+apply_term_restrictions() rebuilds it down to exactly {a
+meanfield.guess() mode per Hamiltonian term this mode/lattice
+combination actually has} + "random" - see
+_rebuild_scf_initialization_baseline() and _UNRESTRICTED_GUESS_TERMS.
 """
 
 
@@ -113,7 +122,64 @@ RESTRICTED_TERMS = [
     {"kind": "combo_item",
      "items": {"sweep_parameter": "Antiferromagnetism"},
      "rule": is_sublattice_family},
+    # scf_initialization ("Initial guess") items for the same three
+    # honeycomb-restricted terms and the two sublattice-restricted mass
+    # terms above - same rule, same combobox, added/removed the same way.
+    # meanfield.guess()'s mode strings, not the term field names
+    # themselves (see _rebuild_scf_initialization_baseline()'s docstring).
+    {"kind": "combo_item", "items": {"scf_initialization": "Haldane"},
+     "rule": is_honeycomb_family},
+    {"kind": "combo_item", "items": {"scf_initialization": "kanemele"},
+     "rule": is_honeycomb_family},
+    {"kind": "combo_item", "items": {"scf_initialization": "antihaldane"},
+     "rule": is_honeycomb_family},
+    {"kind": "combo_item", "items": {"scf_initialization": "antiferro"},
+     "rule": is_sublattice_family},
+    {"kind": "combo_item", "items": {"scf_initialization": "imbalance"},
+     "rule": is_sublattice_family},
 ]
+
+
+# scf_initialization ("Initial guess") items tied 1:1 to a Hamiltonian
+# term this mode has, whose availability never changes once the page is
+# built (unlike the honeycomb-/sublattice-restricted terms above, which
+# can turn on/off after a lattice change): {term field name: the matching
+# pyqula meanfield.guess() mode string}. "random" is offered unconditionally
+# alongside these, since meanfield.guess(mode="random") is valid for any
+# Hamiltonian regardless of which terms exist.
+_UNRESTRICTED_GUESS_TERMS = {
+    "exchange": "ferro",
+    "rashba": "rashba",
+    "swave": "swave",
+    "pwave": "pwave",
+}
+
+
+def _rebuild_scf_initialization_baseline(form):
+    """Fully rebuild the "Initial guess" (scf_initialization) dropdown
+    down to exactly {a meanfield.guess() mode per Hamiltonian term this
+    mode's page has, from _UNRESTRICTED_GUESS_TERMS} + "random" -
+    discarding any Designer-authored placeholder items or a previous
+    rebuild's leftovers. Called first, at the top of
+    apply_term_restrictions() below, so its own combo_item entries for
+    scf_initialization (Haldane/kanemele/antihaldane/antiferro/imbalance)
+    then add back exactly the ones the *current* lattice choice allows,
+    on top of this always-present baseline. Preserves the current
+    selection across the rebuild if it's still offered afterwards (falls
+    back to whatever Qt's combobox defaults to, normally index 0, if the
+    previous selection is no longer offered - e.g. switching away from a
+    honeycomb-family lattice while "Haldane" was selected)."""
+    combo = getattr(form, "scf_initialization", None)
+    if combo is None: return
+    current = combo.currentText()
+    combo.blockSignals(True)
+    combo.clear()
+    for term, mode in _UNRESTRICTED_GUESS_TERMS.items():
+        if getattr(form, term, None) is not None: combo.addItem(mode)
+    combo.addItem("random")
+    combo.blockSignals(False)
+    idx = combo.findText(current)
+    if idx >= 0: combo.setCurrentIndex(idx)
 
 
 def _matches_base(base, attr_name):
@@ -198,6 +264,7 @@ def apply_term_restrictions(form, lattice_name):
     whether `lattice_name` satisfies each entry's rule. Safe to call on
     any page: entries whose widgets/comboboxes don't exist on this
     particular mode are silently skipped."""
+    _rebuild_scf_initialization_baseline(form)
     for entry in RESTRICTED_TERMS:
         allowed = entry["rule"](lattice_name)
         if entry["kind"] == "widget":

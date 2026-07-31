@@ -321,6 +321,7 @@ PARAM_TOOLTIPS = {
 "filling_scf": "Target electron filling the SCF loop's chemical potential is adjusted to reach, instead of using the Fermi energy field directly.",
 "do_scf": "Turns the self-consistent mean-field loop on, so calculations use the converged interacting Hamiltonian instead of the bare single-particle one - turned on automatically once any interaction term (U/V1/V2/J1/J2/J3) is set nonzero.",
 "mix_scf": "Linear mixing fraction between the previous and newly computed order parameter at each SCF iteration - lower values converge more slowly but more stably.",
+"scf_maxite": "Maximum number of self-consistency iterations before the SCF loop gives up - a run that hits this limit without converging prints a warning instead of raising an error.",
 "extra_electron": "Extra electrons (beyond charge neutrality) added to the SCF target filling - equivalent to doping the system away from half filling.",
 # --- parameter sweep ---
 "sweep_parameter": "Hamiltonian parameter that is varied over the sweep (e.g. sublattice imbalance, exchange components, Haldane/Kane-Mele coupling, s-wave pairing, Fermi energy).",

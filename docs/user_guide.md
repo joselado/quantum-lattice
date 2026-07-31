@@ -166,17 +166,35 @@ means physically.
   calculation buttons don't trigger.
 - With the switch off, calculations always use the bare (non-interacting)
   Hamiltonian, regardless of what's in the U/V/J fields.
+- The SCF tab's **Initial guess** dropdown picks the seed the mean-field
+  loop starts iterating from — a poor initial guess can converge to a
+  different, possibly metastable, self-consistent solution instead of the
+  one you're after. Its list of options is not fixed: it always offers
+  **random** (a generic random seed, valid for any Hamiltonian) plus one
+  guess per single-particle term this mode/lattice combination actually
+  has available, so switching **Lattice** updates it immediately — e.g. a
+  **Haldane**/**kanemele**/**antihaldane** guess only appears on a
+  honeycomb-derived lattice (plain honeycomb, multilayer/twisted graphene,
+  hyperhoneycomb, ...), and **antiferro**/**imbalance** only on a lattice
+  with more than one sublattice (those plus Lieb/Diamond). If your current
+  selection stops being offered after a lattice change, it falls back to
+  the first available option instead of silently keeping an invalid guess.
 - The SCF tab's **Solver** dropdown picks the iterative algorithm used to
-  converge the mean field: **error_gradient** (the default) minimizes the
+  converge the mean field: **linear_mixing** (the default) is the classical
+  fixed-point mixing scheme, **error_gradient** instead minimizes the
   self-consistency residual directly and can be more robust on systems
-  where linear mixing struggles to converge, while **linear_mixing** is the
-  classical fixed-point mixing scheme. This choice only applies to a
-  normal-state (non-superconducting) Hamiltonian, and needs the optional
-  `jax` package that the installer tries to set up automatically; with
-  s-wave/p-wave pairing
-  turned on, or if jax could not be installed on your system, Solve SCF
-  silently uses its previous fixed-mixing behavior regardless of what's
-  selected here.
+  where linear mixing struggles to converge, and **krylov** uses a
+  Newton-Krylov root finder, which can converge in fewer iterations on
+  larger systems at the cost of a more expensive step. This choice only
+  applies to a normal-state (non-superconducting) Hamiltonian, and needs
+  the optional `jax` package that the installer tries to set up
+  automatically; with s-wave/p-wave pairing turned on, or if jax could not
+  be installed on your system, Solve SCF silently uses its previous
+  fixed-mixing behavior regardless of what's selected here.
+- **Max iterations** caps how many SCF steps are attempted before giving up
+  (default `100`); a run that hits this limit without converging prints a
+  warning instead of raising an error, and you'll see the (unconverged)
+  result of whatever iteration it stopped at.
 
 ## Saving and loading your work
 

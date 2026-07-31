@@ -559,37 +559,60 @@ the "Adding a Hamiltonian term" checklist above) - a term this mode has no
 field for at all still prints a harmless `"<name> label not found"` to
 stderr from `set_logo()`; that's expected, not a wiring bug.
 
-### The SCF `scf_solver` dropdown and `use_jax`
+### The SCF `scf_solver`/`scf_maxite` fields and `use_jax`
 
 `scf_solver` (Convergence sub-tab, right after `smearing_scf`) lists
-`error_gradient`/`linear_mixing` and is read by
+`linear_mixing`/`error_gradient`/`krylov` (in that order - index 0 is the
+combobox default) and, together with `scf_maxite` (a plain `LineEdit`
+right after it, default `"100"`), is read by
 `common.get_scf_solver_kwargs(h,window,for_vjinteraction)`, called from
 every `solve_scf()` (the shared `common.py` one, and `2d.py`/`3d.py`'s own
 richer copies) right inside the `meanfield.VJinteraction(...)`/
 `meanfield.Vinteraction(...)` call via `**common.get_scf_solver_kwargs(...)`.
-Two things to know before touching this:
+Things to know before touching this:
 
-- **The two entry points name the same pair of algorithms differently.**
+- **`maxite` is unconditional.** Unlike the solver choice below, `maxite`
+  (parsed as `int(window.get("scf_maxite",default=100))`) is returned in
+  every case - even `h.has_eh` or a missing `jax` - since both
+  `VJinteraction`/`Vinteraction`'s plain (non-jax) mixing loops accept
+  `maxite` too (`spinspin.py`/`densitydensity.py` both have their own
+  `maxite=None`-by-default param, honored independent of `solver=`).
+- **The two entry points name the same three algorithms differently.**
   `VJinteraction`'s own `use_jax=True` solver names are `"error_gradient"`/
-  `"linear_mixing"` (matching the dropdown verbatim - pass `for_vjinteraction=True`),
-  but `Vinteraction`'s `use_jax=True` path (`densitydensity_jax.py`) still
-  uses the older internal names `"lbfgs"`/`"fixed_point"` for the exact same
-  two algorithms - `get_scf_solver_kwargs(...,for_vjinteraction=False)`
-  translates via its own `_VINTERACTION_SOLVER_NAMES` dict. Don't pass the
-  dropdown's raw value straight to `Vinteraction` or it raises
-  `ValueError: unrecognised solver`.
-- **It silently no-ops instead of raising** when `h.has_eh` (a BdG/
-  superconducting Hamiltonian - swave/pwave pairing added in
-  `generate_hamiltonian`) or when the optional `jax` package isn't
-  importable (`get_scf_solver_kwargs` returns `{}` in both cases) - `Solve
-  SCF` then just falls back to its pre-existing plain-mixing loop, exactly
-  as it behaved before this dropdown existed. This is intentional (the
-  dropdown has no explicit "default/old behavior" option to fall back to),
-  but it means a solver choice can look like it did nothing with no error
-  at all if you're testing on a pairing-enabled Hamiltonian or a jax-less
-  interpreter - check `h.has_eh` and `importlib.util.find_spec("jax")`
-  first if `error_gradient` vs `linear_mixing` ever seem to make no
-  difference.
+  `"linear_mixing"` (matching the dropdown verbatim) plus `"newton_krylov"`
+  passed straight through unchanged (not one of its renamed pair) - so
+  `for_vjinteraction=True` only needs the dropdown's `"krylov"` translated,
+  via `_VJINTERACTION_SOLVER_NAMES = {"krylov": "newton_krylov"}`.
+  `Vinteraction`'s `use_jax=True` path (`densitydensity_jax.py`) still uses
+  the older internal names `"lbfgs"`/`"fixed_point"` for the same
+  error_gradient/linear_mixing pair (but likewise accepts `"newton_krylov"`
+  verbatim) - `get_scf_solver_kwargs(...,for_vjinteraction=False)`
+  translates all three via its own `_VINTERACTION_SOLVER_NAMES` dict. Don't
+  pass the dropdown's raw value straight to `Vinteraction` or a `"krylov"`/
+  `"error_gradient"`/`"linear_mixing"` choice raises `ValueError:
+  unrecognised solver`.
+- **The solver choice (not `maxite`) silently no-ops instead of raising**
+  when `h.has_eh` (a BdG/superconducting Hamiltonian - swave/pwave pairing
+  added in `generate_hamiltonian`) or when the optional `jax` package isn't
+  importable (`get_scf_solver_kwargs` returns just `dict(maxite=maxite)` in
+  both cases, dropping `use_jax`/`solver`) - `Solve SCF` then just falls
+  back to its pre-existing plain-mixing loop, exactly as it behaved before
+  this dropdown existed. This is intentional (the dropdown has no explicit
+  "default/old behavior" option to fall back to), but it means a solver
+  choice can look like it did nothing with no error at all if you're
+  testing on a pairing-enabled Hamiltonian or a jax-less interpreter -
+  check `h.has_eh` and `importlib.util.find_spec("jax")` first if the
+  three solvers ever seem to make no difference.
+- Adding a fourth solver later means adding it to all 8 modes'
+  `scf_solver` combobox items (`.ui`, then `tools/convert_ui.sh`), and
+  adding a translation entry to `_VJINTERACTION_SOLVER_NAMES`/
+  `_VINTERACTION_SOLVER_NAMES` for whichever of the two entry points'
+  internal solver name differs from the dropdown's friendly spelling -
+  `"newton_krylov"` happens to be the same underlying name for both
+  entry points, so `"krylov"` needed the identical translation added to
+  both dicts, but that won't always be the case (see the
+  `"lbfgs"`/`"fixed_point"` vs `"error_gradient"`/`"linear_mixing"` split
+  above).
 
 ## Adding a ql-* script
 

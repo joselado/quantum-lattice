@@ -286,28 +286,39 @@ def get_qpi(h,window):
 
 # VJinteraction's use_jax=True path names its solvers "linear_mixing"/
 # "error_gradient" (its public, physically-descriptive names - see
-# pysrc/pyqula/selfconsistency/spinspin.py's docstring); Vinteraction's own
-# use_jax=True path (densitydensity_jax.py) still uses the older internal
-# names "fixed_point"/"lbfgs" for the same two algorithms - translated here
-# rather than in pyqula, since VJinteraction and Vinteraction are two
-# different upstream entry points that happen to expose the same pair of
-# algorithms under different names.
-_VINTERACTION_SOLVER_NAMES = {"error_gradient": "lbfgs", "linear_mixing": "fixed_point"}
+# pysrc/pyqula/selfconsistency/spinspin.py's docstring) and passes
+# "newton_krylov" straight through unchanged (not one of its renamed pair);
+# Vinteraction's own use_jax=True path (densitydensity_jax.py) still uses
+# the older internal names "fixed_point"/"lbfgs" for the same two renamed
+# algorithms, but likewise accepts "newton_krylov" verbatim - translated
+# here rather than in pyqula, since VJinteraction and Vinteraction are two
+# different upstream entry points that happen to expose the same solvers
+# under different names. The dropdown's own "krylov" is friendlier than
+# either upstream spelling, so both paths need it translated to
+# "newton_krylov".
+_VJINTERACTION_SOLVER_NAMES = {"krylov": "newton_krylov"}
+_VINTERACTION_SOLVER_NAMES = {"error_gradient": "lbfgs", "linear_mixing": "fixed_point",
+                               "krylov": "newton_krylov"}
 
 def get_scf_solver_kwargs(h,window,for_vjinteraction):
-    """use_jax=True/solver=... kwargs for the SCF solver dropdown, or {}
-    when not applicable. use_jax=True only supports a normal-state
-    (has_eh=False) Hamiltonian, and needs the optional jax extra installed
-    (`pip install pyqula[jax]`) - a BdG Hamiltonian (swave/pwave pairing
-    added in generate_hamiltonian) or a missing jax both silently fall back
-    to the existing plain-mixing behavior instead of raising, since the
-    dropdown offers no "default" option to fall back to explicitly."""
-    if h.has_eh: return {}
+    """use_jax=True/solver=.../maxite=... kwargs for the SCF solver
+    dropdown + max-iterations field, or {} when the solver choice doesn't
+    apply. use_jax=True only supports a normal-state (has_eh=False)
+    Hamiltonian, and needs the optional jax extra installed (`pip install
+    pyqula[jax]`) - a BdG Hamiltonian (swave/pwave pairing added in
+    generate_hamiltonian) or a missing jax both silently fall back to the
+    existing plain-mixing behavior instead of raising, since the dropdown
+    offers no "default" option to fall back to explicitly. maxite is
+    always returned (independent of jax/pairing) since it's honored by
+    both the jax and plain-mixing SCF loops."""
+    maxite = int(window.get("scf_maxite",default=100))
+    if h.has_eh: return dict(maxite=maxite)
     import importlib.util
-    if importlib.util.find_spec("jax") is None: return {} # optional extra, not installed
+    if importlib.util.find_spec("jax") is None: return dict(maxite=maxite) # optional extra, not installed
     solver = window.getbox("scf_solver")
-    if not for_vjinteraction: solver = _VINTERACTION_SOLVER_NAMES[solver]
-    return dict(use_jax=True,solver=solver)
+    if for_vjinteraction: solver = _VJINTERACTION_SOLVER_NAMES.get(solver,solver)
+    else: solver = _VINTERACTION_SOLVER_NAMES[solver]
+    return dict(use_jax=True,solver=solver,maxite=maxite)
 
 
 def _scf_has_pairing(qtwrap):
@@ -336,8 +347,9 @@ def pyqula_code_scf_block(qtwrap,richer=False):
     Hamiltonian, so this only ever needs the meanfield.VJinteraction(...)
     branch - never the spinless meanfield.Vinteraction(...) branch
     solve_scf() also supports - and for_vjinteraction is always True, so
-    the scf_solver dropdown's value is used as-is (no
-    _VINTERACTION_SOLVER_NAMES translation needed, see
+    the scf_solver dropdown's value only needs _VJINTERACTION_SOLVER_NAMES
+    translation (just "krylov"->"newton_krylov" - "error_gradient"/
+    "linear_mixing" already match VJinteraction's own public names, see
     get_scf_solver_kwargs())."""
     get = qtwrap.get
     getbox = qtwrap.getbox
@@ -358,10 +370,12 @@ def pyqula_code_scf_block(qtwrap,richer=False):
     if richer: kwargs.append("maxerror=%r" % get("scf_error",default=1e-5))
     else: kwargs.append("T=%r" % get("smearing_scf"))
     kwargs.append("verbose=1")
+    kwargs.append("maxite=%d" % int(get("scf_maxite",default=100)))
     import importlib.util
     if importlib.util.find_spec("jax") is not None and not _scf_has_pairing(qtwrap):
         kwargs.append("use_jax=True")
-        kwargs.append("solver=%r" % getbox("scf_solver"))
+        solver = _VJINTERACTION_SOLVER_NAMES.get(getbox("scf_solver"),getbox("scf_solver"))
+        kwargs.append("solver=%r" % solver)
     lines.append("scf = meanfield.VJinteraction(h,")
     lines.append("    " + ", ".join(kwargs) + ")")
     lines.append("scf.hamiltonian.save()")
@@ -940,7 +954,10 @@ def initialize(window):
     """Do various initializations"""
     cs = ["RGB","hot","inferno","plasma","bwr","rainbow","gnuplot"]
     set_colormaps(window.form,"bands_colormap",cs=cs) # set the bands
-    window.set_combobox("scf_initialization",meanfield.spinful_guesses)
+    # scf_initialization is populated by latticeterms.py instead (exactly
+    # the guess modes matching a term this mode/lattice combination
+    # actually has, plus "random" - see
+    # latticeterms._rebuild_scf_initialization_baseline())
     window.set_combobox("bands_color",operators.operator_list)
 #    window.set_combobox("fs_operator",operators.operator_list)
     window.set_combobox("operator_kdos",operators.operator_list)
