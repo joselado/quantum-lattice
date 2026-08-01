@@ -317,6 +317,7 @@ PARAM_TOOLTIPS = {
 "magnetization_nrep": "Number of repeated unit cells shown around the plotted magnetic moments.",
 "magnetization_plot_mode": "2D draws the magnetic moments as arrows over a flat view of the lattice; 3D opens an interactive three-dimensional view instead.",
 # --- SCF ---
+"hamiltonian_type": "Selects the internal shape of the Hamiltonian: Spinless (no spin degree of freedom - spin-dependent terms like exchange, Kane-Mele SOC, Rashba, and antiferromagnetism are unavailable), Spinful (the default - includes real electron spin), or Nambu (spinful plus an electron-hole (BdG) sector, enabling the s-wave/p-wave pairing terms for superconductivity). Hamiltonian terms that don't apply to the current choice are hidden.",
 "scf_initialization": "Initial guess for the mean-field order parameter the SCF loop starts from (e.g. an antiferromagnetic or a ferromagnetic axis, or a random configuration) - a poor initial guess can converge to a different, possibly metastable, self-consistent solution.",
 "filling_scf": "Target electron filling the SCF loop's chemical potential is adjusted to reach, instead of using the Fermi energy field directly.",
 "do_scf": "Turns the self-consistent mean-field loop on, so calculations use the converged interacting Hamiltonian instead of the bare single-particle one - turned on automatically once any interaction term (U/V1/V2/J1/J2/J3) is set nonzero.",

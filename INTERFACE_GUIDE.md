@@ -28,6 +28,7 @@ maintenance doc, not a one-time snapshot.
 - **Add/change a calculation button's formula image** — `pysrc/interfacetk/termtooltips.py` (`CALC_FORMULAS`) + `tools/gen_calc_formula_logos.py`; see "Adding a calculation button" below.
 - **Change any other form field's tooltip** (a numeric parameter, combobox, or checkbox that isn't a Hamiltonian term or a calculation button) — `pysrc/interfacetk/termtooltips.py` (`PARAM_TOOLTIPS`); see "Tooltip conventions" below.
 - **Restrict a term/operator to certain lattice families** — `pysrc/interfacetk/latticeterms.py`.
+- **Restrict a term to a Hamiltonian type (Spinless/Spinful/Nambu)** — `pysrc/interfacetk/hamiltoniantype.py` (`SPIN_TERMS`/`PAIRING_TERMS`); see "Runtime dynamic-widget patterns" below.
 - **Add a new plot/postprocessing view** — write/extend a `ql-*` script
   under `utilities/`; see "Adding a ql-* script" below.
 - **Change how "this term is currently active" is shown** —
@@ -112,6 +113,40 @@ placeholder/page rather than editing generated code:
   after `qtwrap.new_page()`, before `common.set_formulas()`/
   `connect_clicks()` — see any of
   `interface-pyqt/{0d,1d,2d,3d,2dslab,multilayergraphene,hybridfilm,hybridribbon}/<mode>.py`.
+  `scfterms.build()` also places `hamiltoniantype.py`'s "Hamiltonian type"
+  (Spinless/Spinful/Nambu) combobox directly above that switch row - see
+  the `hamiltoniantype.py` bullet below.
+- **`hamiltoniantype.py`** — the Spinless/Spinful/Nambu combobox
+  (`hamiltonian_type`, default "Spinful") shared by the same eight modes as
+  `scfterms.py` above (built as part of `scfterms.build()`, not a separate
+  call a mode needs to make). `term_allowed(hamiltonian_type, name)` is the
+  single source of truth for which term fields make sense under each
+  choice: `SPIN_TERMS` (exchange, kanemele, antikanemele, rashba, mAF, J1,
+  J2, J3) need `has_spin=True` (hidden for "Spinless"); `PAIRING_TERMS`
+  (swave, pwave) need Nambu (hidden unless "Nambu" is selected). Widget
+  visibility is actually applied by `latticeterms.py`'s
+  `apply_term_restrictions()`/`connect()` (see that bullet below) since
+  three terms - kanemele, antikanemele, mAF - are restricted by *both*
+  modules at once (wrong lattice family *or* wrong Hamiltonian type), and
+  the two restrictions have to be combined with AND, not applied as two
+  independent `setVisible()` passes (order-dependent - whichever runs last
+  would silently win). A mode's own `generate_hamiltonian()`/`initialize()`
+  is separately responsible for actually *skipping* the matching
+  `add_*()` calls under "Spinless" (not just hiding the widget) - see this
+  module's own docstring for why: several of pyqula's `add_*()` methods
+  (`add_zeeman`/`add_exchange`, `add_kane_mele`, `add_anti_kane_mele`,
+  `add_rashba`, `add_antiferromagnetism`) unconditionally call
+  `self.turn_spinful()` on the Hamiltonian *before* even looking at the
+  value passed in, so calling one of them with a zero-valued field on a
+  `has_spin=False` Hamiltonian would silently re-promote it to spinful.
+  "Nambu" is always spinful-Nambu (`h.setup_nambu_spinor()`, called once a
+  mode's single-particle terms are applied, establishes the BdG structure
+  even when swave/pwave are both left at zero) - there's no
+  "spinless Nambu" option, matching the three-way choice as asked for
+  rather than a 2x2 spin×Nambu matrix. `codeview.py`'s `is_active()` also
+  checks `term_allowed()` so the "pyqula code" preview (0d/1d/2d) never
+  shows a call to a term hidden by the current choice, even if its field
+  still holds a stale value from before the type was switched.
 - **`hybridparts.py`** — grows/shrinks a `tabWidget_4`-style tab widget's
   tab count based on an `nparts` combobox (`addTab`/`removeTab`;
   `removeTab` doesn't delete the widget, so re-adding a part preserves its
@@ -191,8 +226,21 @@ placeholder/page rather than editing generated code:
 - **`latticeterms.py`** — a registry (`RESTRICTED_TERMS`) of
   lattice-family-only widgets (Haldane/Kane-Mele/valley, honeycomb-only).
   `connect(qtwrap, lambda: getbox("lattice"))` show/hides the registered
-  widgets and combobox items on every lattice-combobox change. Adding a
-  new geometry-restricted term is a one-line registry addition.
+  widgets and combobox items on every lattice-combobox change (and, on the
+  same page, every `hamiltonian_type` combobox change too - see below).
+  Adding a new geometry-restricted term is a one-line registry addition.
+  `apply_term_restrictions(form, lattice_name, hamiltonian_type)` also
+  folds in `hamiltoniantype.py`'s own restrictions, combining both via AND
+  per widget base name before calling `setVisible()` once - see that
+  module's bullet above for why a two-pass approach (lattice restrictions,
+  then hamiltonian-type restrictions applied independently) would be
+  order-dependent for a term named by both (kanemele, antikanemele, mAF).
+  A caller that invokes `apply_term_restrictions()` directly instead of via
+  `connect()` (`hybridparts.py`'s `on_new_part=`, used by
+  `hybridfilm.py`/`hybridribbon.py` to restrict a newly-built part's
+  fields) must pass `hamiltoniantype.get_type(form)` as the third argument
+  too, or it silently falls back to "Spinful" regardless of the page's
+  actual current selection.
 - **`termhighlight.py`** — not a widget-building module like the three
   above, but the same "one shared helper called from `common.py`,
   `scfterms.py` and `hybridparts.py`" shape: `wire_highlight(field)` bolds

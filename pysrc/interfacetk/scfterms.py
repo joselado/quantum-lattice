@@ -41,6 +41,11 @@ interaction fields (U/V1/V2/J1/J2/J3) leaves zero (see
 _wire_interaction_field()), but never turned off automatically - a
 manual "off" is expected to stick even if those fields stay non-zero.
 
+build() also places the "Hamiltonian type" combobox (hamiltoniantype.py's
+build_row()) directly above that switch row - see that module for the
+Spinless/Spinful/Nambu choice it offers and how term visibility/the actual
+Hamiltonian construction respond to it.
+
 Finally, build() wires _scf_dirty tracking (_connect_scf_dirty_tracking()):
 any field that affects Hamiltonian construction - i.e. everything on the
 page except the do_scf switch itself and calculation/plotting-only
@@ -55,6 +60,7 @@ from PySide6 import QtWidgets
 from PySide6.QtWidgets import QWidget, QGridLayout, QTabWidget, QHBoxLayout, QVBoxLayout
 from qfluentwidgets import BodyLabel, LineEdit, SwitchButton
 from . import termhighlight
+from . import hamiltoniantype
 from .termtooltips import TERM_TOOLTIPS  # single source of truth for term
                                     # tooltips, shared with common.py's
                                     # set_formulas() - needed here too since
@@ -312,13 +318,15 @@ def _nest_scf_tab(qtwrap):
     # sub-tab) can add a sibling tab here without re-deriving this widget
     form._hamiltonian_subtabs = inner
 
-    # Wrap `inner` so the SCF switch sits below both sub-tabs, visible
-    # regardless of which one is open, instead of being buried inside
-    # Many-body interactions -> Basic like the CheckBox it replaces.
+    # Wrap `inner` so the Hamiltonian-type combobox and SCF switch sit
+    # below both sub-tabs, visible regardless of which one is open,
+    # instead of being buried inside Many-body interactions -> Basic like
+    # the CheckBox the switch replaces.
     wrapper = QWidget()
     outer_layout = QVBoxLayout(wrapper)
     outer_layout.setContentsMargins(0, 0, 0, 0)
     outer_layout.addWidget(inner, 1)
+    outer_layout.addWidget(hamiltoniantype.build_row(form))
     outer_layout.addWidget(_build_scf_switch_row(form))
 
     ham_tabs.insertTab(ham_idx, wrapper, "Terms in the Hamiltonian")

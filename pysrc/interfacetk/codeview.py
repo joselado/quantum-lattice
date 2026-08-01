@@ -31,6 +31,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QApplication
 from PySide6.QtGui import QFont
 from qfluentwidgets import PlainTextEdit, PushButton
 from . import termhighlight
+from . import hamiltoniantype
 
 
 def is_active(qtwrap, name):
@@ -38,9 +39,13 @@ def is_active(qtwrap, name):
     - the same test termhighlight.py uses to bold a field the moment it's
     active, reused here so a term appears in the generated code exactly
     when it's shown as active in the UI. False (line omitted) if the field
-    doesn't exist on this page."""
+    doesn't exist on this page, or if the current Hamiltonian type
+    (Spinless/Spinful/Nambu, see hamiltoniantype.py) hides it - a term
+    hidden in the UI must never still show up in the generated code just
+    because a stale nonzero value is sitting in its now-hidden field."""
     field = getattr(qtwrap.form, name, None)
     if field is None: return False
+    if not hamiltoniantype.term_allowed(hamiltoniantype.get_type(qtwrap), name): return False
     return termhighlight.is_nonzero_value(field.text())
 
 

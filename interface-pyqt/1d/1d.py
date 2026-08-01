@@ -30,6 +30,7 @@ modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True,solve=solve_scf)
 
+from interfacetk import hamiltoniantype
 from interfacetk import latticeterms
 latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # terms (Haldane,
@@ -72,23 +73,30 @@ def get_geometry(modify=True):
 def initialize():
   """ Initialize the calculation"""
   g = get_geometry() # get the geometry
-  h = g.get_hamiltonian(has_spin=True,tij=qtwrap.get_array("hoppings"))
+  has_spin = hamiltoniantype.wants_spin(qtwrap)
+  h = g.get_hamiltonian(has_spin=has_spin,tij=qtwrap.get_array("hoppings"))
   h.turn_multicell()
-  h.add_zeeman(qtwrap.get_array("exchange"))
+  if has_spin: # see hamiltoniantype.py's docstring - these unconditionally
+    # call turn_spinful() themselves, so they must be skipped outright for
+    # "Spinless" rather than called with a zero-ish value
+    h.add_zeeman(qtwrap.get_array("exchange"))
+    if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field
+    h.add_antiferromagnetism(get("mAF"))  # AF order
+    h.add_kane_mele(get("kanemele")) # intrinsic SOC
+    h.add_anti_kane_mele(get("antikanemele"))
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-  if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field
-  h.add_antiferromagnetism(get("mAF"))  # AF order
-  h.add_crystal_field(qtwrap.get("crystalfield")) 
+  h.add_crystal_field(qtwrap.get("crystalfield"))
   h.shift_fermi(get("fermi")) # shift fermi energy
-  h.add_kane_mele(get("kanemele")) # intrinsic SOC
   h.add_haldane(get("haldane")) # intrinsic SOC
-  h.add_antihaldane(get("antihaldane")) 
-  h.add_anti_kane_mele(get("antikanemele")) 
+  h.add_antihaldane(get("antihaldane"))
   h.add_peierls(get("peierls")) # magnetic field
-  if get("swave")!=0.: h.add_swave(get("swave")) 
-  p = qtwrap.get_array("pwave")
-  if np.sum(np.abs(p))>0.0:
-      h.add_pairing(d=p,mode="triplet",delta=1.0)
+  if hamiltoniantype.wants_nambu(qtwrap):
+    h.setup_nambu_spinor() # establish the BdG structure even if
+                            # swave/pwave are both left at zero
+    if get("swave")!=0.: h.add_swave(get("swave"))
+    p = qtwrap.get_array("pwave")
+    if np.sum(np.abs(p))>0.0:
+        h.add_pairing(d=p,mode="triplet",delta=1.0)
   return h
 
 
@@ -127,6 +135,7 @@ def get_pyqula_code():
   nsuper = str(int(get("nsuper"))) # matches get_geometry()'s int(get("nsuper"))
   lattice_call = _LATTICE_CALLS[lattice_name]
   if "%s" in lattice_call: lattice_call = lattice_call % width
+  has_spin = hamiltoniantype.wants_spin(qtwrap)
 
   lines = [
     "from pyqula import geometry, ribbon",
@@ -138,7 +147,7 @@ def get_pyqula_code():
   lines.append("g = g.supercell(%s, store_primal=True)" % nsuper)
   lines += codeview.geometry_removal_code(qtwrap)
   lines.append("")
-  lines.append("h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"))
+  lines.append("h = g.get_hamiltonian(has_spin=%r, tij=%s)" % (has_spin,fa("hoppings")))
   lines.append("h.turn_multicell()")
   if active("exchange"): lines.append("h.add_zeeman(%s)" % fa("exchange"))
   if active("mAB"): lines.append("h.add_sublattice_imbalance(%s)" % fv("mAB"))
@@ -151,6 +160,7 @@ def get_pyqula_code():
   if active("antihaldane"): lines.append("h.add_antihaldane(%s)" % fv("antihaldane"))
   if active("antikanemele"): lines.append("h.add_anti_kane_mele(%s)" % fv("antikanemele"))
   if active("peierls"): lines.append("h.add_peierls(%s)" % fv("peierls"))
+  if hamiltoniantype.wants_nambu(qtwrap): lines.append("h.setup_nambu_spinor()")
   if active("swave"): lines.append("h.add_swave(%s)" % fv("swave"))
   if active("pwave"): lines.append("h.add_pairing(d=%s, mode=\"triplet\", delta=1.0)" % fa("pwave"))
 

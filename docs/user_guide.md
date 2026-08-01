@@ -18,6 +18,7 @@ interface itself rather than using it.
 - [The interface at a glance](#the-interface-at-a-glance)
 - [A typical workflow](#a-typical-workflow)
 - [Modifying the geometry](#modifying-the-geometry)
+- [Hamiltonian type: Spinless, Spinful, Nambu](#hamiltonian-type-spinless-spinful-nambu)
 - [Self-consistent mean-field (SCF) calculations](#self-consistent-mean-field-scf-calculations)
 - [Saving and loading your work](#saving-and-loading-your-work)
 - [While a calculation is running](#while-a-calculation-is-running)
@@ -140,12 +141,44 @@ selection is remembered and re-applied automatically the next time this
 mode's Hamiltonian is (re)built, so you don't need to redo it after tweaking
 an unrelated Hamiltonian term.
 
+## Hamiltonian type: Spinless, Spinful, Nambu
+
+The same modes that have the SCF switch below (see the next section) also
+have a **Hamiltonian type** dropdown just above it, at the bottom of the
+"Terms in the Hamiltonian" area: **Spinless**, **Spinful** (the default),
+or **Nambu**.
+
+- **Spinful** is the ordinary case: the Hamiltonian carries a real electron
+  spin degree of freedom, and every spin-dependent term is available.
+- **Spinless** removes the spin degree of freedom entirely. Terms that only
+  make sense with real spin — Exchange, Kane-Mele SOC, Anti-Kane-Mele,
+  Rashba, Antiferromagnetism, and the mean-field J1/J2/J3 exchange fields —
+  are hidden and have no effect while Spinless is selected, even if they
+  still hold a nonzero value from before you switched. Orbital terms
+  (hopping, Fermi level, sublattice imbalance, Haldane/Anti-Haldane,
+  crystal field, Peierls/in-plane field, strain, and the U/V1/V2 mean-field
+  terms) stay available either way.
+- **Nambu** adds an electron-hole (Bogoliubov-de Gennes) sector on top of a
+  spinful Hamiltonian, and is the only choice that shows and activates the
+  s-wave/p-wave pairing fields — those are hidden under Spinless and
+  Spinful, since pairing has no meaning without the Nambu doubling.
+
+Switching this dropdown immediately shows/hides the affected fields, the
+same way changing **Lattice** shows/hides Haldane/Kane-Mele/valley terms —
+if a term is both lattice-restricted and Hamiltonian-type-restricted (Kane-
+Mele SOC, Anti-Kane-Mele, Antiferromagnetism), it stays hidden unless both
+the current lattice *and* the current Hamiltonian type allow it. The SCF
+tab's **Initial guess** dropdown (see below) is filtered the same way — a
+guess tied to a hidden term (e.g. **rashba**, **kanemele**, **swave**) isn't
+offered while that term itself is hidden.
+
 ## Self-consistent mean-field (SCF) calculations
 
 Modes that support interactions (Islands, Ribbons, Sheets, 3D crystals,
 multilayer graphene, hybrid ribbons/films, and films) have a switch at the
 bottom of the "Terms in the Hamiltonian" area, next to the "Single
-particle"/"Many-body interactions" sub-tabs. The **Many-body interactions**
+particle"/"Many-body interactions" sub-tabs (below the Hamiltonian type
+dropdown described above). The **Many-body interactions**
 sub-tab has density-density (U, V1, V2) and spin-spin (J1, J2, J3) fields —
 see the [term reference](#reference-hamiltonian-terms) for what each one
 means physically.
@@ -236,7 +269,11 @@ run, with no restart needed.
 
 Every term below appears as a form field on the modes that support it, with
 a rendered formula and this same explanation as its hover tooltip. A term
-left at its default (`0.0`) is not included in the Hamiltonian.
+left at its default (`0.0`) is not included in the Hamiltonian. On the
+modes with a [Hamiltonian type](#hamiltonian-type-spinless-spinful-nambu)
+dropdown, Exchange/Kane-Mele/Anti-Kane-Mele/Rashba/Antiferromagnetism/J1/
+J2/J3 are additionally hidden under Spinless, and s-wave/p-wave pairing are
+hidden unless Nambu is selected.
 
 | Term | What it does |
 |---|---|

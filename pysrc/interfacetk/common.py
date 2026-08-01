@@ -1,5 +1,6 @@
 from .qlinterface import execute_script, create_folder, save_state, load_state
 from . import qtwrap
+from . import hamiltoniantype
 import os
 import numpy as np
 from pyqula import klist
@@ -322,11 +323,18 @@ def get_scf_solver_kwargs(h,window,for_vjinteraction):
 
 
 def _scf_has_pairing(qtwrap):
-    """Whether the swave/pwave fields currently describe a pairing
-    (BdG/has_eh-like) Hamiltonian - mirrors the h.has_eh check
-    get_scf_solver_kwargs() makes on a real Hamiltonian, but computed from
-    the raw form fields instead, for pyqula_code_scf_block() below (which
-    runs before any Hamiltonian is actually built)."""
+    """Whether the Hamiltonian this page currently describes will end up
+    with has_eh=True - mirrors the h.has_eh check get_scf_solver_kwargs()
+    makes on a real Hamiltonian, but computed without one (raw form state
+    only), for pyqula_code_scf_block() below (which runs before any
+    Hamiltonian is actually built). True whenever "Nambu" is selected
+    (generate_hamiltonian()/every mode's initialize() unconditionally call
+    h.setup_nambu_spinor() under Nambu, setting has_eh=True even with
+    swave/pwave both left at zero - see hamiltoniantype.py), or a
+    lattice-restricted/non-hamiltoniantype-aware mode still has a nonzero
+    swave/pwave field (the pre-hamiltoniantype fallback, kept for modes
+    without a hamiltonian_type combobox)."""
+    if hamiltoniantype.wants_nambu(qtwrap): return True
     form = qtwrap.form
     for name in ("swave","pwave"):
         field = getattr(form,name,None)
@@ -343,16 +351,15 @@ def pyqula_code_scf_block(qtwrap,richer=False):
     used by 0d.py/1d.py, which call this file's own solve_scf()) or of
     2d.py's own richer solve_scf() (richer=True: passes maxerror=<scf_error>
     instead of T=<smearing_scf>, and has no extra_electron term in its
-    filling). Every mode this is used from always builds a has_spin=True
-    Hamiltonian, so this only ever needs the meanfield.VJinteraction(...)
-    branch - never the spinless meanfield.Vinteraction(...) branch
-    solve_scf() also supports - and for_vjinteraction is always True, so
-    the scf_solver dropdown's value only needs _VJINTERACTION_SOLVER_NAMES
-    translation (just "krylov"->"newton_krylov" - "error_gradient"/
-    "linear_mixing" already match VJinteraction's own public names, see
-    get_scf_solver_kwargs())."""
+    filling). Branches on hamiltoniantype.wants_spin(qtwrap) the same way
+    solve_scf() branches on h.has_spin - meanfield.VJinteraction(...) for a
+    spinful Hamiltonian (J1/J2/J3 included, for_vjinteraction=True for the
+    solver-name translation below), meanfield.Vinteraction(...) for a
+    spinless one (no J1/J2/J3 - VJinteraction itself refuses a spinless h -
+    plus load_mf=False, matching solve_scf()'s else branch)."""
     get = qtwrap.get
     getbox = qtwrap.getbox
+    has_spin = hamiltoniantype.wants_spin(qtwrap)
     lines = []
     lines.append("")
     lines.append("# --- self-consistent mean field (SCF) ---")
@@ -364,9 +371,12 @@ def pyqula_code_scf_block(qtwrap,richer=False):
     kwargs = [
       "nk=%d" % int(get("nk_scf")), "filling=filling",
       "U=%r" % get("U"), "V1=%r" % get("V1"), "V2=%r" % get("V2"),
-      "J1=%r" % get("J1"), "J2=%r" % get("J2"), "J3=%r" % get("J3"),
-      "mf=mf", "mix=%r" % get("mix_scf"),
     ]
+    if has_spin:
+        kwargs += ["J1=%r" % get("J1"), "J2=%r" % get("J2"), "J3=%r" % get("J3")]
+    kwargs.append("mf=mf")
+    if not has_spin: kwargs.append("load_mf=False")
+    kwargs.append("mix=%r" % get("mix_scf"))
     if richer: kwargs.append("maxerror=%r" % get("scf_error",default=1e-5))
     else: kwargs.append("T=%r" % get("smearing_scf"))
     kwargs.append("verbose=1")
@@ -374,9 +384,10 @@ def pyqula_code_scf_block(qtwrap,richer=False):
     import importlib.util
     if importlib.util.find_spec("jax") is not None and not _scf_has_pairing(qtwrap):
         kwargs.append("use_jax=True")
-        solver = _VJINTERACTION_SOLVER_NAMES.get(getbox("scf_solver"),getbox("scf_solver"))
+        names = _VJINTERACTION_SOLVER_NAMES if has_spin else _VINTERACTION_SOLVER_NAMES
+        solver = names.get(getbox("scf_solver"),getbox("scf_solver"))
         kwargs.append("solver=%r" % solver)
-    lines.append("scf = meanfield.VJinteraction(h,")
+    lines.append("scf = meanfield.%s(h," % ("VJinteraction" if has_spin else "Vinteraction"))
     lines.append("    " + ", ".join(kwargs) + ")")
     lines.append("scf.hamiltonian.save()")
     return lines
@@ -665,21 +676,30 @@ def generate_hamiltonian(window,g=None):
     if g is None: raise
     get = window.get # function
     get_array = window.get_array # function
-    h = g.get_hamiltonian(has_spin=True,tij=get_array("hoppings"))
+    has_spin = hamiltoniantype.wants_spin(window)
+    h = g.get_hamiltonian(has_spin=has_spin,tij=get_array("hoppings"))
     ts = get_array("hoppings")
-    h.add_exchange(get_array("exchange")) # Zeeman fields
+    if has_spin: # exchange/kanemele/anti_kane_mele/rashba/antiferromagnetism
+        # all unconditionally call turn_spinful() themselves before even
+        # looking at the value passed in - see hamiltoniantype.py's
+        # docstring - so these must be skipped outright for "Spinless",
+        # not just called with a zero-ish value
+        h.add_exchange(get_array("exchange")) # Zeeman fields
+        h.add_rashba(get("rashba"))  # Rashba field
+        h.add_antiferromagnetism(get("mAF"))  # AF order
+        h.add_kane_mele(get("kanemele")) # intrinsic SOC
+        h.add_anti_kane_mele(get("antikanemele"))
     h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-    h.add_rashba(get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(get("mAF"))  # AF order
     h.shift_fermi(get("fermi")) # shift fermi energy
-    h.add_kane_mele(get("kanemele")) # intrinsic SOC
     h.add_haldane(get("haldane")) # intrinsic SOC
     h.add_antihaldane(get("antihaldane"))
-    h.add_anti_kane_mele(get("antikanemele"))
-    if np.abs(get("swave"))>0.0: h.add_swave(get("swave")) # add term
-    p = get_array("pwave")
-    if np.sum(np.abs(p))>0.0: 
-        h.add_pairing(d=get_array("pwave"),mode="triplet",delta=1.0)
+    if hamiltoniantype.wants_nambu(window):
+        h.setup_nambu_spinor() # establish the BdG structure even if
+                                # swave/pwave are both left at zero
+        if np.abs(get("swave"))>0.0: h.add_swave(get("swave")) # add term
+        p = get_array("pwave")
+        if np.sum(np.abs(p))>0.0:
+            h.add_pairing(d=get_array("pwave"),mode="triplet",delta=1.0)
     h.turn_dense()
     return h
 

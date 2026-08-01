@@ -48,6 +48,7 @@ LATTICES = {
   "Honeycomb 6 sites": lambda: geometry.honeycomb_lattice(n=3),
 }
 
+from interfacetk import hamiltoniantype
 from interfacetk import latticeterms
 latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # terms (Haldane,
@@ -105,6 +106,7 @@ def get_pyqula_code():
   active = lambda name: codeview.is_active(qtwrap,name)
 
   lattice_name = getbox("lattice")
+  has_spin = hamiltoniantype.wants_spin(qtwrap)
 
   lines = [
     "from pyqula import geometry",
@@ -116,7 +118,7 @@ def get_pyqula_code():
   lines += codeview.geometry_removal_code(qtwrap)
   lines += [
     "",
-    "h = g.get_hamiltonian(has_spin=True, tij=%s)" % fa("hoppings"),
+    "h = g.get_hamiltonian(has_spin=%r, tij=%s)" % (has_spin,fa("hoppings")),
   ]
   if active("exchange"): lines.append("h.add_exchange(%s)" % fa("exchange"))
   if active("mAB"): lines.append("h.add_sublattice_imbalance(%s)" % fv("mAB"))
@@ -127,6 +129,7 @@ def get_pyqula_code():
   if active("haldane"): lines.append("h.add_haldane(%s)" % fv("haldane"))
   if active("antihaldane"): lines.append("h.add_antihaldane(%s)" % fv("antihaldane"))
   if active("antikanemele"): lines.append("h.add_anti_kane_mele(%s)" % fv("antikanemele"))
+  if hamiltoniantype.wants_nambu(qtwrap): lines.append("h.setup_nambu_spinor()")
   if active("swave"): lines.append("h.add_swave(%s)" % fv("swave"))
   if active("pwave"): lines.append("h.add_pairing(d=%s, mode=\"triplet\", delta=1.0)" % fa("pwave"))
   lines.append("h.turn_dense()")

@@ -47,7 +47,23 @@ apply_term_restrictions() rebuilds it down to exactly {a
 meanfield.guess() mode per Hamiltonian term this mode/lattice
 combination actually has} + "random" - see
 _rebuild_scf_initialization_baseline() and _UNRESTRICTED_GUESS_TERMS.
-"""
+
+apply_term_restrictions()/connect() also fold in hamiltoniantype.py's own
+Spinless/Spinful/Nambu-based restrictions (SPIN_TERMS/PAIRING_TERMS), so a
+term hidden for either reason - wrong lattice family *or* wrong
+Hamiltonian type - stays hidden regardless of the other. This matters
+because three terms are governed by both modules at once: kanemele/mAF
+are honeycomb-/sublattice-family-restricted here *and* spin-only in
+hamiltoniantype.py, so e.g. a Spinless Honeycomb selection must hide
+kanemele for the spin reason even though the lattice itself would allow
+it. Two independent sequential setVisible() passes would be
+order-dependent (whichever module's pass runs last would win, silently
+un-hiding what the other just hid) - apply_term_restrictions() avoids
+that by computing one AND-combined boolean per widget base name across
+both modules' rules before calling setVisible() once."""
+
+
+from . import hamiltoniantype
 
 
 def is_honeycomb_family(lattice_name):
@@ -155,27 +171,41 @@ _UNRESTRICTED_GUESS_TERMS = {
 }
 
 
-def _rebuild_scf_initialization_baseline(form):
+# scf_initialization combo_item entries in RESTRICTED_TERMS above whose
+# item text names a term that hamiltoniantype.py also restricts by spin
+# (kanemele, mAF) - so apply_term_restrictions() can additionally require
+# hamiltoniantype.term_allowed() for exactly these two, on top of the
+# lattice-family rule already attached to them. "Haldane"/"antihaldane"
+# (haldane/antihaldane) and "imbalance" (mAB) are orbital-only and need no
+# such extra check.
+_GUESS_ITEM_TO_HAMTYPE_TERM = {"kanemele": "kanemele", "antiferro": "mAF"}
+
+
+def _rebuild_scf_initialization_baseline(form, hamiltonian_type):
     """Fully rebuild the "Initial guess" (scf_initialization) dropdown
     down to exactly {a meanfield.guess() mode per Hamiltonian term this
-    mode's page has, from _UNRESTRICTED_GUESS_TERMS} + "random" -
-    discarding any Designer-authored placeholder items or a previous
-    rebuild's leftovers. Called first, at the top of
-    apply_term_restrictions() below, so its own combo_item entries for
-    scf_initialization (Haldane/kanemele/antihaldane/antiferro/imbalance)
-    then add back exactly the ones the *current* lattice choice allows,
-    on top of this always-present baseline. Preserves the current
-    selection across the rebuild if it's still offered afterwards (falls
-    back to whatever Qt's combobox defaults to, normally index 0, if the
-    previous selection is no longer offered - e.g. switching away from a
-    honeycomb-family lattice while "Haldane" was selected)."""
+    mode's page has *and* hamiltoniantype.term_allowed() currently allows,
+    from _UNRESTRICTED_GUESS_TERMS} + "random" - discarding any
+    Designer-authored placeholder items or a previous rebuild's leftovers.
+    Called first, at the top of apply_term_restrictions() below, so its
+    own combo_item entries for scf_initialization
+    (Haldane/kanemele/antihaldane/antiferro/imbalance) then add back
+    exactly the ones the *current* lattice choice allows, on top of this
+    always-present baseline. Preserves the current selection across the
+    rebuild if it's still offered afterwards (falls back to whatever Qt's
+    combobox defaults to, normally index 0, if the previous selection is
+    no longer offered - e.g. switching away from a honeycomb-family
+    lattice while "Haldane" was selected, or to "Spinless" while "rashba"
+    was selected)."""
     combo = getattr(form, "scf_initialization", None)
     if combo is None: return
     current = combo.currentText()
     combo.blockSignals(True)
     combo.clear()
     for term, mode in _UNRESTRICTED_GUESS_TERMS.items():
-        if getattr(form, term, None) is not None: combo.addItem(mode)
+        if getattr(form, term, None) is None: continue
+        if not hamiltoniantype.term_allowed(hamiltonian_type, term): continue
+        combo.addItem(mode)
     combo.addItem("random")
     combo.blockSignals(False)
     idx = combo.findText(current)
@@ -259,31 +289,54 @@ def _apply_combo_item_restriction(form, items, allowed):
         elif not allowed and idx >= 0: combo.removeItem(idx)
 
 
-def apply_term_restrictions(form, lattice_name):
+def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype.DEFAULT_TYPE):
     """Show/hide every registered restricted term on `form` according to
-    whether `lattice_name` satisfies each entry's rule. Safe to call on
-    any page: entries whose widgets/comboboxes don't exist on this
-    particular mode are silently skipped."""
-    _rebuild_scf_initialization_baseline(form)
+    whether `lattice_name` (this module's own RESTRICTED_TERMS) and
+    `hamiltonian_type` (hamiltoniantype.SPIN_TERMS/PAIRING_TERMS) allow it
+    - AND-ed together per widget base name (see this module's docstring
+    for why a term named by both, e.g. kanemele/mAF, needs a combined
+    boolean rather than two independent setVisible() passes). Safe to
+    call on any page: entries whose widgets/comboboxes don't exist on
+    this particular mode are silently skipped."""
+    _rebuild_scf_initialization_baseline(form, hamiltonian_type)
+
+    allowed = {} # widget base name -> AND of every rule naming it
     for entry in RESTRICTED_TERMS:
-        allowed = entry["rule"](lattice_name)
-        if entry["kind"] == "widget":
-            _apply_widget_restriction(form, entry["names"], allowed)
-        elif entry["kind"] == "combo_item":
-            _apply_combo_item_restriction(form, entry["items"], allowed)
+        if entry["kind"] != "widget": continue
+        ok = entry["rule"](lattice_name)
+        for name in entry["names"]:
+            allowed[name] = allowed.get(name, True) and ok
+    for name in hamiltoniantype.SPIN_TERMS + hamiltoniantype.PAIRING_TERMS:
+        ok = hamiltoniantype.term_allowed(hamiltonian_type, name)
+        allowed[name] = allowed.get(name, True) and ok
+    for name, ok in allowed.items():
+        _apply_widget_restriction(form, [name], ok)
+
+    for entry in RESTRICTED_TERMS:
+        if entry["kind"] != "combo_item": continue
+        ok = entry["rule"](lattice_name)
+        if entry["items"].get("scf_initialization") in _GUESS_ITEM_TO_HAMTYPE_TERM:
+            term = _GUESS_ITEM_TO_HAMTYPE_TERM[entry["items"]["scf_initialization"]]
+            ok = ok and hamiltoniantype.term_allowed(hamiltonian_type, term)
+        _apply_combo_item_restriction(form, entry["items"], ok)
 
 
 def connect(qtwrap, get_lattice_name):
     """Wire term restrictions to `get_lattice_name()` (a callable
     returning the mode's current lattice-family name, e.g.
     lambda: getbox("lattice"), or a constant for an always-honeycomb
-    mode). Applies once immediately, and again whenever this page's own
-    "lattice" combobox changes (covers both direct user interaction and
-    a saved session being reloaded into it - see saveload.py)."""
+    mode) and, if this page has one, its "hamiltonian_type" combobox
+    (built by scfterms.py, see hamiltoniantype.py). Applies once
+    immediately, and again whenever either combobox changes (covers both
+    direct user interaction and a saved session being reloaded into it -
+    see saveload.py)."""
     form = qtwrap.form
     def _update(*_args):
-        apply_term_restrictions(form, get_lattice_name())
+        apply_term_restrictions(form, get_lattice_name(), hamiltoniantype.get_type(qtwrap))
     lattice_widget = getattr(form, "lattice", None)
     if lattice_widget is not None:
         lattice_widget.currentTextChanged.connect(_update)
+    hamtype_widget = getattr(form, "hamiltonian_type", None)
+    if hamtype_widget is not None:
+        hamtype_widget.currentTextChanged.connect(_update)
     _update()

@@ -28,6 +28,7 @@ from interfacetk import common # common routines for all the geometries
 from interfacetk import hybridparts # per-part (Upper/Lower/...) parameter widgets
 
 from interfacetk import latticeterms
+from interfacetk import hamiltoniantype
 latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # terms (Haldane,
                                                          # Kane-Mele, valley)
@@ -51,7 +52,8 @@ PART_FIELDS = [
   ("swave","swave pairing"),
 ]
 hybridparts.connect(qtwrap,PART_FIELDS,
-    on_new_part=lambda form: latticeterms.apply_term_restrictions(form,form.lattice.currentText()))
+    on_new_part=lambda form: latticeterms.apply_term_restrictions(
+        form,form.lattice.currentText(),hamiltoniantype.get_type(form)))
 
 
 def get_geometry():
@@ -86,17 +88,23 @@ def initialize():
   region_of = hybridparts.region_of_factory(g.y.min(),g.y.max(),nparts) # y -> part index
   def check(name): return hybridparts.part_check(get,name,nparts)
   def fint(name): return hybridparts.part_interpolator(get,name,nparts,1,region_of) # axis 1 = y
-  h = g.get_hamiltonian(has_spin=True)
-  h.add_zeeman(hybridparts.part_array_interpolator(qtwrap.get_array,"exchange",nparts,1,region_of)) # Zeeman fields
+  has_spin = hamiltoniantype.wants_spin(qtwrap)
+  h = g.get_hamiltonian(has_spin=has_spin)
+  if has_spin: # see hamiltoniantype.py's docstring - these unconditionally
+    # call turn_spinful() themselves, so they must be skipped outright for
+    # "Spinless" rather than called with a zero-ish value
+    h.add_zeeman(hybridparts.part_array_interpolator(qtwrap.get_array,"exchange",nparts,1,region_of)) # Zeeman fields
+    if check("rashba"): h.add_rashba(fint("rashba"))  # Rashba field
+    h.add_antiferromagnetism(fint("mAF"))  # AF order
+    if check("kanemele"):  h.add_kane_mele(fint("kanemele")) # intrinsic SOC
   h.add_sublattice_imbalance(fint("mAB"))  # sublattice imbalance
-  if check("rashba"): h.add_rashba(fint("rashba"))  # Rashba field
-  h.add_antiferromagnetism(fint("mAF"))  # AF order
   h.shift_fermi(fint("fermi")) # shift fermi energy
-  if check("kanemele"):  h.add_kane_mele(fint("kanemele")) # intrinsic SOC
   if check("haldane"):  h.add_haldane(fint("haldane")) # intrinsic SOC
   if check("antihaldane"):  h.add_antihaldane(fint("antihaldane"))
   if check("peierls"):  h.add_peierls(fint("peierls"))
-  if check("swave"):  h.add_swave(fint("swave"))
+  if hamiltoniantype.wants_nambu(qtwrap):
+      h.setup_nambu_spinor() # establish the BdG structure even if swave is left at zero
+      if check("swave"):  h.add_swave(fint("swave"))
 #  h.add_peierls(get("peierls")) # shift fermi energy
   return h
 

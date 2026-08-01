@@ -33,6 +33,7 @@ LATTICES = {
   "Hyperhoneycomb": geometry.hyperhoneycomb_lattice,
 }
 
+from interfacetk import hamiltoniantype
 from interfacetk import latticeterms
 latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # terms (Haldane,
@@ -59,27 +60,33 @@ def initialize():
     if abs(get(name))>0.0: return True
     else: return False
   g = get_geometry() # get the geometry
+  has_spin = hamiltoniantype.wants_spin(qtwrap)
   if check("strain"): # custom function
     dfun = get("strain") # get function
     def fun(r1,r2): # function to compute distance
       dr = r1-r2
       dr2 = dr.dot(dr) # distance
-      if 0.9<dr2<1.1: 
+      if 0.9<dr2<1.1:
         if 0.9<abs(dr[2])<1.1: return 1.0 + dfun # first neighbor
         return 1.0
       else: return 0.0
-    h = g.get_hamiltonian(fun) # get the Hamiltonian
+    h = g.get_hamiltonian(fun=fun,has_spin=has_spin) # get the Hamiltonian
   else:
-    h = g.get_hamiltonian(has_spin=True)
-  h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman field
+    h = g.get_hamiltonian(has_spin=has_spin)
+  if has_spin: # see hamiltoniantype.py's docstring - these unconditionally
+    # call turn_spinful() themselves, so they must be skipped outright for
+    # "Spinless" rather than called with a zero-ish value
+    h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman field
+    if check("rashba"): h.add_rashba(get("rashba"))  # Rashba field
+    h.add_antiferromagnetism(get("mAF"))  # AF order
+    if check("kanemele"):  h.add_kane_mele(get("kanemele")) # intrinsic SOC
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-  if check("rashba"): h.add_rashba(get("rashba"))  # Rashba field
-  h.add_antiferromagnetism(get("mAF"))  # AF order
   h.shift_fermi(get("fermi")) # shift fermi energy
-  if check("kanemele"):  h.add_kane_mele(get("kanemele")) # intrinsic SOC
   if check("haldane"):  h.add_haldane(get("haldane")) # intrinsic SOC
-  if check("antihaldane"):  h.add_antihaldane(get("antihaldane")) 
-  if check("swave"):  h.add_swave(get("swave")) 
+  if check("antihaldane"):  h.add_antihaldane(get("antihaldane"))
+  if hamiltoniantype.wants_nambu(qtwrap):
+    h.setup_nambu_spinor() # establish the BdG structure even if swave is left at zero
+    if check("swave"):  h.add_swave(get("swave"))
 #  h.add_peierls(get("peierls")) # shift fermi energy
   h.turn_dense()
   return h
