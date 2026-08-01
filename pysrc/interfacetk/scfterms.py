@@ -58,7 +58,7 @@ solution is never silently reused after a Hamiltonian parameter changes."""
 import inspect
 from PySide6 import QtWidgets
 from PySide6.QtWidgets import QWidget, QGridLayout, QTabWidget, QHBoxLayout, QVBoxLayout
-from qfluentwidgets import BodyLabel, LineEdit, SwitchButton
+from qfluentwidgets import BodyLabel, LineEdit, SwitchButton, ComboBox
 from . import termhighlight
 from . import hamiltoniantype
 from .termtooltips import TERM_TOOLTIPS  # single source of truth for term
@@ -264,7 +264,14 @@ def _connect_scf_dirty_tracking(form):
         if not isinstance(obj, QtWidgets.QWidget) or excluded(obj): continue
         if isinstance(obj, QtWidgets.QLineEdit):
             obj.textEdited.connect(form._mark_scf_dirty)
-        elif isinstance(obj, QtWidgets.QComboBox):
+        elif isinstance(obj, (QtWidgets.QComboBox,ComboBox)):
+            # qfluentwidgets.ComboBox subclasses QPushButton, not
+            # QComboBox - see qtwrap.py's save_interface()/
+            # _connect_dirty_tracking() comments for the same gotcha.
+            # Without this, changing e.g. "lattice" or "hamiltonian_type"
+            # never marked the SCF result dirty, so pickup_hamiltonian()
+            # could silently keep reusing a stale mean-field solve computed
+            # under a different lattice/Hamiltonian type.
             obj.activated.connect(form._mark_scf_dirty)
         elif isinstance(obj, (QtWidgets.QCheckBox, QtWidgets.QRadioButton)):
             obj.clicked.connect(form._mark_scf_dirty)

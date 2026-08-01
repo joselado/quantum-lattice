@@ -42,7 +42,7 @@ except ImportError:
 
 from PySide6 import QtWidgets  # Import the PySide6 module we'll need
 from PySide6.QtGui import QPixmap, QPainter, QColor
-from PySide6.QtCore import Qt, QThread, QObject, Signal
+from PySide6.QtCore import Qt, QThread, QObject, Signal, QTimer
 import sys  # We need sys so that we can pass argv to QApplication
 import numpy as np
 import time
@@ -51,6 +51,18 @@ import json
 import importlib.util
 import threading
 import traceback
+import subprocess
+
+_dirname = os.path.dirname(os.path.realpath(__file__))
+# _dirname is pysrc/interfacetk; the `interpreter` package (pysrc/interpreter/,
+# holding pycommand.py) is only importable once pysrc/ itself - its parent -
+# is on sys.path, not pysrc/interpreter/ directly. This already works today
+# regardless, since every real caller (each <mode>.py, run_calculation.py,
+# the shell) appends pysrc/ before qtwrap.py is ever imported - but appending
+# the correct directory here too makes this module self-sufficient rather
+# than silently depending on that.
+sys.path.append(os.path.join(_dirname,".."))
+from interpreter import pycommand
 
 from numpy import * # this may not be a good idea
 from .debugging import holler
@@ -273,16 +285,143 @@ def try_acquire_busy_or_warn(parent):
     return False
 
 
+# --- Subprocess-based calculations (hard-cancellable) --------------------
+#
+# A handler's actual pyqula computation normally runs in-process, on
+# _HandlerRunner's worker thread - which means it can never be safely
+# cancelled once started (pysrc/pyqula/ is vendored/black-box with no
+# cancellation hooks, and QThread.terminate() can corrupt the interpreter
+# mid numpy/scipy call). A handler that opts in instead runs its
+# computation in a *child OS process* (run_calculation.py), which this
+# code launches and blocks on - still off the GUI thread, same as any
+# other blocking call a handler makes - and can be killed outright with no
+# risk to this process, unlike a Python thread. See CLAUDE.md/
+# INTERFACE_GUIDE.md for the full design; only a handful of handlers are
+# migrated to this path so far (see calc.py in an opted-in mode's own
+# directory).
+
+class CalculationCancelled(Exception):
+    """Raised by run_calculation_subprocess() when the child process it was
+    waiting on was killed via cancel_current_calculation(), rather than
+    exiting with a genuine error - _HandlerRunner.run() below catches this
+    separately so the GUI reports "Cancelled" instead of "Calculation
+    failed"."""
+    pass
+
+
+current_child_process = None # the live subprocess.Popen for an in-flight
+                              # subprocess-based calculation, if any -
+                              # module-level (not per-page) so the shell's
+                              # single global Cancel control can reach it
+                              # regardless of which page is visible, the
+                              # same way is_busy()/_busy_lock are global
+                              # rather than per-page (see above).
+
+_cancel_requested = False # set by cancel_current_calculation() right
+                           # before it signals current_child_process, so
+                           # run_calculation_subprocess() can tell "this
+                           # child was cancelled" apart from "this child
+                           # genuinely failed" without depending on the
+                           # exit code - terminate()/kill() only map to a
+                           # negative SIGTERM/SIGKILL returncode on POSIX;
+                           # Windows' TerminateProcess() yields a plain
+                           # non-negative code with no signal semantics,
+                           # so a code-based check would silently
+                           # misreport every cancelled run there.
+
+
+def run_calculation_subprocess(mode_dir,handler_key,scratch_dir):
+    """Run one calculation's pure compute function in a child process
+    instead of in-process: snapshot this page's current field values into
+    inputs.json (reusing save_interface()'s existing format - see
+    dictform.py's DictForm, which reads that same shape back), then launch
+    run_calculation.py to load `handler_key`'s compute function from
+    `mode_dir`'s own calc.py and run it there. Blocks the calling thread
+    until the child exits - called from inside a handler body, so this
+    runs on that handler's _HandlerRunner worker thread, giving the same
+    "GUI thread stays free" guarantee any other blocking call in a handler
+    already has.
+
+    Raises CalculationCancelled if the child was killed via
+    cancel_current_calculation() (detected via _cancel_requested, set right
+    before that function signals the child - NOT inferred from the exit
+    code: Popen.terminate()/kill() map to a negative SIGTERM/SIGKILL
+    returncode on POSIX, but Windows' TerminateProcess() yields a plain
+    non-negative code with no signal semantics at all, so a code-based
+    check would silently misreport every cancelled run as a failure
+    there), or RuntimeError with the child's last logged line on a
+    genuine failure."""
+    global current_child_process,_cancel_requested
+    page = _current_page()
+    inputs_path = os.path.join(scratch_dir,"inputs.json")
+    save_interface(page,output=inputs_path)
+    # deliberately NOT under pysrc/interfacetk/ (this package's own
+    # directory): that directory also holds interfacetk.py (the
+    # modify_geometry helper module) - since python <script>.py always
+    # auto-prepends the launched script's own directory to sys.path[0],
+    # launching a script *from inside* pysrc/interfacetk/ would make bare
+    # `import interfacetk` resolve to that submodule instead of the
+    # interfacetk *package* (pysrc/interfacetk/__init__.py), shadowing it -
+    # discovered the hard way when the resulting `from pyqula import
+    # sculpt` (interfacetk.py's own first line) became the very first
+    # pyqula import in the child process, tripping a circular-import
+    # fragility in an environment with a second pyqula checkout earlier on
+    # sys.path than this repo's vendored pysrc/pyqula/. Living one level up,
+    # in pysrc/ itself, sidesteps this entirely.
+    script_path = os.path.join(_dirname,"..","run_calculation.py")
+    python = pycommand.get_python()
+    cmd = [python,script_path,mode_dir,handler_key,inputs_path,scratch_dir]
+    logpath = os.path.join(scratch_dir,"run_calculation.log")
+    _cancel_requested = False
+    with open(logpath,"w") as logfile:
+        proc = subprocess.Popen(cmd,cwd=scratch_dir,stdout=logfile,stderr=subprocess.STDOUT)
+        current_child_process = proc
+        try:
+            ret = proc.wait()
+        finally:
+            current_child_process = None
+    if ret==0: return
+    if _cancel_requested:
+        raise CalculationCancelled()
+    try:
+        with open(logpath) as f: log = f.read().strip()
+    except OSError: log = ""
+    last = log.splitlines()[-1] if log else ("run_calculation.py exited with code %d"%ret)
+    raise RuntimeError(last)
+
+
+def cancel_current_calculation():
+    """Kill the in-flight subprocess-based calculation, if any - called by
+    the shell's global Cancel control (see bin/versions/quantum-lattice-pyqt).
+    Sets _cancel_requested first, so run_calculation_subprocess() knows the
+    child's death (whatever its exit code turns out to be, on whichever
+    platform) was requested rather than a genuine failure. terminate()
+    first (lets the child's own exit handling, if any, run), escalating to
+    kill() after a short grace period in case it ignores that. A no-op if
+    nothing cancellable is currently running (already finished, or the
+    current handler isn't a migrated subprocess-based one)."""
+    global _cancel_requested
+    proc = current_child_process
+    if proc is None or proc.poll() is not None: return
+    _cancel_requested = True
+    proc.terminate()
+    def _escalate():
+        if proc.poll() is None: proc.kill()
+    QTimer.singleShot(2000,_escalate)
+
+
 class _HandlerRunner(QThread):
     """Runs one button handler on a worker thread. Any widget access
     inside the handler hops back to the GUI thread transparently (see
     _gui_thread_only above) - the handler itself is unaware it isn't
     running on the GUI thread. Emits onto the page's own bound slots
-    (_on_runner_ok/_on_runner_error) rather than plain closures so Qt
-    recognizes the cross-thread call and auto-queues it back to the GUI
-    thread instead of running the slot on this worker thread."""
+    (_on_runner_ok/_on_runner_error/_on_runner_cancelled) rather than plain
+    closures so Qt recognizes the cross-thread call and auto-queues it
+    back to the GUI thread instead of running the slot on this worker
+    thread."""
     finished_ok = Signal(object) # emits self, so the page knows which runner finished
     finished_error = Signal(object,str) # emits self, full traceback text
+    finished_cancelled = Signal(object) # emits self - see CalculationCancelled above
     def __init__(self,fn,owner_page):
         super().__init__()
         self._fn = fn
@@ -293,6 +432,8 @@ class _HandlerRunner(QThread):
         try:
             self._fn()
             self.finished_ok.emit(self)
+        except CalculationCancelled:
+            self.finished_cancelled.emit(self)
         except Exception:
             self.finished_error.emit(self,traceback.format_exc())
         finally:
@@ -322,7 +463,12 @@ class _AppBase:
         for name,obj in inspect.getmembers(self):
             if isinstance(obj,QtWidgets.QLineEdit):
                 obj.textEdited.connect(self._mark_dirty)
-            elif isinstance(obj,QtWidgets.QComboBox):
+            elif isinstance(obj,(QtWidgets.QComboBox,ComboBox)):
+                # qfluentwidgets.ComboBox is NOT a QComboBox subclass (it's
+                # built on QPushButton - a custom-drawn Fluent dropdown, see
+                # save_interface()'s comment below) - checking only
+                # QtWidgets.QComboBox here would silently skip every
+                # promoted combobox on the page.
                 obj.activated.connect(self._mark_dirty)
             elif isinstance(obj,(QtWidgets.QCheckBox,QtWidgets.QRadioButton)):
                 obj.clicked.connect(self._mark_dirty)
@@ -380,11 +526,21 @@ class _AppBase:
             self._runners.append(runner) # keep a live reference so Qt doesn't GC it mid-run
             runner.finished_ok.connect(self._on_runner_ok)
             runner.finished_error.connect(self._on_runner_error)
+            runner.finished_cancelled.connect(self._on_runner_cancelled)
             runner.start()
         return start
 
     def _on_runner_ok(self,runner):
         self._cleanup_runner(runner)
+        release_busy()
+
+    def _on_runner_cancelled(self,runner):
+        # report before release_busy(), not after - same reentrancy rule as
+        # _on_runner_error below (release_busy() fires a synchronous
+        # same-thread signal that can reenter arbitrary shell code).
+        self._cleanup_runner(runner)
+        InfoBar.warning(title="Cancelled",content="Calculation cancelled",
+                        parent=self,duration=4000,position=InfoBarPosition.TOP)
         release_busy()
 
     def _on_runner_error(self,runner,tb):
@@ -721,7 +877,15 @@ def save_interface(self,output=None):
     for name,obj in inspect.getmembers(self): # all the different objects
         if isinstance(obj,QtWidgets.QLineEdit):
             out[name] = {"type":"line","value":obj.text()}
-        elif isinstance(obj,QtWidgets.QComboBox):
+        elif isinstance(obj,(QtWidgets.QComboBox,ComboBox)):
+            # qfluentwidgets.ComboBox subclasses QPushButton, not
+            # QComboBox (a custom-drawn Fluent dropdown, not a native Qt
+            # one) - checking only QtWidgets.QComboBox here silently
+            # dropped every promoted combobox on the page (lattice,
+            # hamiltonian_type, scf_initialization, ...) from every save,
+            # discovered when a subprocess-based calculation's inputs.json
+            # snapshot (run_calculation_subprocess(), which reuses this
+            # function) turned up missing "lattice" entirely.
             out[name] = {"type":"combo","value":obj.currentText()}
         elif isinstance(obj,(QtWidgets.QCheckBox,QtWidgets.QRadioButton,SwitchButton)):
             out[name] = {"type":"check","value":obj.isChecked()}

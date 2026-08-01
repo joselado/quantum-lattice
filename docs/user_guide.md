@@ -248,9 +248,18 @@ Only one calculation can run at a time across the whole application, even
 if you switch to a different mode's page while it runs. If you click a
 button while another is still running, you'll see a "Please wait" message
 instead of the calculation starting — wait for the current one to finish
-(or its plot window to appear) and try again. There is currently no way to
-cancel a calculation once started; if you need to change course, wait for
-it to finish or restart the application.
+(or its plot window to appear) and try again.
+
+A **Cancel calculation** button at the bottom of the sidebar stops a
+running calculation outright, if it's one of the kinds that support this
+(currently: Ribbons' "Solve SCF" button — more will gain this over time).
+Clicking it while nothing cancellable is running (either
+nothing is running at all, or it's a calculation that doesn't support
+cancellation yet) shows a "Nothing to cancel" message and does nothing
+else. A cancelled calculation is reported the same way a finished one is
+(an info message instead of an error), and any partial result is discarded
+rather than left half-written — the next calculation you run starts clean,
+as if the cancelled one had never happened.
 
 If a calculation fails (e.g. an invalid parameter combination), you'll see
 an error message in the window itself rather than a silent failure, even

@@ -427,7 +427,14 @@ def solve_scf(h,window):
                   verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=False)
                   )
-  scf.hamiltonian.save() # save in a file
+  # write atomically (temp name + os.replace): pickup_hamiltonian() treats
+  # os.path.exists("hamiltonian.pkl") as "a valid cached solve exists", so a
+  # solve killed mid-write (e.g. a cancelled subprocess-based calculation -
+  # see qtwrap.run_calculation_subprocess()) must never leave a half-written
+  # file there for the next click to mistake for one. os.replace() is an
+  # atomic overwrite on both POSIX and Windows, unlike os.rename().
+  scf.hamiltonian.save(output_file="hamiltonian.pkl.tmp")
+  os.replace("hamiltonian.pkl.tmp","hamiltonian.pkl")
   mark_scf_solved(window)
 
 

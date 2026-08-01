@@ -8,6 +8,8 @@ import os
 # main path
 qlroot = os.path.dirname(os.path.realpath(__file__))+"/../.."
 sys.path.append(qlroot+"/pysrc/") # python libraries
+moddir = os.path.dirname(os.path.realpath(__file__)) # this mode's own
+    # directory, for run_calculation_subprocess() to find its calc.py
 
 
 from interfacetk import qtwrap # import the library with simple wrappaers to qt4
@@ -27,6 +29,13 @@ qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 from interfacetk import interfacetk
 modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+
+import calc # this mode's own geometry/Hamiltonian-building code, kept
+            # importable on its own (no page/QApplication side effects) so
+            # run_calculation.py's child process can reuse it - see calc.py
+get_geometry = calc.get_geometry
+initialize = calc.initialize
+
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True,solve=solve_scf)
 
@@ -40,64 +49,8 @@ latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
 
 
 
-def get_geometry(modify=True):
-  """ Create a 0d island"""
-  lattice_name = getbox("lattice") # get the option
-  n = int(get("width")) # thickness of the system
-  lattices = {
-    "Chain": geometry.chain,
-    "Bichain": geometry.bichain,
-    "Honeycomb": geometry.honeycomb_lattice,
-    "Square": geometry.square_lattice,
-    "Kagome": geometry.kagome_lattice,
-    "Lieb": geometry.lieb_lattice,
-    "Triangular": geometry.triangular_lattice_tripartite,
-    "Honeycomb zigzag": lambda: geometry.honeycomb_zigzag_ribbon(n),
-    "Honeycomb armchair": lambda: geometry.honeycomb_armchair_ribbon(n),
-  }
-  g = lattices[lattice_name]()
-  if g.dimensionality==2: # original is a 2d geometry
-    g = ribbon.bulk2ribbon(g,n=n)
-  nsuper = int(get("nsuper"))
-  g = g.supercell(nsuper,store_primal=True)
-  if modify: g = modify_geometry(g) # modify the geometry
-  return g
 
 
-
-
-
-
-
-
-def initialize():
-  """ Initialize the calculation"""
-  g = get_geometry() # get the geometry
-  has_spin = hamiltoniantype.wants_spin(qtwrap)
-  h = g.get_hamiltonian(has_spin=has_spin,tij=qtwrap.get_array("hoppings"))
-  h.turn_multicell()
-  if has_spin: # see hamiltoniantype.py's docstring - these unconditionally
-    # call turn_spinful() themselves, so they must be skipped outright for
-    # "Spinless" rather than called with a zero-ish value
-    h.add_zeeman(qtwrap.get_array("exchange"))
-    if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(get("mAF"))  # AF order
-    h.add_kane_mele(get("kanemele")) # intrinsic SOC
-    h.add_anti_kane_mele(get("antikanemele"))
-  h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-  h.add_crystal_field(qtwrap.get("crystalfield"))
-  h.shift_fermi(get("fermi")) # shift fermi energy
-  h.add_haldane(get("haldane")) # intrinsic SOC
-  h.add_antihaldane(get("antihaldane"))
-  h.add_peierls(get("peierls")) # magnetic field
-  if hamiltoniantype.wants_nambu(qtwrap):
-    h.setup_nambu_spinor() # establish the BdG structure even if
-                            # swave/pwave are both left at zero
-    if get("swave")!=0.: h.add_swave(get("swave"))
-    p = qtwrap.get_array("pwave")
-    if np.sum(np.abs(p))>0.0:
-        h.add_pairing(d=p,mode="triplet",delta=1.0)
-  return h
 
 
 _LATTICE_CALLS = {
@@ -225,9 +178,15 @@ def show_structure_3d():
 
 
 def solve_scf():
-  """Perform a selfconsistent calculation"""
-  h = initialize()
-  common.solve_scf(h,qtwrap)
+  """Perform a selfconsistent calculation - runs in a child process (see
+  calc.py/run_calculation.py) instead of calling initialize()/
+  common.solve_scf() directly here, so a slow/diverging solve can be
+  hard-cancelled via the shell's Cancel control instead of only ever
+  finishing or hanging until the app is restarted."""
+  qtwrap.run_calculation_subprocess(moddir,"solve_scf",window.scratch_dir)
+  window._scf_dirty = False # mirrors common.mark_scf_solved(), which the
+                             # subprocess's own DictForm accessor can't
+                             # reach (see calc.compute_solve_scf)
 
 
 codeview.build(qtwrap,get_pyqula_code) # "pyqula code" sub-tab

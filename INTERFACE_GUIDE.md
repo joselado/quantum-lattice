@@ -43,6 +43,9 @@ maintenance doc, not a one-time snapshot.
   script that reproduces the current Hamiltonian) — `pysrc/interfacetk/codeview.py`
   plus each mode's own `get_pyqula_code()`; see "Adding the 'pyqula code'
   tab to a mode" below.
+- **Make a calculation button hard-cancellable** (run in a killable child
+  process instead of in-process) — see "Hard-cancelling a calculation"
+  below.
 
 ## The QTabWidget naming trap
 
@@ -551,6 +554,141 @@ the GUI. Retrofitting this onto another mode:
    `modify_geometry()` wrapper also calls `g.center()` afterward (`0d.py`
    does; `1d.py`/`2d.py` don't).
 
+## Hard-cancelling a calculation
+
+Normally a handler's actual pyqula computation runs in-process, on
+`_HandlerRunner`'s worker `QThread` (see `CLAUDE.md`'s `qtwrap.py` bullet) -
+which can never be safely cancelled once started, since `pysrc/pyqula/` is
+vendored/black-box with no cancellation hooks and `QThread.terminate()` can
+corrupt the interpreter mid numpy/scipy call. A handler can opt into
+running its computation in a **child OS process** instead, which the shell
+can kill outright with no such risk - only a few handlers are migrated to
+this so far (currently: the shared `solve_scf` on `1d`; the same pattern
+extends to other modes/handlers over time, mechanically for a handler that
+already reads all its widget state before doing any pyqula work, which is
+most of them - see the handler-classification notes in the cancellation
+plan this was built from).
+
+**The pieces**, all new:
+
+- **`pysrc/run_calculation.py`** - a standalone entry point (`<python>
+  run_calculation.py <mode_dir> <handler_key> <inputs_json_path>
+  <scratch_dir>`) that chdirs to `scratch_dir`, loads `<mode_dir>`'s own
+  `calc.py` (bare `import calc`, via `sys.path.insert(0,mode_dir)` - same
+  pattern `huge_0d`'s `islandbuild.py`/`handlers.py` already use) and calls
+  `calc.COMPUTE_HANDLERS[handler_key](inputs)`. **Deliberately lives in
+  `pysrc/`, not `pysrc/interfacetk/`** - Python auto-prepends a launched
+  script's own directory to `sys.path[0]`, and `pysrc/interfacetk/` already
+  holds a plain module also named `interfacetk.py` (the `modify_geometry`
+  helper); launching a script from inside that directory would make a bare
+  `import interfacetk` resolve to that submodule instead of the
+  `interfacetk` *package*, shadowing it. Found by symptom, not by
+  inspection: the first version of this script lived in
+  `pysrc/interfacetk/` and failed with `ImportError: cannot import name
+  'image2island' from partially initialized module 'pyqula.sculpt'` - the
+  shadowed `interfacetk.py`'s own `from pyqula import sculpt` (its first
+  line) became the very first `pyqula` import in the child process,
+  tripping a circular-import fragility in an environment with a second,
+  editable `pyqula` checkout earlier on `sys.path` than this repo's vendored
+  `pysrc/pyqula/`. If you ever need a second top-level script like this
+  one, keep it out of any package directory that also contains a
+  same-named submodule.
+- **A mode's own `calc.py`** (sibling to `<mode>.py`, e.g.
+  `interface-pyqt/1d/calc.py`) - the mode's geometry/Hamiltonian-building
+  functions (`get_geometry()`/`initialize()` for `1d`), moved out of
+  `<mode>.py` and made **accessor-parameterized**: each takes an explicit
+  `accessor` parameter (defaulting to the live `qtwrap` module, so every
+  existing zero-arg call site in `<mode>.py` keeps working unchanged) and
+  calls `accessor.get(...)`/`accessor.getbox(...)`/`accessor.get_array(...)`
+  instead of the module-level `get`/`getbox`/`qtwrap.get_array` names
+  directly. This is *why* `calc.py` has to be a separate file from
+  `<mode>.py`: `<mode>.py` builds its page as a side effect of import
+  (`window = qtwrap.new_page(...)`, unconditional, not guarded by
+  `if __name__=="__main__"`), so importing it fresh in `run_calculation.py`'s
+  child process would try to construct a whole `QMainWindow` there - `calc.py`
+  has no such side effect, so it's safe to import on its own. `calc.py`
+  also defines one `compute_<handler>(inputs)` per migrated handler (a pure
+  reimplementation of that handler's body, reading `inputs` instead of
+  `qtwrap`) and a `COMPUTE_HANDLERS = {"<button_name>": compute_<handler>}`
+  dict for `run_calculation.py` to dispatch through.
+- **`pysrc/interfacetk/dictform.py`**'s `DictForm` - the accessor a
+  `compute_<handler>()` function passes to `get_geometry()`/`initialize()`
+  in place of `qtwrap`. Reads from a plain dict shaped exactly like
+  `qtwrap.save_interface()`'s own output
+  (`{name: {"type": "line"/"combo"/"check", "value": ...}}`), so gathering
+  a subprocess's inputs is just "call `save_interface()` to a file", not a
+  bespoke per-handler field list to keep in sync by hand. Implements
+  `get`/`getbox`/`get_array`/`is_checked`/`_current_page()` and a
+  `__getattr__` returning a small `_FieldStub` (so
+  `hamiltoniantype.get_type()`'s `getattr(form,"hamiltonian_type",
+  None).currentText()` works against it the same as a real combobox).
+- **`qtwrap.run_calculation_subprocess(mode_dir,handler_key,scratch_dir)`** -
+  called from inside a migrated handler (see `1d.py`'s `solve_scf()`) in
+  place of doing the work directly. Snapshots the page via
+  `save_interface()`, launches `run_calculation.py`, and blocks the calling
+  thread on `proc.wait()` - since this runs on the handler's own
+  `_HandlerRunner` worker thread, this is just another blocking call as far
+  as that thread is concerned, so the GUI stays responsive exactly as it
+  already does for any other handler; **no new `Runner`/thread class was
+  needed**. Tracks the live `Popen` as module-level
+  `qtwrap.current_child_process` (page-agnostic, like `is_busy()`/
+  `_busy_lock` - only one calculation ever runs at a time regardless of
+  which page started it) so `qtwrap.cancel_current_calculation()` (called
+  from the shell's global "Cancel calculation" button, next to the
+  Parallel execution switch) can `terminate()`/`kill()` it. Raises
+  `qtwrap.CalculationCancelled` (a new exception) when the child died from
+  that kill (detected via a negative returncode matching
+  `SIGTERM`/`SIGKILL`), which `_HandlerRunner.run()` now catches
+  separately from a genuine failure, emitting a new `finished_cancelled`
+  signal so the GUI reports "Cancelled" (an info bar) instead of
+  "Calculation failed" (an error bar) - see `_on_runner_cancelled()`,
+  following the same "report before `release_busy()`" ordering rule as
+  `_on_runner_error()` (busy-lock reentrancy gotcha, below).
+- **Atomic cache writes.** A migrated handler's compute function must
+  write any on-disk cache (`hamiltonian.pkl` in particular) to a temp name
+  and `os.replace()` it into place at the end, not write in place -
+  `common.py`'s `solve_scf()` now does this
+  (`scf.hamiltonian.save(output_file="hamiltonian.pkl.tmp")` then
+  `os.replace(...)`) - otherwise a killed subprocess could leave a
+  half-written `hamiltonian.pkl` that `pickup_hamiltonian()`'s
+  `os.path.exists("hamiltonian.pkl")` check would later mistake for a
+  valid cached solve. `os.replace()` is an atomic overwrite on both POSIX
+  and Windows, unlike `os.rename()`.
+
+**Migrating a handler, checklist:**
+
+1. Move its geometry/Hamiltonian-building dependencies into that mode's
+   `calc.py` (create one, following `1d/calc.py`, if this mode doesn't have
+   one yet), parameterizing them on `accessor` as above. Update `<mode>.py`
+   to import them from `calc.py` instead of defining them inline
+   (`from calc import get_geometry, initialize` or equivalent).
+2. Write `compute_<handler>(inputs)` in `calc.py`: build a `DictForm(inputs)`
+   accessor, then call the same functions the in-process handler calls,
+   passing that accessor through. Add it to `COMPUTE_HANDLERS`.
+3. Change the handler in `<mode>.py` to call
+   `qtwrap.run_calculation_subprocess(moddir,"<handler_key>",window.scratch_dir)`
+   instead of doing the work directly (`moddir` = that mode's own directory,
+   captured once near the top of `<mode>.py`, the same way `1d.py` does).
+   If the handler needs to update page state the subprocess can't reach
+   (e.g. clearing `_scf_dirty` - `DictForm._current_page()` returns itself,
+   which has no such attribute, so `common.mark_scf_solved()`'s
+   `hasattr(page,"_scf_dirty")` check safely no-ops inside the subprocess),
+   do that in `<mode>.py` right after `run_calculation_subprocess()` returns.
+4. Run `tools/smoke_test.py`, then manually verify: a normal run still
+   produces the same result as before migrating; a mid-run cancel (see the
+   shell's Cancel button) reports "Cancelled", releases the busy lock, and
+   leaves no corrupt cache file behind (a retry afterward should behave
+   like a fresh run, not a resumed/corrupted one).
+
+**Not worth migrating**: interactive picker handlers (`select_atoms_removal`,
+"Select path", "Select DOS atoms", "Select impurity sites", "Select
+time-evolution atom", ...) open a GUI/matplotlib picker and inherently need
+the GUI thread - they're also instant, not long computations, so
+cancellation isn't meaningful for them. A handler that interleaves widget
+reads with pyqula work across multiple stages (rather than reading
+everything up front, then making one call) needs its own restructuring
+pass to gather all its inputs first, rather than a mechanical split.
+
 ## Retrofitting SCF onto an existing mode
 
 Adding mean-field support to a mode that never had it (done for
@@ -704,6 +842,27 @@ vectors.
 
 ## Known gotchas
 
+- **`qfluentwidgets.ComboBox` is not a `QComboBox` subclass** - it's built
+  on `QPushButton` (a custom-drawn Fluent dropdown, not a native Qt combo
+  popup); its `ComboBoxBase` mixin provides the familiar
+  `currentText()`/`setCurrentText()`/`addItems()`/`activated`/... surface,
+  but `isinstance(obj,QtWidgets.QComboBox)` is `False` for one. Three
+  places in `pysrc/interfacetk/` used to check only
+  `isinstance(obj,QtWidgets.QComboBox)` when scanning a page's widgets by
+  type (`qtwrap.py`'s `_connect_dirty_tracking()` and `save_interface()`,
+  `scfterms.py`'s SCF-dirty-tracking sweep) - each silently skipped every
+  promoted combobox on the page (`lattice`, `hamiltonian_type`,
+  `scf_initialization`, `dos_mode`, ...): comboboxes never marked a page
+  dirty, never marked an SCF result stale on their own, and were silently
+  missing from every `save_interface()` snapshot (so from every "Save
+  results", too - a combobox's value was never actually restored by "Load
+  results" either, since it was never saved in the first place). Found
+  while building the subprocess-based cancellation mechanism above, whose
+  `inputs.json` snapshot came back missing `lattice` entirely. Fixed by
+  checking `isinstance(obj,(QtWidgets.QComboBox,ComboBox))` (`ComboBox`
+  imported from `qfluentwidgets`) at all three sites - a widget-type-by-type
+  scan of `inspect.getmembers(...)` anywhere else in this codebase should
+  use the same combined check, not just `QtWidgets.QComboBox` alone.
 - **Busy-lock signal reentrancy**: `qtwrap.py`'s `release_busy()` fires a
   synchronous same-thread signal — mutate any state that depends on "am I
   busy" *before* releasing the lock, not after, or a handler triggered by

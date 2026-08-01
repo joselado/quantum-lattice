@@ -454,6 +454,7 @@ class Shell(FluentWindow):
     self._add_interface_theme_switch()
     self._add_plot_theme_switch()
     self._add_parallel_switch()
+    self._add_cancel_button()
     self.navigationInterface.addItem(
         routeKey="update_qh",icon=FIF.UPDATE,text="Update Quantum Lattice",
         onClick=self._update_qh,position=NavigationItemPosition.BOTTOM)
@@ -548,6 +549,34 @@ class Shell(FluentWindow):
 
   def _on_parallel_execution_changed(self,checked):
     qtwrap.set_parallel_execution(checked)
+
+  def _add_cancel_button(self):
+    """Cancel control for a subprocess-based calculation (see
+    qtwrap.run_calculation_subprocess()/cancel_current_calculation()) - a
+    single control here rather than per-page, since is_busy() is already a
+    single process-wide flag and only one calculation ever runs at a time
+    regardless of which page started it. Only a handful of handlers are
+    migrated to the killable subprocess path so far (see each mode's own
+    calc.py); clicking this while the running calculation (if any) is
+    still the old in-process kind, or nothing is running at all, is a
+    harmless no-op with its own InfoBar, rather than trying to track every
+    busy-vs-cancellable transition with a second signal alongside
+    is_busy()/on_busy_free()."""
+    container = QWidget(self.navigationInterface)
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(20,8,16,8)
+    button = PushButton("Cancel calculation",container)
+    button.clicked.connect(self._on_cancel_calculation)
+    layout.addWidget(button)
+    self.navigationInterface.panel.bottomLayout.addWidget(container)
+
+  def _on_cancel_calculation(self):
+    if qtwrap.current_child_process is None:
+      InfoBar.info(title="Nothing to cancel",
+          content="No cancellable calculation is currently running",
+          parent=self,duration=4000,position=InfoBarPosition.TOP)
+      return
+    qtwrap.cancel_current_calculation()
 
   def _on_page_changed(self,index):
     widget = self.stackedWidget.widget(index)
