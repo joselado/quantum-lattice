@@ -65,17 +65,19 @@ they do **not** all share one parent tab widget:
   **not always**: in `0d` it has a sibling "Additional terms" tab too.
   Don't assume tab count/position from one mode generalizes to all six.
 - `tabWidget_3` holds most of the functional tabs: Structure, Bands, DOS,
-  LDOS, FS, QPI, SCF, Topology, SDOS, Magnetism, Sweep, Site DOS, ... In a
-  mode with 6+ of these, `pysrc/interfacetk/calctabs.py` further regroups
-  several of them at runtime into a handful of category tabs (Spectral,
-  Scattering & Fermi surface, Topology & edges, Real space & dynamics) - see
-  "Runtime dynamic-widget patterns" below. This happens *after* the naming
-  above is already resolved (`calctabs.nest()` runs from
-  `common.finalize_page()`, at the very end of a mode's setup), so it never
-  changes which object holds which page, only how `tabWidget_3`'s direct
-  children are organized - `form.tab_5` (say) is still "Bands", it's just
-  no longer a direct child of `tabWidget_3` in a mode where Bands got
-  grouped into "Spectral".
+  LDOS, FS, QPI, SCF, Topology, SDOS, Magnetism, Sweep, Site DOS, ... All
+  of these stay direct children of `tabWidget_3` - nothing is nested. In a
+  mode with 6+ of these where at least one known category has a match,
+  `pysrc/interfacetk/calctabs.py` drops a category-filter `ComboBox` into
+  `tabWidget_3`'s top-right corner at runtime (Spectral, Scattering &
+  Fermi surface, Topology & edges, Real space & dynamics) that hides
+  non-matching tabs via `QTabBar.setTabVisible()` - see "Runtime
+  dynamic-widget patterns" below. This happens *after* the naming above is
+  already resolved (`calctabs.add_selector()` runs from
+  `common.finalize_page()`, at the very end of a mode's setup), and it
+  never reparents anything - `form.tab_5` (say) is still "Bands", still a
+  direct child of `tabWidget_3`, just possibly hidden by the tab bar
+  depending on which category is currently selected in the combo box.
 - `tabWidget_4` is nested *inside* the SCF tab's page, holding "Basic" /
   "Convergence".
 
@@ -295,37 +297,40 @@ placeholder/page rather than editing generated code:
   code' tab to a mode" below for the convention and the checklist for
   keeping it in sync.
 
-- **`calctabs.py`** — regroups a mode's wide calculation-tabs widget
-  (`tabWidget_3` in every mode except `tbg`, whose equivalent is plain
-  `tabWidget` - see "The QTabWidget naming trap" above) into a handful of
-  named categories, generalizing `scfterms.py`'s `_nest_scf_tab()` from two
-  groups to N: grab each tab page by its current title (`tabWidget_3.tabText(i)`/
-  `.widget(i)`), `removeTab()` it, `addTab()` it onto a new inner
-  `QTabWidget` per category. `CATEGORIES` is one shared, ordered
-  title→category table covering every calculation-tab title seen across
-  every mode (built by running the `setTabText` grep above once per mode -
-  do the same before adding a new title to this table). A category with
-  only one matching tab is deliberately left as its own top-level tab
-  (under its original title, e.g. "FS" on a mode that has Fermi-surface but
-  no QPI) rather than wrapped in a pointless single-tab inner widget; a mode
-  with fewer than `min_tabs` (default 6) tabs total, or where no category
-  ends up with 2+ matches, is left untouched. `nest(qtwrap)` is called
+- **`calctabs.py`** — adds a category-filter dropdown to a mode's wide
+  calculation-tabs widget (`tabWidget_3` in every mode except `tbg`, whose
+  equivalent is plain `tabWidget` - see "The QTabWidget naming trap"
+  above). All tabs stay direct, top-level children of `tabWidget_3` -
+  nothing is nested into an inner `QTabWidget`. Instead, a `qfluentwidgets
+  .ComboBox` is dropped into `tabWidget_3.setCornerWidget()` (top-right),
+  listing "All" plus every category (from the shared, ordered
+  title→category table `CATEGORIES`) that has at least one matching tab
+  in this mode; picking one calls `QTabBar.setTabVisible(i, bool)` per tab
+  to hide everything outside that category, "All" shows every tab again.
+  `CATEGORIES` covers every calculation-tab title seen across every mode
+  (built by running the `setTabText` grep above once per mode - do the
+  same before adding a new title to this table). A tab whose title isn't
+  in `CATEGORIES` (a mode-specific signature tab, or a deliberately
+  uncategorized one like `SCF`/`Sweep`/`Site DOS`) is a tool/setup step
+  rather than a result, so it stays visible under every filter choice
+  instead of being hideable at all. A mode with fewer than `min_tabs`
+  (default 6) tabs total, or none of whose tabs match any known category,
+  is left untouched (no combo box added). `add_selector(qtwrap)` is called
   unconditionally from `common.finalize_page()`, so every mode gets this
   for free with no per-mode call needed - `tbg.py` is the one exception,
   since its wide widget isn't named `tabWidget_3`: it makes one extra
-  explicit call, `calctabs.nest(qtwrap, tab_widget_attr="tabWidget")`, right
-  after `finalize_page()` (the shared call already no-op'd on `tbg`'s real,
-  1-tab `tabWidget_3`). Runs last, after every name-based lookup
-  (`set_formulas`/`set_button_tooltips`/`set_calculation_formulas`/
-  `connect_clicks`, all of which resolve widgets via `getattr(form, name)`,
-  unaffected by which `QTabWidget` currently contains a page) - a widget's
-  parent chain changing doesn't invalidate an existing signal connection or
-  a `getattr` lookup, so ordering relative to those is not load-bearing, but
-  keeping it last avoids ever reasoning about a half-regrouped tab tree
-  while those run. **Whenever a new calculation tab is added to a mode**,
-  add its title to `CATEGORIES` (or leave it out on purpose, like `SCF`/
-  `Sweep`/`Site DOS` - see that module's own comment for why those three
-  stay ungrouped) so it doesn't end up an orphaned top-level tab purely
+  explicit call, `calctabs.add_selector(qtwrap, tab_widget_attr="tabWidget")`,
+  right after `finalize_page()` (the shared call already no-op'd on
+  `tbg`'s real, 1-tab `tabWidget_3`). Runs last, after every name-based
+  lookup (`set_formulas`/`set_button_tooltips`/`set_calculation_formulas`/
+  `connect_clicks`, all of which resolve widgets via `getattr(form, name)`)
+  - ordering relative to those is not load-bearing since nothing is
+  reparented, but keeping it last avoids reasoning about tab visibility
+  state while those run. **Whenever a new calculation tab is added to a
+  mode**, add its title to `CATEGORIES` (or leave it out on purpose, like
+  `SCF`/`Sweep`/`Site DOS` - see that module's own comment for why those
+  three stay always-visible) so it doesn't end up hidden behind a filter
+  that doesn't know about it, or missing from every category, purely
   because this table doesn't know about it yet.
 
 When a field's visibility/tab membership needs to change based on other
