@@ -199,14 +199,14 @@ def _rebuild_scf_initialization_baseline(form, hamiltonian_type):
     own combo_item entries for scf_initialization
     (Haldane/kanemele/antihaldane/antiferro/imbalance) then add back
     exactly the ones the *current* lattice choice allows, on top of this
-    always-present baseline. Preserves the current selection across the
-    rebuild if it's still offered afterwards (falls back to whatever Qt's
-    combobox defaults to, normally index 0, if the previous selection is
-    no longer offered - e.g. switching away from a honeycomb-family
-    lattice while "Haldane" was selected, or to "Spinless" while "rashba"
-    was selected)."""
+    always-present baseline. Returns the pre-rebuild selection's text so
+    the caller can restore it once the *full* item list (this baseline
+    plus the conditional combo_item entries added afterwards) is
+    assembled - restoring here would be premature, since e.g. "antiferro"
+    (a combo_item entry, not part of this baseline) hasn't been re-added
+    yet at this point."""
     combo = getattr(form, "scf_initialization", None)
-    if combo is None: return
+    if combo is None: return ""
     current = combo.currentText()
     combo.blockSignals(True)
     combo.clear()
@@ -216,8 +216,7 @@ def _rebuild_scf_initialization_baseline(form, hamiltonian_type):
         combo.addItem(mode)
     combo.addItem("random")
     combo.blockSignals(False)
-    idx = combo.findText(current)
-    if idx >= 0: combo.setCurrentIndex(idx)
+    return current
 
 
 def _matches_base(base, attr_name):
@@ -306,7 +305,7 @@ def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype
     boolean rather than two independent setVisible() passes). Safe to
     call on any page: entries whose widgets/comboboxes don't exist on
     this particular mode are silently skipped."""
-    _rebuild_scf_initialization_baseline(form, hamiltonian_type)
+    scf_current = _rebuild_scf_initialization_baseline(form, hamiltonian_type)
 
     allowed = {} # widget base name -> AND of every rule naming it
     for entry in RESTRICTED_TERMS:
@@ -327,6 +326,22 @@ def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype
             term = _GUESS_ITEM_TO_HAMTYPE_TERM[entry["items"]["scf_initialization"]]
             ok = ok and hamiltoniantype.term_allowed(hamiltonian_type, term)
         _apply_combo_item_restriction(form, entry["items"], ok)
+
+    # Restore the pre-rebuild selection now that the full item list (the
+    # unrestricted baseline plus whichever combo_item entries this lattice/
+    # Hamiltonian-type combination allows) is assembled - doing this earlier,
+    # inside _rebuild_scf_initialization_baseline(), would miss "antiferro"
+    # itself, since that's a combo_item entry added by the loop just above,
+    # not part of the baseline. On a fresh page this restores the
+    # Designer-authored first item in every mode's .ui - "antiferro", the
+    # intended default guess; falls back to whatever Qt's combobox
+    # defaults to (normally index 0) if the previous selection is no
+    # longer offered (e.g. switching away from a sublattice-family
+    # lattice while "antiferro" was selected).
+    combo = getattr(form, "scf_initialization", None)
+    if combo is not None:
+        idx = combo.findText(scf_current)
+        if idx >= 0: combo.setCurrentIndex(idx)
 
 
 def connect(qtwrap, get_lattice_name):
