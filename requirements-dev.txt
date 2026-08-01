@@ -1,0 +1,5 @@
+# Dependencies needed only to run the test suite (tests/), not by the app
+# itself - kept separate from requirements.txt since pycommand.py reads that
+# file for end-user installs and pytest isn't one of them.
+# Installed with: python -m pip install -r requirements-dev.txt
+pytest

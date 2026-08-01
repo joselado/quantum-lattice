@@ -46,6 +46,8 @@ maintenance doc, not a one-time snapshot.
 - **Make a calculation button hard-cancellable** (run in a killable child
   process instead of in-process) — see "Hard-cancelling a calculation"
   below.
+- **Run the automated test suite, or add a test for a new mode/term/button** —
+  see "Testing" below.
 
 ## The QTabWidget naming trap
 
@@ -839,6 +841,135 @@ not already done for that mode), then `_cell.read_cell()`/`cell_edges()`
 in the script — rather than reading `LATTICE.OUT` directly, which (after
 `g.write()` on the *supercell*) holds the enlarged, not primitive,
 vectors.
+
+## Testing
+
+`tests/` (pytest; `pip install -r requirements-dev.txt`) is the automated
+suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
+sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
+bootstrap every mode script relies on, so no display is needed and no
+other setup is required. Currently measured at ~25s wall clock and
+~760MB peak RSS for the whole suite (115 passed, 5 skipped as of this
+writing) — comfortably inside a self-imposed budget of **under 3 minutes
+and under 2GB**, which exists because pyqula's numba-jitted kernels are
+expensive to touch broadly (see point 3 below); keep both budgets in mind
+before widening any layer. It's layered, cheapest/most-general first:
+
+1. **`test_signal_wiring.py`/`test_shell.py`** — thin pytest wrappers
+   around `tools/smoke_test.py`'s existing `check_signal_wiring()`/
+   `check_shell()` (still also runnable standalone as `python
+   tools/smoke_test.py`, including its per-mode dynamic `check_launches()`
+   check that this suite deliberately omits - see below). Static
+   button-wiring regex check per mode, plus one dynamic "does the shell +
+   its initial page reach the Qt event loop without crashing" check.
+   `check_launches()` (launching each of the 15 modes standalone and
+   waiting out its own 6s "still alive" timeout - ~90s total, by design)
+   is *not* wrapped into the pytest suite: it would consume most of the
+   time budget on its own for coverage `test_handlers.py`'s `import_mode()`
+   already mostly subsumes (same top-level-code-runs-without-crashing
+   check, just without waiting out `app.exec()`). Run
+   `python tools/smoke_test.py` directly for that full per-mode dynamic
+   check when you want it.
+2. **`test_term_metadata.py`** — static, source-parsed checks that every
+   term `common.py:set_formulas()` renders has a `TERM_TOOLTIPS` entry and
+   an `interface-pyqt/logos/<term>.png`, and every `STANDARD_HANDLERS`
+   button has a `BUTTON_TOOLTIPS` entry — the two "whenever you add X, add
+   Y" rules documented above, enforced instead of just written down.
+3. **`test_handlers.py`** (+ helper module `_handler_harness.py`) — the
+   layer that actually calls handler functions, which is what catches a
+   handler that only breaks once it runs with a real value (see the two
+   bugs cited in its module docstring — both were invisible to layers 1-2,
+   since neither exercises a button with non-default parameters).
+   `import_mode(mode)` imports a mode the same way
+   `bin/versions/quantum-lattice-pyqt`'s `load_mode()` does
+   (`importlib.util.spec_from_file_location`, a fresh module name per
+   call so re-importing the same mode doesn't hit `sys.modules`'s cache);
+   `set_field()`/`set_combo()` write UI fields directly (not through
+   `qtwrap.modify()`, which silently no-ops on a typo'd widget name —
+   a test should fail loudly instead); `run_button()` calls
+   `modobj.signals[name]()` directly, skipping `connect_clicks()`'s
+   `QThread`/busy-lock wrapping (that machinery exists to keep the GUI
+   responsive, not for correctness, so it isn't needed to test a handler
+   in-process). Every test stubs `execute_script` (an autouse fixture) so
+   these never spawn the real `ql-*` plotting subprocess — that's a
+   deliberately separate, lower-value thing to test (needs a
+   display/matplotlib backend) from "did the handler compute correctly."
+
+   **This is the layer with a real time/memory cost, and it is easy to
+   blow the budget without noticing** — pyqula's numba-jitted
+   Hamiltonian-building/diagonalization kernels get freshly JIT-compiled
+   *and executed* the first time a genuinely new geometry/dimensionality
+   runs through a real `show_bands`/`show_dos`-style call, and that
+   compiled code + whatever it allocated is never released for the life
+   of the process (importing a mode alone is cheap, ~10-20MB marginal;
+   it's calling its handlers for real that costs 100-250MB per *new*
+   mode, measured). Two things learned the hard way, both now baked into
+   the current design:
+   - An earlier version ran every `STANDARD_HANDLERS` button
+     (`show_chern`/`show_z2`/`show_qpi`/`show_fermi_surface`/
+     `show_multildos`/`show_iets_qdos`/...) across all 15 modes. It ran
+     for **hours** (1000%+ CPU, 2.6GB+ RSS) before being killed —
+     `show_qpi`/`show_iets_qdos` in particular do real
+     BZ-averaged/real-space-summed physics at default resolution (a
+     100-point energy mesh times `qpi_nk` k-points for QPI; an RPA
+     susceptibility map for IETS-QDOS, which also isn't a meaningful
+     target without a converged SCF `H.V` in the first place - see its
+     docstring). Not a wiring bug, just genuinely expensive work
+     multiplied by 15 modes. `STANDARD_BUTTONS` in `test_handlers.py`
+     is deliberately just `["show_bands", "show_dos"]` because of this.
+   - A later version tried just those two buttons, but across all 15
+     modes in one process — that alone pushed a single test run past a
+     hard 2GB cgroup cap before finishing (confirmed via
+     `systemd-run --user --scope -p MemoryMax=2G <cmd>`, which actually
+     enforces and SIGKILLs on this machine — use this to verify any
+     future widening, a plain `timeout` only bounds wall time, not
+     memory). `pytest-forked` (each test in its own forked process, so
+     JIT memory gets reclaimed between tests) fixes the memory problem
+     but makes each test ~3x slower from fork/IPC overhead, which blew
+     the time budget instead. Disabling JIT entirely
+     (`NUMBA_DISABLE_JIT=1`) made individual calls so much slower it
+     couldn't even finish within a few minutes. Neither is the fix here.
+
+   The actual fix: `test_standard_handler_runs`'s generic smoke pass
+   (`ALL_MODES` in `test_handlers.py`) only covers modes NOT already
+   exercised by a targeted regression test below (`_REGRESSION_COVERED_MODES`)
+   — no point paying twice for the same mode's real `show_bands` compile.
+   Combined, the whole file now touches real `show_bands`/`show_dos`-class
+   compute for every mode at most once. If you need to widen this layer
+   (more modes, more buttons, or reintroduce something like `pytest-forked`
+   for a specific expensive addition), **re-measure under the cgroup cap
+   before trusting it** — a handful of individually-fast timings do not
+   predict aggregate cost in one process, twice now.
+
+   Bug-class regression coverage (the actually load-bearing part of this
+   file, not the generic sweep): `test_nonzero_strain_does_not_crash`
+   covers every mode from the strain-kwarg bug memory (`3d`/`2dslab`/
+   `hybridfilm`) plus `test_hofstader1d_ti_changes_hamiltonian` for its
+   unconditional variant; `test_kdos_bands_uses_nk_kbands_field` covers
+   all 7 modes from the KDOS-bands-field bug memory (cheaply — it
+   monkeypatches `kdos.kdos_bands()` itself, so it never pays for the
+   real k-mesh sweep, only for `pickup_hamiltonian()`). When adding a new
+   targeted regression: prefer asserting on the actual value (like
+   `test_hofstader1d_ti_changes_hamiltonian`/
+   `test_kdos_bands_uses_nk_kbands_field` do) rather than only "no
+   exception raised" whenever the bug could be a wrong-value-not-a-crash
+   - the latter would have missed hofstader1d's silent no-op.
+4. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+   tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
+   Automated version of the "skim `git diff --stat pysrc/pyqula`" step
+   `tools/update_pyqula.sh`'s own instructions already ask for by hand —
+   run this after any vendored-pyqula refresh.
+
+No CI currently runs this suite automatically (no `.github/` in this
+repo) — for now it's a local/manual `python -m pytest tests/` run, the
+same "no test suite, verification is manual" situation `CLAUDE.md`
+describes, just with faster/more automatable building blocks than a full
+GUI click-through. If that changes, the natural shape is a workflow that
+just runs `python -m pytest tests/` under `QT_QPA_PLATFORM=offscreen` (no
+`xvfb`/real display needed, same as the suite already runs locally) on
+push/PR — ideally still wrapped in a memory cap (e.g. the `systemd-run`
+form above, or CI-native equivalent) given how easily layer 3 can regress
+past it.
 
 ## Known gotchas
 
