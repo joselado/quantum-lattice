@@ -1,7 +1,6 @@
 from .qlinterface import execute_script, create_folder, save_state, load_state
 from . import qtwrap
 from . import hamiltoniantype
-from . import calctabs
 import os
 import numpy as np
 from pyqula import klist
@@ -609,7 +608,6 @@ def finalize_page(qtwrap,window,signals,inipath,robust=True):
     set_button_tooltips(qtwrap) # hover tooltips on the calculation buttons
     set_calculation_formulas(qtwrap) # formula images on the calculation buttons
     set_param_tooltips(qtwrap) # hover tooltips on the other form fields
-    calctabs.add_selector(qtwrap) # category-filter dropdown for the wide calculation-tabs row (no-op if too few tabs)
 
 
 
