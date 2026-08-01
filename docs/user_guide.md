@@ -91,7 +91,16 @@ can use them all:
    switched on, the self-consistent solve is included too, and any atoms
    removed on the "Modify geometry" tab are included as well.
 4. **Calculation tabs** — one tab per kind of result: Structure, Bands, DOS,
-   LDOS, Fermi surface, QPI, Topology, Magnetism, Sweep, ... Each has its own
+   LDOS, Fermi surface, QPI, Topology, Magnetism, Sweep, ... In a mode with
+   enough of these to make a single flat row hard to scan, they're grouped
+   under a few category tabs instead — **Spectral** (Structure, Bands, DOS,
+   LDOS, ...), **Scattering & Fermi surface** (Fermi surface, QPI), **Topology
+   & edges** (Chern/Z2/Berry, edge/surface DOS), **Real space & dynamics**
+   (Magnetism, time evolution, IETS) — while a handful of tabs that are more
+   "tool" than "result" (SCF, Sweep, Site DOS, and any mode's own signature
+   calculation) stay at the top level rather than being buried a click deeper.
+   A simpler mode with only a few calculation tabs shows them all directly,
+   with no extra grouping level. Each individual tab has its own
    button(s) ("Show bands", "Show DOS", ...) plus any options specific to
    that calculation (energy window, k-mesh density, which operator to
    project onto). Most buttons also show the rendered formula for the

@@ -1352,7 +1352,7 @@
         <item>
          <widget class="PushButton" name="compute_sweep">
           <property name="text">
-           <string>Perform sweep</string>
+           <string>Compute sweep</string>
           </property>
          </widget>
         </item>

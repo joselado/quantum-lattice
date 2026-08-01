@@ -1199,7 +1199,7 @@ class Ui_MainWindow(object):
         self.sweep_steps.setText(QCoreApplication.translate("MainWindow", u"40", None))
         self.label_37.setText(QCoreApplication.translate("MainWindow", u"Final value", None))
         self.label_38.setText(QCoreApplication.translate("MainWindow", u"Steps", None))
-        self.compute_sweep.setText(QCoreApplication.translate("MainWindow", u"Perform sweep", None))
+        self.compute_sweep.setText(QCoreApplication.translate("MainWindow", u"Compute sweep", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_15), QCoreApplication.translate("MainWindow", u"Sweep", None))
         self.label_site_dos_info.setText(QCoreApplication.translate("MainWindow", u"Click a site in the structure plot to compute the DOS there", None))
         self.label_site_dos_ewindow.setText(QCoreApplication.translate("MainWindow", u"Energy window", None))

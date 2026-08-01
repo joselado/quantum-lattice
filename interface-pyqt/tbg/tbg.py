@@ -219,6 +219,14 @@ signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
 
 inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away
 common.finalize_page(qtwrap,window,signals,inipath,robust=False)
+# tbg is the one mode whose wide calculation-tabs widget is named plain
+# "tabWidget" instead of "tabWidget_3" (see calctabs.py's docstring and
+# INTERFACE_GUIDE.md's "The QTabWidget naming trap") - finalize_page()'s
+# own calctabs.nest() call already no-op'd on this mode's real
+# tabWidget_3 (which only holds the single "Hamiltonian" tab here), so
+# group the actual wide widget explicitly.
+from interfacetk import calctabs
+calctabs.nest(qtwrap,tab_widget_attr="tabWidget")
 
 if __name__ == "__main__":
     window.run() # show this page as its own standalone window and block

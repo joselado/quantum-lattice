@@ -23,6 +23,9 @@ maintenance doc, not a one-time snapshot.
   first. It is very easy to grab the wrong `QTabWidget` by guessing an
   object name.
 - **Change the mean-field (U/V1/V2/J1/J2/J3) fields** — `pysrc/interfacetk/scfterms.py`.
+- **Change which category a calculation tab (Bands, DOS, FS, ...) is
+  grouped under, or add a new one** — `pysrc/interfacetk/calctabs.py`
+  (`CATEGORIES`); see "Runtime dynamic-widget patterns" below.
 - **Change a term's tooltip** — `pysrc/interfacetk/termtooltips.py` (`TERM_TOOLTIPS`).
 - **Change a calculation button's tooltip** — `pysrc/interfacetk/termtooltips.py` (`BUTTON_TOOLTIPS`); see "Adding a calculation button" below.
 - **Add/change a calculation button's formula image** — `pysrc/interfacetk/termtooltips.py` (`CALC_FORMULAS`) + `tools/gen_calc_formula_logos.py`; see "Adding a calculation button" below.
@@ -61,9 +64,18 @@ they do **not** all share one parent tab widget:
   `QTabWidget` itself — see below) — in most modes as its only tab, but
   **not always**: in `0d` it has a sibling "Additional terms" tab too.
   Don't assume tab count/position from one mode generalizes to all six.
-- `tabWidget_3` holds most of the functional tabs side by side: Structure,
-  Bands, DOS, LDOS, FS, QPI, SCF, Topology, SDOS, Magnetism, Sweep, Site
-  DOS, ...
+- `tabWidget_3` holds most of the functional tabs: Structure, Bands, DOS,
+  LDOS, FS, QPI, SCF, Topology, SDOS, Magnetism, Sweep, Site DOS, ... In a
+  mode with 6+ of these, `pysrc/interfacetk/calctabs.py` further regroups
+  several of them at runtime into a handful of category tabs (Spectral,
+  Scattering & Fermi surface, Topology & edges, Real space & dynamics) - see
+  "Runtime dynamic-widget patterns" below. This happens *after* the naming
+  above is already resolved (`calctabs.nest()` runs from
+  `common.finalize_page()`, at the very end of a mode's setup), so it never
+  changes which object holds which page, only how `tabWidget_3`'s direct
+  children are organized - `form.tab_5` (say) is still "Bands", it's just
+  no longer a direct child of `tabWidget_3` in a mode where Bands got
+  grouped into "Spectral".
 - `tabWidget_4` is nested *inside* the SCF tab's page, holding "Basic" /
   "Convergence".
 
@@ -282,6 +294,39 @@ placeholder/page rather than editing generated code:
   own `get_geometry()`/`initialize()` by hand — see "Adding the 'pyqula
   code' tab to a mode" below for the convention and the checklist for
   keeping it in sync.
+
+- **`calctabs.py`** — regroups a mode's wide calculation-tabs widget
+  (`tabWidget_3` in every mode except `tbg`, whose equivalent is plain
+  `tabWidget` - see "The QTabWidget naming trap" above) into a handful of
+  named categories, generalizing `scfterms.py`'s `_nest_scf_tab()` from two
+  groups to N: grab each tab page by its current title (`tabWidget_3.tabText(i)`/
+  `.widget(i)`), `removeTab()` it, `addTab()` it onto a new inner
+  `QTabWidget` per category. `CATEGORIES` is one shared, ordered
+  title→category table covering every calculation-tab title seen across
+  every mode (built by running the `setTabText` grep above once per mode -
+  do the same before adding a new title to this table). A category with
+  only one matching tab is deliberately left as its own top-level tab
+  (under its original title, e.g. "FS" on a mode that has Fermi-surface but
+  no QPI) rather than wrapped in a pointless single-tab inner widget; a mode
+  with fewer than `min_tabs` (default 6) tabs total, or where no category
+  ends up with 2+ matches, is left untouched. `nest(qtwrap)` is called
+  unconditionally from `common.finalize_page()`, so every mode gets this
+  for free with no per-mode call needed - `tbg.py` is the one exception,
+  since its wide widget isn't named `tabWidget_3`: it makes one extra
+  explicit call, `calctabs.nest(qtwrap, tab_widget_attr="tabWidget")`, right
+  after `finalize_page()` (the shared call already no-op'd on `tbg`'s real,
+  1-tab `tabWidget_3`). Runs last, after every name-based lookup
+  (`set_formulas`/`set_button_tooltips`/`set_calculation_formulas`/
+  `connect_clicks`, all of which resolve widgets via `getattr(form, name)`,
+  unaffected by which `QTabWidget` currently contains a page) - a widget's
+  parent chain changing doesn't invalidate an existing signal connection or
+  a `getattr` lookup, so ordering relative to those is not load-bearing, but
+  keeping it last avoids ever reasoning about a half-regrouped tab tree
+  while those run. **Whenever a new calculation tab is added to a mode**,
+  add its title to `CATEGORIES` (or leave it out on purpose, like `SCF`/
+  `Sweep`/`Site DOS` - see that module's own comment for why those three
+  stay ungrouped) so it doesn't end up an orphaned top-level tab purely
+  because this table doesn't know about it yet.
 
 When a field's visibility/tab membership needs to change based on other
 UI state or needs to be shared identically across many modes without
