@@ -284,8 +284,7 @@ def sweep_parameter():
         elif cname=="Chern number": # compute the gap
             c = topology.chern(h,nk=int(np.sqrt(get("nk_topology"))))
             out.append([p,c]) # store result
-        elif cname=="Eigenvalues": # compute the gap
-            kpath = [np.random.random(3) for i in range(int(get("nk_bands")))]
+        elif cname=="Eigenvalues": # store the band eigenvalues
             (ks,es) = h.get_bands() # compute eigenvalues
             for e in es: out.append([p,e]) # store
         else: raise
@@ -296,6 +295,8 @@ def sweep_parameter():
         execute_script("ql-indirect-gap SWEEP.OUT") # remove the file
     elif cname=="Chern number":
         execute_script("ql-chern-evolution SWEEP.OUT") # remove the file
+    elif cname=="Eigenvalues":
+        execute_script("ql-sweep-eigenvalues SWEEP.OUT") # remove the file
     else:
         execute_script("ql-indirect-gap SWEEP.OUT") # remove the file
     

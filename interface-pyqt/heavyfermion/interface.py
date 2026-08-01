@@ -699,7 +699,7 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"2D systems", None))
 #if QT_CONFIG(tooltip)
-        self.kondo.setToolTip(QCoreApplication.translate("MainWindow", u"spin-singlet s-wave superconducting order", None))
+        self.kondo.setToolTip(QCoreApplication.translate("MainWindow", u"The exchange coupling J_K between a localized (e.g. f-electron) magnetic moment and the spin of itinerant conduction electrons - the defining interaction of the Kondo/heavy-fermion problem. It screens the local moment and gives rise to the emergent heavy quasiparticle bands.", None))
 #endif // QT_CONFIG(tooltip)
         self.kondo.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
 #if QT_CONFIG(tooltip)
@@ -712,7 +712,7 @@ class Ui_MainWindow(object):
         self.label_kondo.setText(QCoreApplication.translate("MainWindow", u"Kondo hybridization", None))
         self.label_fermi.setText(QCoreApplication.translate("MainWindow", u"Fermi energy", None))
 #if QT_CONFIG(tooltip)
-        self.exchange.setToolTip(QCoreApplication.translate("MainWindow", u"d-vector of the spin triplet order p-wave order. The momentum dependence is taken of the form px + i py", None))
+        self.exchange.setToolTip(QCoreApplication.translate("MainWindow", u"An exchange coupling between neighboring localized magnetic moments, distinct from the conduction-electron Kondo coupling above. It sets the strength of direct or RKKY-mediated magnetic interactions between the localized moments, controlling whether they order magnetically.", None))
 #endif // QT_CONFIG(tooltip)
         self.exchange.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.hopping_image.setText("")

@@ -63,7 +63,7 @@ def initialize():
   """ Initialize the calculation"""
   g = get_geometry() # get the geometry
   fun = multilayers.multilayer_hopping(ti=get("ti"))
-  h = g.get_hamiltonian(fun=fun)
+  h = g.get_hamiltonian(tij=fun)
   h.add_peierls(get("peierls")) # magnetic field
   h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance

@@ -117,9 +117,17 @@ def is_sublattice_family(lattice_name):
 #                  with different casing depending on where it comes
 #                  from: "topology_operator"/"operator_chern" are static
 #                  Designer items ("Valley"), while "bands_color"/
-#                  "fs_operator"/"operator_kdos"/"dos_operator" are
-#                  populated at runtime from pyqula's
-#                  operators.operator_list, which uses lowercase "valley".
+#                  "operator_kdos"/"dos_operator" (and 2d.py's own
+#                  "fs_operator") are populated at runtime from pyqula's
+#                  operators.operator_list, which uses lowercase "valley" -
+#                  "fs_operator" is NOT populated generically by any shared
+#                  code (common.py:initialize() deliberately leaves it
+#                  alone): heavyfermion's own "fs_operator" keeps a
+#                  hand-authored, mode-specific item list
+#                  (dispersive_electrons/kondo_sites/None) that a generic
+#                  operators.operator_list population would silently
+#                  clobber, so only 2d.py (the one other mode with this
+#                  field) populates it itself.
 RESTRICTED_TERMS = [
     {"kind": "widget", "names": ["haldane"], "rule": is_honeycomb_family},
     {"kind": "widget", "names": ["antihaldane"], "rule": is_honeycomb_family},
@@ -329,7 +337,7 @@ def connect(qtwrap, get_lattice_name):
     (built by scfterms.py, see hamiltoniantype.py). Applies once
     immediately, and again whenever either combobox changes (covers both
     direct user interaction and a saved session being reloaded into it -
-    see saveload.py)."""
+    see qtwrap.py's load_interface())."""
     form = qtwrap.form
     def _update(*_args):
         apply_term_restrictions(form, get_lattice_name(), hamiltoniantype.get_type(qtwrap))

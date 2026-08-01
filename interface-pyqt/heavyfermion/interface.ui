@@ -30,7 +30,7 @@
           <item row="3" column="2">
            <widget class="LineEdit" name="kondo">
             <property name="toolTip">
-             <string>spin-singlet s-wave superconducting order</string>
+             <string>The exchange coupling J_K between a localized (e.g. f-electron) magnetic moment and the spin of itinerant conduction electrons - the defining interaction of the Kondo/heavy-fermion problem. It screens the local moment and gives rise to the emergent heavy quasiparticle bands.</string>
             </property>
             <property name="text">
              <string>0.0</string>
@@ -88,7 +88,7 @@
           <item row="4" column="2">
            <widget class="LineEdit" name="exchange">
             <property name="toolTip">
-             <string>d-vector of the spin triplet order p-wave order. The momentum dependence is taken of the form px + i py</string>
+             <string>An exchange coupling between neighboring localized magnetic moments, distinct from the conduction-electron Kondo coupling above. It sets the strength of direct or RKKY-mediated magnetic interactions between the localized moments, controlling whether they order magnetically.</string>
             </property>
             <property name="text">
              <string>0.0</string>

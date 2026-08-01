@@ -708,6 +708,23 @@
             </property>
            </widget>
           </item>
+          <item row="6" column="0">
+           <widget class="BodyLabel" name="label_nk_kbands">
+            <property name="text">
+             <string># of kpoints</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="LineEdit" name="nk_kbands">
+            <property name="toolTip">
+             <string>Number of k-points used in the KDOS-resolved-along-bands calculation.</string>
+            </property>
+            <property name="text">
+             <string>100</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </item>
         <item>

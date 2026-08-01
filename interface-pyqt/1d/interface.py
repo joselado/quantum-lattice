@@ -483,6 +483,16 @@ class Ui_MainWindow(object):
 
         self.gridLayout_11.addWidget(self.label_48, 5, 0, 1, 1)
 
+        self.label_nk_kbands = BodyLabel(self.tab_9)
+        self.label_nk_kbands.setObjectName(u"label_nk_kbands")
+
+        self.gridLayout_11.addWidget(self.label_nk_kbands, 6, 0, 1, 1)
+
+        self.nk_kbands = LineEdit(self.tab_9)
+        self.nk_kbands.setObjectName(u"nk_kbands")
+
+        self.gridLayout_11.addWidget(self.nk_kbands, 6, 1, 1, 1)
+
 
         self.verticalLayout_2.addLayout(self.gridLayout_11)
 
@@ -1163,6 +1173,11 @@ class Ui_MainWindow(object):
         self.window_kbands.setText(QCoreApplication.translate("MainWindow", u"3.0", None))
         self.ne_kbands.setText(QCoreApplication.translate("MainWindow", u"400", None))
         self.label_48.setText(QCoreApplication.translate("MainWindow", u"Operator", None))
+        self.label_nk_kbands.setText(QCoreApplication.translate("MainWindow", u"# of kpoints", None))
+#if QT_CONFIG(tooltip)
+        self.nk_kbands.setToolTip(QCoreApplication.translate("MainWindow", u"Number of k-points used in the KDOS-resolved-along-bands calculation.", None))
+#endif // QT_CONFIG(tooltip)
+        self.nk_kbands.setText(QCoreApplication.translate("MainWindow", u"100", None))
 #if QT_CONFIG(tooltip)
         self.show_dosbands.setToolTip(QCoreApplication.translate("MainWindow", u"This is equivalent to band structure calculation, but it can be applied for very large systems", None))
 #endif // QT_CONFIG(tooltip)

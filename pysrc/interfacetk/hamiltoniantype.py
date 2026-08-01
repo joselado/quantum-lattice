@@ -104,17 +104,21 @@ def term_allowed(hamiltonian_type, name):
 def build_row(form):
     """Build the "Hamiltonian type" label+combobox row. Returned widget is
     placed by scfterms.py's _nest_scf_tab(), directly above the do_scf
-    switch row it already builds. Wires currentIndexChanged to
-    form._mark_dirty directly (mirroring _build_scf_switch_row()'s own
-    switch.checkedChanged wiring) since this widget, like the switch, is
-    built after _AppBase._connect_dirty_tracking() already walked the
-    page's Designer-authored widgets and so isn't covered by that sweep."""
+    switch row it already builds. Wires activated (not currentIndexChanged,
+    which also fires on a programmatic setCurrentText() - e.g.
+    load_interface() restoring a saved session - and would then mark
+    params dirty even though the user didn't touch anything) to
+    form._mark_dirty, matching _AppBase._connect_dirty_tracking()'s own
+    activated-based convention for every other combobox on the page; this
+    one needs its own explicit wiring since, like the do_scf switch, it's
+    built after that sweep already ran over the page's Designer-authored
+    widgets."""
     combo = ComboBox(form)
     combo.addItems(HAMILTONIAN_TYPES)
     combo.setCurrentText(DEFAULT_TYPE)
     combo.setObjectName("hamiltonian_type")
     setattr(form, "hamiltonian_type", combo)
-    combo.currentIndexChanged.connect(form._mark_dirty)
+    combo.activated.connect(form._mark_dirty)
 
     row = QWidget(form)
     row_layout = QHBoxLayout(row)

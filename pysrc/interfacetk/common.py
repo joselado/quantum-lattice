@@ -168,7 +168,7 @@ def get_kdos_bands(h,window):
     """Get the kdos of the bands"""
     get = window.get
     energies = np.linspace(-get("window_kbands"),get("window_kbands"),int(get("ne_kbands")))
-    nk = int(get("ne_ldos"))
+    nk = int(get("nk_kbands",default=100))
     if nk==0: nk = 100 # workaround
     op = window.getbox("operator_kdos") # get the operator
     kdos.kdos_bands(h,scale=get("scale_kbands"),
@@ -455,7 +455,7 @@ def add_strain(h,window):
             from pyqula.potentialtk.vectorprofile import radial_vector_decay
             f0 = radial_vector_decay
             smode="non_uniform" # mode of the strain
-        else: raise
+        else: raise ValueError("Unknown strain_type: %r" % stype)
         fs = f0(v0=1.+get("strain_strength"),
                    voo=1.0,rl=get("strain_decay"))
         h.add_strain(fs,mode=smode)
@@ -673,7 +673,7 @@ def set_colormaps(form,name,cs=[]):
 
 def generate_hamiltonian(window,g=None):
     """Generate the Hamiltonian taking as input the geometry"""
-    if g is None: raise
+    if g is None: raise ValueError("generate_hamiltonian() needs a geometry (g=...)")
     get = window.get # function
     get_array = window.get_array # function
     has_spin = hamiltoniantype.wants_spin(window)
@@ -979,7 +979,12 @@ def initialize(window):
     # actually has, plus "random" - see
     # latticeterms._rebuild_scf_initialization_baseline())
     window.set_combobox("bands_color",operators.operator_list)
-#    window.set_combobox("fs_operator",operators.operator_list)
+    # fs_operator is deliberately NOT populated here: heavyfermion (which
+    # calls this initialize()) keeps its own hand-authored fs_operator item
+    # list (dispersive_electrons/kondo_sites/None) - overwriting it with
+    # operators.operator_list here would clobber that. 2d.py, the only
+    # other mode with this field, populates it itself - see
+    # latticeterms.py's RESTRICTED_TERMS docstring.
     window.set_combobox("operator_kdos",operators.operator_list)
 
 

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+
+import numpy as np
+import pylab as py
+import sys
+import matplotlib
+
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+fig = py.figure()
+fig.subplots_adjust(0.2,0.2)
+
+
+
+nfiles = len(sys.argv) -1 # number of files to plot
+
+for i in range(nfiles):
+  name = sys.argv[1+i] # name of the file
+  m = np.genfromtxt(name).transpose()
+  x = m[0]
+  y = m[1]
+  fig.set_facecolor(plotstyle.BACKGROUND)
+  py.scatter(x,y,label=name,color=plotstyle.PRIMARY,marker="o",s=4)
+  py.xlim([min(x),max(x)])
+#py.legend()
+
+py.xlabel("Parameter")
+py.ylabel("Eigenvalues")
+py.show()
