@@ -56,6 +56,8 @@ dimensionality:
   spatial parts (e.g. a bilayer with different parameters per layer).
 - **Misc** — Hofstadter butterflies, a heavy-fermion Kondo lattice, and
   thin-film slabs.
+- **Classical models** — a lattice gas: classical, occupation-based
+  particles on a lattice, no quantum Hamiltonian involved.
 
 See [Reference: modes](#reference-modes) below for what's distinctive about
 each one. The first time you open a mode's page in a session it takes a
@@ -364,6 +366,10 @@ Save results, ...) don't.
 | Select impurity sites | Interactive picker to choose which sites an embedded impurity's terms apply to. |
 | Save results | Copies this session's results into a folder you name (a new name keeps it alongside earlier saves instead of overwriting them). |
 | Load results | Prompts you to pick a previously saved folder and restores its parameters back into the form fields. |
+| Run anneal | Lattice gas only: builds a fresh random occupation at the requested filling and searches for its lowest-energy configuration via Metropolis-annealed swaps. |
+| Show configuration | Lattice gas only: plots the occupied/empty sites of the last annealed configuration over the lattice. |
+| Show correlator | Lattice gas only: plots the neighbor-shell density-density correlator of the last annealed configuration — a diagnostic for ordered phases (e.g. striped or vacancy order). |
+| Show energy trace | Lattice gas only: plots the energy trajectory recorded during the last anneal. |
 
 ## Reference: modes
 
@@ -447,6 +453,26 @@ variation on one of them.
 - **Films** — a finite-thickness slab cut from a 3D lattice (Cubic,
   Diamond, Pyrochlore, Hyperhoneycomb). Adds the same strain mechanic as 3D
   crystals, plus surface-sensitive KDOS/slab-LDOS views. Has SCF.
+
+### Classical models
+
+- **Lattice gas** — not a quantum tight-binding model: a classical,
+  occupation-based model of particles (e.g. adsorbates or vacancies) sitting
+  on a fixed fraction of the sites of a lattice (Chain, Square, Triangular,
+  Honeycomb, Kagome, Lieb), repelling or attracting their neighbors through a
+  real-space coupling. Set the lattice, patch size (Supercell size), and
+  **Filling** (fraction of occupied sites) in the Geometry tab; the
+  neighbor couplings **J1/J2/J3** (positive = repulsive, negative =
+  attractive) and an optional position-dependent **chemical potential
+  profile** in the Interactions tab; and the Metropolis **Temperature** and
+  **Number of attempts** used to search for a low-energy configuration in
+  the Anneal settings tab. Clicking **Run anneal** starts from a fresh
+  random configuration at the requested filling and searches for its
+  lowest-energy arrangement; **Show configuration**, **Show correlator**,
+  and **Show energy trace** then visualize the result (occupation map,
+  neighbor-shell density-density correlator, and the anneal's energy
+  trajectory, respectively) without recomputing it. No SCF, no bands/DOS —
+  none of the usual electronic-structure calculations apply here.
 
 ## Updating the application
 

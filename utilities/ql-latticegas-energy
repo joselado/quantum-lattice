@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+
+fig = plt.figure()
+fig.set_facecolor(plotstyle.BACKGROUND)
+
+m = np.genfromtxt("ENERGY.OUT").transpose()
+x = m[0] # iteration
+y = m[1] # energy
+
+plt.plot(x,y,color=plotstyle.PRIMARY)
+plt.xlabel("Iteration")
+plt.ylabel("Energy")
+
+plt.show()

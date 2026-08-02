@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>735</width>
+    <height>614</height>
+   </rect>
+  </property>
+  <property name="baseSize">
+   <size>
+    <width>0</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Lattice gas</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_1">
+    <item row="0" column="0">
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_geometry">
+       <attribute name="title">
+        <string>Geometry</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_geometry">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout_geometry_fields">
+          <item row="0" column="0">
+           <widget class="BodyLabel" name="label_lattice">
+            <property name="text">
+             <string>Type of lattice</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="ComboBox" name="lattice">
+            <item>
+             <property name="text">
+              <string>Chain</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Square</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Triangular</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Honeycomb</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Kagome</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Lieb</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="BodyLabel" name="label_supercell_size">
+            <property name="text">
+             <string>Supercell size</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="LineEdit" name="supercell_size">
+            <property name="text">
+             <string>10</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="BodyLabel" name="label_filling">
+            <property name="text">
+             <string>Filling</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="LineEdit" name="filling">
+            <property name="text">
+             <string>0.5</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_interactions">
+       <attribute name="title">
+        <string>Interactions</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_interactions">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout_interactions_fields">
+          <item row="0" column="0">
+           <widget class="BodyLabel" name="label_Jij">
+            <property name="text">
+             <string>Neighbor couplings (J1, J2, J3)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="LineEdit" name="Jij">
+            <property name="text">
+             <string>1.0, 0.0, 0.0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="BodyLabel" name="label_mu_profile">
+            <property name="text">
+             <string>Chemical potential profile</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="LineEdit" name="mu_profile">
+            <property name="text">
+             <string>0.0</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_anneal_settings">
+       <attribute name="title">
+        <string>Anneal settings</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_anneal_settings">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout_anneal_settings_fields">
+          <item row="0" column="0">
+           <widget class="BodyLabel" name="label_temp">
+            <property name="text">
+             <string>Temperature</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="LineEdit" name="temp">
+            <property name="text">
+             <string>0.5</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="BodyLabel" name="label_ntries">
+            <property name="text">
+             <string>Number of attempts</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="LineEdit" name="ntries">
+            <property name="text">
+             <string>10000</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item row="0" column="1">
+     <widget class="QTabWidget" name="tabWidget_2">
+      <property name="minimumSize">
+       <size>
+        <width>400</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_structure">
+       <attribute name="title">
+        <string>Structure</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_structure">
+        <item row="1" column="0">
+         <widget class="PushButton" name="show_structure">
+          <property name="text">
+           <string>Show structure</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="PushButton" name="show_structure_3d">
+          <property name="text">
+           <string>Show structure 3D</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_anneal_results">
+       <attribute name="title">
+        <string>Anneal &amp; results</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_anneal_results">
+        <item>
+         <widget class="PushButton" name="run_anneal">
+          <property name="text">
+           <string>Run anneal</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="PushButton" name="show_configuration">
+          <property name="text">
+           <string>Show configuration</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="PushButton" name="show_correlator">
+          <property name="text">
+           <string>Show correlator</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="PushButton" name="show_energy_trace">
+          <property name="text">
+           <string>Show energy trace</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item row="1" column="0">
+     <widget class="PushButton" name="save_results">
+      <property name="text">
+       <string>Save Results</string>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="PushButton" name="load_results">
+      <property name="text">
+       <string>Load Results</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>735</width>
+     <height>22</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <customwidgets>
+ <customwidget>
+  <class>BodyLabel</class>
+  <extends>QLabel</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>ComboBox</class>
+  <extends>QComboBox</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>LineEdit</class>
+  <extends>QLineEdit</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+ <customwidget>
+  <class>PushButton</class>
+  <extends>QPushButton</extends>
+  <header>qfluentwidgets</header>
+ </customwidget>
+</customwidgets>
+<resources/>
+ <connections/>
+</ui>

@@ -454,6 +454,32 @@ if __name__ == "__main__":
     window.run()
 ```
 
+**A mode doesn't have to be a quantum tight-binding model.** `latticegas`
+(`interface-pyqt/latticegas/latticegas.py`, wrapping `pyqula.latticegas.
+LatticeGas` - a classical, occupation-based lattice-gas model annealed by
+Metropolis swaps) is the first mode with no Hamiltonian at all. It still
+follows the three-file pattern and still calls `common.finalize_page()` at
+the end (which no-ops harmlessly on term/button names it doesn't
+recognize), but everything Hamiltonian-shaped is skipped or hand-rolled
+instead of shared: no `pickup_hamiltonian`/`STANDARD_HANDLERS`/
+`wire_standard_signals` (there's no Hamiltonian to build), no SCF, no
+bands/DOS/Berry/Chern - `signals` is built as a plain `{name: handler}`
+dict instead. `common.show_structure`/`show_structure_3d` still work
+unchanged, since they only need a plain `Geometry`. The occupation
+snapshot (`lg.den`, a 0/1 array with one entry per site) is written with
+the existing `g.write_profile(d,name=...)` (the same mechanism
+`topologytk/realspace.py:real_space_chern` uses for
+`REAL_SPACE_CHERN.OUT`) and plotted by the **existing** `ql-potential`
+script unchanged (`ql-potential --input PROFILE.OUT --cmap binary`) -
+"scatter colored by one scalar per site" doesn't need a mode-specific
+script. Only genuinely new output shapes (the anneal's energy trajectory,
+the neighbor-shell correlator) got their own small new scripts
+(`ql-latticegas-energy`, `ql-latticegas-correlator`), following the
+existing plain `plotstyle.apply()` + `np.genfromtxt` + `plt.show()`
+convention (e.g. `ql-dos-path`) rather than the older, unwired
+`ql-plot1d`/`ql-multiplot1d` (which don't call `plotstyle.apply()`, so
+they wouldn't pick up the shell's theme).
+
 `common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
 what used to be five separate repeated lines: it calls `create_folder()`
 and sets `window.scratch_dir`, wires `save_results`/`load_results` (only if

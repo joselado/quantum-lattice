@@ -125,6 +125,10 @@ BUTTON_TOOLTIPS = {
 "select_impurity_sites": "Open an interactive picker on the geometry to select which sites the embedded impurity terms are applied to.",
 "save_results": "Save all the results from this calculation into a named local folder (you'll be asked for a name) - pick a new name to keep multiple saves side by side.",
 "load_results": "Load a previously saved interface configuration (parameter values) back into the form - you'll be asked which saved folder to restore.",
+"run_anneal": "Build a fresh random configuration at the requested filling and search for its lowest-energy occupation pattern via Metropolis-annealed discrete swaps (fixed number of occupied sites).",
+"show_configuration": "Plot the occupied (1) vs. empty (0) sites of the last annealed configuration, colored on top of the lattice.",
+"show_correlator": "Compute and plot the neighbor-shell density-density correlator of the last annealed configuration - a diagnostic for ordered phases (e.g. striped or honeycomb-vacancy order) as a function of neighbor distance.",
+"show_energy_trace": "Plot the energy trajectory recorded during the last anneal, showing whether the Metropolis search has converged to a stable low-energy configuration.",
 }
 
 
@@ -339,4 +343,11 @@ PARAM_TOOLTIPS = {
 "nsuper_impurity": "Supercell size used when embedding the impurity/impurities, controlling how many host unit cells surround them.",
 "energy_embedding_ldos": "Energy at which the host+impurity local density of states is evaluated.",
 "ncells_embedding_ldos": "Number of host unit cells plotted around the embedded impurity in the embedding LDOS map.",
+# --- lattice gas (classical occupation model) ---
+"supercell_size": "Number of unit cells per side of the finite patch built to host the lattice gas - a larger patch reduces boundary effects at higher annealing cost.",
+"filling": "Fraction of sites occupied (strictly between 0 and 1 - the swap-based anneal needs at least one occupied and one empty site) - the number of occupied sites is fixed at this value and preserved by every swap move during annealing.",
+"Jij": "Neighbor-shell coupling strengths (J1, J2, J3, ...), entered as comma-separated numbers, for the classical density-density interaction between occupied sites - positive values are repulsive, negative values attractive.",
+"mu_profile": "Site-dependent chemical potential bias, either a single number (uniform - has no effect on the annealed ground state since filling is fixed) or a position-dependent expression 'r[0]', 'r[1]', 'r[2]' being the site's x/y/z coordinates.",
+"temp": "Metropolis temperature used during annealing - higher values accept more energy-increasing swaps, helping escape local minima at the cost of a noisier final configuration.",
+"ntries": "Number of Metropolis swap attempts performed during annealing - more attempts give the search more chances to reach a low-energy configuration, at higher computational cost.",
 }
