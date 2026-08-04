@@ -537,10 +537,23 @@ class _AppBase:
     def _on_runner_cancelled(self,runner):
         # report before release_busy(), not after - same reentrancy rule as
         # _on_runner_error below (release_busy() fires a synchronous
-        # same-thread signal that can reenter arbitrary shell code).
+        # same-thread signal that can reenter arbitrary shell code). The
+        # report itself is wrapped in try/except: it touches page-specific
+        # widgets (InfoBar sizes itself against its parent, this page), and
+        # a page whose own report path raises must still release the
+        # process-wide busy lock below - otherwise every future click on
+        # every page is refused forever ("Another calculation is currently
+        # running") until the app is restarted. This isn't hypothetical -
+        # it happened for real when a mode had a field literally named
+        # "width"/"size", shadowing QWidget.width()/size() on the page
+        # object itself, which qfluentwidgets' InfoBar reads when sizing
+        # itself against its parent (see INTERFACE_GUIDE.md).
         self._cleanup_runner(runner)
-        InfoBar.warning(title="Cancelled",content="Calculation cancelled",
-                        parent=self,duration=4000,position=InfoBarPosition.TOP)
+        try:
+            InfoBar.warning(title="Cancelled",content="Calculation cancelled",
+                            parent=self,duration=4000,position=InfoBarPosition.TOP)
+        except Exception:
+            traceback.print_exc()
         release_busy()
 
     def _on_runner_error(self,runner,tb):
@@ -551,9 +564,15 @@ class _AppBase:
         # bin/versions/quantum-lattice-pyqt's _on_update_noop/_on_update_error
         # which follow the same order for the same reason) - if that
         # reentrant call ever raises, it must not be able to swallow this
-        # handler's own error report.
+        # handler's own error report. The report itself is wrapped in
+        # try/except for the same reason as _on_runner_cancelled above: a
+        # failure while merely reporting the original failure must not also
+        # strand the busy lock.
         self._cleanup_runner(runner)
-        self._report_error(tb,runner.robust)
+        try:
+            self._report_error(tb,runner.robust)
+        except Exception:
+            traceback.print_exc()
         release_busy()
 
     def _cleanup_runner(self,runner):

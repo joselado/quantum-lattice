@@ -851,7 +851,7 @@
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="LineEdit" name="width">
+           <widget class="LineEdit" name="ribbon_width">
             <property name="text">
              <string>30</string>
             </property>

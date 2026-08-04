@@ -303,10 +303,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout_4.addWidget(self.label_6, 1, 0, 1, 1)
 
-        self.width = LineEdit(self.tab_2)
-        self.width.setObjectName(u"width")
+        self.ribbon_width = LineEdit(self.tab_2)
+        self.ribbon_width.setObjectName(u"ribbon_width")
 
-        self.gridLayout_4.addWidget(self.width, 2, 1, 1, 1)
+        self.gridLayout_4.addWidget(self.ribbon_width, 2, 1, 1, 1)
 
 
         self.gridLayout_20.addLayout(self.gridLayout_4, 0, 0, 1, 1)
@@ -1133,7 +1133,7 @@ class Ui_MainWindow(object):
         self.nsuper.setText(QCoreApplication.translate("MainWindow", u"1", None))
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Width", None))
         self.label_6.setText(QCoreApplication.translate("MainWindow", u"Supercell", None))
-        self.width.setText(QCoreApplication.translate("MainWindow", u"10", None))
+        self.ribbon_width.setText(QCoreApplication.translate("MainWindow", u"10", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Geometry", None))
 #if QT_CONFIG(tooltip)
         self.remove_single_bonded.setToolTip(QCoreApplication.translate("MainWindow", u"Remove atoms that have a single bond in the structure", None))

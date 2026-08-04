@@ -1074,3 +1074,32 @@ past it.
   `common.check_parallel(qtwrap)`, so the one shell-wide switch governs
   every mode uniformly. A future mode should never add its own
   parallelization widget — call `common.check_parallel(qtwrap)` instead.
+- **Never name an `interface.ui` widget after a `QWidget`/`QObject`
+  method** (`width`, `height`, `size`, `font`, `pos`, `parent`, `close`,
+  `children`, ...) — `pyside6-uic` generates `self.<name> = <WidgetType>(...)`
+  on the page object for every named widget, and a name matching a Qt
+  method silently shadows the real bound method on that page instance
+  (`self.width` becomes a `LineEdit`, not a bound method returning the
+  page's pixel width). This isn't just a theoretical footgun for code in
+  this repo that might call `window.width()` — third-party code the page
+  gets handed to can hit it too: `qfluentwidgets`' `InfoBar._adjustText()`
+  calls `self.parent().width()` to size itself against whatever it's
+  parented to, so *any* `InfoBar.warning()/.error()/...` call with
+  `parent=<a page with a "width" field>` raised `TypeError: 'LineEdit'
+  object is not callable` deep inside `qfluentwidgets`, on every mode
+  that had a ribbon-`"width"` field (`1d`, `0d`, `hofstader1d`,
+  `hybridribbon`, `ribbon_embedding`) and `huge_0d`'s `"size"` field.
+  Because `qtwrap.py`'s `_on_runner_cancelled`/`_on_runner_error` reported
+  via `InfoBar` *before* calling `release_busy()` (see the busy-lock
+  reentrancy bullet above), that raised exception aborted the handler
+  before the busy lock was ever released — so cancelling a calculation
+  (or any calculation failing) on one of those modes left the shell-wide
+  busy lock stuck forever, silently refusing every future click
+  ("Another calculation is currently running") until the app was
+  restarted. Fixed by renaming the colliding fields (`width` →
+  `ribbon_width`, `size` → `island_size`) and, as defense in depth against
+  the same class of bug recurring some other way, wrapping the `InfoBar`
+  report call in both handlers in `try/except` so `release_busy()` always
+  runs even if the report itself raises. When adding a field to
+  `interface.ui`, prefer a more specific name (`ribbon_width`, `nk_bands`,
+  ...) over a bare Qt-method-shaped one.

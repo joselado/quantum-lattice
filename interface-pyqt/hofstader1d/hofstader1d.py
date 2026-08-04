@@ -28,7 +28,7 @@ latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
 
 def get_geometry():
   lattice_name = getbox("lattice") # get the option
-  n = int(get("width")) # thickness of the system
+  n = int(get("ribbon_width")) # thickness of the system
   lattices = {
     "Chain": geometry.chain,
     "Honeycomb": geometry.honeycomb_lattice,

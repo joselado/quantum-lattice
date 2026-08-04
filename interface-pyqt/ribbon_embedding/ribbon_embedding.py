@@ -32,8 +32,8 @@ LATTICES = {
   "Kagome": geometry.kagome_lattice,
   "Lieb": geometry.lieb_lattice,
   "Triangular": geometry.triangular_lattice_tripartite,
-  "Honeycomb zigzag": lambda: geometry.honeycomb_zigzag_ribbon(int(get("width"))),
-  "Honeycomb armchair": lambda: geometry.honeycomb_armchair_ribbon(int(get("width"))),
+  "Honeycomb zigzag": lambda: geometry.honeycomb_zigzag_ribbon(int(get("ribbon_width"))),
+  "Honeycomb armchair": lambda: geometry.honeycomb_armchair_ribbon(int(get("ribbon_width"))),
 }
 
 from interfacetk import latticeterms
@@ -48,7 +48,7 @@ def get_geometry(modify=True):
   any other, intrinsically 2d, lattice is cut into a ribbon of the given
   width via ribbon.bulk2ribbon - same two-path approach 1d.py uses."""
   lattice_name = getbox("lattice") # get the option
-  n = int(get("width")) # width of the ribbon
+  n = int(get("ribbon_width")) # width of the ribbon
   g = LATTICES[lattice_name]() # call the geometry
   if g.dimensionality==2: # original is a 2d geometry
     g = ribbon.bulk2ribbon(g,n=n)

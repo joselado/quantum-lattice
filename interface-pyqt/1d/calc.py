@@ -43,7 +43,7 @@ def get_geometry(accessor=qtwrap,modify=True):
   parameterized on `accessor` instead of reading the module-level
   qtwrap/getbox/get names directly."""
   lattice_name = accessor.getbox("lattice") # get the option
-  n = int(accessor.get("width")) # thickness of the system
+  n = int(accessor.get("ribbon_width")) # thickness of the system
   lattices = {
     "Chain": geometry.chain,
     "Bichain": geometry.bichain,

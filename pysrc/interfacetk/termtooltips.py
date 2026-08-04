@@ -194,7 +194,7 @@ PARAM_TOOLTIPS = {
 "lattice": "Selects which lattice geometry family to build (e.g. honeycomb, square, triangular, kagome, ...). This determines the unit cell and coordination number, and which lattice-restricted terms/operators (Haldane, Kane-Mele, valley) are available - changing it rebuilds the geometry and Hamiltonian from scratch.",
 "nsuper": "Number of times the unit cell is repeated (supercell size) when building the geometry/Hamiltonian used in the calculation. A larger supercell gives a bigger, more expensive system - needed e.g. to host a real-space defect, impurity, or disorder pattern that wouldn't fit in a single unit cell.",
 "nsuper_struct": "Number of times the unit cell is repeated only for the structure/hopping plot (Show lattice/Show hoppings), independent of the supercell actually used in the calculation - lets you visualize a bigger chunk of the lattice without paying the cost of computing on it.",
-"width": "Number of unit cells across the ribbon's finite (confined) direction, controlling how many parallel rows/chains make up the ribbon and hence how far its two edges are from each other.",
+"ribbon_width": "Number of unit cells across the ribbon's finite (confined) direction, controlling how many parallel rows/chains make up the ribbon and hence how far its two edges are from each other.",
 "nsides": "Number of edges of the polygon used to cut a finite island out of the infinite lattice (e.g. 6 for a hexagonal flake).",
 "rotation": "Rotation angle applied to the lattice/unit cell before cutting out the finite island, changing which edge terminations end up on its boundary.",
 "remove_selected": "If checked, the atoms previously chosen with the atom-removal picker are excluded when the geometry/Hamiltonian is (re)built.",

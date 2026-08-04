@@ -239,10 +239,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.desired_dameter, 5, 1, 1, 1)
 
-        self.size = LineEdit(self.tab)
-        self.size.setObjectName(u"size")
+        self.island_size = LineEdit(self.tab)
+        self.island_size.setObjectName(u"island_size")
 
-        self.gridLayout.addWidget(self.size, 2, 1, 1, 1)
+        self.gridLayout.addWidget(self.island_size, 2, 1, 1, 1)
 
 
         self.gridLayout_22.addLayout(self.gridLayout, 0, 0, 1, 1)
@@ -791,9 +791,9 @@ class Ui_MainWindow(object):
         self.label_6.setText(QCoreApplication.translate("MainWindow", u"Desired diameter", None))
         self.desired_dameter.setText(QCoreApplication.translate("MainWindow", u"40", None))
 #if QT_CONFIG(tooltip)
-        self.size.setToolTip(QCoreApplication.translate("MainWindow", u"Size of the supercell used to build the island, controls the overal size of hte island", None))
+        self.island_size.setToolTip(QCoreApplication.translate("MainWindow", u"Size of the supercell used to build the island, controls the overal size of hte island", None))
 #endif // QT_CONFIG(tooltip)
-        self.size.setText(QCoreApplication.translate("MainWindow", u"11", None))
+        self.island_size.setText(QCoreApplication.translate("MainWindow", u"11", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), QCoreApplication.translate("MainWindow", u"Common options", None))
         self.nedges.setText(QCoreApplication.translate("MainWindow", u"3", None))
         self.label_7.setText(QCoreApplication.translate("MainWindow", u"Number of edges", None))

@@ -59,7 +59,7 @@ hybridparts.connect(qtwrap,PART_FIELDS,
 def get_geometry():
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
-  n = int(get("width")) # thickness of the system
+  n = int(get("ribbon_width")) # thickness of the system
   lattices = {
     "Chain": geometry.chain,
     "Honeycomb": geometry.honeycomb_lattice,

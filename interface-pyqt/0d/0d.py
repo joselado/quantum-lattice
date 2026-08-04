@@ -39,7 +39,7 @@ latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
 def get_geometry(modify=True):
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
-  n = float(get("width")) # thickness of the system
+  n = float(get("ribbon_width")) # thickness of the system
   lattices = {
     "Chain": geometry.chain,
     "Honeycomb": geometry.honeycomb_lattice,
@@ -153,7 +153,7 @@ def get_pyqula_code():
   active = lambda name: codeview.is_active(qtwrap,name)
 
   lattice_name = getbox("lattice")
-  width = fv("width") # matches get_geometry()'s own float(get("width"))
+  width = fv("ribbon_width") # matches get_geometry()'s own float(get("ribbon_width"))
   nsides = str(int(get("nsides"))) # matches get_geometry()'s int(get("nsides"))
   lattice_call = _LATTICE_CALLS[lattice_name]
   if "%s" in lattice_call: lattice_call = lattice_call % width

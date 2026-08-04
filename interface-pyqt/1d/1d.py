@@ -84,7 +84,7 @@ def get_pyqula_code():
   active = lambda name: codeview.is_active(qtwrap,name)
 
   lattice_name = getbox("lattice")
-  width = str(int(get("width"))) # matches get_geometry()'s own int(get("width"))
+  width = str(int(get("ribbon_width"))) # matches get_geometry()'s own int(get("ribbon_width"))
   nsuper = str(int(get("nsuper"))) # matches get_geometry()'s int(get("nsuper"))
   lattice_call = _LATTICE_CALLS[lattice_name]
   if "%s" in lattice_call: lattice_call = lattice_call % width

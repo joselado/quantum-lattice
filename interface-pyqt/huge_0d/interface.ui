@@ -356,7 +356,7 @@
               </widget>
              </item>
              <item row="2" column="1">
-              <widget class="LineEdit" name="size">
+              <widget class="LineEdit" name="island_size">
                <property name="toolTip">
                 <string>Size of the supercell used to build the island, controls the overal size of hte island</string>
                </property>

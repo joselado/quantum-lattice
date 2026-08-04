@@ -46,7 +46,7 @@ def get_geometry0d(qtwrap,second_call=False):
   # first create a raw unit cell
   gbulk = LATTICES_0D[lattice_name]()  # build a 2d unit cell
   # now scuplt the geometry
-  nf = 1+get("size")   # get the desired size, in float
+  nf = 1+get("island_size")   # get the desired size, in float
   if getbox("geometry_mode") == "Positions": # generate a perfect island
     os.system("cp "+getfile("positions_file")+" POSITIONS.OUT")
     g = geometry.read()
@@ -67,8 +67,8 @@ def get_geometry0d(qtwrap,second_call=False):
     ratio = diameter/g.get_diameter() # ratio between wanted and obtained
     print("\nChecking that it has the desired size",ratio)
     if not 0.99<ratio<1.01: # if outside the tolerance
-      newsize = round(ratio*float(get("size"))) # new size
-      modify("size",newsize) # modify the value
+      newsize = round(ratio*float(get("island_size"))) # new size
+      modify("island_size",newsize) # modify the value
       print("Recalling the geometry with size",newsize)
       return get_geometry0d(qtwrap,second_call=True)
   # clean the island
