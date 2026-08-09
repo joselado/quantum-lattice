@@ -51,7 +51,7 @@ def zero_T_didv_2D(self,energy=0.0,delta=None,nk=10,
     f = lambda k: self.generate(k,self.scale_lc,self.scale_rc).didv(energy=energy,delta=delta,**kwargs)
     if imode=="grid":
         out = pcall(f,np.linspace(0.,1.,nk,endpoint=False))
-        return np.trapz(out,dx=1./nk)
+        return np.trapezoid(out,dx=1./nk)
     elif imode=="simpson":
         return simpson(f,eps=1e-4,xlim=[0.,1.])
     elif imode=="quad":
@@ -94,7 +94,7 @@ def _both_leads_superconducting(ht):
 
 
 def keldysh_didv(ht,voltage=0.0,delta=1e-6,dv=None,use_qtci=False,
-                  use_aaa=True,**kwargs):
+                  use_aaa=False,**kwargs):
     """Zero/finite-bias differential conductance dI/dV at bias `voltage`,
     obtained as a central finite-difference derivative of the
     Floquet-Keldysh DC current (Heterostructure.get_dc_current), see
@@ -105,27 +105,40 @@ def keldysh_didv(ht,voltage=0.0,delta=1e-6,dv=None,use_qtci=False,
     superconducting -- the probe and the sample site it couples to play
     the role of the two leads.
 
-    `use_aaa=True` (default) builds one aaatk.selfenergy_aaa.SelfenergyAAA
-    interpolant per lead (see keldyshtk.current.build_selfenergy_aaa) once
-    here, covering both voltage+dv and voltage-dv's sideband window, and
-    shares it between the Ip and Im dc_current calls below instead of
-    each independently building (and discarding) its own -- unlike the
-    quantics/qtci approach below, this one measurably pays off (see
-    aaatk/selfenergy_aaa.py's module docstring for the measured net
-    effect -- modest for a cheap-per-solve target, substantially larger
-    for an expensive-per-solve one), which is why it is the default. If
-    the interpolant doesn't converge within its (deliberately
-    modest, single-sweep-sized) budget -- possible for a wide sideband
-    window packing many Andreev/MAR resonances into the interpolated
-    range -- this falls back to letting each dc_current call build (or
-    skip) its own default instead of forcing a possibly-losing shared fit
-    (see dc_current's own selfenergy_method="aaa" docstring).
+    `use_aaa=True` (NOT the default -- see dc_current's own
+    selfenergy_method docstring for why) builds one aaatk.selfenergy_aaa.
+    SelfenergyAAA interpolant per lead (see keldyshtk.current.
+    build_selfenergy_aaa) once here, covering both voltage+dv and
+    voltage-dv's sideband window, and shares it between the Ip and Im
+    dc_current calls below instead of each independently building (and
+    discarding) its own. This is a real speedup where it's accurate (see
+    aaatk/selfenergy_aaa.py's module docstring), but the finite difference
+    below divides by `Ip-Im`, which can be much smaller than `Ip`/`Im`
+    themselves -- documentation/keldysh_sideband_decimation_plan.md found
+    this amplifies AAA's per-branch error (which itself grows with the
+    sideband window/nmax_max, not fully explained yet) by up to ~10x in
+    the resulting dI/dV. Only turn this on if you have independently
+    checked it against use_aaa=False for your own system/parameter range.
 
     `use_qtci=True` instead builds a qtcitk.selfenergy_qtci.SelfenergyQTCI
     interpolant the same way (overrides `use_aaa`). Kept for comparison/
     debugging only -- measured NOT to help for a LocalProbe's Sancho-Rubio
     self-energy (see qtcitk.selfenergy_qtci's module docstring for the
-    benchmark)."""
+    benchmark).
+
+    Ip and Im also share one converged adaptive-nmax value: Ip runs
+    dc_current's normal adaptive nmax search, then Im is solved once at
+    that same nmax (dc_current's fixed_nmax) instead of re-running its own
+    independent search. `voltage+dv` and `voltage-dv` differ by only `2*dv`
+    (~1-2% of voltage), so they converge at the same nmax in practice --
+    skipping Im's own search avoids redoing ~O(log nmax_max) redundant
+    chain re-solves, and differencing two same-nmax evaluations also
+    cancels systematic truncation error that could otherwise show up as
+    numerical noise in the derivative (see documentation/
+    keldysh_sideband_decimation_plan.md). Only applies when the caller
+    hasn't already fixed nmax explicitly (an explicit `fixed_nmax` in
+    kwargs is left untouched, applying identically to both Ip and Im, same
+    as passing it straight to dc_current would)."""
     from ..keldyshtk.current import (dc_current, build_selfenergy_qtci,
                                       build_selfenergy_aaa)
     if dv is None: dv = max(abs(voltage)*1e-2,1e-3)
@@ -143,12 +156,16 @@ def keldysh_didv(ht,voltage=0.0,delta=1e-6,dv=None,use_qtci=False,
             shared = build_selfenergy_aaa(ht, abs(voltage)+dv, nmax_max, delta=delta)
             if all(s.converged for s in shared.values()):
                 kwargs["selfenergy_qtci"] = shared
-    Ip = dc_current(ht,voltage+dv,delta=delta,**kwargs)
-    Im = dc_current(ht,voltage-dv,delta=delta,**kwargs)
+    if "fixed_nmax" in kwargs:
+        Ip = dc_current(ht,voltage+dv,delta=delta,**kwargs)
+        Im = dc_current(ht,voltage-dv,delta=delta,**kwargs)
+    else:
+        Ip, nmax_shared = dc_current(ht,voltage+dv,delta=delta,return_nmax=True,**kwargs)
+        Im = dc_current(ht,voltage-dv,delta=delta,fixed_nmax=nmax_shared,**kwargs)
     return (Ip-Im)/(2*dv)
 
 
-def didv(ht,energy=0.0,delta=1e-6,opl=None,opr=None,
+def didv(ht,energy=0.0,energies=None,delta=1e-6,opl=None,opr=None,
          method="auto",**kwargs):
     """Calculate differential conductance.
 
@@ -201,7 +218,20 @@ def didv(ht,energy=0.0,delta=1e-6,opl=None,opr=None,
     small, opens a hard gap exactly at the Fermi level, which
     `dc_current`'s quasienergy integral always samples (it starts at 0),
     so its zero-pairing limit there does not equal the exactly-normal
-    self-energy either."""
+    self-energy either.
+
+    `energy` and `energies` are mutually exclusive: `energy` (the default
+    path) is a single scalar bias; `energies`, if given, is an array of
+    them, and dispatches straight to `didv_curve` (see its own docstring
+    for the shared-AAA-interpolant behavior when `use_aaa=True` is also
+    passed) instead of computing a single dI/dV at `energy` -- `energy`
+    itself is then ignored. Passing an array directly as `energy` is not
+    supported (it fails, on the smatrix path with a numpy broadcasting
+    error, on the keldysh path with an "ambiguous truth value" error from
+    keldysh_didv's own scalar arithmetic) -- use `energies=` instead."""
+    if energies is not None:
+        return didv_curve(ht, energies, delta=delta, opl=opl, opr=opr,
+                           method=method, **kwargs)
     if method=="auto":
         method = "keldysh" if _both_leads_superconducting(ht) else "smatrix"
     if method=="keldysh":
@@ -233,6 +263,61 @@ def didv(ht,energy=0.0,delta=1e-6,opl=None,opr=None,
         G2 = np.trace(s[0][1]@dagger(s[0][1])).real # total e-e transmission
         return (G1+G2)/2.
 
+
+def didv_curve(ht, energies, **kwargs):
+    """Convenience wrapper: dI/dV evaluated over an array of energies, in
+    parallel (see parallel.pcall) -- the array-native equivalent of the
+    `[ht.didv(energy=e) for e in es]` loop every example in this repo uses.
+    `didv(energies=...)` (note the plural, distinct from and mutually
+    exclusive with its scalar `energy=...`) dispatches straight here, so
+    calling this directly is only needed for callers who want the array
+    entry point without going through `didv`. Routed through `generic_didv`
+    per energy (like `Heterostructure.didv`/`LocalProbe.didv` themselves)
+    rather than the bare method-selecting `didv()`, so an unspecified
+    `delta` still defaults to `ht.delta` and a `temp` kwarg still reaches
+    `finite_T_didv` correctly, matching those methods' own conventions.
+
+    If the sweep resolves to the Keldysh path (see `method` below) and the
+    caller explicitly passes `use_aaa=True`, this builds ONE shared AAA
+    self-energy interpolant up front (keldyshtk.current.
+    build_shared_selfenergy), sized to cover every energy in `energies`,
+    and reuses it for every keldysh_didv call in the sweep -- mirroring
+    keldyshtk.current.iv_curve's own sharing (a `dc_current` sweep),
+    extended here to a `didv` sweep. Without this, a raw loop of
+    `didv(energy=e, use_aaa=True)` calls builds (and discards) an
+    independent interpolant at every single energy, since keldysh_didv's
+    own sharing is scoped to just its own Ip/Im pair within one call --
+    expensive (each build alone can cost several to tens of seconds, see
+    aaatk/selfenergy_aaa.py), and exactly the trap this function exists to
+    avoid. Skipped if the caller already passed `selfenergy_qtci`
+    explicitly (an explicit opt-out, so building a shared fit here would
+    silently override the caller's own choice) -- matching `iv_curve`'s
+    own behavior. Only applies at `temp=0` (the default): a finite-`temp`
+    sweep goes through `finite_T_didv` at every energy independently, each
+    with its own internal thermal-quadrature sharing already, a separate
+    concern from sharing across THIS function's energy array.
+
+    `method="auto"` (the default, matching `didv`'s own default) is
+    resolved once, up front, from `ht` alone rather than per energy: the
+    same physical system is being swept over energy, so the keldysh-vs-
+    smatrix choice cannot differ from one energy to the next."""
+    method = kwargs.pop("method", "auto")
+    if method == "auto":
+        method = "keldysh" if _both_leads_superconducting(ht) else "smatrix"
+    if (method == "keldysh" and kwargs.get("temp", 0.) == 0.
+            and "selfenergy_qtci" not in kwargs
+            and kwargs.get("use_aaa", False) and len(energies)):
+        from ..keldyshtk.current import build_shared_selfenergy
+        nmax_max = kwargs.get("nmax_max", 40)
+        emax = max(abs(e) for e in energies)
+        shared = build_shared_selfenergy(ht, emax, nmax_max=nmax_max,
+                                          delta=kwargs.get("delta"),
+                                          dv=kwargs.get("dv"))
+        if shared is not None:
+            kwargs["selfenergy_qtci"] = shared
+    return np.array(pcall(lambda e: generic_didv(ht, energy=e, method=method,
+                                                   **kwargs),
+                           energies))
 
 
 def didv_kmap(self,kpath=None,energies=None,

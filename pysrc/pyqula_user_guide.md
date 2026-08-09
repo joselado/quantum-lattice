@@ -393,6 +393,30 @@ h.get_qpi(mode="pm",delta=1e-2,operator="unfold",nsuper=2,nk=140,nunfold=ns)
 
 See `examples/2d/multiqpi/main.py` (clean system, `mode="pm"`) and `examples/2d/multiqpi_unfold/main.py` (defect in a supercell, unfolded) for runnable versions.
 
+### Real-space-impurity QPI
+
+`h.get_qpi()`'s modes are all reciprocal-space methods (they convolve or scatter k-resolved spectral weight, never touch real-space impurities). `h.get_qpi_impurity()` instead takes the direct route: it builds a supercell of `h`, adds one or more actual real-space impurities to it, computes the real-space LDOS map with ARPACK partial diagonalization (only the eigenstates nearest each requested energy, so this stays tractable for large supercells, unlike full diagonalization), and Fourier transforms that map directly (a discrete sum over the atoms' actual positions, not a grid FFT) to get the QPI(q) signal. Unlike `get_qpi()`, it returns arrays rather than only writing to disk
+
+```python
+from pyqula import geometry
+g = geometry.honeycomb_lattice()
+h = g.get_hamiltonian(has_spin=False)
+r,ldos_r,q,qpi_q = h.get_qpi_impurity(nsuper=10,
+        impurities=[{"position": [0.,0.,0.], "onsite": 3.0}],
+        energies=0.3,num_waves=60,nk=2,delta=0.2)
+```
+
+Optional arguments
+- nsuper: supercell size (scalar or `(n1,n2)`)
+- impurities: list of dicts, each an onsite potential (`{"position": [x,y,z], "onsite": v}`, or `{"index": i, "onsite": v}` for a specific supercell site index) or a vacancy (`{"position": [x,y,z], "vacancy": True}`). A vacancy is modeled as a strong onsite potential rather than true site removal, since deleting sites from a large sparse supercell Hamiltonian would require densifying it
+- energies: a single energy or an array
+- num_waves: a starting guess for the number of ARPACK eigenstates nearest the requested energies -- automatically grown (more ARPACK calls, not a correctness risk) until the diagonalization covers `margin*delta` past every requested energy and never cuts a degenerate manifold in half, since summing over a partial manifold isn't basis-independent and would otherwise leak spurious QPI weight, dependent on ARPACK's starting vector, even for a clean (impurity-free) supercell
+- nk, delta: as in `get_ldos`
+
+The Hamiltonian is kept sparse throughout (the primitive cell is turned sparse before the supercell is built, and impurities are added as a sparse diagonal), so no dense matrix of the supercell's size is ever built. No unfolding step is needed either: this never diagonalizes supercell bands and projects them onto primitive Bloch states (which is what `get_qpi`'s `nunfold`/`store_primal` are for) -- it only Fourier transforms a real-space scalar density, evaluated directly at q spanning the full primitive Brillouin zone. `q` is fixed at exactly the `nsuper1`x`nsuper2` points commensurate with the supercell (`nsuper` sets the achievable q *resolution*, not the BZ range); evaluating the direct-sum Fourier transform at any other q would show finite-size leakage even for a perfectly clean system, since only the commensurate points are free of it.
+
+See `examples/2d/qpi_realspace_impurity/main.py` for a runnable version that plots both the real-space LDOS and QPI(q).
+
 
 # Operators
 
@@ -999,7 +1023,7 @@ h = h.get_combined_mean_field_hamiltonian(U=5.0,J1=-1.0,filling=0.2,
 
 Needs the optional `jax` extra (`pip install pyqula[jax]`).
 
-All of the spin-spin exchange functions above also work on BdG (Nambu) Hamiltonians (`h.turn_nambu()`/`h.setup_nambu_spinor()`). `get_szsz_mean_field_hamiltonian`/`get_sxsx_mean_field_hamiltonian`/`get_sysy_mean_field_hamiltonian` need no special handling: `get_mean_field_hamiltonian`'s existing Hartree-Fock-plus-anomalous decoupling already dispatches generically for any density-density-shaped interaction, including $S^z_iS^z_j$'s. `get_combined_mean_field_hamiltonian`/`get_exchange_mean_field_hamiltonian` decouple the exchange ($J$) channels in the normal (electron) sector only for a Nambu Hamiltonian -- exchange does not itself induce superconducting pairing here, only $U$/$V_1$/$V_2$/$V_3$ can (the same mechanism as the spin-triplet example above); a state with both magnetic and superconducting order can still emerge from combining an exchange field with an attractive $V_1$:
+All of the spin-spin exchange functions above also work on BdG (Nambu) Hamiltonians (`h.turn_nambu()`/`h.setup_nambu_spinor()`). `get_szsz_mean_field_hamiltonian`/`get_sxsx_mean_field_hamiltonian`/`get_sysy_mean_field_hamiltonian` need no special handling: `get_mean_field_hamiltonian`'s existing Hartree-Fock-plus-anomalous decoupling already dispatches generically for any density-density-shaped interaction, including $S^z_iS^z_j$'s. `get_combined_mean_field_hamiltonian`/`get_exchange_mean_field_hamiltonian` decouple the exchange ($J$) channels with the same full normal-plus-anomalous treatment as $U$/$V_1$/$V_2$/$V_3$ for a Nambu Hamiltonian, so exchange can itself induce superconducting pairing, not just density-density interactions: an antiferromagnetic isotropic $J$ alone (no $U$/$V$ at all), seeded with a small coherent pairing guess (e.g. `h.add_swave(0.1)` on top of the Hamiltonian used as `mf`; a purely random guess has no reliable overlap with this instability and often relaxes back to zero pairing instead), can spontaneously decouple into a purely superconducting, singlet-paired state (the same RVB-like mechanism behind exchange-driven superconductivity), while the ferromagnetic sign has no such pairing tendency and stays magnetic. A state with both magnetic and superconducting order can also still emerge from combining an exchange field with an attractive $V_1$. CAVEAT: the reported `total_energy` only ever subtracts the normal (Hartree-Fock) double-counting correction, never a matching one for the anomalous/pairing channel, so it is systematically off whenever any channel (exchange or $V$/$U$) converges to a nonzero pairing amplitude; the converged Hamiltonian itself is unaffected by this, only the `total_energy` scalar:
 
 ```python
 h = g.get_hamiltonian(has_spin=True)
@@ -1008,6 +1032,192 @@ h.turn_nambu()
 h = h.get_combined_mean_field_hamiltonian(V1=-1.0,J1z=-0.3,
                                             filling=0.3,mf="random")
 ```
+
+## Abrikosov-pseudofermion (spinon) mean field for Heisenberg models
+
+Rather than seeding a spin-spin exchange on top of an existing tight-binding
+Hamiltonian, a pure spin-$\tfrac12$ Heisenberg model
+$H=J\sum_{\langle ij\rangle}\vec S_i\cdot\vec S_j$ can be treated on its own
+terms with the Abrikosov-pseudofermion (parton) representation
+$\vec S_i=\tfrac12 f^\dagger_i\vec\sigma f_i$ (Savary & Balents, *Quantum
+Spin Liquids: a review*, arXiv:1601.03742, Sec. 4): each spin is written in
+terms of an auxiliary ("spinon") fermion subject to the hard local
+constraint $f^\dagger_i f_i=1$, exactly one fermion per site, and the
+exchange term is Wick-decoupled into an RVB bond order parameter
+$\chi_{ij}=\langle f^\dagger_i f_j\rangle$ -- physically the same Fock/
+Hartree-Fock decoupling `get_combined_mean_field_hamiltonian`'s $J$ channel
+already performs, just on a Hamiltonian with zero bare hopping (a pure spin
+model has no bare electron kinetic term) and with the local constraint
+enforced at *every* site individually, not only on lattice average.
+`SpinonHamiltonian` (`pyqula.spinon`) packages exactly this:
+
+```python
+from pyqula import geometry
+from pyqula.spinon import SpinonHamiltonian
+
+g = geometry.triangular_lattice() # a canonical frustrated-Heisenberg lattice
+h = SpinonHamiltonian(g) # zero bare hopping -- couplings come from J1/J2/...
+h2 = h.get_mean_field_hamiltonian(J1=1.0,nk=12,mix=0.1,maxerror=1e-4)
+
+h2.local_occupation   # <n_i> per site -- exactly 1.0 at convergence
+h2.constraint_lambda  # converged per-site Lagrange multiplier (local chemical potential)
+h2.get_bands()        # spinon dispersion
+```
+
+`filling=` cannot be passed to `SpinonHamiltonian.get_mean_field_hamiltonian`
+-- the representation is only valid at exactly one fermion per site, so it
+is always requested internally as the per-site array `get_combined_mean_field_hamiltonian`'s
+own `filling` kwarg now accepts (one target per site, instead of only a single
+lattice-averaged Fermi level), enforced via a per-site Lagrange multiplier
+warm-started and co-converged with the RVB mean field across the same SCF
+loop; `scf.converged` (equivalently, a non-`None` return here) already
+implies the local constraint converged to within `maxerror`, not only the
+mean field itself. Only the U(1) (RVB bond-only) ansatz is implemented --
+a Z2 ansatz (allowing the pairing/anomalous channel $J$ can also induce, as
+above) would need a Nambu-doubled `SpinonHamiltonian`, not yet supported.
+All other `get_mean_field_hamiltonian` kwargs (`mf`, `nk`, `mix`,
+`maxerror`, `maxite`, `constrains`, an additional `V1`/`V2`/`V3`/`U`
+density-density term, ...) are forwarded unchanged.
+
+**On a frustrated lattice (triangular, kagome, ...) the converged state is
+ansatz-dependent**, not unique: several distinct self-consistent RVB flux
+sectors can coexist at the same $J$, and which one an unseeded random `mf`
+guess lands on is itself part of the physics, not SCF noise -- "it is not
+possible to search for all possible self-consistent mean field
+solutions... calculations are usually carried out by assuming a particular
+decoupling scheme" (Savary & Balents, Sec. 4.1). A 1-site-unit-cell chain
+has a unique solution (no frustration), so repeated calls agree to within
+`maxerror`; on a frustrated lattice, pass an explicit `mf=` to select a
+definite ansatz deliberately rather than comparing energies across
+differently-seeded runs.
+
+**An external Zeeman/magnetic field** couples to $\vec S_i=\tfrac12
+f_i^\dagger\vec\sigma f_i$ exactly, not via any mean-field decoupling (it is
+already bilinear in $f$), so it is added as an ordinary single-particle term
+with the same `Hamiltonian.add_zeeman`/`add_exchange` used everywhere else in
+pyqula -- call it on the `SpinonHamiltonian` instance *before*
+`get_mean_field_hamiltonian`:
+
+```python
+h = SpinonHamiltonian(g)
+h.add_zeeman([0., 0., 0.3])            # or h.add_exchange([0.,0.,0.3])
+h2 = h.get_mean_field_hamiltonian(J1=1.0, nk=12)
+h2.get_magnetization()                 # induced <S> per site
+```
+
+`add_zeeman`'s argument is the coefficient of $\vec\sigma$ (Pauli matrices),
+not of $\vec S=\vec\sigma/2$, so the physical field $h$ in $H=-h\cdot S_i$ is
+twice the value passed in -- the same convention `add_exchange` uses on an
+ordinary electronic Hamiltonian elsewhere in this guide. The local
+one-fermion-per-site constraint is a total-occupation constraint, not a
+spin constraint, so it stays exactly satisfied under a field while $\langle
+S_i\rangle$ is free to grow with it, saturating once the field dominates
+$J$ (see `tests/spinon/test_spinon_zeeman.py`).
+
+
+## Abrikosov-pseudofermion (Read-Newns) mean field for the Kondo lattice
+
+The Kondo lattice / periodic Anderson model -- localized moments
+exchange-coupled to a conduction electron at the same site -- is the
+standard minimal model of heavy fermion compounds. Following P. Coleman,
+*Heavy Fermions: electrons at the edge of magnetism*,
+arXiv:cond-mat/0612006, Sec. III.C, its Coqblin-Schrieffer form is
+$H=\sum_k\epsilon_k c^\dagger_kc_k + \tfrac{J}{N}\sum_j
+S_{ab}(j)c^\dagger_{jb}c_{ja}$ ($N=2$ for a spin-$\tfrac12$ moment --
+**not** the coefficient of a bare $J\vec S_j\cdot\vec s_j$ Heisenberg-form
+Kondo term, see the caveat below). Each moment is
+represented by an Abrikosov pseudofermion
+$\vec S_j=\tfrac12 f^\dagger_j\vec\sigma f_j$ subject to the constraint
+$f^\dagger_jf_j=1$, and the exchange term is Hubbard-Stratonovich
+decoupled into a self-consistent hybridization field
+$V_j=-\tfrac{J}{2}\langle f^\dagger_jc_j\rangle$ (a "composite fermion",
+half electron and half spin-flip) plus a Lagrange multiplier $\lambda_j$
+enforcing the local constraint -- physically the large-N ($N=2$)
+Read-Newns saddle point of the Kondo-lattice path integral.
+`KondoLatticeHamiltonian` (`pyqula.kondolattice`) packages this: given a
+conduction-electron Hamiltonian, it fuses on a second, initially
+decoupled sublattice of localized f-sites (one per conduction site) with
+zero bare hopping, and self-consistently solves for $V_j$ and
+$\lambda_j$:
+
+```python
+from pyqula import geometry
+from pyqula.kondolattice import KondoLatticeHamiltonian
+
+gc = geometry.chain()
+hc = gc.get_hamiltonian(has_spin=True) # conduction electrons
+h = KondoLatticeHamiltonian(hc)
+
+seed = ([0.3+0.0j],[0.0]) # (V,lam) -- see the caveat below for why
+h2 = h.get_mean_field_hamiltonian(J=1.5,filling=0.15,nk=200,mf=seed)
+
+h2.local_occupation   # <n_f> per localized site -- exactly 1.0 at convergence
+h2.hybridization      # converged V per localized site
+h2.constraint_lambda  # converged per-site Lagrange multiplier
+```
+
+`J` is Coleman's Coqblin-Schrieffer coupling (entering the interaction as
+$J/N$ with $N=2$), not the coefficient of a bare $J\vec S_j\cdot\vec s_j$
+Heisenberg-form Kondo term -- the two differ by a numerical factor that
+Coleman's Eq. 73-78 already fixes, so this class follows the paper's
+convention exactly. `filling` sets a lattice-wide chemical potential
+*once*, from the bare ($V=0$) bands, and holds it fixed through the SCF
+loop rather than re-solving it every iteration (Coleman's Eq. 83 is a
+fixed-$\mu$, grand-canonical Hamiltonian; the electron count is meant to
+float, even expand, as $V,\lambda$ converge, Eq. 91-92) -- the local
+$\langle n_f\rangle=1$ constraint is enforced separately by $\lambda_j$,
+not by `filling`. All other `get_mean_field_hamiltonian` kwargs (`mf`,
+`nk`, `mix`, `maxerror`, `maxite`, `T`) are forwarded to the SCF loop
+unchanged.
+
+**$V=0$ is always itself a self-consistent solution**, exactly like the
+trivial root of the BCS gap equation -- an unseeded run (`mf=None`, the
+default) starts there and stays there even for a `J` that also supports a
+genuine hybridized state, so a nonzero seed (as above) is generally
+needed to find it. Where both solutions coexist, the hybridized state is
+the true (lower-energy) ground state. **Avoid a `filling` that lands the
+chemical potential inside the bare f-sector's flat, macroscopically
+degenerate band** (at $V=0$, every f-orbital sits at exactly $\lambda$,
+so a wide range of `filling` values -- roughly 0.25-0.75 for a single
+conduction orbital per site -- all give exactly the same, numerically
+ill-posed starting point); `filling=0.15` above keeps $\mu$ inside the
+dispersing conduction band instead. **The finite Fermi-Dirac smearing
+`T` this SCF loop necessarily runs at** (needed for the $\lambda$
+feedback's numerical stability -- see
+`selfconsistency.kondolattice.kondo_lattice_mean_field`'s docstring)
+turns the textbook, continuous $T_K=D\,e^{-1/(J\rho)}$ onset into a
+genuine finite-temperature Kondo crossover: below a $T$-dependent
+threshold in $J$, thermal smearing washes out the hybridization
+entirely and $V=0$ becomes the *only* self-consistent solution, and
+right at the threshold $V$ jumps directly to an $O(1)$ value rather than
+growing continuously from zero.
+
+**An external Zeeman/magnetic field** couples exactly to both fermion
+species here (the conduction electron and the localized moment
+$\vec S_j=\tfrac12 f_j^\dagger\vec\sigma f_j$, already bilinear in $f$),
+so -- exactly as for `SpinonHamiltonian` above -- it is added as an
+ordinary single-particle term with `add_zeeman`/`add_exchange`, called on
+the `KondoLatticeHamiltonian` instance *before*
+`get_mean_field_hamiltonian`:
+
+```python
+h = KondoLatticeHamiltonian(hc)
+h.add_zeeman([0., 0., 0.05])
+h2 = h.get_mean_field_hamiltonian(J=1.5, filling=0.15, nk=150, mf=seed)
+```
+
+`add_zeeman` applies to every site of the fused geometry, i.e. both the
+conduction and the f sublattice (offset in $z$) -- pass a position-
+dependent callable instead of a constant vector to target only one of
+them. The $\langle n_f\rangle=1$ constraint (a total-occupation, not spin,
+constraint) stays exact under a field. A field competes with the Kondo
+singlet: the self-consistent $|V|$ *shrinks* as the field grows at fixed
+$J$, and a strong enough field destroys the hybridized state -- genuine
+physics, not a bug, and the SCF correctly reports non-convergence
+(`None`) there rather than a spuriously small but nonzero $V$, exactly
+the "decays toward the always-self-consistent $V=0$ branch" signal a
+subcritical $J$ already produces above (see
+`tests/kondolattice/test_kondolattice_zeeman.py`).
 
 
 # Spatially resolved density of states
@@ -1106,6 +1316,66 @@ h.add_soc(0.05) # Add spin-orbit coupling
 from pyqula import topology
 z2 = topology.z2_invariant(h) # Z2 invariant
 ```
+
+## Quantum geometric tensor (multiorbital/multiband)
+
+The quantum geometric tensor (QGT) generalizes the Berry curvature: its
+antisymmetric part is the Berry curvature and its symmetric part is the
+quantum metric, a measure of the distance between neighboring Bloch
+states. For a chosen band subspace $S$ (e.g. the occupied bands) it is
+
+$$
+Q_{ij}^{mn}(\mathbf k) = \sum_{l \notin S}
+\frac{\langle u_m|\partial_{k_i} H|u_l\rangle \langle u_l|\partial_{k_j} H|u_n\rangle}
+{(E_m-E_l)(E_n-E_l)}, \qquad m,n \in S
+$$
+
+with the quantum metric $g_{ij}^{mn} = \mathrm{Re}\,Q_{ij}^{mn}$ (symmetric
+part) and Berry curvature $\Omega_{ij}^{mn} = -2\,\mathrm{Im}\,Q_{ij}^{mn}$
+(antisymmetric part) recovered in the band-trace ("Abelian") case; setting
+`non_abelian=True` instead returns the full band-pair-resolved
+("non-Abelian") tensor. Because only states *outside* $S$ enter the energy
+denominators, this stays well defined even when $S$ contains an exactly or
+nearly degenerate multiplet of bands -- e.g. an exactly spin-degenerate
+pair, or several orbitals meeting at a high-symmetry point -- which an
+ordinary single-band Kubo formula cannot handle; this is what makes it
+suitable for genuinely multiorbital/multiband tight-binding models, not
+just single isolated bands. `dH/dk_i` is evaluated with pyqula's exact
+analytic multicell k-derivative (no finite-difference error), with $k$ in
+the same reduced (dimensionless, period-1) coordinates as the rest of
+pyqula's k-space code (e.g. `topology.berry_curvature`) -- not Cartesian
+k, so the quantum metric's absolute scale is reciprocal-lattice-dependent
+if you convert to Cartesian coordinates yourself. `occ_idxs` defaults to
+the bands with $E<0$, the same convention `h.get_chern()` uses, so it
+tracks `h.shift_fermi(...)`.
+
+```python
+from pyqula import geometry
+from pyqula import topology
+g = geometry.honeycomb_lattice() # create honeycomb lattice
+h = g.get_hamiltonian() # create hamiltonian of the system (spinful by default)
+h.add_haldane(0.2) # Add Haldane coupling
+h.shift_fermi(0.3) # put the Fermi level safely mid-gap (gap is [-0.9,0.9])
+
+Q = h.get_quantum_geometric_tensor(k=[0.1,0.2,0.],occ_idxs=[0,1]) # at a k-point
+g_metric = h.get_quantum_metric(k=[0.1,0.2,0.],occ_idxs=[0,1]) # quantum metric only
+
+# band-pair-resolved (non-Abelian) tensor of the two occupied bands
+Qna = topology.quantum_geometric_tensor(h,k=[0.1,0.2,0.],occ_idxs=[0,1],
+        non_abelian=True)
+
+# along a k-path, and integrated over the BZ (cross-checked against
+# the independent Wilson-loop h.get_chern() in tests/topology/test_quantum_geometric_tensor.py)
+inds,gpath,omegapath = topology.quantum_geometric_tensor_path(h,occ_idxs=[0,1])
+C = topology.chern_from_qgt(h,nk=20,occ_idxs=[0,1])
+```
+
+See `examples/2d/quantum_geometric_tensor/main.py` for a runnable version,
+and `src/pyqula/topologytk/qgt.py` for the implementation and references.
+There is also an older, unrelated Green's-function/Kubo estimator of the
+whole-occupied-manifold quantum geometry trace (not band- or
+band-pair-resolved), `pyqula.topologytk.quantumgeometry.get_QG_kpath`, see
+`examples/2d/quantum_geometry/main.py`.
 
 ## Berry curvature density in frequency space
 
@@ -1481,7 +1751,7 @@ k = lp.get_kappa(energy=0.25,nmax=4,nmax_max=12,tol=5e-2)
 
 This is considerably more expensive than the normal-probe case (each `didv`/`get_kappa` call runs several Floquet-Keldysh sideband sweeps), especially deep below the combined gap at low transparency, where the sideband sum converges slowly; see `examples/transport/decay_constant_keldysh/main.py` for a runnable script using a coarse energy grid and a modest sideband cutoff to keep the runtime reasonable.
 
-`get_kappa` also accepts a `temp` argument for a thermally-averaged kappa (each conductance entering the power-law fit is `didv(temp=...)`'s thermal average rather than the zero-temperature value); `temp=0` (the default) is unchanged. Pass a single `energy` (returns a scalar, as above) or a whole `energies=[...]` array at once (returns an array) -- batching is worthwhile here because, for whichever branch (SC or normal) is actually superconducting, one lead self-energy interpolant is built once and shared across every coupling/energy/thermal-quadrature-node the sweep visits, instead of being rebuilt from scratch at each one:
+`get_kappa` also accepts a `temp` argument for a thermally-averaged kappa (each conductance entering the power-law fit is `didv(temp=...)`'s thermal average rather than the zero-temperature value); `temp=0` (the default) is unchanged. Pass a single `energy` (returns a scalar, as above) or a whole `energies=[...]` array at once (returns an array):
 
 ```python
 k = lp.get_kappa(energies=[0.1,0.25,0.4],temp=0.02,nmax=4,nmax_max=12,tol=5e-2)
@@ -1489,9 +1759,44 @@ k = lp.get_kappa(energies=[0.1,0.25,0.4],temp=0.02,nmax=4,nmax_max=12,tol=5e-2)
 
 `Heterostructure.get_kappa` takes the same `temp`/`energies` arguments.
 
-By default, `get_dc_current`/`keldysh_didv` replace most of the many thousands of individual Sancho-Rubio/`bloch_selfenergy` lead solves the sideband sweep would otherwise need with evaluations of a compact rational (AAA) interpolant of each lead's self-energy, built from far fewer true solves (`keldyshtk.current.build_selfenergy_aaa`); the physical result is unchanged (same tolerance-controlled accuracy), only the internal cost is affected, and it falls back to the original direct per-energy solves automatically if the interpolant can't be built accurately within a bounded effort (e.g. for an unusually wide sideband window). Pass `selfenergy_method="direct"` to `get_dc_current`, or `use_aaa=False` to `didv`/`keldysh_didv`, to force the old direct behavior (e.g. for comparison/debugging).
+`get_dc_current`/`keldysh_didv`/`get_kappa` solve each lead's Sancho-Rubio/`bloch_selfenergy` self-energy directly at every energy the sideband sweep visits by default (`selfenergy_method="direct"`). An opt-in `selfenergy_method="aaa"` (`use_aaa=True` for `didv`/`keldysh_didv`) instead replaces most of those many-thousands of individual solves with evaluations of a compact rational (AAA) interpolant built from far fewer true solves (`keldyshtk.current.build_selfenergy_aaa`), and can be substantially faster once shared across many calls (an `get_iv_curve` sweep, or one finite-temperature `didv(temp=...)`/`get_kappa(temp=...)` call's internal thermal quadrature, which alone can visit well over a hundred nearby energies for just one nominal `(energy, temp)` point -- both build and share a single interpolant across every internal evaluation when `selfenergy_method="aaa"` is passed, rather than leaving each one to independently build and discard its own). A single isolated call is often *not* faster overall, since building the interpolant (many true solves at increasingly refined candidate energies) usually costs more than one `"direct"` call by itself -- the win comes from reuse, not the first call.
 
-This interpolant sharing is not limited to one `dc_current` call's own internal sideband sweep: `get_iv_curve` builds a single interpolant sized to the whole voltage array up front instead of one per voltage, and a single finite-temperature `didv(temp=...)`/`get_kappa(temp=...)` call shares one interpolant across its own internal thermal quadrature -- which alone can visit well over a hundred nearby energies for just one nominal `(energy, temp)` point. Both previously left every one of those internal evaluations to independently build and discard its own default fit.
+An earlier version of this had a real accuracy gap, growing with the sideband window (`nmax_max`) -- up to ~10% relative current error in the worst case investigated. `documentation/keldysh_aaa_selfenergy_accuracy_plan.md` root-caused this to the interpolant's candidate grid being under-resolved (both at a lead's own gap-edge singularities and, more consequentially for the current-error trend, across the fit's broader domain) in a way the interpolant's own held-out validation check -- confined too close to existing candidates -- never detected. Both the validation sampling and the grid-refinement strategy (`aaatk.selfenergy_aaa._refine_grid`) were fixed and validated directly against the current (not just the self-energy fit) across the same `nmax_max` sweep that exposed the original gap: relative current error is now consistently under ~1% throughout, with no growth trend (see that document's closing update for the full measurement). `selfenergy_method="aaa"` still checks its own convergence (`.converged`) and safely falls back to `"direct"` if a fit can't reach its target tolerance within a bounded budget, rather than silently returning an under-resolved answer -- but as with any interpolation-based shortcut, checking agreement with `"direct"` for your own system/parameter range before relying on it is still good practice.
+
+`didv`'s `energy` and `energies` arguments are mutually exclusive, the same convention `get_kappa` already uses: pass a single `energy` (returns a scalar) or a whole `energies=[...]` array at once (returns an array, and internally dispatches to `didv_curve(ht, energies, **kwargs)`). Passing an array directly as the scalar `energy=` is not supported (it fails, a numpy broadcasting error on the `smatrix` path, an "ambiguous truth value" error on the `keldysh` path) -- every example that plots dI/dV vs. energy predates `energies=` and loops explicitly instead, `[ht.didv(energy=e) for e in es]`, which still works but is no longer necessary. `energies=` additionally -- like `get_iv_curve` does for `get_dc_current` -- builds and shares ONE AAA interpolant across the whole sweep when `use_aaa=True` is passed, instead of a raw loop's `didv(energy=e, use_aaa=True)` independently building (and discarding) its own interpolant at every single energy:
+
+```python
+es = np.linspace(0.15,0.25,40)*0.1 # bias energies
+Gs = HT.didv(energies=es, use_aaa=True, nmax_max=40) # shared-AAA dI/dV curve
+```
+
+`HT.didv_curve(es, **kwargs)`/`lp.didv_curve(es, **kwargs)` are the same thing called directly, for a caller who wants the array entry point without going through `didv`.
+
+For a Floquet-Keldysh-eligible junction (both leads, or a `LocalProbe`'s probe+sample,
+superconducting), `didv(temp=...)`/`get_kappa(temp=...)` now default to evaluating
+`dc_current`'s own `temperature` parameter directly (2 `dc_current` calls, a central finite
+difference in bias) rather than the internal thermal quadrature described in the previous
+paragraph (`keldysh_thermal_mode="convolution"` on `transporttk.thermaldidv.finite_T_didv`
+recovers the old behavior, still used for non-Keldysh junctions where it is exact). This is not
+merely a faster way to get the same number: the two compute genuinely different quantities away
+from `temp->0` (direct broadens each Floquet sideband's own occupation by `temp`; convolution
+smears the bias voltage, an n-dependent displacement of the whole sideband ladder) -- see
+`documentation/keldysh_sideband_decimation_plan.md`'s "direct finite-T Keldysh evaluation" entry
+for the validation and the measured ~100x-plus speedup.
+
+`dc_current` also takes an opt-in `quadrature` argument for the outer quasienergy integral:
+`"adaptive"` (the default, unchanged) calls `scipy.integrate.quad` as before; `"fixed"` instead
+evaluates a deterministic, fixed-node composite Gauss-Legendre rule whose node/weight set is a
+pure function of `voltage` alone (`quad_panel_width`/`quad_min_panels`/`quad_order` control it),
+known in full before any integrand evaluation and solved with a batched, `numba`-parallel chain
+solver rather than one Python callback per node. Accuracy is not the concern (validated to within
+~6e-4 of a tight reference across a broad SC-SC/normal sweep); speed is case-dependent and often
+*worse* than adaptive quadrature, since a fixed grid has to be dense enough to resolve a gap-edge
+singularity wherever it happens to land, with no way to discover at runtime that a given case
+(e.g. a normal junction with no singularity at all) didn't need that density. `"fixed"` is kept as
+tested, opt-in infrastructure for callers that specifically need a deterministic/cacheable node
+set (see `documentation/keldysh_sideband_decimation_plan.md`'s "item 2b"/"item 2c" entries for the
+full numbers) -- not a general replacement for the default `"adaptive"` path.
 
 ### Experimental: a JAX-differentiable Floquet-Keldysh current
 
@@ -1695,10 +2000,65 @@ es = lg.optimize_energy(temp=0.5,ntries=1e4) # simulated annealing
 
 `lg.den` holds the current 0/1 occupation array and `es` the energy trajectory of the
 anneal. `get_local_energy()`/`get_local_mu()` give the per-site energy/chemical-potential
-contribution for the current snapshot, and `get_correlator()` gives the neighbor-shell
-density-density correlator -- useful for detecting ordered (e.g. striped, honeycomb-vacancy)
-ground states. See `examples/latticegas/` for runnable demos of annealing, local-energy maps,
-and correlators.
+contribution for the current snapshot, and `get_correlator()`/`get_structure_factor()` give
+the real-/reciprocal-space density-density correlator -- useful for detecting ordered (e.g.
+striped, honeycomb-vacancy) ground states and their ordering wavevector. `anneal()` wraps
+`optimize_energy()` in a decreasing-temperature schedule, and `optimize_energy_multistart()`
+keeps the best of several independent restarts. `optimize_grand_canonical()` switches from
+fixed-filling swap moves to single-site flips under `lg.mu`, letting the filling itself
+fluctuate -- useful for scanning a phase diagram vs. chemical potential, or for estimating
+thermodynamic quantities like the specific heat (`get_specific_heat()`/`get_susceptibility()`)
+from an equilibrium trajectory at fixed temperature. `add_tensor()` adds couplings beyond
+fixed neighbor shells, and `write()`/`read()` checkpoint a snapshot to/from disk. See
+`examples/latticegas/` for runnable demos of annealing, local-energy maps, correlators, and
+grand-canonical sampling.
+
+
+# Ising models
+
+`latticeising.LatticeIsing` models classical Ising spins $s_i\in\{-1,+1\}$ on a lattice,
+interacting through a real-space coupling $-J_{ij}s_is_j$ and a site-dependent field
+$-b_is_i$ -- the standard textbook Ising Hamiltonian, with $J>0$ ferromagnetic (favoring
+alignment). It mirrors `LatticeGas` closely (same `Geometry`-driven pair list, CSR adjacency
+cache, and Metropolis machinery, several of whose module-level functions -- the adjacency
+builder, `add_tensor()`, `regroup()`, `get_specific_heat()`/`get_susceptibility()` -- are
+reused directly rather than reimplemented) but uses the **opposite** energy sign convention
+from `LatticeGas` (whose $\sum J_{ij}n_in_j$ has no minus sign, so positive $J$ there is a
+*repulsion*): with Ising spins, positive $J_{ij}$ in `add_interaction()` means ferromagnetic
+alignment, matching the literature convention.
+
+```python
+from pyqula import geometry
+from pyqula import latticeising
+
+g = geometry.square_lattice() # bipartite, so ferromagnetic order is not frustrated
+g = g.get_supercell(12)
+g.dimensionality = 0
+
+li = latticeising.LatticeIsing(g,m=0.0) # random +-1 spins, zero net magnetization
+li.add_interaction(Jij=[1.]) # first-neighbor ferromagnetic coupling
+es,ms = li.anneal(temps=[3.,1.,0.3,0.1,0.03],ntries=1e4) # simulated annealing
+```
+
+`li.s` holds the current $\pm1$ spin array. `li.optimize_energy()` runs single-spin-flip
+Metropolis dynamics -- the standard Ising Monte Carlo move set, in which the total
+magnetization is *not* conserved (it fluctuates under `li.b`), so, mirroring
+`LatticeGas.optimize_grand_canonical()`, it returns `(es, ms)`: the energy and total
+magnetization ($\sum_i s_i$) trajectories, the latter usable directly with
+`latticegas.get_susceptibility()`. `li.optimize_conserved()` instead uses Kawasaki
+spin-exchange (swap) dynamics, which *does* conserve the total magnetization -- the analog of
+`LatticeGas.optimize_energy()`'s fixed-filling swaps. `li.anneal()` wraps `optimize_energy()`
+in a decreasing-temperature schedule, and `optimize_energy_multistart()` keeps the best of
+several independent restarts. `get_local_energy()`/`get_local_field()` give the per-site
+energy/effective-field for the current snapshot, and `get_correlator()`/`get_structure_factor()`
+reuse `LatticeGas`'s real-/reciprocal-space correlator machinery directly (it operates on any
+per-site array, not just 0/1 occupations) to locate ordered (ferromagnetic, checkerboard
+antiferromagnetic, ...) ground states and their ordering wavevector. Because `li.pairs` lists
+both directions of every bond (same convention as `LatticeGas`), `get_energy()` is twice the
+usual sum-over-unordered-bonds convention -- e.g. the 2d square-lattice ferromagnet's critical
+temperature sits near $2\times2.269$ in these units, not $2.269$. See `examples/latticeising/`
+for runnable demos of annealing, a temperature scan (magnetization and specific heat), and
+local-energy/local-field maps.
 
 
 # Main functions and methods
@@ -1929,11 +2289,40 @@ Optional arguments:
 
 - nunfold=1: unfold the QPI of a defect embedded in an `nunfold`x`nunfold` supercell back onto the primitive Brillouin zone
 
+### h.get_qpi_impurity()
+Compute quasiparticle interference by placing real-space impurities in a supercell, computing the real-space LDOS with ARPACK partial diagonalization, and Fourier transforming it directly (2D systems only). Returns `(r,ldos_r,q,qpi_q)`.
+
+Optional arguments:
+
+- nsuper=10: supercell size (scalar or `(n1,n2)`)
+- impurities=[]: list of dicts, each `{"position"|"index": ..., "onsite": v}` or `{"position"|"index": ..., "vacancy": True}`
+- energies=0.0, delta, nk: as above
+- num_waves=20: starting number of ARPACK eigenstates computed nearest the requested energies -- grown automatically as needed until the diagonalization both reaches `margin` (default 5.0) times `delta` past every requested energy and never stops in the middle of a degenerate manifold (summing over a partial degenerate manifold isn't basis-independent, which otherwise makes the result depend on ARPACK's starting vector -- common on symmetric lattices like honeycomb, which have large exact degeneracies at high-symmetry k-points). Picking it too small just costs extra ARPACK calls to grow from, not correctness
+- write=True, output_folder="QPI_IMPURITY": also write the MULTIQPI-style disk output
+
 ### h.get_chern()
 Return Chern number of the Hamiltonian.
 
 Optional arguments:
 - nk=20: number of kpoints
+
+### h.get_quantum_geometric_tensor()
+Return the (multiband/multiorbital) quantum geometric tensor at a single
+k-point, see "Quantum geometric tensor (multiorbital/multiband)".
+
+Optional arguments:
+- k=[0.,0.,0.]: k-point
+- occ_idxs=None: band indices of the chosen subspace (default: the bands
+  with E<0, the same Fermi-level convention `h.get_chern()` uses, so this
+  tracks `h.shift_fermi(...)`)
+- non_abelian=False: if True, return the full band-pair-resolved tensor
+  instead of its trace over the subspace
+- degeneracy_tol=1e-10: energy tolerance used to detect a degeneracy
+  between the chosen subspace and its complement (raises `ValueError`)
+
+### h.get_quantum_metric()
+Same arguments as `h.get_quantum_geometric_tensor()`, but returns only the
+quantum metric (symmetric part of the tensor).
 
 ### h.get_wannier_hamiltonian()
 Wannierize a fixed range of bands and return the resulting real-space
@@ -1986,10 +2375,11 @@ Optional arguments:
 - Jxr, Jyr, Jzr=None: general distance-dependent couplings, one per axis
 - mf, filling, nk, maxerror, mix, constrains: as above (only `integration="ed"` and the plain-mixing solver are supported)
 
-Also works on BdG Hamiltonians, but decouples the exchange interaction in
-the normal (electron) sector only -- it does not itself induce
-superconducting pairing (see `get_combined_mean_field_hamiltonian`, where
-$V_1$ can).
+Also works on BdG Hamiltonians, with the same full normal-plus-anomalous
+decoupling as `get_combined_mean_field_hamiltonian`'s density-density
+channels -- exchange can itself induce superconducting pairing (e.g. an
+antiferromagnetic isotropic $J$ alone, seeded with a random guess, can
+spontaneously decouple into a purely superconducting state).
 
 Returns the converged Hamiltonian (or `None` if the SCF did not converge)
 
@@ -2087,6 +2477,60 @@ hmf = h.get_combined_mean_field_hamiltonian(U=4.0,J1=-0.5,filling=0.5,
 
 Returns the converged Hamiltonian (or `None` if the SCF did not converge)
 
+`filling` also accepts a per-SITE array (length `len(h.geometry.r)`, same
+0-to-1-fraction-of-2-orbital-capacity convention as the scalar case) instead
+of only a single lattice-averaged value, enforcing $\langle n_i\rangle=$
+`filling[i]` at every site independently via a per-site Lagrange multiplier
+(warm-started and co-converged with the mean field across the same SCF
+loop, one diagonalization per outer iteration -- not solved to tight
+tolerance every iteration, since a per-site potential generally changes the
+eigenvectors too, unlike a scalar Fermi shift). `scf.local_occupation` and
+`scf.lam`/`h.fermi` (now the converged per-site array) expose the
+diagnostics; `scf.converged` implies the per-site constraint converged to
+within `maxerror`, not only the mean field. Only supported for a
+normal-state (non-BdG), `integration="ed"` Hamiltonian with `mu=None`
+(the default). This is the
+mechanism `SpinonHamiltonian` (see "Abrikosov-pseudofermion (spinon) mean
+field for Heisenberg models") builds on to enforce exactly one auxiliary
+fermion per site.
+
+### SpinonHamiltonian(g)
+Abrikosov-pseudofermion (RVB) mean-field Hamiltonian for a spin-$\tfrac12$
+Heisenberg model on geometry `g` -- see "Abrikosov-pseudofermion (spinon)
+mean field for Heisenberg models" above. `from pyqula.spinon import
+SpinonHamiltonian`; built with zero bare hopping, couplings supplied
+through `get_mean_field_hamiltonian`'s usual `J1`/`J2`/`J3`/`Jr`/`J1x`/
+`J1y`/`J1z` kwargs.
+
+- `h.get_mean_field_hamiltonian(J1=...,nk=...,...)`: same SCF kwargs as
+  `get_combined_mean_field_hamiltonian` above, except `filling` cannot be
+  passed (always exactly one fermion/site, enforced site-by-site). Returns
+  the converged Hamiltonian (or `None` if the SCF did not converge), with
+  two extra diagnostic attributes:
+  - `h2.local_occupation`: converged $\langle n_i\rangle$ per site
+    (electron-count convention, 0 to 2 -- target is exactly 1.0)
+  - `h2.constraint_lambda`: converged per-site Lagrange multiplier (local
+    chemical potential)
+
+### KondoLatticeHamiltonian(hc)
+Abrikosov-pseudofermion (Read-Newns) mean-field Hamiltonian for the Kondo
+lattice / periodic Anderson model built from a conduction-electron
+Hamiltonian `hc` -- see "Abrikosov-pseudofermion (Read-Newns) mean field
+for the Kondo lattice" above. `from pyqula.kondolattice import
+KondoLatticeHamiltonian`; fuses a second, zero-bare-hopping f-sublattice
+onto `hc`'s geometry, with the Kondo coupling supplied through
+`get_mean_field_hamiltonian`'s `J` kwarg.
+
+- `h.get_mean_field_hamiltonian(J=...,filling=...,mf=(V,lam),nk=...,...)`:
+  self-consistently solves for the hybridization and the local
+  constraint's Lagrange multiplier. Returns the converged Hamiltonian (or
+  `None` if the SCF did not converge), with three extra diagnostic
+  attributes:
+  - `h2.local_occupation`: converged $\langle n_f\rangle$ per localized
+    site (target is exactly 1.0)
+  - `h2.hybridization`: converged $V_j$ per localized site
+  - `h2.constraint_lambda`: converged per-site Lagrange multiplier
+
 ### h.get_central_heterostructure()
 Build a two-terminal `Heterostructure` using `h` (a finite, 0d Hamiltonian) as the central scattering region, contacted by two semi-infinite 1D chain leads attached at sites `i`/`j` (see "Transport through an arbitrary finite region" above).
 
@@ -2128,6 +2572,22 @@ Arguments:
 - voltages: array of bias voltages
 
 Returns an array of DC currents
+
+### HT.didv_curve() / lp.didv_curve()
+Convenience wrapper: `didv` evaluated over an array of energies, in parallel -- the array-native
+equivalent of `[ht.didv(energy=e) for e in es]`. Also reachable as `didv(energies=...)` (mutually
+exclusive with `didv`'s scalar `energy=...`, same convention as `get_kappa`), which dispatches
+straight here. If `use_aaa=True` and the sweep resolves to the Floquet-Keldysh method, builds and
+shares one AAA self-energy interpolant across the whole sweep instead of each energy independently
+building (and discarding) its own -- the `didv` counterpart to `get_iv_curve`'s own sharing for
+`get_dc_current`.
+
+Arguments:
+
+- energies: array of bias energies
+- any keyword argument accepted by `didv` (`method`, `delta`, `use_aaa`, `nmax_max`, `temp`, ...)
+
+Returns an array of dI/dV values
 
 ### HT.get_kappa()
 Compute the superconducting/normal conductance power-law-ratio "kappa"
@@ -2284,11 +2744,62 @@ Anneal `lg.den` towards a low-energy configuration with a Metropolis discrete-sw
 
 Optional arguments:
 
-- temp=0.1: Metropolis temperature (higher accepts more uphill moves; anneal by calling this repeatedly with decreasing `temp`)
+- temp=0.1: Metropolis temperature (higher accepts more uphill moves; anneal by calling this repeatedly with decreasing `temp`, or see `lg.anneal()` below). `temp=0` runs zero-temperature (greedy) dynamics: an uphill move is never accepted, equivalent to the $T\to0$ limit without the floating-point division by zero that would otherwise imply
 - ntries=1e5: number of swap attempts
 - resync_every=1000: how often (in swap attempts) to recompute the energy from scratch, bounding floating-point drift in the incremental tracking
+- patience=None: if set, stop early once this many attempts have passed without a new best energy being found (the returned array is truncated to what actually ran)
+- checkpoint_at=None: an int or iterable of ints; captures a copy of `lg.den` after that many attempts (1-indexed) into `lg.checkpoints` (a dict `step -> den` snapshot), independent of the final configuration -- e.g. to inspect or animate how the configuration evolves partway through a run
 
 Overwrites `lg.den` with the final configuration and returns the array of energies recorded at each attempt (whether or not it was accepted)
+
+### lg.anneal()
+Simulated annealing over a decreasing temperature schedule: calls `lg.optimize_energy()` once per temperature in `temps`, keeping the best configuration seen across the whole schedule (a single high-temperature step's Metropolis walk can wander back up in energy by its end, so the last step's final state is not necessarily the best one found).
+
+Optional arguments:
+
+- temps=None: sequence of temperatures, high to low; defaults to a 10-step geometric schedule from 2.0 down to 0.05 (any entry, including 0, is passed straight through to `lg.optimize_energy()`)
+- ntries=1e4: number of swap attempts per temperature
+- checkpoint_at=None: an int or iterable of ints; like `lg.optimize_energy()`'s `checkpoint_at`, but numbered continuously across the whole schedule (e.g. step 120 is the 20th attempt of the 3rd temperature stage if `ntries=100`), so a snapshot can be recovered after any number of annealing steps, not just the final/best configuration
+- any other keyword accepted by `lg.optimize_energy()` (e.g. `patience`, `resync_every`), applied at every temperature
+
+Overwrites `lg.den` with the best configuration found and returns the concatenated energy trajectory across all temperatures
+
+### lg.optimize_energy_multistart()
+Run `nstart` independent anneals from independent random seeds at the current filling, and keep the lowest-energy result -- reduces the risk of a single anneal settling into a metastable configuration. Each restart is a full `optimize_discrete` run, farmed out with `parallel.pcall`; whether that runs in parallel depends on `parallel.set_cores()`, same as every other `pcall` call site in this package (serial by default).
+
+Optional arguments:
+
+- nstart=10: number of independent restarts
+- any other keyword accepted by `lg.optimize_energy()` (e.g. `temp`, `ntries`, `patience`), applied identically to every restart
+
+Overwrites `lg.den` with the best configuration found and returns its energy (a scalar)
+
+### lg.optimize_grand_canonical()
+Grand-canonical Metropolis sampling/annealing: instead of swapping pairs at fixed filling, single sites are flipped (occupied $\leftrightarrow$ empty) and accepted/rejected the usual Metropolis way, so the total filling fluctuates under `lg.mu` rather than being conserved. This is the standard lattice-gas MC move set, useful for scanning a phase diagram vs. chemical potential, or for equilibrium sampling at one fixed temperature (see `latticegas.get_specific_heat()`/`get_susceptibility()` below). Unlike `lg.optimize_energy()`, `lg.den` does not need 2 distinct starting values -- it can start uniformly empty or full.
+
+Optional arguments: same as `lg.optimize_energy()` (`temp`, `ntries`, `resync_every`; no `patience`)
+
+Overwrites `lg.den` with the final configuration and returns `(es, ns)`: the energy trajectory and the filling (occupied-site count) trajectory, both arrays of length `ntries`
+
+### latticegas.get_specific_heat() / latticegas.get_susceptibility()
+Module-level (not `lg.`-prefixed) post-processing functions that estimate equilibrium thermodynamic quantities from a trajectory sampled at one *fixed* temperature (e.g. from `lg.optimize_energy()` or `lg.optimize_grand_canonical()` called with a constant `temp`, not annealed) -- `get_specific_heat(es, temp, burn=0.2)` returns $C=\mathrm{Var}(E)/T^2$ from an energy trajectory, and `get_susceptibility(ns, temp, burn=0.2)` returns the particle-number susceptibility $\mathrm{d}N/\mathrm{d}\mu=\mathrm{Var}(N)/T$ from a filling trajectory (only meaningful for the grand-canonical `ns`, since `lg.optimize_energy()`'s filling is constant by construction). `burn` discards that leading fraction of the trajectory as equilibration before computing the variance.
+
+### lg.add_tensor()
+Add a custom coupling $J_{ij}=\mathrm{fun}(r_i,r_j)$ between every pair of sites, for interactions beyond `add_interaction()`'s fixed neighbor shells -- e.g. a screened or dipolar $1/r^n$ form. Scalar analog of `classicalspin.SpinModel.add_tensor` (which returns a 3x3 tensor per pair); self-pairs are skipped, and pairs where `fun` evaluates to (near) zero are dropped.
+
+Mutates `lg` in place, no return value
+
+### lg.regroup()
+Merge duplicate interaction-pair entries accumulated from repeated `add_interaction()`/`add_tensor()` calls (e.g. overlapping neighbor shells added twice), summing their couplings -- pure performance cleanup, doesn't change `lg.get_energy()`.
+
+Mutates `lg` in place, no return value
+
+### lg.write() / lg.read()
+Save/load the current occupation snapshot `lg.den` to/from a text file, reusing `Geometry.write_profile()` -- the same checkpoint pattern as `classicalspin.SpinModel.write()`/`load_magnetism()`. `write()` forces `nrep=1` (no periodic replication) by default so `read()` round-trips exactly regardless of `lg.geometry.dimensionality`; `read()` raises `ValueError` if the file's site count doesn't match `lg.nsites`.
+
+Optional arguments:
+
+- name="DENSITY.OUT": file path
 
 ### lg.get_local_energy() / lg.get_local_mu()
 Per-site breakdown of the current snapshot's energy. `get_local_energy()` returns each site's own contribution $\mu_i n_i + \sum_j J_{ij} n_i n_j$, summed over its interaction neighbors $j$ (`lg.get_energy()` itself counts every bond twice, once from each endpoint, so the values here sum exactly to `lg.get_energy()`, not to half of it); `get_local_mu()` instead evaluates that same expression with site `i` forced occupied, i.e. the energy cost/gain of occupying site `i` given its neighbors' current state.
@@ -2303,4 +2814,114 @@ Returns an array over sites
 Neighbor-shell density-density correlator of the current snapshot `lg.den`, useful for detecting ordered ground states (e.g. after `optimize_energy`). Thin wrapper around `statphystk.correlator.get_nnc`; see its docstring for `n`/`normalized` options.
 
 Returns `(distances, correlators)`, arrays of matching length
+
+### lg.get_structure_factor()
+Reciprocal-space structure factor $S(q)=|\sum_i (n_i-\bar n) e^{-iq\cdot r_i}|^2/N$ of the current snapshot `lg.den`, evaluated directly on the real-space site positions -- the reciprocal-space companion to `lg.get_correlator()`: where the neighbor-shell correlator tells you the ordering length scale, $S(q)$ tells you the ordering wavevector. Subtracting the mean occupation makes $S(q=0)=0$ identically, so a peak elsewhere in $q$ is what signals order. Thin wrapper around `statphystk.correlator.get_structure_factor`.
+
+Optional arguments:
+
+- qpath=None: explicit array of $q$ vectors to evaluate; if omitted, a default square grid of `nq`$\times$`nq` points spanning $\pm$`qmax` is used
+- nq=60: grid resolution when `qpath` is not given
+- qmax=None: half-width of the default grid; defaults to $2\pi/d$ set by the nearest-neighbor spacing $d$
+
+Returns `(qpath, sq)`: the array of $q$ vectors evaluated and the matching array of $S(q)$ values
+
+
+## LatticeIsing functions and methods
+
+### li.add_interaction()
+Add a coupling shell to the model, on top of any interactions already added (repeated calls accumulate).
+
+Optional arguments:
+
+- Jij: list of shell couplings, e.g. `[J1,J2,J3]` for first/second/third neighbor $-J_{ij}s_is_j$ exchange; positive is ferromagnetic (opposite sign convention from `LatticeGas.add_interaction()`). Passed through to `Geometry.get_hamiltonian(tij=Jij)`, so anything that constructor accepts for `tij` works here too
+
+Mutates `li` in place, no return value
+
+### li.add_field()
+Add an external (Zeeman-like) field to `li.b`.
+
+Arguments:
+
+- h: a scalar (applied uniformly to every site) or a per-site array
+
+Mutates `li` in place, no return value
+
+### li.set_magnetization()
+Reset the spin array `li.s` to a new random $\pm1$ configuration with a given average magnetization, discarding the current snapshot.
+
+Arguments:
+
+- m=0.0: target average magnetization in $[-1,1]$ (rounded to the nearest integer up-spin count)
+
+### li.get_energy()
+Evaluate the total energy $-\sum_i b_i s_i - \sum_{ij} J_{ij} s_i s_j$ of the current spin snapshot `li.s`. Returns a scalar. Since `li.pairs` lists both directions of every bond, this is twice the usual sum-over-unordered-bonds convention.
+
+### li.get_magnetization()
+Return $\mathrm{mean}(s)$, the average magnetization per site of `li.s` (a scalar in $[-1,1]$).
+
+### li.optimize_energy()
+Single-spin-flip Metropolis dynamics -- the standard Ising Monte Carlo move set: at each step, one random site is flipped and accepted unconditionally if the energy doesn't increase, or with probability $e^{-\Delta E/T}$ otherwise. Magnetization is *not* conserved (it fluctuates under `li.b`), the spin analog of `LatticeGas.optimize_grand_canonical()`.
+
+Optional arguments:
+
+- temp=1.0: Metropolis temperature; `temp=0` runs zero-temperature (greedy) dynamics
+- ntries=1e5: number of flip attempts
+- resync_every=1000: how often (in flip attempts) to recompute the energy from scratch, bounding floating-point drift in the incremental tracking
+- checkpoint_at=None: an int or iterable of ints; captures a copy of `li.s` after that many attempts (1-indexed) into `li.checkpoints` (a dict `step -> s` snapshot)
+
+No `patience` option: unlike `optimize_conserved()`, this trajectory is meant to be fed to `latticegas.get_specific_heat()`/`get_susceptibility()`, and early truncation would silently bias those variance estimates.
+
+Overwrites `li.s` with the final configuration and returns `(es, ms)`: the energy trajectory and the total-magnetization ($\sum_i s_i$) trajectory, both arrays of length `ntries`
+
+### li.optimize_conserved()
+Kawasaki spin-exchange dynamics: at each step, one up spin and one down spin are picked at random and swapped, which conserves the total magnetization -- the spin analog of `LatticeGas.optimize_energy()` (swap-based, fixed filling). Raises `ValueError` if `li.s` doesn't currently have both $+1$ and $-1$ present (e.g. after `set_magnetization(1.0)`).
+
+Optional arguments: same as `li.optimize_energy()`, plus:
+
+- patience=None: if set, stop early once this many attempts have passed without a new best energy being found (the returned array is truncated to what actually ran)
+
+Overwrites `li.s` with the final configuration and returns the array of energies recorded at each attempt
+
+### li.anneal()
+Simulated annealing over a decreasing temperature schedule: calls `li.optimize_energy()` once per temperature in `temps`, keeping the best (lowest-energy) configuration seen across the whole schedule.
+
+Optional arguments:
+
+- temps=None: sequence of temperatures, high to low; defaults to a 10-step geometric schedule from 2.0 down to 0.05
+- ntries=1e4: number of flip attempts per temperature
+- checkpoint_at=None: like `li.optimize_energy()`'s `checkpoint_at`, but numbered continuously across the whole schedule
+- any other keyword accepted by `li.optimize_energy()`, applied at every temperature
+
+Overwrites `li.s` with the best configuration found and returns `(es, ms)`, the concatenated energy and magnetization trajectories across all temperatures
+
+### li.optimize_energy_multistart()
+Run `nstart` independent flip-based anneals from independent random seeds (same initial magnetization as the current `li.s`) and keep the lowest-energy result. Each restart is a full `optimize_ising` run, farmed out with `parallel.pcall`, mirroring `LatticeGas.optimize_energy_multistart()`.
+
+Optional arguments:
+
+- nstart=10: number of independent restarts
+- any other keyword accepted by `li.optimize_energy()` (e.g. `temp`, `ntries`), applied identically to every restart
+
+Overwrites `li.s` with the best configuration found and returns its energy (a scalar)
+
+### li.get_local_energy() / li.get_local_field()
+Per-site breakdown of the current snapshot. `get_local_energy()` returns each site's own contribution to `li.get_energy()` (values sum exactly to `li.get_energy()`, mirroring `LatticeGas.get_local_energy()`'s $j/2$ correction for the double-counted bonds). `get_local_field()` returns the effective field $h^{\mathrm{eff}}_i=b_i+2\sum_kJ_{ik}s_k$ seen by each site, defined so that flipping $s_i$ costs exactly $2s_ih^{\mathrm{eff}}_i$ -- the spin analog of `LatticeGas.get_local_mu()`.
+
+Returns an array over sites
+
+### li.get_correlator() / li.get_structure_factor()
+Spin-spin correlator and reciprocal-space structure factor of the current snapshot `li.s`, reusing `statphystk.correlator.get_nnc`/`get_structure_factor` directly (both operate on any per-site array, not just 0/1 occupations) -- see `LatticeGas.get_correlator()`/`get_structure_factor()` for the argument reference.
+
+### li.add_tensor() / li.regroup()
+Same as `LatticeGas.add_tensor()`/`regroup()`, reusing those functions directly (they only touch `geometry.r`/`nsites`/`pairs`/`j`, none of which differ in meaning between the two models).
+
+Mutates `li` in place, no return value
+
+### li.write() / li.read()
+Save/load the current spin snapshot `li.s` to/from a text file, reusing `Geometry.write_profile()` -- see `LatticeGas.write()`/`read()`. `read()` rounds to $\{-1,+1\}$ (sign, treating exact 0 as $+1$) to absorb the text round-trip's floating point noise, and raises `ValueError` if the file's site count doesn't match `li.nsites`.
+
+Optional arguments:
+
+- name="SPIN.OUT": file path
 

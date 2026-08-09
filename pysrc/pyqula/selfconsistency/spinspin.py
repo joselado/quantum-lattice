@@ -29,6 +29,7 @@ import numpy as np
 from .. import specialhopping
 from ..multihopping import MultiHopping
 from ..rotate_spin import global_spin_rotation as _gsr
+from ..checkclass import is_iterable
 
 # NOTE: densitydensity is imported lazily (inside each function, not here at
 # module level). densitydensity.py itself does `from ..meanfield import
@@ -255,11 +256,15 @@ def Jinteraction(h0, Jx1=0.0, Jx2=0.0, Jx3=0.0, Jy1=0.0, Jy2=0.0, Jy3=0.0,
     Vinteraction/SzSz/SxSx/SySy, which forward to the full
     generic_densitydensity solver zoo).
 
-    Works for BdG (Nambu, h0.has_eh=True) Hamiltonians too, but decouples
-    the exchange interaction in the normal (electron) sector only -- see
-    _run_anisotropic_scf's docstring for why (in short: extending the x/y
-    rotate-decouple-rotate-back trick to also generate anomalous/pairing
-    mean field from Jx/Jy is a separate, unverified extension)."""
+    Works for BdG (Nambu, h0.has_eh=True) Hamiltonians too, and there J
+    induces anomalous/pairing mean field on top of the usual magnetic one
+    -- see _run_anisotropic_scf's docstring for how the x/y
+    rotate-decouple-rotate-back trick extends to the anomalous sector.
+    CAVEAT: scf.total_energy's double-counting correction is normal-sector-
+    only (see _run_anisotropic_scf's total-energy tail) -- it is
+    systematically off whenever J converges to a nonzero anomalous mean
+    field. scf.hamiltonian (the actual converged Hamiltonian/mean field)
+    does not have this limitation."""
     if not h0.has_spin: return NotImplemented # only for spinful systems, same as SzSz/SxSx/SySy
     h1 = h0.get_multicell().get_dense()
     nd = h1.geometry.neighbor_distances() # shared by all three _build_v calls below
@@ -341,6 +346,31 @@ def VJinteraction(h0, V1=0.0, V2=0.0, V3=0.0, U=0.0, Vr=None,
     coupling is J1+J1z); second/third neighbors stay purely isotropic. All
     default to 0, i.e. plain density-density with no spin-spin exchange.
 
+    `filling` accepts either a scalar (a single, lattice-averaged Fermi
+    level, the original/default behavior -- 0.5 means half of each site's
+    2-orbital up+down capacity filled, i.e. 1 electron/site on average) or
+    a per-SITE array (length len(h0.geometry.r), one target per site,
+    same 0-to-1-fraction-of-2-orbital-capacity normalization as the scalar
+    case). The array form enforces the LOCAL occupation <n_i>=filling[i]
+    at every site independently, via a per-site onsite potential/Lagrange
+    multiplier -- the hard local constraint an Abrikosov-pseudofermion
+    mean-field treatment of a spin-1/2 Heisenberg model needs (Savary &
+    Balents, "Quantum Spin Liquids: a review", arXiv:1601.03742, Sec. 4.1)
+    -- rather than only the lattice-averaged filling a scalar Fermi level
+    gives. See densitymatrix.full_dm_accumulate_sparse_local_fermi and
+    _run_anisotropic_scf's array-filling branch for the mechanism
+    (warm-started, co-converged with the mean field one diagonalization per
+    outer SCF iteration, not solved to tight tolerance every iteration) and
+    its performance-vs-exactness tradeoff. Only supported for a
+    normal-state (has_eh=False), integration="ed" Hamiltonian with mu=None
+    (the default) -- combining an array filling with integration="kpm", a
+    BdG (has_eh=True) h0, or an explicit mu all raise NotImplementedError
+    (see _run_anisotropic_scf's own checks for why each is out of scope).
+    scf.local_occupation (the converged <n_i> per site) and scf.lam /
+    scf.hamiltonian.fermi (the converged per-site potentials) are exposed
+    on the returned SCF object as diagnostics only when filling was given
+    as an array.
+
     This works by combining the two existing SCF modes rather than
     inventing new decoupling math: density-density interactions and
     Sa_i Sa_j are both already density-density interactions in the
@@ -367,11 +397,15 @@ def VJinteraction(h0, V1=0.0, V2=0.0, V3=0.0, U=0.0, Vr=None,
     non-onsite interaction, exchange or density-density or a mix.
 
     For a BdG (Nambu, h0.has_eh=True) Hamiltonian, density-density and
-    exchange are instead kept as two separate contributions summed each
-    SCF iteration (see _run_anisotropic_scf's docstring): density-density
-    keeps its existing full normal+anomalous treatment (identical to
-    Vinteraction), while the exchange channels are decoupled in the normal
-    (electron) sector only, i.e. J does not itself induce pairing here.
+    exchange are kept as separate contributions summed each SCF iteration
+    (see _run_anisotropic_scf's docstring), but both get the same full
+    normal+anomalous (pairing) treatment (identical to Vinteraction) -- J
+    induces anomalous/pairing mean field here too, not just V/U. CAVEAT:
+    scf.total_energy's double-counting correction is normal-sector-only
+    (see _run_anisotropic_scf's total-energy tail) -- it is systematically
+    off whenever any channel converges to a nonzero anomalous mean field.
+    scf.hamiltonian (the actual converged Hamiltonian/mean field) does not
+    have this limitation.
 
     See Vinteraction and Jinteraction for further background on the
     density-density and exchange conventions respectively; only the
@@ -671,7 +705,19 @@ def _block_rotate(m, rot):
     a jax.jit/jax.grad trace, and this module must not gain a hard jax
     dependency -- jax is an optional extra), so the two are independent
     implementations of the same math kept in sync only by a cross-check
-    test (tests/scf/test_vjinteraction_jax.py) rather than by sharing code."""
+    test (tests/scf/test_vjinteraction_jax.py) rather than by sharing code.
+
+    m is coerced to a plain ndarray first: superscf.get_mf_bdg's output
+    (reached here whenever a rotated exchange channel gets the new
+    get_mf_bdg treatment on a BdG h1, see compute_mf) goes through
+    superconductivity.build_nambu_matrix, which -- for a dense input --
+    returns a numpy.matrix (scipy sparse's own .todense(), not
+    np.asarray); numpy.matrix forbids reshaping to more than 2 dimensions
+    (raises "shape too large to be a matrix" on the 4D reshape below), so
+    without this it would crash the moment a rotated channel's mean field
+    (not just its input density matrix) needs a second rotation-related
+    reshape."""
+    m = np.asarray(m)
     n = m.shape[0]
     n_orb = n//2
     m4 = m.reshape(n_orb, 2, n_orb, 2)
@@ -731,23 +777,41 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
     `vz` directly instead (Hartree-Fock decoupling is linear in the
     interaction, so this is equivalent and does not need a separate
     channel) and passed vd=None. `vd` as a genuinely separate argument only
-    matters for a BdG (Nambu, h1.has_eh=True) h1: there, vx/vy/vz (the
-    exchange channels) are decoupled in the normal (electron) sector only
-    -- extracting it from the full Nambu density matrix, decoupling with
-    get_mf_normal exactly as for a normal-state Hamiltonian (verified: the
-    x/y-rotation trick's _rot_dm/_rot_dict logic, and
-    rotate_spin.global_spin_rotation more generally, both already handle
-    Nambu-doubled matrices correctly with no changes, since pyqula's Nambu
-    convention (sctk/reorder.py) groups each site's electron pair and hole
-    pair as separate, identically-transforming (up,down)-like 2-blocks),
-    then embedded back into a full Nambu matrix with zero anomalous part --
-    while `vd` gets the full has_eh-aware treatment (get_mf, both normal
-    and anomalous/pairing), identical to how Vinteraction already handles
-    it. In short: J does not itself induce superconducting pairing here,
-    only V/U can (matching the existing Zeeman+attractive-V1 triplet-SC
-    machinery) -- extending the x/y rotation trick to also rotate the
-    anomalous sector is a separate, unverified piece of physics left for a
-    future extension.
+    matters for a BdG (Nambu, h1.has_eh=True) h1, where it is decoupled with
+    superscf.get_mf_bdg (both normal and anomalous/pairing -- the same
+    function densitydensity.get_mf's has_eh branch delegates to, so this is
+    identical to how Vinteraction already handles it).
+
+    vx/vy/vz (the exchange channels) get exactly the same get_mf_bdg
+    treatment as vd for a BdG h1 -- i.e. J induces anomalous/pairing mean
+    field here too, not just V/U -- via compute_mf's `_decouple` helper
+    below: a Sa_i Sa_j exchange term is, in the spin-orbital basis, just
+    another density-density interaction with a different sign pattern (see
+    _build_v's docstring), and Wick's theorem does not care what an
+    interaction physically represents, only its v matrix and the density
+    matrix it acts on. For the x/y channels this means rotating the FULL
+    Nambu density matrix (not just its electron sector) into the frame
+    where that axis is computational z, calling get_mf_bdg there, and
+    rotating the whole Nambu-sized result back -- verified correct (not
+    just "does not crash") because _rot_dm/_rot_dict's block-diagonal
+    per-2-index-block rotation (_block_rotate) commutes with the
+    electron/anomalous sector EXTRACTION get_mf_bdg does internally: pyqula's
+    Nambu convention (sctk/reorder.py) groups each site's electron pair and
+    hole pair as separate, identically-transforming (up,down)-like
+    2-blocks, so rotate-then-extract-electron-sector gives exactly the same
+    result as the old extract-electron-sector-then-rotate order (this is
+    also how rotate_spin.global_spin_rotation already handles Nambu
+    Hamiltonians directly, used unmodified by SxSx/SySy) -- the anomalous
+    sector comes along for free using the identical rotation.
+
+    This is NOT the same as the Phase-3b variant tried and reverted earlier
+    (embedding vz/vx/vy into Nambu form once with zero pairing and calling
+    plain get_mf_normal directly on the full dm, with no sector extraction
+    at all) -- see compute_mf's and electron_sector's docstrings below for
+    why that one was wrong (spurious triplet pairing, non-convergence)
+    whenever vd was active at the same time as vz/vx/vy, not just
+    unnecessary. get_mf_bdg extracts the electron and anomalous sectors
+    correctly before decoupling either one, so it does not share that bug.
 
     vx/vy are skipped entirely (no rotation, no get_mf_normal/get_dc_energy
     call) when they are identically zero -- e.g. VJinteraction's pure
@@ -770,12 +834,13 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
     use_sparse_dm is (i.e. has_eh=False); requesting it for a Nambu h1
     raises NotImplementedError rather than silently falling back to ED or
     misreading vd's differently-indexed Nambu basis."""
-    from .densitydensity import (get_dm, get_mf_normal, get_mf, mix_mf,
+    from .densitydensity import (get_dm, get_mf, get_mf_normal, mix_mf,
             diff_mf, update_hamiltonian, set_hoppings, hamiltonian2dict,
             get_dc_energy, SCF, random_hermitian_guess)
     from .mfconstrains import obj2mf
     has_eh = h1.has_eh
-    if has_eh: from .. import superconductivity
+    if has_eh:
+        from .. import superconductivity
     if integration not in ("ed", "kpm"):
         raise ValueError("integration must be 'ed' or 'kpm', got %r" % (integration,))
     if integration == "kpm" and has_eh:
@@ -783,6 +848,41 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
                 "only supports a normal-state (has_eh=False) Hamiltonian -- "
                 "see _run_anisotropic_scf's docstring for why the Nambu "
                 "case (vd in its own reordered basis) is out of scope here")
+    # per-site (array) filling -- see the array-filling branch of f() below
+    # (near densitymatrix.full_dm_accumulate_sparse_local_fermi) for the
+    # implementation and its normalization convention. Two combinations are
+    # explicitly out of scope, rejected here (fail before any SCF work,
+    # rather than partway through the loop):
+    array_filling = is_iterable(filling)
+    if array_filling and integration == "kpm":
+        raise NotImplementedError("VJinteraction's integration=\"kpm\" path "
+                "does not support a per-site (array) filling -- its Fermi/"
+                "occupation machinery (kpmtk.densitymatrix_kpm) only knows "
+                "how to target a single scalar filling via a deterministic "
+                "moment-based DOS integral, with no per-site local-chemical-"
+                "potential analogue implemented; use integration=\"ed\" "
+                "(the default) for a per-site filling target")
+    if array_filling and has_eh:
+        raise NotImplementedError("A per-site (array) filling is not "
+                "supported for a BdG (Nambu, has_eh=True) Hamiltonian -- "
+                "enforcing a LOCAL occupation target in the presence of "
+                "anomalous/pairing correlations needs a Nambu-aware "
+                "extraction of <n_i> that has not been implemented (the "
+                "normal-state sparse-dm machinery this array-filling path "
+                "otherwise reuses, use_sparse_dm, is itself only available "
+                "when has_eh=False); use a scalar filling (or mu=) for a "
+                "BdG Hamiltonian")
+    if array_filling and mu is not None:
+        raise NotImplementedError("A per-site (array) filling cannot be "
+                "combined with an explicit mu= -- the array-filling branch "
+                "of f() below only runs when mu is None (it solves its own "
+                "per-site chemical potential in place of a caller-supplied "
+                "one, see full_dm_accumulate_sparse_local_fermi's "
+                "docstring); with mu explicitly given, f() would instead "
+                "take the plain (non-array-aware) branch, which never sets "
+                "scf.local_occupation, crashing the outer loop's occ_err "
+                "check on the very first iteration. Leave mu=None (the "
+                "default) for a per-site filling target")
     h1.nk = nk
     # union of the three exchange channels' bond directions (+ vd's, if
     # given): in general the neighbor-shell hopping-dict builder could
@@ -833,6 +933,20 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
         n_dm = vz[(0, 0, 0)].shape[0]
         sparse_pairs = _build_sparse_pairs(
                 [vz, vx, vy] + ([vd] if vd is not None else []), v_dirs, n_dm)
+
+    # per-site (array) filling state: `lam` (the per-site Lagrange
+    # multiplier/local chemical potential) is warm-started at zero and
+    # co-converged with `mf` across the SAME outer SCF loop below, one
+    # cheap proportional update per outer iteration rather than a fresh
+    # fsolve-to-tolerance every time -- see
+    # densitymatrix.full_dm_accumulate_sparse_local_fermi's docstring for
+    # why (each candidate lam needs a fresh diagonalization, unlike a
+    # scalar Fermi shift). A one-element list, not a plain variable, purely
+    # so f() below can mutate it in place as a closure cell (nonlocal would
+    # also work but this matches this module's existing style of mutable
+    # closure state, e.g. `outd` in densitymatrix._accumulate_dm_batch).
+    filling_arr = np.asarray(filling, dtype=np.float64) if array_filling else None
+    lam_state = [np.zeros(len(h1.geometry.r))] if array_filling else [None]
 
     def _get_dm(h):
         if use_sparse_dm:
@@ -905,38 +1019,63 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
     def electron_sector(dd):
         """Extract the normal (electron-electron) sector from a dict of
         (possibly Nambu-sized) density matrices; a no-op for normal-state
-        h1."""
+        h1. Only used below for get_dc_energy's electron-sector-only input
+        (see the total-energy tail's docstring) -- compute_mf itself no
+        longer needs this, see its docstring for why."""
         if not has_eh: return dd
         return {k: superconductivity.get_eh_sector(m, i=0, j=0)
                 for (k, m) in dd.items()}
 
-    def embed_normal(mfe):
-        """Embed an electron-sector-only mean field dict back into full
-        Nambu form, with zero anomalous (pairing) part; a no-op for
-        normal-state h1."""
-        if not has_eh: return mfe
-        return {k: superconductivity.build_nambu_matrix(m)
-                for (k, m) in mfe.items()}
+    def _decouple(v, dm):
+        """Wick-decouple one exchange (or density-density) channel's
+        interaction matrix `v` against a density matrix `dm` -- delegates to
+        densitydensity.get_mf's own has_eh dispatch (get_mf_bdg for a BdG
+        h1, get_mf_normal otherwise) rather than re-implementing that
+        two-way branch locally, so a future change to that dispatch (e.g. a
+        new has_eh-dependent kwarg) only needs updating in one place. See
+        compute_mf's docstring for why vz/vx/vy (and, below, vd) now all go
+        through this."""
+        return get_mf(v, dm, has_eh=has_eh)
 
     def compute_mf(dm_lab):
-        dme_lab = electron_sector(dm_lab) # exchange channels: normal sector only
+        """vz/vx/vy are decoupled exactly like vd (get_mf_bdg, full
+        normal+anomalous treatment) rather than get_mf_normal on an
+        extracted electron-sector-only density matrix -- so J now induces
+        anomalous/pairing mean field on a BdG Hamiltonian too, not just V/U;
+        see _run_anisotropic_scf's docstring for the physics and why this
+        is NOT the same as the Phase-3b variant tried and reverted earlier
+        (that one called get_mf_normal, which has no notion of Nambu
+        structure, directly on the full dm with no sector extraction at
+        all -- wrong. get_mf_bdg extracts the electron and anomalous
+        sectors internally, decouples each correctly, and reassembles, the
+        same as vd already did -- generalizing that, not bypassing it).
+
+        For the x/y channels, `dm_lab` (or vd's own dm_lab, unrotated) is
+        rotated and the RESULT is rotated back as a whole Nambu-sized
+        matrix, not just its electron sector: _rot_dm/_rot_dict apply the
+        same small 2x2 spin rotation independently to every 2-index block
+        of the matrix (_block_rotate), and pyqula's Nambu convention groups
+        each site's electron pair and hole pair as separate such blocks
+        (see _run_anisotropic_scf's docstring) -- so rotating the full
+        matrix and then extracting a sector (as get_mf_bdg does internally)
+        gives exactly the same electron-sector contribution as the old
+        extract-then-rotate order, plus the new anomalous one for free."""
         if vz_active:
-            mf = get_mf_normal(vz, dme_lab)
+            mf = _decouple(vz, dm_lab)
         else: # vz identically zero -- skip the O(n^2) pass, same reasoning
               # as vx_active/vy_active (see _channel_is_zero)
-            zero = dme_lab[(0, 0, 0)]*0.0
+            zero = dm_lab[(0, 0, 0)]*0.0
             mf = {d: zero.copy() for d in vz}
         if vx_active:
-            dm_x = _rot_dm(dme_lab, Rx) # dm needs the conjugated rotation
-            mf_x = _rot_dict(get_mf_normal(vx, dm_x), Rxd) # mf does not
+            dm_x = _rot_dm(dm_lab, Rx) # dm needs the conjugated rotation
+            mf_x = _rot_dict(_decouple(vx, dm_x), Rxd) # mf does not
             mf = (MultiHopping(mf) + MultiHopping(mf_x)).get_dict()
         if vy_active:
-            dm_y = _rot_dm(dme_lab, Ry)
-            mf_y = _rot_dict(get_mf_normal(vy, dm_y), Ryd)
+            dm_y = _rot_dm(dm_lab, Ry)
+            mf_y = _rot_dict(_decouple(vy, dm_y), Ryd)
             mf = (MultiHopping(mf) + MultiHopping(mf_y)).get_dict()
-        mf = embed_normal(mf)
         if vd_active: # density-density: full normal+anomalous treatment
-            mf_d = get_mf(vd, dm_lab, has_eh=has_eh)
+            mf_d = _decouple(vd, dm_lab) # vd is only ever given for has_eh=True h1
             mf = (MultiHopping(mf) + MultiHopping(mf_d)).get_dict()
         return mf
 
@@ -955,6 +1094,7 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
             from scipy.sparse import csr_matrix
             hop = {d: csr_matrix(m) for d, m in hop.items()}
         set_hoppings(h, hop)
+        local_occ = None # only set (and only exposed on scf) for array_filling
         if use_kpm:
             # never diagonalize H(k): the Fermi energy (mu=None) comes from
             # get_fermi4filling_kpm's Chebyshev-moment DOS integral, and the
@@ -972,6 +1112,42 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
             else:
                 h.shift_fermi(-mu)
             dm_lab = _get_dm_kpm(h)
+        elif use_sparse_dm and mu is None and array_filling:
+            # per-site filling: no scalar Fermi shift trick available (see
+            # densitymatrix.full_dm_accumulate_sparse_local_fermi's
+            # docstring) -- one diagonalization at the WARM-STARTED lam
+            # from the previous outer SCF iteration (lam_state[0], zero on
+            # the very first call), then a cheap proportional update for
+            # the NEXT outer iteration to use. `h`/`dm_lab` below are
+            # shifted/computed with the PRE-update lam (lam_used), so they
+            # stay mutually consistent -- exactly mirroring how the scalar
+            # branch's `h`/`dm_lab` are both derived from the same `fermi`.
+            #
+            # Step size: reuses `mix` (already an SCF-wide knob, no new
+            # kwarg needed) as the proportional gain,
+            # lam_i += mix*(filling_i - occ_i). This is a Jacobian-free,
+            # diagonal (site-decoupled) fixed-point update, not a Newton
+            # step -- deliberately: a finite-difference Newton update would
+            # need ~n_sites+1 diagonalizations per outer iteration just for
+            # lam (see full_dm_accumulate_sparse_local_fermi's docstring),
+            # multiplying the whole SCF loop's cost by that factor. Using
+            # the same `mix` that already stably mixes `mf` each iteration
+            # is a reasonable, documented default (comparable order of
+            # magnitude: both are O(0.1-0.3) proportional gains acting on
+            # an O(0.1-1) residual once per outer iteration) rather than a
+            # tuned optimum -- a genuinely badly-conditioned local
+            # compressibility (e.g. a near-flat band pinned exactly at the
+            # target filling) could still need a smaller `mix`/more outer
+            # iterations to converge, same as it would for `mf` itself.
+            from ..densitymatrix import full_dm_accumulate_sparse_local_fermi
+            delta = T if T != 0. else 1e-15 # see densitymatrix.full_dm's own T==0 guard
+            lam_used = lam_state[0]
+            dm_lab, occ = full_dm_accumulate_sparse_local_fermi(
+                    h, sparse_pairs, filling_arr, lam_used, nk=nk, delta=delta)
+            h.fermi = lam_used.copy() # per-site array -- see Hamiltonian.shift_fermi
+            h.shift_fermi(-lam_used) # matches the lam dm_lab was computed at
+            lam_state[0] = lam_used + mix*(filling_arr - occ) # warm start for next call
+            local_occ = occ
         elif use_sparse_dm and mu is None:
             # combined: diagonalize the unshifted h once, deriving both the
             # Fermi energy and the density matrix from the same
@@ -1011,6 +1187,17 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
         scf.dm = dm_lab
         scf.v = vz # see scf.hamiltonian.V above for what this does/doesn't capture
         scf.tol = maxerror
+        if local_occ is not None:
+            # per-site diagnostics for the array-filling path: the per-site
+            # occupation <n_i> (fraction of that site's 2-orbital capacity,
+            # same convention as `filling`) actually reached this call, and
+            # the per-site Lagrange multiplier/local chemical potential
+            # lam_i that produced it (also on scf.hamiltonian.fermi, mirroring
+            # how the scalar path's converged Fermi energy ends up on
+            # h.fermi) -- so a caller (e.g. the future SpinonHamiltonian)
+            # can read back the converged per-site constraint diagnostics.
+            scf.local_occupation = local_occ
+            scf.lam = h.fermi
         return scf
 
     if mf is None:
@@ -1041,13 +1228,57 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
         scf = f(mf)
         mfnew = scf.mf
         diff = diff_mf(mfnew, mf)
+        if array_filling:
+            # fold the per-site occupation residual into the same
+            # convergence check as mf's own diff -- a converged-looking mf
+            # with lam still off would silently return a Hamiltonian whose
+            # local occupations do not match `filling`, exactly the failure
+            # mode this array-filling path exists to prevent. Reuses
+            # `maxerror` (no separate tolerance kwarg) for both, same as mf.
+            occ_err = np.max(np.abs(filling_arr - scf.local_occupation))
+            diff = max(diff, occ_err)
         mf = mix_mf(mfnew, mf, mix=mix)
         if callback_mf is not None: mf = callback_mf(mf)
         if verbose > 0: print("ERROR in the SCF cycle", ite, diff)
         if diff < maxerror:
             scf = f(mfnew) # last iteration, with the unmixed mean field
-            scf.converged = True
-            break
+            if array_filling:
+                # BUG (found post-hoc, fixed here): f()'s array-filling
+                # branch mutates lam_state[0] as a side effect on EVERY
+                # call, including this "last iteration" re-call -- so the
+                # scf just built above was computed at a lam that is one
+                # more (small) proportional step past the lam whose
+                # occupation was actually checked against maxerror just
+                # above (occ_err, folded into `diff`). For the mf-only
+                # case re-evaluating at mfnew instead of the mixed mf is
+                # safe by continuity (mfnew varies smoothly with mf near a
+                # fixed point). Per-site occupation vs lam is NOT smooth in
+                # general on a finite k-mesh with the default near-zero
+                # smearing (T~1e-7): a single k-point eigenvalue crossing
+                # zero as lam varies flips that state's occupation
+                # contribution discontinuously, by O(1/(nk*n_orb)) --
+                # confirmed empirically (a lam change of 2e-8 producing a
+                # 0.038 jump in occupation on a small test system sitting
+                # exactly at such a crossing). So, unlike the mf-only case,
+                # this re-evaluated scf's OWN occupation must be checked
+                # before trusting it -- silently trusting continuity here
+                # is exactly what let scf.converged=True ship with
+                # scf.local_occupation up to ~0.04 off target in ~5% of
+                # random-seed runs before this fix.
+                final_err = np.max(np.abs(filling_arr - scf.local_occupation))
+                if final_err < maxerror:
+                    scf.converged = True
+                    break
+                # else: this re-evaluation landed across a level crossing
+                # and is no longer actually converged -- do NOT report
+                # scf.converged=True. Fall through without breaking: mf and
+                # lam_state[0] both already advanced (via the f() calls
+                # above), so this is exactly equivalent to just continuing
+                # the outer fixed-point loop for another iteration from
+                # here, bounded by the same maxite check below as always.
+            else:
+                scf.converged = True
+                break
         if maxite is not None and ite >= maxite:
             scf.converged = False
             print("No convergence has been reached in", maxite, "iterations, stopping")
@@ -1089,6 +1320,27 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
     # system for a Nambu Hamiltonian -- a real, pre-existing bug in that
     # shared code, out of scope to fix here, but not one to reproduce for
     # vd just because it happens to match precedent)
+    #
+    # KNOWN LIMITATION (pre-existing for vd/Vinteraction, and now equally
+    # true for vz/vx/vy since they can induce anomalous/pairing mean field
+    # too, see compute_mf): only the NORMAL (Hartree-Fock) double-counting
+    # term is ever subtracted here, via get_dc_energy on the electron-sector
+    # dm -- there is no matching correction for the ANOMALOUS/pairing
+    # double-counting energy get_mf_bdg's decoupling also implies. So
+    # scf.total_energy is systematically off (by an uncharacterized amount)
+    # whenever ANY channel (vd, or now vz/vx/vy) has converged to a nonzero
+    # anomalous mean field -- e.g. the AFM-isotropic-J RVB pairing case in
+    # tests/scf/test_spinspin_nambu.py. Deriving the correct anomalous
+    # double-counting formula (mirroring get_dc_energy_jit's Hartree+Fock
+    # derivation, but for get_mf_anomalous's contraction pattern) was
+    # deliberately left undone here rather than attempted without a
+    # reliable way to validate its sign/prefactor are actually right (both
+    # of this module's own validation tools -- supercell-extensivity checks
+    # and the SU(2)/gauge rotational-invariance checks above -- would stay
+    # green even under a consistent, uniform prefactor error, since neither
+    # varies the interaction strength or geometry against an independently
+    # computed reference). scf.hamiltonian (the actual converged mean
+    # field) is unaffected -- only the scf.total_energy scalar diagnostic.
     h = scf.hamiltonian
     if use_kpm:
         # never diagonalize H(k), even for this final, once-per-call step:
@@ -1102,7 +1354,19 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
     else:
         etot = h.get_total_energy(nk=h.nk)
     if mu is None:
-        etot += h.fermi*h.intra.shape[0]*filling
+        if array_filling:
+            # per-site generalization of the scalar correction below: h.fermi
+            # is now the converged per-site lam array (see f()'s array-filling
+            # branch), and h.intra.shape[0]*filling (= 2*n_sites*filling for a
+            # uniform scalar) generalizes to 2*sum_i(lam_i*filling_i) -- the
+            # "2" is orbitals/site (up+down), matching filling's own
+            # fraction-of-2-orbital-capacity convention (see
+            # densitymatrix.full_dm_accumulate_sparse_local_fermi's
+            # docstring); reduces exactly to the scalar formula when lam and
+            # filling are both uniform.
+            etot += 2.0*np.sum(np.asarray(h.fermi)*filling_arr)
+        else:
+            etot += h.fermi*h.intra.shape[0]*filling
     dme = electron_sector(scf.dm)
     if vz_active:
         etot += get_dc_energy(vz, dme)

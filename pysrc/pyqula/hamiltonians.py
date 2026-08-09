@@ -127,6 +127,16 @@ class Hamiltonian():
     def get_berry_curvature(h,**kwargs):
         return topology.get_berry_curvature(h,**kwargs)
 
+    def get_quantum_geometric_tensor(h,**kwargs):
+        """Multiband (non-Abelian) quantum geometric tensor at a single
+        k-point, see topologytk/qgt.py for the formula and references"""
+        return topology.quantum_geometric_tensor(h,**kwargs)
+
+    def get_quantum_metric(h,**kwargs):
+        """Quantum metric (symmetric part of the quantum geometric
+        tensor) at a single k-point"""
+        return topology.quantum_metric(h,**kwargs)
+
     def get_chi(self,**kwargs):
         from . import chi
         return chi.chiAB_trace(self,**kwargs)
@@ -244,6 +254,12 @@ class Hamiltonian():
     def get_qpi(self,**kwargs):
         from .chitk import qpi
         return qpi.get_qpi(self,**kwargs)
+    def get_qpi_impurity(self,**kwargs):
+        """Real-space-impurity QPI (supercell + real-space impurities +
+        ARPACK LDOS + direct Fourier transform); see
+        qpitk.realspace.get_qpi_impurity for the full docstring"""
+        from .qpitk.realspace import get_qpi_impurity
+        return get_qpi_impurity(self,**kwargs)
     def get_rkky(self,**kwargs):
         #from .chitk import magneticresponse
         from . import rkky
@@ -771,6 +787,9 @@ class Hamiltonian():
     def didv(self,**kwargs):
         from .transporttk.localprobe import Hamiltonian_didv
         return Hamiltonian_didv(self,**kwargs)
+    def didv_curve(self,energies,**kwargs):
+        from .transporttk.localprobe import Hamiltonian_didv_curve
+        return Hamiltonian_didv_curve(self,energies,**kwargs)
     def get_central_heterostructure(self,i=0,j=None,left=None,right=None,**kwargs):
         """Two-terminal transport with `self` as the central scattering
         region, contacted by two semi-infinite 1D chain leads at sites

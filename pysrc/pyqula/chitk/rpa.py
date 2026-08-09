@@ -153,6 +153,16 @@ def _track_eigenvalue_branches(eigs):
     return tracked
 
 
+def _kernels_from_chis(chis,V):
+    """RPA kernel matrices 1 - V*chi(omega), one per entry of chis (a
+    matrix per frequency). Shared by _poles_from_chi_matrix (which only
+    reports the interpolated zero-crossings of these kernels) and
+    rpa_kernel_ops (which returns the raw kernels themselves, e.g. to
+    inspect np.linalg.eigvals directly at a single frequency)."""
+    iden = np.identity(chis[0].shape[0],dtype=np.complex128) # identity
+    return [iden - V@chi for chi in chis] # RPA kernel, 1 - U*chi
+
+
 def _poles_from_chi_matrix(es,chis,V):
     """Given the non-interacting response chi(omega) (a matrix per
     frequency) and an interaction matrix V, locate the poles of the RPA
@@ -165,8 +175,7 @@ def _poles_from_chi_matrix(es,chis,V):
     value; do not filter with e.g. `gamma < tol` -- use `abs(gamma) < tol`."""
     if V is None: raise ValueError("V (interaction matrix) is required "
                                     "to locate the poles of the RPA kernel")
-    iden = np.identity(chis[0].shape[0],dtype=np.complex128) # identity
-    kernels = [iden - V@chi for chi in chis] # RPA kernel, 1 - U*chi
+    kernels = _kernels_from_chis(chis,V)
     raw_eigs = np.array([np.linalg.eigvals(k) for k in kernels]) # (nw,N)
     eigs = _track_eigenvalue_branches(raw_eigs) # continuous branches
     poles = [] # storage for the poles found
@@ -216,33 +225,18 @@ def rpa_kernel_poles_ops(h,ops=None,V=None,pAs=None,pBs=None,q=None,**kwargs):
     return _poles_from_chi_matrix(es,chis,Vq)
 
 
-def spinchi_pm_RPA(h,U=0.,v=[0.,0.,1.],**kwargs):
-    """Compute the spin RPA response for a hamiltonian.
-     - v is the chosen quantization axis of the ladder operators
-     - U is the Hubbard interaction"""
-     # v needs to be implemented
-    sx = h.get_operator("sx") # spin operator, eigen +-1
-    sy = h.get_operator("sy") # spin operator, eigen +-1
-    sz = h.get_operator("sz") # spin operator, eigen +-1
-    v = np.array(v) # convert to array
-    sp = (sx + 1j*sy)/2. # ladder operator
-    sm = (sx - 1j*sy)/2. # ladder operator
-    from ..chi import chiAB # get response function
-    es,chis = chiAB(h,A=sp,B=sm,mode="matrix",**kwargs) # non-interacting response functions
-    iden = np.identity(chis[0].shape[0],dtype=np.complex128) # identity
-    # NOTE (2026-07-21): this U/2 prefactor looks wrong, not "should be here".
-    # spinchi_ladder (chitk/spinchi.py), which computes the same S+/S- RPA
-    # channel and is the one actually reachable from Hamiltonian.get_spinchi_ladder,
-    # uses a bare U (no 1/2) here. Cross-checked spinchi_ladder's bare-U prefactor
-    # against an exact 2-site Hubbard dimer diagonalization (staggered spin
-    # susceptibility grows correctly with U, matching the exact result at U=0
-    # and its trend for small U) and it is correct; this function would predict
-    # the RPA/Stoner-like pole at 2x the correct U. Left unfixed because this
-    # function is never called anywhere in the codebase (dead code) -- fix here
-    # too if it is ever wired up.
-    chisrpa = [chi@algebra.inv(iden + U/2.*chi) for chi in chis] # RPA summation
-    return es,np.array(chisrpa) # return energies and RPA response function
-
-
+def rpa_kernel_ops(h,ops=None,V=None,pAs=None,pBs=None,q=None,**kwargs):
+    """Same non-interacting response and interaction-matrix construction
+    as rpa_kernel_poles_ops, but returns the raw RPA kernel matrices
+    1 - V(q)*chi0(q,omega) themselves (one per frequency in `energies`),
+    rather than only the interpolated pole locations
+    _poles_from_chi_matrix extracts from them. Useful e.g. to inspect
+    np.linalg.eigvals(kernels[i]) directly at a single frequency, instead
+    of scanning a frequency grid for zero crossings."""
+    es,chis = _chi_ops_matrix_vectorized(h,ops=ops,pAs=pAs,pBs=pBs,q=q,**kwargs)
+    Vq = interaction_at_q(V,h,q) if V is not None else None
+    if Vq is None: raise ValueError("V (interaction matrix) is required "
+                                     "to build the RPA kernel")
+    return es,_kernels_from_chis(chis,Vq)
 
 

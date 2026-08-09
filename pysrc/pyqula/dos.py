@@ -209,20 +209,18 @@ def dos2d_ewindow(h,energies=np.linspace(-1.,1.,30),delta=None,info=False,
       if info: print("Done",energy)
     write_dos(energies,ys) # write in file
     return
-  else: # do not use green function    
-    import scipy.linalg as lg
+  else: # do not use green function
     kxs = np.linspace(0.,1.,nk)
     kys = np.linspace(0.,1.,nk)
     hkgen= h.get_hk_gen() # get hamiltonian generator
-    ys = energies*0.
     weight = 1./(nk*nk)
-    for ix in kxs:
-      for iy in kys:
-        k = np.array([ix,iy,0.]) # create kpoint
-        hk = hkgen(k) # get hk hamiltonian
-        evals = lg.eigvalsh(hk) # get eigenvalues
-        ys += weight*calculate_dos(evals,energies,delta) # add this contribution
-      if info: print("Done",ix)
+    from .htk.eigenvectors import peigvalsh
+    ks = np.array([[ix,iy,0.] for ix in kxs for iy in kys]) # all kpoints
+    mats = np.array([hkgen(k) for k in ks],dtype=np.complex128) # H(k) batch
+    es_batch = peigvalsh(mats) # batched numba eigh, shape (nk*nk,n)
+    es = es_batch.reshape(es_batch.shape[0]*es_batch.shape[1]) # flatten
+    ys = weight*calculate_dos(es,energies,delta) # add all contributions
+    if info: print("Done")
     write_dos(energies,ys) # write in file
     return
 
@@ -237,17 +235,16 @@ def dos1d_ewindow(h,energies=np.linspace(-1.,1.,30),delta=None,info=False,
   ys = [] # density of states
   if delta is None: # pick a good delta value
     delta = 0.1*(max(energies) - min(energies))/len(energies)
-  if True: # do not use green function    
-    import scipy.linalg as lg
+  if True: # do not use green function
     kxs = np.linspace(0.,1.,nk)
     hkgen= h.get_hk_gen() # get hamiltonian generator
-    ys = energies*0.
     weight = 1./(nk)
-    for ix in kxs:
-      hk = hkgen(ix) # get hk hamiltonian
-      evals = lg.eigvalsh(hk) # get eigenvalues
-      ys += weight*calculate_dos(evals,energies,delta) # add this contribution
-    if info: print("Done",ix)
+    from .htk.eigenvectors import peigvalsh
+    mats = np.array([hkgen([ix,0.,0.]) for ix in kxs],dtype=np.complex128) # H(k) batch
+    es_batch = peigvalsh(mats) # batched numba eigh, shape (nk,n)
+    es = es_batch.reshape(es_batch.shape[0]*es_batch.shape[1]) # flatten
+    ys = weight*calculate_dos(es,energies,delta) # add all contributions
+    if info: print("Done")
     write_dos(energies,ys) # write in file
     return
 
@@ -309,19 +306,32 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
   if random: ks = [np.random.random(3) for k in ks]
   ytot = np.zeros(ne) # initialize
   npol = int(scale/delta) # number of polynomials
+  # dos_kpm's stochastic trace estimator (kpm.pdos) draws random vectors
+  # confined to (and renormalized within) the operator's subspace, so it
+  # converges to Tr[P f(H)]/Tr[P], the *per-state* projected DOS averaged
+  # over that subspace -- not over the full N-dimensional Hilbert space.
+  # Recovering the extensive/total projected DOS Tr[P f(H)] therefore
+  # requires rescaling by Tr[P] (the projector's rank), not by the full
+  # matrix dimension N=h.intra.shape[0] (which is only correct when no
+  # operator/projector is supplied, i.e. P=identity, Tr[P]=N). The
+  # projector's matrix (and hence its rank) does not depend on k (see
+  # Operator.get_matrix), so it is resolved once, here.
+  if operator is None: op = None # no operator
+  else:
+      op = operator.get_matrix() # get the matrix of the operator
+      ## the case of projector operators should be implemented explicitly
+      if op is None: raise # not implemented
+      # this currently only works for projector operators
+      if np.max(np.abs(op - op@op))>1e-4:
+          print("only projector operators implemented in KPM")
+          raise
+  # op can be a scipy.sparse matrix (e.g. get_electron/get_hole build it
+  # via sparse.bmat) as well as a dense ndarray -- .diagonal().sum() works
+  # for both, unlike np.trace which chokes on sparse input
+  norm_dim = h.intra.shape[0] if op is None else np.real(op.diagonal().sum())
   def f(k):
     if info: print("Doing",k)
     hk = hkgen(k) # get Hamiltonian
-    if operator is None: op = None # no operator
-    else:
-        op = operator.get_matrix() # get the matrix of the operator
-        ## the case of projector operators should be implemented explicitly
-        if op is None: raise # not implemented
-        # this currently only works for projector operators
-        if np.max(np.abs(op - op@op))>1e-4:
-            print("only projector operators implemented in KPM")
-            raise
-        P = op # projector
     (x,y) = kpm.pdos(hk,scale=scale,npol=npol,ne=ne,operator=None,
                    P = op,
                    ewindow=ewindow,**kwargs) # compute
@@ -335,7 +345,9 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
       k = ks[ik]
       (x,y) = f(k) # compute
       ytot += y # add contribution
-    ytot /= nk # normalize
+    ytot /= numk # normalize (numk = len(ks), not nk -- for 2D/3D
+    # lattices numk = nk**(dimensionality), so normalizing by nk alone
+    # under-divides by a factor of nk per extra dimension)
   else: # parallel calculation
     out = parallel.pcall(f,ks) # compute all
     ytot = np.mean([out[i][1] for i in range(numk)],axis=0) # average DOS
@@ -346,7 +358,7 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
                     fill_value=0.) # interpolation
       x = energies # redefine x
       ytot = finter(energies) # redefine y
-  ytot = ytot*h.intra.shape[0] # by the dimension
+  ytot = ytot*norm_dim # by the (projected) dimension
   np.savetxt("DOS.OUT",np.array([x,ytot]).T) # save in file
   return (x,ytot)
 
@@ -373,8 +385,11 @@ def get_dos_general(h,energies=np.linspace(-4.0,4.0,400),
           return dos_kmesh(h,energies=energies,**kwargs)
       elif mode in ["Green","RG"]: # Green function formalism
           def fun(e):
-              return green.green_operator(h,e=e,**kwargs) 
+              return green.green_operator(h,e=e,**kwargs)
           ds = parallel.pcall(fun,energies) # compute DOS with an operator
+          # green_operator returns the raw -Im[Tr G], not yet a DOS value;
+          # apply the same 1/pi normalization dos_kmesh (mode="ED") does
+          ds = np.array(ds)/np.pi
           np.savetxt("DOS.OUT",np.array([energies,ds]).T) # write in a file
           return (energies,ds)
       elif mode=="KPM": 
