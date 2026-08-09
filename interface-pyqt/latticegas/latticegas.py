@@ -80,6 +80,7 @@ def run_anneal():
   if not 0.0<filling<1.0:
     raise ValueError("Filling must be strictly between 0 and 1 (got %r) - "
         "optimize_energy() needs both an occupied and an empty site to swap" % filling)
+  is_2d = getbox("lattice")!="Chain" # every LATTICES entry but Chain is a 2D Bravais lattice
   g = get_geometry()
   lg = latticegas.LatticeGas(g,filling=filling)
   lg.mu = get_mu_array(g)
@@ -94,24 +95,33 @@ def run_anneal():
   x,y = lg.get_correlator()
   np.savetxt("CORRELATOR.OUT",np.array([x,y]).T)
   np.savetxt("ENERGY.OUT",np.array([np.arange(len(es)),es]).T)
-  _write_relaxation_frames(g,lg,initial_den,checkpoint_steps)
+  frames = _checkpoint_frames(lg,initial_den,checkpoint_steps)
+  _write_configuration_frames(g,frames)
+  _write_correlator_frames(g,lg,frames,is_2d)
 
 
-def _write_relaxation_frames(g,lg,initial_den,checkpoint_steps):
-  """Write the occupation snapshots the anneal passed through (the
-  initial random configuration plus every step in checkpoint_steps,
-  captured into lg.checkpoints via optimize_energy's checkpoint_at
-  above) to LATTICEGAS_FRAMES/, following the same indexed-folder +
-  index-file convention ql-multildos/ql-multitimeevolution already use
-  for their own "step through a sequence of spatial snapshots" sliders
-  (see pyqula.timeevolution.evolve_local_state). Lets show_relaxation()
-  step through the whole relaxation instead of only ever seeing the
-  single final PROFILE.OUT."""
+def _checkpoint_frames(lg,initial_den,checkpoint_steps):
+  """(step,den) pairs for every occupation snapshot recorded during the
+  last anneal - the pre-anneal random configuration (step 0) plus every
+  checkpoint optimize_energy's checkpoint_at captured into
+  lg.checkpoints. Shared by every "across snapshots" writer below, so
+  they all index the same sequence of steps and their Step sliders stay
+  in lockstep with each other."""
+  frames = [(0,initial_den)]
+  frames += [(s,lg.checkpoints[s]) for s in checkpoint_steps if s in lg.checkpoints]
+  return frames
+
+
+def _write_configuration_frames(g,frames):
+  """Write every occupation snapshot to LATTICEGAS_FRAMES/, the indexed
+  folder + index-file convention ql-multildos/ql-multitimeevolution use
+  for their own multi-frame outputs (see
+  pyqula.timeevolution.evolve_local_state's MULTITIMEEVOLUTION/ folder).
+  Lets show_relaxation() step through the whole relaxation instead of
+  only ever seeing the single final PROFILE.OUT."""
   fs.rmdir("LATTICEGAS_FRAMES")
   fs.mkdir("LATTICEGAS_FRAMES")
   index = open("LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT","w")
-  frames = [(0,initial_den)]
-  frames += [(s,lg.checkpoints[s]) for s in checkpoint_steps if s in lg.checkpoints]
   for step,den in frames:
     name = "LATTICEGAS_STEP_%d_.OUT"%step
     g.write_profile(den,name="LATTICEGAS_FRAMES/"+name)
@@ -119,8 +129,54 @@ def _write_relaxation_frames(g,lg,initial_den,checkpoint_steps):
   index.close()
 
 
+def _write_correlator_frames(g,lg,frames,is_2d):
+  """Write the neighbor-shell correlator G(r) at every occupation
+  snapshot in `frames` to LATTICEGAS_CORRELATOR_FRAMES/, same
+  indexed-folder convention as _write_configuration_frames. For a
+  genuinely 2D lattice (is_2d - everything in LATTICES but Chain) also
+  write the reciprocal-space structure factor S(q) - the 2D companion
+  to G(r), see LatticeGas.get_structure_factor's docstring - to
+  LATTICEGAS_STRUCTURE_FRAMES/, so show_correlator_relaxation() can
+  step through how the ordering builds up (both its length scale and,
+  for 2D lattices, its wavevector) over the anneal instead of only ever
+  seeing the final snapshot's correlator. Temporarily overwrites lg.den
+  per frame since get_correlator()/get_structure_factor() read it,
+  restoring the final configuration afterwards."""
+  final_den = lg.den.copy()
+  fs.rmdir("LATTICEGAS_CORRELATOR_FRAMES")
+  fs.mkdir("LATTICEGAS_CORRELATOR_FRAMES")
+  cindex = open("LATTICEGAS_CORRELATOR_FRAMES/LATTICEGAS_CORRELATOR_FRAMES.TXT","w")
+  if is_2d:
+    fs.rmdir("LATTICEGAS_STRUCTURE_FRAMES")
+    fs.mkdir("LATTICEGAS_STRUCTURE_FRAMES")
+    sindex = open("LATTICEGAS_STRUCTURE_FRAMES/LATTICEGAS_STRUCTURE_FRAMES.TXT","w")
+  for step,den in frames:
+    lg.den = den
+    # get_nnc's per-shell loop is O(nsites^2), so at the full default of
+    # n=20 shells this dominates run_anneal's wall time once multiplied
+    # across every frame (measured ~0.4s/frame on a 600-site Kagome
+    # supercell, i.e. ~8s just for this loop at the default 21 frames) -
+    # capped lower here since a quick slider scrub doesn't need 20
+    # shells' worth of resolution to show the ordering trend. The final
+    # snapshot's own CORRELATOR.OUT (below) and show_correlator() keep
+    # the uncapped default.
+    x,y = lg.get_correlator(n=8)
+    cname = "LATTICEGAS_CORR_STEP_%d_.OUT"%step
+    np.savetxt("LATTICEGAS_CORRELATOR_FRAMES/"+cname,np.array([x,y]).T)
+    cindex.write(cname+"\n")
+    if is_2d:
+      qpath,sq = lg.get_structure_factor()
+      sname = "LATTICEGAS_SQ_STEP_%d_.OUT"%step
+      np.savetxt("LATTICEGAS_STRUCTURE_FRAMES/"+sname,
+          np.array([qpath[:,0],qpath[:,1],sq]).T)
+      sindex.write(sname+"\n")
+  cindex.close()
+  if is_2d: sindex.close()
+  lg.den = final_den
+
+
 def _require_anneal(output_file):
-  """Show configuration/correlator/energy trace all read a file run_anneal()
+  """Show configuration/correlator/relaxation all read a file run_anneal()
   writes - guard against the silent failure of launching a plotting script
   against a file that was never written (execute_script() runs it as a
   non-blocking background subprocess, so a crash there would otherwise
@@ -141,17 +197,19 @@ def show_correlator():
   execute_script("ql-latticegas-correlator")
 
 
-def show_energy_trace():
-  """Show the energy trajectory of the last anneal"""
-  _require_anneal("ENERGY.OUT")
-  execute_script("ql-latticegas-energy")
-
-
 def show_relaxation():
   """Step through the occupation snapshots recorded at each stage of the
   last anneal, from the initial random configuration to the final one"""
   _require_anneal("LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT")
   execute_script("ql-latticegas-relaxation")
+
+
+def show_correlator_relaxation():
+  """Step through the neighbor-shell correlator - and, for 2D lattices,
+  the reciprocal-space structure factor - recorded at each stage of the
+  last anneal"""
+  _require_anneal("LATTICEGAS_CORRELATOR_FRAMES/LATTICEGAS_CORRELATOR_FRAMES.TXT")
+  execute_script("ql-latticegas-correlator-relaxation")
 
 
 def show_structure():
@@ -168,7 +226,7 @@ signals = {
   "run_anneal": run_anneal,
   "show_configuration": show_configuration,
   "show_correlator": show_correlator,
-  "show_energy_trace": show_energy_trace,
+  "show_correlator_relaxation": show_correlator_relaxation,
   "show_relaxation": show_relaxation,
   "show_structure": show_structure,
   "show_structure_3d": show_structure_3d,

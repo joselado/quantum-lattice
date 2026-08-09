@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="LATTICEGAS_CORRELATOR_FRAMES",help='Input folder')
+parser.add_argument("--structure-input",default="LATTICEGAS_STRUCTURE_FRAMES",
+        help='Input folder for the 2D structure factor (only present for 2D lattices)')
+args = parser.parse_args() # get the arguments
+
+cfolder = args.input+"/" # folder with the neighbor-shell correlator snapshots
+
+cnames = open(cfolder+"LATTICEGAS_CORRELATOR_FRAMES.TXT").readlines()
+cnames = [name.replace("\n","") for name in cnames] # remove newline
+steps = [int(name.split("_")[3]) for name in cnames] # trial step of each frame
+cframes = [np.genfromtxt(cfolder+name).transpose() for name in cnames] # load every snapshot up front
+
+sfolder = args.structure_input+"/"
+has_structure = os.path.isfile(sfolder+"LATTICEGAS_STRUCTURE_FRAMES.TXT")
+if has_structure:
+  snames = open(sfolder+"LATTICEGAS_STRUCTURE_FRAMES.TXT").readlines()
+  snames = [name.replace("\n","") for name in snames]
+  sframes = [np.genfromtxt(sfolder+name).transpose() for name in snames]
+
+
+def plot(main):
+  """Plotting function"""
+  fig = plt.gcf()
+  fig.set_facecolor(plotstyle.BACKGROUND)
+  fig.canvas.setWindowTitle("Lattice gas correlator relaxation")
+  ii = int(main.get_slider("Step"))
+  step = steps[ii]
+  ax = fig.add_subplot(121) if has_structure else fig.add_subplot(111)
+  x,y = cframes[ii][0],cframes[ii][1]
+  ax.plot(x,y,color=plotstyle.PRIMARY,marker="o",linewidth=2.0)
+  ax.axhline(0.0,color=plotstyle.SECONDARY,linewidth=1.0)
+  ax.set_xlabel("Neighbor distance")
+  ax.set_ylabel("Density-density correlator")
+  ax.set_title("Step %d/%d"%(step,steps[-1]))
+  if has_structure:
+    axs = fig.add_subplot(122)
+    qx,qy,sq = sframes[ii][0],sframes[ii][1],sframes[ii][2]
+    n = int(round(np.sqrt(len(qx))))
+    zmap = sq.reshape((n,n))
+    cplot = axs.imshow(zmap.T,aspect="equal",origin="lower",cmap="inferno",
+            extent=(np.min(qx),np.max(qx),np.min(qy),np.max(qy)))
+    fig.colorbar(cplot,ax=axs,label="S(q)")
+    axs.set_xlabel("$q_x$")
+    axs.set_ylabel("$q_y$")
+    axs.set_title("Structure factor")
+  return fig
+
+
+app,main = plotpyqt.get_interface(plot)
+main.add_slider(label="Step",vs=range(len(cframes)),v0=0)
+main.setWindowTitle("Lattice gas correlator relaxation")
+
+main.plot()
+main.show()
+sys.exit(app.exec_())

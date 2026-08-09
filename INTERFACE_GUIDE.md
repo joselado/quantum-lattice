@@ -472,9 +472,8 @@ the existing `g.write_profile(d,name=...)` (the same mechanism
 `REAL_SPACE_CHERN.OUT`) and plotted by the **existing** `ql-potential`
 script unchanged (`ql-potential --input PROFILE.OUT --cmap binary`) -
 "scatter colored by one scalar per site" doesn't need a mode-specific
-script. Only genuinely new output shapes (the anneal's energy trajectory,
-the neighbor-shell correlator) got their own small new scripts
-(`ql-latticegas-energy`, `ql-latticegas-correlator`), following the
+script. Only genuinely new output shapes (the neighbor-shell correlator)
+got their own small new script (`ql-latticegas-correlator`), following the
 existing plain `plotstyle.apply()` + `np.genfromtxt` + `plt.show()`
 convention (e.g. `ql-dos-path`) rather than the older, unwired
 `ql-plot1d`/`ql-multiplot1d` (which don't call `plotstyle.apply()`, so
@@ -485,23 +484,49 @@ anneal, not just the final one: `LatticeGas.optimize_energy()` accepts a
 `checkpoint_at` kwarg (an iterable of 1-indexed trial-step counts) and
 populates `lg.checkpoints` (a `dict[step -> den snapshot]`) - this is
 vendored-`pyqula` backend infrastructure that predates the GUI wiring for
-it. `run_anneal()` requests `n_snapshots` (a new field on the Anneal
-settings tab) evenly-spaced steps via `np.linspace(1,ntries,n_snapshots)`,
-plus the pre-anneal random configuration as step 0, and writes each one to
-`LATTICEGAS_FRAMES/` with an index file
-(`LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT`, one frame filename per line) -
-the same "indexed folder + `.TXT` filename list" convention
-`pyqula.timeevolution.evolve_local_state`'s `MULTITIMEEVOLUTION/` folder
-and `pyqula.ldos`'s `MULTILDOS/` folder already use for their own
-multi-frame outputs. The new `show_relaxation` button launches
-`ql-latticegas-relaxation`, a `plotpyqt`-based viewer (same
-`interfacetk.plotpyqt.get_interface()` scaffolding `ql-multildos` uses) with
-a "Step" slider - built via `main.add_slider(label="Step",
+it. `run_anneal()` requests `n_snapshots` (a field on the Anneal settings
+tab) evenly-spaced steps via `np.linspace(1,ntries,n_snapshots)`, builds
+`(step,den)` pairs via `_checkpoint_frames()` (the pre-anneal random
+configuration as step 0, plus every requested checkpoint) - shared by
+every "across snapshots" writer so their Step sliders all index the same
+sequence - and hands them to two writers:
+
+- `_write_configuration_frames()` writes each snapshot's occupation map to
+  `LATTICEGAS_FRAMES/` with an index file
+  (`LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT`, one frame filename per line)
+  - the same "indexed folder + `.TXT` filename list" convention
+  `pyqula.timeevolution.evolve_local_state`'s `MULTITIMEEVOLUTION/` folder
+  and `pyqula.ldos`'s `MULTILDOS/` folder already use for their own
+  multi-frame outputs. The `show_relaxation` button launches
+  `ql-latticegas-relaxation` to view it (see below).
+- `_write_correlator_frames()` writes each snapshot's neighbor-shell
+  correlator (`LatticeGas.get_correlator()`, temporarily pointing `lg.den`
+  at that snapshot) to `LATTICEGAS_CORRELATOR_FRAMES/` the same way, and -
+  only when the chosen lattice isn't `Chain` (`is_2d =
+  getbox("lattice")!="Chain"`, since every other `LATTICES` entry is a 2D
+  Bravais lattice) - also writes each snapshot's reciprocal-space
+  structure factor (`LatticeGas.get_structure_factor()`, the 2D companion
+  to `get_correlator()`: `get_correlator()` gives the ordering length
+  scale, `get_structure_factor()` gives its wavevector) to
+  `LATTICEGAS_STRUCTURE_FRAMES/`. The `show_correlator_relaxation` button
+  launches `ql-latticegas-correlator-relaxation` to view these.
+
+Both viewer scripts are `plotpyqt`-based (same
+`interfacetk.plotpyqt.get_interface()` scaffolding `ql-multildos` uses)
+with a "Step" slider - built via `main.add_slider(label="Step",
 vs=range(len(frames)))`, which returns the frame index directly rather
-than `ql-multildos`'s older `0..100`-then-rescale trick - that re-renders
-`ql-potential`'s binary occupation scatter for whichever frame is
-selected, alongside the energy trace (`ENERGY.OUT`, if present) with a
-vertical marker at the current step.
+than `ql-multildos`'s older `0..100`-then-rescale trick.
+`ql-latticegas-relaxation` re-renders `ql-potential`'s binary occupation
+scatter for whichever frame is selected, alongside the energy trace
+(`ENERGY.OUT`, if present) with a vertical marker at the current step -
+this made the old standalone "Show energy trace" button/`ql-latticegas-
+energy` script redundant, so both were removed rather than kept alongside
+it. `ql-latticegas-correlator-relaxation` re-renders the correlator line
+plot per frame and, only if `LATTICEGAS_STRUCTURE_FRAMES/` exists (2D
+lattice), an `imshow` of `S(q)` reshaped from its `nq`x`nq` grid (same
+"reshape a flattened grid back to 2D" move `ql-multildos --grid` uses) in
+a second panel alongside it - a script consuming that folder should treat
+its absence as "this lattice wasn't 2D", not an error.
 
 `common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
 what used to be five separate repeated lines: it calls `create_folder()`

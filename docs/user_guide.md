@@ -369,8 +369,8 @@ Save results, ...) don't.
 | Run anneal | Lattice gas only: builds a fresh random occupation at the requested filling and searches for its lowest-energy configuration via Metropolis-annealed swaps. |
 | Show configuration | Lattice gas only: plots the occupied/empty sites of the last annealed configuration over the lattice. |
 | Show correlator | Lattice gas only: plots the neighbor-shell density-density correlator of the last annealed configuration — a diagnostic for ordered phases (e.g. striped or vacancy order). |
-| Show energy trace | Lattice gas only: plots the energy trajectory recorded during the last anneal. |
 | Show relaxation | Lattice gas only: steps through occupation snapshots recorded at intervals during the last anneal (from the initial random configuration to the final one) via a slider, alongside the energy trace with a marker showing the current step. |
+| Show correlator relaxation | Lattice gas only: steps through the neighbor-shell density-density correlator recorded at those same intervals via a slider — for a 2D lattice, also shows the reciprocal-space structure factor S(q) alongside it, revealing the ordering wavevector as it develops. |
 
 ## Reference: modes
 
@@ -472,12 +472,16 @@ variation on one of them.
   filling and searches for its lowest-energy arrangement, recording
   **Number of snapshots** occupation snapshots at evenly-spaced points
   along the way; **Show configuration**, **Show correlator**,
-  **Show energy trace**, and **Show relaxation** then visualize the result
-  (the final occupation map, the neighbor-shell density-density
-  correlator, the anneal's energy trajectory, and a step-by-step slider
-  through the recorded snapshots, respectively) without recomputing it. No
-  SCF, no bands/DOS — none of the usual electronic-structure calculations
-  apply here.
+  **Show relaxation**, and **Show correlator relaxation** then visualize
+  the result without recomputing it: the final occupation map, the final
+  neighbor-shell density-density correlator, a step-by-step slider through
+  the recorded occupation snapshots (with the energy trajectory alongside,
+  marked at the current step), and a matching slider through the
+  correlator at each of those snapshots — for a 2D lattice (any choice but
+  Chain), also showing the reciprocal-space structure factor S(q) at each
+  step, so you can watch the ordering wavevector emerge as the system
+  relaxes. No SCF, no bands/DOS — none of the usual electronic-structure
+  calculations apply here.
 
 ## Updating the application
 

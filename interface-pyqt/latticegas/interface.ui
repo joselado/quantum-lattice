@@ -259,16 +259,16 @@
          </widget>
         </item>
         <item>
-         <widget class="PushButton" name="show_energy_trace">
+         <widget class="PushButton" name="show_relaxation">
           <property name="text">
-           <string>Show energy trace</string>
+           <string>Show relaxation</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="PushButton" name="show_relaxation">
+         <widget class="PushButton" name="show_correlator_relaxation">
           <property name="text">
-           <string>Show relaxation</string>
+           <string>Show correlator relaxation</string>
           </property>
          </widget>
         </item>

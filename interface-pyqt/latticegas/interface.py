@@ -189,15 +189,15 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_anneal_results.addWidget(self.show_correlator)
 
-        self.show_energy_trace = PushButton(self.tab_anneal_results)
-        self.show_energy_trace.setObjectName(u"show_energy_trace")
-
-        self.verticalLayout_anneal_results.addWidget(self.show_energy_trace)
-
         self.show_relaxation = PushButton(self.tab_anneal_results)
         self.show_relaxation.setObjectName(u"show_relaxation")
 
         self.verticalLayout_anneal_results.addWidget(self.show_relaxation)
+
+        self.show_correlator_relaxation = PushButton(self.tab_anneal_results)
+        self.show_correlator_relaxation.setObjectName(u"show_correlator_relaxation")
+
+        self.verticalLayout_anneal_results.addWidget(self.show_correlator_relaxation)
 
         self.tabWidget_2.addTab(self.tab_anneal_results, "")
 
@@ -264,8 +264,8 @@ class Ui_MainWindow(object):
         self.run_anneal.setText(QCoreApplication.translate("MainWindow", u"Run anneal", None))
         self.show_configuration.setText(QCoreApplication.translate("MainWindow", u"Show configuration", None))
         self.show_correlator.setText(QCoreApplication.translate("MainWindow", u"Show correlator", None))
-        self.show_energy_trace.setText(QCoreApplication.translate("MainWindow", u"Show energy trace", None))
         self.show_relaxation.setText(QCoreApplication.translate("MainWindow", u"Show relaxation", None))
+        self.show_correlator_relaxation.setText(QCoreApplication.translate("MainWindow", u"Show correlator relaxation", None))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_anneal_results), QCoreApplication.translate("MainWindow", u"Anneal & results", None))
         self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save Results", None))
         self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load Results", None))
