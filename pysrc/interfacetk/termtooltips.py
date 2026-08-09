@@ -126,7 +126,6 @@ BUTTON_TOOLTIPS = {
 "save_results": "Save all the results from this calculation into a named local folder (you'll be asked for a name) - pick a new name to keep multiple saves side by side.",
 "load_results": "Load a previously saved interface configuration (parameter values) back into the form - you'll be asked which saved folder to restore.",
 "show_configuration": "Build a fresh random configuration at the requested filling, anneal it via Metropolis-annealed discrete swaps if needed (or reuse the last anneal if no parameter has changed since), then plot the occupied (1) vs. empty (0) sites over the lattice.",
-"show_correlator": "Compute and plot the neighbor-shell density-density correlator of the last annealed configuration - a diagnostic for ordered phases (e.g. striped or honeycomb-vacancy order) as a function of neighbor distance.",
 "show_relaxation": "Step through the occupation snapshots recorded at intervals during the last anneal, from the initial random configuration to the final one, alongside the energy trajectory with a marker showing the current step.",
 "show_correlator_relaxation": "Step through the anneal alongside the energy trace, showing the reciprocal-space structure factor S(q) at each snapshot for a 2D lattice (its ordering wavevector), or the neighbor-shell density-density correlator for the Chain lattice (its ordering length scale).",
 }

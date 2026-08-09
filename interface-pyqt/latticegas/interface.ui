@@ -245,13 +245,6 @@
          </widget>
         </item>
         <item>
-         <widget class="PushButton" name="show_correlator">
-          <property name="text">
-           <string>Show correlator</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="PushButton" name="show_relaxation">
           <property name="text">
            <string>Show relaxation</string>

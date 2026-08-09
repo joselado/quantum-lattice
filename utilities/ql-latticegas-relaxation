@@ -45,9 +45,6 @@ def plot(main):
   ax.scatter(x,y,s=100*size,c=z,edgecolor="none",cmap="binary",vmin=0,vmax=1)
   ax.axis("equal")
   ax.set_xticks([]) ; ax.set_yticks([])
-  zoom = main.get_slider("Zoom")
-  ax.set_xlim([np.min(x)*zoom,np.max(x)*zoom])
-  ax.set_ylim([np.min(y)*zoom,np.max(y)*zoom])
   ax.set_title("Step %d/%d"%(step,steps[-1]))
   if es is not None:
     axe = fig.add_subplot(122)
@@ -62,7 +59,6 @@ def plot(main):
 app,main = plotpyqt.get_interface(plot)
 main.add_slider(label="Step",vs=range(len(frames)),v0=0)
 main.add_slider(label="Size",vs=np.linspace(0.,2,100),v0=0.8)
-main.add_slider(label="Zoom",vs=np.linspace(1.1,0.01,100),v0=1.1)
 main.setWindowTitle("Lattice gas relaxation")
 
 main.plot()

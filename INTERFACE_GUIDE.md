@@ -472,12 +472,15 @@ the existing `g.write_profile(d,name=...)` (the same mechanism
 `REAL_SPACE_CHERN.OUT`) and plotted by the **existing** `ql-potential`
 script unchanged (`ql-potential --input PROFILE.OUT --cmap binary`) -
 "scatter colored by one scalar per site" doesn't need a mode-specific
-script. Only genuinely new output shapes (the neighbor-shell correlator)
-got their own small new script (`ql-latticegas-correlator`), following the
-existing plain `plotstyle.apply()` + `np.genfromtxt` + `plt.show()`
-convention (e.g. `ql-dos-path`) rather than the older, unwired
-`ql-plot1d`/`ql-multiplot1d` (which don't call `plotstyle.apply()`, so
-they wouldn't pick up the shell's theme).
+script. There used to be a standalone `ql-latticegas-correlator` script
+(and `show_correlator`/"Show correlator" button) for the final
+snapshot's neighbor-shell correlator alone, following the existing plain
+`plotstyle.apply()` + `np.genfromtxt` + `plt.show()` convention (e.g.
+`ql-dos-path`) rather than the older, unwired `ql-plot1d`/`ql-multiplot1d`
+(which don't call `plotstyle.apply()`, so they wouldn't pick up the
+shell's theme) - both were removed once `show_correlator_relaxation`
+(below) made a single-snapshot correlator view redundant, and
+`CORRELATOR.OUT` is no longer written at all.
 
 `run_anneal()` has no button of its own - there's no explicit "Run" step
 in this mode's UI at all. Every Show button calls `_ensure_annealed()`
@@ -494,8 +497,8 @@ re-annealing.
 
 `_ensure_annealed()` has one more layer beyond `_needs_live_anneal()`,
 for **Load Results**: `save_state()`/`load_state()` (`qlinterface.py`)
-copy this mode's flat result files (`PROFILE.OUT`, `CORRELATOR.OUT`,
-`ENERGY.OUT`, ...) in and out of a named folder, and `load_state()` ends
+copy this mode's flat result files (`PROFILE.OUT`, `ENERGY.OUT`, ...) in
+and out of a named folder, and `load_state()` ends
 with `window.reset_dirty()` - which bumps `params_dirty_time()` forward
 exactly the way a live field edit would, since it's the same timestamp.
 Naively treating that the same as "the user edited a parameter" would
@@ -595,33 +598,40 @@ scatter for whichever frame is selected, alongside the energy trace
 (`ENERGY.OUT`, if present) with a vertical marker at the current step -
 this made the old standalone "Show energy trace" button/`ql-latticegas-
 energy` script redundant, so both were removed rather than kept alongside
-it. `ql-latticegas-correlator-relaxation` puts the same energy trace +
-marker on its left panel (also reading `ENERGY.OUT` directly, rather than
-being handed it - the two scripts don't share any code) and, on the
-right, whichever of `LATTICEGAS_STRUCTURE_FRAMES/`/`LATTICEGAS_CORRELATOR_FRAMES/`
+it. Unlike `ql-potential` (which every other mode's "Show configuration"-
+style button still uses unchanged, Zoom slider included),
+`ql-latticegas-relaxation` itself has no Zoom slider - just "Step" and
+"Size" - since this script isn't reused elsewhere, so the slider was cut
+directly rather than left in place unused; the scatter just autoscales
+to its data's extent on every redraw instead of respecting a
+user-controlled x/y limit factor.
+
+`ql-latticegas-correlator-relaxation` puts the same energy trace + marker
+on its left panel (also reading `ENERGY.OUT` directly, rather than being
+handed it - the two scripts don't share any code) and, on the right,
+whichever of `LATTICEGAS_STRUCTURE_FRAMES/`/`LATTICEGAS_CORRELATOR_FRAMES/`
 actually exists (exactly one does, per `_write_correlator_frames()`
 above - a script reading one should treat the other's absence as "this
 lattice doesn't have that kind of correlator", not an error) is
 authoritative for the frame count/step sequence, not just an arbitrary
 default: for a 2D lattice, an `imshow` of `S(q)` reshaped from its
 `nq`x`nq` grid (same "reshape a flattened grid back to 2D" move
-`ql-multildos --grid` uses), `aspect="auto"` rather than `"equal"` so the
-image fills its subplot box the same way the energy panel does instead
-of being letterboxed down to a small square, and its colorbar drawn into
-a thin `mpl_toolkits.axes_grid1.make_axes_locatable(ax).append_axes(
+`ql-multildos --grid` uses), `aspect="equal"` - `q_x`/`q_y` share the same
+physical scale, so a square map is the physically correct rendering, not
+a distortion to avoid - with its colorbar drawn into a thin
+`mpl_toolkits.axes_grid1.make_axes_locatable(ax).append_axes(
 "right",size="5%",pad=0.1)` sibling axes rather than via
-`fig.colorbar()`'s own `ax=`/`fraction=` shrinkage (which visibly
-narrowed the image further, once its tick/axis labels were accounted
-for, than the `5%` nominally taken) - together these keep both panels
-similarly sized. `ticks=[sq.min(),sq.max()]` relabeled `["Min","Max"]`
-(same `cb.ax.set_yticklabels(...)` move `ql-multildos` uses for its own
-`[0,'Max']`) rather than showing the raw `S(q)` values, which aren't
-individually meaningful - only the ordering wavevector's location in the
-map is; for `Chain` (no meaningful `S(q)`), the correlator line plot
-instead, with short axis labels (`"G(r)"`/`"Distance"` rather than
-`"Density-density correlator"`/`"Neighbor distance"`) since this panel is
-now only half the figure's width and the longer labels clipped into the
-left panel.
+`fig.colorbar()`'s own `ax=`/`fraction=` shrinkage, so the "equal" aspect
+still keeps as much of the panel's own size as possible rather than
+losing more of it to the colorbar's carve-out on top. `ticks=[sq.min(),
+sq.max()]` relabeled `["Min","Max"]` (same `cb.ax.set_yticklabels(...)`
+move `ql-multildos` uses for its own `[0,'Max']`) rather than showing the
+raw `S(q)` values, which aren't individually meaningful - only the
+ordering wavevector's location in the map is; for `Chain` (no meaningful
+`S(q)`), the correlator line plot instead, with short axis labels
+(`"G(r)"`/`"Distance"` rather than `"Density-density correlator"`/
+`"Neighbor distance"`) since this panel is only half the figure's width
+and the longer labels clipped into the left panel.
 
 `common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
 what used to be five separate repeated lines: it calls `create_folder()`

@@ -367,7 +367,6 @@ Save results, ...) don't.
 | Save results | Copies this session's results into a folder you name (a new name keeps it alongside earlier saves instead of overwriting them). |
 | Load results | Prompts you to pick a previously saved folder and restores its parameters back into the form fields. |
 | Show configuration | Lattice gas only: plots the occupied/empty sites of the last annealed configuration over the lattice — anneals automatically first (a fresh random occupation at the requested filling, searched for its lowest-energy arrangement via Metropolis swaps) if no anneal has run yet or a parameter has changed since. |
-| Show correlator | Lattice gas only: plots the neighbor-shell density-density correlator of the last annealed configuration — a diagnostic for ordered phases (e.g. striped or vacancy order). |
 | Show relaxation | Lattice gas only: steps through occupation snapshots recorded at intervals during the last anneal (from the initial random configuration to the final one) via a slider, alongside the energy trace with a marker showing the current step. |
 | Show correlator relaxation | Lattice gas only: steps through the anneal via a slider, showing the energy trace (marked at the current step) alongside — for a 2D lattice — the reciprocal-space structure factor S(q) at that step, or — for the Chain lattice, which has no meaningful S(q) — the neighbor-shell density-density correlator instead. |
 
@@ -467,33 +466,32 @@ variation on one of them.
   profile** in the Interactions tab; and the Metropolis **Temperature**,
   **Number of attempts**, and **Number of snapshots** used to search for a
   low-energy configuration in the Anneal settings tab. There is no
-  separate "run" step — clicking any of the four Show buttons below anneals
+  separate "run" step — clicking any Show button below anneals
   automatically first if it hasn't run yet, or if you've changed a
   parameter since the last anneal, starting from a fresh random
   configuration at the requested filling and searching for its
   lowest-energy arrangement, recording **Number of snapshots** occupation
   snapshots at evenly-spaced points along the way; a click that finds
   nothing has changed just reuses the existing results instead. **Show
-  configuration**, **Show relaxation**, and **Show correlator** then
-  visualize the result: the final occupation map, a step-by-step slider
-  through the recorded occupation snapshots (with the energy trajectory
-  alongside, marked at the current step), and the final neighbor-shell
-  density-density correlator, respectively. **Show correlator relaxation**
-  is the one further exception — its own data (the correlator or, for a 2D
-  lattice, the structure factor, at every recorded snapshot, shown next to
-  the energy trace) is only computed when you click that specific button,
-  not as part of the anneal itself, so expect a short extra wait the first
-  time you click it for a given anneal — later clicks replot the same
-  computed frames instantly. **Load Results** restores a saved anneal's
-  parameters and results without triggering a fresh (and differently
-  random) anneal on your next click — as long as you don't change a
-  parameter first, the restored result is what **Show configuration**,
-  **Show relaxation**, and **Show correlator** will show you. **Show
+  configuration** then visualizes the final occupation map, and **Show
+  relaxation** steps through every recorded occupation snapshot via a
+  slider (with the energy trajectory alongside, marked at the current
+  step). **Show correlator relaxation** is a further exception — its own
+  data (the neighbor-shell correlator, or for a 2D lattice the
+  reciprocal-space structure factor S(q), at every recorded snapshot,
+  shown next to the energy trace) is only computed when you click that
+  specific button, not as part of the anneal itself, so expect a short
+  extra wait the first time you click it for a given anneal — later
+  clicks replot the same computed frames instantly. **Load Results**
+  restores a saved anneal's parameters and results without triggering a
+  fresh (and differently random) anneal on your next click — as long as
+  you don't change a parameter first, the restored result is what **Show
+  configuration** and **Show relaxation** will show you. **Show
   correlator relaxation** is the exception: its per-snapshot data was
   never part of the save, so clicking it after a Load re-runs the anneal
-  anyway, replacing the loaded result (and what the other three buttons
-  now show) with a new, differently random one. No SCF, no bands/DOS —
-  none of the usual electronic-structure calculations apply here.
+  anyway, replacing the loaded result (and what the other two buttons now
+  show) with a new, differently random one. No SCF, no bands/DOS — none
+  of the usual electronic-structure calculations apply here.
 
 ## Updating the application
 

@@ -96,8 +96,10 @@ def run_anneal():
   """Build a fresh random configuration at the requested filling and
   anneal it with pyqula's Metropolis swap optimizer. Writes every output
   file the Show */Show * buttons below read. Not wired to a button of its
-  own - every Show button calls _ensure_annealed() first, which calls
-  this automatically only when needed (see _anneal_dirty_time)."""
+  own - the Show buttons call _ensure_annealed() first (or, for
+  show_correlator_relaxation(), _needs_live_anneal() directly - see its
+  own docstring), which calls this automatically only when needed (see
+  _anneal_dirty_time)."""
   global _anneal_dirty_time
   filling = get("filling")
   if not 0.0<filling<1.0:
@@ -118,8 +120,6 @@ def run_anneal():
   es = lg.optimize_energy(temp=get("temp"),ntries=ntries,
       checkpoint_at=checkpoint_steps)
   g.write_profile(lg.den,name="PROFILE.OUT") # occupation map
-  x,y = lg.get_correlator()
-  np.savetxt("CORRELATOR.OUT",np.array([x,y]).T)
   np.savetxt("ENERGY.OUT",np.array([np.arange(len(es)),es]).T)
   frames = _checkpoint_frames(lg,initial_den,checkpoint_steps)
   _write_configuration_frames(g,frames)
@@ -198,9 +198,7 @@ def _write_correlator_frames(g,lg,frames,is_2d):
   (Chain, which has no meaningful S(q)) G(r) itself
   (LatticeGas.get_correlator()) to LATTICEGAS_CORRELATOR_FRAMES/ - same
   indexed-folder convention as _write_configuration_frames. Only one of
-  the two is written since the other is never plotted (G(r) for the
-  final snapshot is still always available via CORRELATOR.OUT/
-  show_correlator(), independent of this function). Only called from
+  the two is written since the other is never plotted. Only called from
   show_correlator_relaxation() itself (see _anneal_state), not from
   run_anneal(), since this is the expensive part of the two (see below)
   and most anneals never get this button clicked. Temporarily overwrites
@@ -228,9 +226,7 @@ def _write_correlator_frames(g,lg,frames,is_2d):
       # of n=20 shells this dominates the wall time of this function
       # once multiplied across every frame - capped lower here since a
       # quick slider scrub doesn't need 20 shells' worth of resolution
-      # to show the ordering trend. The final snapshot's own
-      # CORRELATOR.OUT (in run_anneal()) and show_correlator() keep the
-      # uncapped default.
+      # to show the ordering trend.
       x,y = lg.get_correlator(n=8)
       cname = "LATTICEGAS_CORR_STEP_%d_.OUT"%step
       np.savetxt("LATTICEGAS_CORRELATOR_FRAMES/"+cname,np.array([x,y]).T)
@@ -245,13 +241,6 @@ def show_configuration():
   automatically first if needed (see _ensure_annealed)"""
   _ensure_annealed()
   execute_script("ql-potential --input PROFILE.OUT --cmap binary --colorbar false")
-
-
-def show_correlator():
-  """Show the neighbor-shell density-density correlator of the last
-  anneal, running the anneal automatically first if needed"""
-  _ensure_annealed()
-  execute_script("ql-latticegas-correlator")
 
 
 def show_relaxation():
@@ -299,7 +288,6 @@ def show_structure_3d():
 
 signals = {
   "show_configuration": show_configuration,
-  "show_correlator": show_correlator,
   "show_correlator_relaxation": show_correlator_relaxation,
   "show_relaxation": show_relaxation,
   "show_structure": show_structure,

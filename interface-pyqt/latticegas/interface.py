@@ -179,11 +179,6 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_anneal_results.addWidget(self.show_configuration)
 
-        self.show_correlator = PushButton(self.tab_anneal_results)
-        self.show_correlator.setObjectName(u"show_correlator")
-
-        self.verticalLayout_anneal_results.addWidget(self.show_correlator)
-
         self.show_relaxation = PushButton(self.tab_anneal_results)
         self.show_relaxation.setObjectName(u"show_relaxation")
 
@@ -257,7 +252,6 @@ class Ui_MainWindow(object):
         self.show_structure_3d.setText(QCoreApplication.translate("MainWindow", u"Show structure 3D", None))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_structure), QCoreApplication.translate("MainWindow", u"Structure", None))
         self.show_configuration.setText(QCoreApplication.translate("MainWindow", u"Show configuration", None))
-        self.show_correlator.setText(QCoreApplication.translate("MainWindow", u"Show correlator", None))
         self.show_relaxation.setText(QCoreApplication.translate("MainWindow", u"Show relaxation", None))
         self.show_correlator_relaxation.setText(QCoreApplication.translate("MainWindow", u"Show correlator relaxation", None))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_anneal_results), QCoreApplication.translate("MainWindow", u"Results", None))
