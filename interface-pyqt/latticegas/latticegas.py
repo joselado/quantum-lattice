@@ -147,51 +147,55 @@ def _write_configuration_frames(g,frames):
 
 
 def _write_correlator_frames(g,lg,frames,is_2d):
-  """Write the neighbor-shell correlator G(r) at every occupation
-  snapshot in `frames` to LATTICEGAS_CORRELATOR_FRAMES/, same
-  indexed-folder convention as _write_configuration_frames. For a
-  genuinely 2D lattice (is_2d - everything in LATTICES but Chain) also
-  write the reciprocal-space structure factor S(q) - the 2D companion
-  to G(r), see LatticeGas.get_structure_factor's docstring - to
-  LATTICEGAS_STRUCTURE_FRAMES/, so show_correlator_relaxation() can
-  step through how the ordering builds up (both its length scale and,
-  for 2D lattices, its wavevector) over the anneal instead of only ever
-  seeing the final snapshot's correlator. Only called from
+  """Write, at every occupation snapshot in `frames`, whichever
+  correlator is actually shown by show_correlator_relaxation()'s right
+  panel - for a genuinely 2D lattice (is_2d - everything in LATTICES but
+  Chain), the reciprocal-space structure factor S(q)
+  (LatticeGas.get_structure_factor(), the 2D companion to the
+  neighbor-shell correlator G(r): G(r) gives the ordering length scale,
+  S(q) gives its wavevector) to LATTICEGAS_STRUCTURE_FRAMES/; otherwise
+  (Chain, which has no meaningful S(q)) G(r) itself
+  (LatticeGas.get_correlator()) to LATTICEGAS_CORRELATOR_FRAMES/ - same
+  indexed-folder convention as _write_configuration_frames. Only one of
+  the two is written since the other is never plotted (G(r) for the
+  final snapshot is still always available via CORRELATOR.OUT/
+  show_correlator(), independent of this function). Only called from
   show_correlator_relaxation() itself (see _anneal_state), not from
   run_anneal(), since this is the expensive part of the two (see below)
   and most anneals never get this button clicked. Temporarily overwrites
   lg.den per frame since get_correlator()/get_structure_factor() read
   it, restoring the final configuration afterwards."""
   final_den = lg.den.copy()
-  fs.rmdir("LATTICEGAS_CORRELATOR_FRAMES")
-  fs.mkdir("LATTICEGAS_CORRELATOR_FRAMES")
-  cindex = open("LATTICEGAS_CORRELATOR_FRAMES/LATTICEGAS_CORRELATOR_FRAMES.TXT","w")
   if is_2d:
     fs.rmdir("LATTICEGAS_STRUCTURE_FRAMES")
     fs.mkdir("LATTICEGAS_STRUCTURE_FRAMES")
     sindex = open("LATTICEGAS_STRUCTURE_FRAMES/LATTICEGAS_STRUCTURE_FRAMES.TXT","w")
+  else:
+    fs.rmdir("LATTICEGAS_CORRELATOR_FRAMES")
+    fs.mkdir("LATTICEGAS_CORRELATOR_FRAMES")
+    cindex = open("LATTICEGAS_CORRELATOR_FRAMES/LATTICEGAS_CORRELATOR_FRAMES.TXT","w")
   for step,den in frames:
     lg.den = den
-    # get_nnc's per-shell loop is O(nsites^2), so at the full default of
-    # n=20 shells this dominates the wall time of this function once
-    # multiplied across every frame (measured ~0.4s/frame on a 600-site
-    # Kagome supercell, i.e. ~8s just for this loop at the default 21
-    # frames) - capped lower here since a quick slider scrub doesn't
-    # need 20 shells' worth of resolution to show the ordering trend.
-    # The final snapshot's own CORRELATOR.OUT (in run_anneal()) and
-    # show_correlator() keep the uncapped default.
-    x,y = lg.get_correlator(n=8)
-    cname = "LATTICEGAS_CORR_STEP_%d_.OUT"%step
-    np.savetxt("LATTICEGAS_CORRELATOR_FRAMES/"+cname,np.array([x,y]).T)
-    cindex.write(cname+"\n")
     if is_2d:
       qpath,sq = lg.get_structure_factor()
       sname = "LATTICEGAS_SQ_STEP_%d_.OUT"%step
       np.savetxt("LATTICEGAS_STRUCTURE_FRAMES/"+sname,
           np.array([qpath[:,0],qpath[:,1],sq]).T)
       sindex.write(sname+"\n")
-  cindex.close()
+    else:
+      # get_nnc's per-shell loop is O(nsites^2), so at the full default
+      # of n=20 shells this dominates the wall time of this function
+      # once multiplied across every frame - capped lower here since a
+      # quick slider scrub doesn't need 20 shells' worth of resolution
+      # to show the ordering trend. The final snapshot's own
+      # CORRELATOR.OUT (in run_anneal()) and show_correlator() keep the
+      # uncapped default.
+      x,y = lg.get_correlator(n=8)
+      cname = "LATTICEGAS_CORR_STEP_%d_.OUT"%step
+      np.savetxt("LATTICEGAS_CORRELATOR_FRAMES/"+cname,np.array([x,y]).T)
+      cindex.write(cname+"\n")
   if is_2d: sindex.close()
+  else: cindex.close()
   lg.den = final_den
 
 

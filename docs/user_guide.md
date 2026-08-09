@@ -370,7 +370,7 @@ Save results, ...) don't.
 | Show configuration | Lattice gas only: plots the occupied/empty sites of the last annealed configuration over the lattice. |
 | Show correlator | Lattice gas only: plots the neighbor-shell density-density correlator of the last annealed configuration — a diagnostic for ordered phases (e.g. striped or vacancy order). |
 | Show relaxation | Lattice gas only: steps through occupation snapshots recorded at intervals during the last anneal (from the initial random configuration to the final one) via a slider, alongside the energy trace with a marker showing the current step. |
-| Show correlator relaxation | Lattice gas only: steps through the neighbor-shell density-density correlator recorded at those same intervals via a slider — for a 2D lattice, also shows the reciprocal-space structure factor S(q) alongside it, revealing the ordering wavevector as it develops. |
+| Show correlator relaxation | Lattice gas only: steps through the anneal via a slider, showing the energy trace (marked at the current step) alongside — for a 2D lattice — the reciprocal-space structure factor S(q) at that step, or — for the Chain lattice, which has no meaningful S(q) — the neighbor-shell density-density correlator instead. |
 
 ## Reference: modes
 
@@ -477,13 +477,13 @@ variation on one of them.
   through the recorded occupation snapshots (with the energy trajectory
   alongside, marked at the current step), and the final neighbor-shell
   density-density correlator, respectively. **Show correlator relaxation**
-  is the one exception — the correlator at every recorded snapshot (and,
-  for a 2D lattice, the reciprocal-space structure factor S(q) alongside
-  it, revealing the ordering wavevector as it develops) is only computed
-  when you click that button, not during **Run anneal** itself, so expect
-  a short wait the first time you click it for a given anneal — later
-  clicks replot the same computed frames instantly. No SCF, no bands/DOS —
-  none of the usual electronic-structure calculations apply here.
+  is the one exception — its data (the correlator or, for a 2D lattice,
+  the structure factor, at every recorded snapshot, shown next to the
+  energy trace) is only computed when you click that button, not during
+  **Run anneal** itself, so expect a short wait the first time you click
+  it for a given anneal — later clicks replot the same computed frames
+  instantly. No SCF, no bands/DOS — none of the usual electronic-structure
+  calculations apply here.
 
 ## Updating the application
 

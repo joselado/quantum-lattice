@@ -16,24 +16,36 @@ from interfacetk import plotpyqt
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--input",default="LATTICEGAS_CORRELATOR_FRAMES",help='Input folder')
+parser.add_argument("--input",default="LATTICEGAS_CORRELATOR_FRAMES",
+        help='Input folder for the neighbor-shell correlator (Chain lattice)')
 parser.add_argument("--structure-input",default="LATTICEGAS_STRUCTURE_FRAMES",
-        help='Input folder for the 2D structure factor (only present for 2D lattices)')
+        help='Input folder for the 2D structure factor (2D lattices)')
 args = parser.parse_args() # get the arguments
 
-cfolder = args.input+"/" # folder with the neighbor-shell correlator snapshots
-
-cnames = open(cfolder+"LATTICEGAS_CORRELATOR_FRAMES.TXT").readlines()
-cnames = [name.replace("\n","") for name in cnames] # remove newline
-steps = [int(name.split("_")[3]) for name in cnames] # trial step of each frame
-cframes = [np.genfromtxt(cfolder+name).transpose() for name in cnames] # load every snapshot up front
-
+# _write_correlator_frames() only ever writes one of these two folders per
+# anneal (whichever its right panel below actually needs), never both -
+# so exactly one of has_structure/has_correlator is true, and that folder
+# alone is authoritative for the frame count/step sequence.
+cfolder = args.input+"/"
 sfolder = args.structure_input+"/"
 has_structure = os.path.isfile(sfolder+"LATTICEGAS_STRUCTURE_FRAMES.TXT")
+has_correlator = os.path.isfile(cfolder+"LATTICEGAS_CORRELATOR_FRAMES.TXT")
 if has_structure:
   snames = open(sfolder+"LATTICEGAS_STRUCTURE_FRAMES.TXT").readlines()
-  snames = [name.replace("\n","") for name in snames]
-  sframes = [np.genfromtxt(sfolder+name).transpose() for name in snames]
+  snames = [name.replace("\n","") for name in snames] # remove newline
+  steps = [int(name.split("_")[3]) for name in snames] # trial step of each frame
+  sframes = [np.genfromtxt(sfolder+name).transpose() for name in snames] # load every snapshot up front
+elif has_correlator:
+  cnames = open(cfolder+"LATTICEGAS_CORRELATOR_FRAMES.TXT").readlines()
+  cnames = [name.replace("\n","") for name in cnames]
+  steps = [int(name.split("_")[3]) for name in cnames]
+  cframes = [np.genfromtxt(cfolder+name).transpose() for name in cnames]
+else:
+  raise RuntimeError("Neither %s nor %s found - run the anneal first"%(sfolder,cfolder))
+
+es = None
+if os.path.isfile("ENERGY.OUT"):
+  es = np.genfromtxt("ENERGY.OUT").transpose() # iteration, energy
 
 
 def plot(main):
@@ -43,29 +55,39 @@ def plot(main):
   fig.canvas.setWindowTitle("Lattice gas correlator relaxation")
   ii = int(main.get_slider("Step"))
   step = steps[ii]
-  ax = fig.add_subplot(121) if has_structure else fig.add_subplot(111)
-  x,y = cframes[ii][0],cframes[ii][1]
-  ax.plot(x,y,color=plotstyle.PRIMARY,marker="o",linewidth=2.0)
-  ax.axhline(0.0,color=plotstyle.SECONDARY,linewidth=1.0)
-  ax.set_xlabel("Neighbor distance")
-  ax.set_ylabel("Density-density correlator")
-  ax.set_title("Step %d/%d"%(step,steps[-1]))
+
+  axe = fig.add_subplot(121) # energy trace, marked at the current step
+  if es is not None:
+    axe.plot(es[0],es[1],color=plotstyle.PRIMARY)
+    marker = step if step<=es[0][-1] else es[0][-1]
+    axe.axvline(marker,color=plotstyle.SECONDARY,linewidth=2.0)
+  axe.set_xlabel("Iteration")
+  axe.set_ylabel("Energy")
+  axe.set_title("Step %d/%d"%(step,steps[-1]))
+
+  ax = fig.add_subplot(122) # structure factor (2D lattice) or correlator (Chain)
   if has_structure:
-    axs = fig.add_subplot(122)
     qx,qy,sq = sframes[ii][0],sframes[ii][1],sframes[ii][2]
     n = int(round(np.sqrt(len(qx))))
     zmap = sq.reshape((n,n))
-    cplot = axs.imshow(zmap.T,aspect="equal",origin="lower",cmap="inferno",
+    cplot = ax.imshow(zmap.T,aspect="equal",origin="lower",cmap="inferno",
             extent=(np.min(qx),np.max(qx),np.min(qy),np.max(qy)))
-    fig.colorbar(cplot,ax=axs,label="S(q)")
-    axs.set_xlabel("$q_x$")
-    axs.set_ylabel("$q_y$")
-    axs.set_title("Structure factor")
+    fig.colorbar(cplot,ax=ax,label="S(q)",fraction=0.046,pad=0.04)
+    ax.set_xlabel("$q_x$")
+    ax.set_ylabel("$q_y$")
+    ax.set_title("Structure factor")
+  else:
+    x,y = cframes[ii][0],cframes[ii][1]
+    ax.plot(x,y,color=plotstyle.PRIMARY,marker="o",linewidth=2.0)
+    ax.axhline(0.0,color=plotstyle.SECONDARY,linewidth=1.0)
+    ax.set_xlabel("Distance") # short: this panel is narrower than a
+    ax.set_ylabel("G(r)")     # full-width plot, tight_layout clips long labels
+    ax.set_title("Correlator")
   return fig
 
 
 app,main = plotpyqt.get_interface(plot)
-main.add_slider(label="Step",vs=range(len(cframes)),v0=0)
+main.add_slider(label="Step",vs=range(len(steps)),v0=0)
 main.setWindowTitle("Lattice gas correlator relaxation")
 
 main.plot()

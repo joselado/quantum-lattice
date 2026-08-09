@@ -129,7 +129,7 @@ BUTTON_TOOLTIPS = {
 "show_configuration": "Plot the occupied (1) vs. empty (0) sites of the last annealed configuration, colored on top of the lattice.",
 "show_correlator": "Compute and plot the neighbor-shell density-density correlator of the last annealed configuration - a diagnostic for ordered phases (e.g. striped or honeycomb-vacancy order) as a function of neighbor distance.",
 "show_relaxation": "Step through the occupation snapshots recorded at intervals during the last anneal, from the initial random configuration to the final one, alongside the energy trajectory with a marker showing the current step.",
-"show_correlator_relaxation": "Step through the neighbor-shell density-density correlator recorded at each of those same snapshots - and, for a 2D lattice, the reciprocal-space structure factor S(q) alongside it - showing how the ordering (length scale, and for 2D lattices its wavevector) builds up over the anneal.",
+"show_correlator_relaxation": "Step through the anneal alongside the energy trace, showing the reciprocal-space structure factor S(q) at each snapshot for a 2D lattice (its ordering wavevector), or the neighbor-shell density-density correlator for the Chain lattice (its ordering length scale).",
 }
 
 

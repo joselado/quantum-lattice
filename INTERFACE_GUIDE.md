@@ -555,12 +555,17 @@ scatter for whichever frame is selected, alongside the energy trace
 (`ENERGY.OUT`, if present) with a vertical marker at the current step -
 this made the old standalone "Show energy trace" button/`ql-latticegas-
 energy` script redundant, so both were removed rather than kept alongside
-it. `ql-latticegas-correlator-relaxation` re-renders the correlator line
-plot per frame and, only if `LATTICEGAS_STRUCTURE_FRAMES/` exists (2D
-lattice), an `imshow` of `S(q)` reshaped from its `nq`x`nq` grid (same
-"reshape a flattened grid back to 2D" move `ql-multildos --grid` uses) in
-a second panel alongside it - a script consuming that folder should treat
-its absence as "this lattice wasn't 2D", not an error.
+it. `ql-latticegas-correlator-relaxation` puts the same energy trace +
+marker on its left panel (also reading `ENERGY.OUT` directly, rather than
+being handed it - the two scripts don't share any code) and, on the
+right, an `imshow` of `S(q)` reshaped from its `nq`x`nq` grid (same
+"reshape a flattened grid back to 2D" move `ql-multildos --grid` uses,
+with `fraction=0.046,pad=0.04` on its colorbar so it matches the plot's
+height instead of `fig.colorbar()`'s oversized default) if
+`LATTICEGAS_STRUCTURE_FRAMES/` exists (2D lattice) - a script consuming
+that folder should treat its absence as "this lattice wasn't 2D", not an
+error - or, if not (`Chain`, which has no meaningful `S(q)`), the
+correlator line plot instead.
 
 `common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
 what used to be five separate repeated lines: it calls `create_folder()`
