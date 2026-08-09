@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="LATTICEGAS_FRAMES",help='Input folder')
+args = parser.parse_args() # get the arguments
+
+folder = args.input+"/" # folder with all the snapshots
+
+names = open(folder+"LATTICEGAS_FRAMES.TXT").readlines() # read the files
+names = [name.replace("\n","") for name in names] # remove newline
+steps = [int(name.split("_")[2]) for name in names] # trial step of each frame
+frames = [np.genfromtxt(folder+name).transpose() for name in names] # load every snapshot up front
+
+es = None
+if os.path.isfile("ENERGY.OUT"):
+  es = np.genfromtxt("ENERGY.OUT").transpose() # iteration, energy
+
+
+def plot(main):
+  """Plotting function"""
+  fig = plt.gcf()
+  fig.set_facecolor(plotstyle.BACKGROUND)
+  fig.canvas.setWindowTitle("Lattice gas relaxation")
+  ii = int(main.get_slider("Step"))
+  step = steps[ii]
+  m = frames[ii]
+  x,y,z = m[0],m[1],m[2] # x, y, occupation
+  ax = fig.add_subplot(121) if es is not None else fig.add_subplot(111)
+  size = np.power(main.get_slider("Size"),4)
+  ax.scatter(x,y,s=100*size,c=z,edgecolor="none",cmap="binary",vmin=0,vmax=1)
+  ax.axis("equal")
+  ax.set_xticks([]) ; ax.set_yticks([])
+  zoom = main.get_slider("Zoom")
+  ax.set_xlim([np.min(x)*zoom,np.max(x)*zoom])
+  ax.set_ylim([np.min(y)*zoom,np.max(y)*zoom])
+  ax.set_title("Step %d/%d"%(step,steps[-1]))
+  if es is not None:
+    axe = fig.add_subplot(122)
+    axe.plot(es[0],es[1],color=plotstyle.PRIMARY)
+    marker = step if step<=es[0][-1] else es[0][-1]
+    axe.axvline(marker,color=plotstyle.SECONDARY,linewidth=2.0)
+    axe.set_xlabel("Iteration")
+    axe.set_ylabel("Energy")
+  return fig
+
+
+app,main = plotpyqt.get_interface(plot)
+main.add_slider(label="Step",vs=range(len(frames)),v0=0)
+main.add_slider(label="Size",vs=np.linspace(0.,2,100),v0=0.8)
+main.add_slider(label="Zoom",vs=np.linspace(1.1,0.01,100),v0=1.1)
+main.setWindowTitle("Lattice gas relaxation")
+
+main.plot()
+main.show()
+sys.exit(app.exec_())

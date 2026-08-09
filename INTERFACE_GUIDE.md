@@ -480,6 +480,29 @@ convention (e.g. `ql-dos-path`) rather than the older, unwired
 `ql-plot1d`/`ql-multiplot1d` (which don't call `plotstyle.apply()`, so
 they wouldn't pick up the shell's theme).
 
+`run_anneal()` also captures intermediate occupation snapshots during the
+anneal, not just the final one: `LatticeGas.optimize_energy()` accepts a
+`checkpoint_at` kwarg (an iterable of 1-indexed trial-step counts) and
+populates `lg.checkpoints` (a `dict[step -> den snapshot]`) - this is
+vendored-`pyqula` backend infrastructure that predates the GUI wiring for
+it. `run_anneal()` requests `n_snapshots` (a new field on the Anneal
+settings tab) evenly-spaced steps via `np.linspace(1,ntries,n_snapshots)`,
+plus the pre-anneal random configuration as step 0, and writes each one to
+`LATTICEGAS_FRAMES/` with an index file
+(`LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT`, one frame filename per line) -
+the same "indexed folder + `.TXT` filename list" convention
+`pyqula.timeevolution.evolve_local_state`'s `MULTITIMEEVOLUTION/` folder
+and `pyqula.ldos`'s `MULTILDOS/` folder already use for their own
+multi-frame outputs. The new `show_relaxation` button launches
+`ql-latticegas-relaxation`, a `plotpyqt`-based viewer (same
+`interfacetk.plotpyqt.get_interface()` scaffolding `ql-multildos` uses) with
+a "Step" slider - built via `main.add_slider(label="Step",
+vs=range(len(frames)))`, which returns the frame index directly rather
+than `ql-multildos`'s older `0..100`-then-rescale trick - that re-renders
+`ql-potential`'s binary occupation scatter for whichever frame is
+selected, alongside the energy trace (`ENERGY.OUT`, if present) with a
+vertical marker at the current step.
+
 `common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
 what used to be five separate repeated lines: it calls `create_folder()`
 and sets `window.scratch_dir`, wires `save_results`/`load_results` (only if

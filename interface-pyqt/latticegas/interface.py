@@ -135,6 +135,16 @@ class Ui_MainWindow(object):
 
         self.gridLayout_anneal_settings_fields.addWidget(self.ntries, 1, 1, 1, 1)
 
+        self.label_n_snapshots = BodyLabel(self.tab_anneal_settings)
+        self.label_n_snapshots.setObjectName(u"label_n_snapshots")
+
+        self.gridLayout_anneal_settings_fields.addWidget(self.label_n_snapshots, 2, 0, 1, 1)
+
+        self.n_snapshots = LineEdit(self.tab_anneal_settings)
+        self.n_snapshots.setObjectName(u"n_snapshots")
+
+        self.gridLayout_anneal_settings_fields.addWidget(self.n_snapshots, 2, 1, 1, 1)
+
 
         self.gridLayout_anneal_settings.addLayout(self.gridLayout_anneal_settings_fields, 0, 0, 1, 1)
 
@@ -183,6 +193,11 @@ class Ui_MainWindow(object):
         self.show_energy_trace.setObjectName(u"show_energy_trace")
 
         self.verticalLayout_anneal_results.addWidget(self.show_energy_trace)
+
+        self.show_relaxation = PushButton(self.tab_anneal_results)
+        self.show_relaxation.setObjectName(u"show_relaxation")
+
+        self.verticalLayout_anneal_results.addWidget(self.show_relaxation)
 
         self.tabWidget_2.addTab(self.tab_anneal_results, "")
 
@@ -240,6 +255,8 @@ class Ui_MainWindow(object):
         self.temp.setText(QCoreApplication.translate("MainWindow", u"0.5", None))
         self.label_ntries.setText(QCoreApplication.translate("MainWindow", u"Number of attempts", None))
         self.ntries.setText(QCoreApplication.translate("MainWindow", u"10000", None))
+        self.label_n_snapshots.setText(QCoreApplication.translate("MainWindow", u"Number of snapshots", None))
+        self.n_snapshots.setText(QCoreApplication.translate("MainWindow", u"20", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_anneal_settings), QCoreApplication.translate("MainWindow", u"Anneal settings", None))
         self.show_structure.setText(QCoreApplication.translate("MainWindow", u"Show structure", None))
         self.show_structure_3d.setText(QCoreApplication.translate("MainWindow", u"Show structure 3D", None))
@@ -248,6 +265,7 @@ class Ui_MainWindow(object):
         self.show_configuration.setText(QCoreApplication.translate("MainWindow", u"Show configuration", None))
         self.show_correlator.setText(QCoreApplication.translate("MainWindow", u"Show correlator", None))
         self.show_energy_trace.setText(QCoreApplication.translate("MainWindow", u"Show energy trace", None))
+        self.show_relaxation.setText(QCoreApplication.translate("MainWindow", u"Show relaxation", None))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_anneal_results), QCoreApplication.translate("MainWindow", u"Anneal & results", None))
         self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save Results", None))
         self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load Results", None))

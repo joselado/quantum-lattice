@@ -84,11 +84,39 @@ def run_anneal():
   lg = latticegas.LatticeGas(g,filling=filling)
   lg.mu = get_mu_array(g)
   lg.add_interaction(Jij=qtwrap.get_array("Jij"))
-  es = lg.optimize_energy(temp=get("temp"),ntries=int(get("ntries")))
+  ntries = int(get("ntries"))
+  n_snapshots = int(get("n_snapshots"))
+  checkpoint_steps = sorted(set(np.linspace(1,ntries,n_snapshots).astype(int)))
+  initial_den = lg.den.copy() # before any trial move, for the first frame
+  es = lg.optimize_energy(temp=get("temp"),ntries=ntries,
+      checkpoint_at=checkpoint_steps)
   g.write_profile(lg.den,name="PROFILE.OUT") # occupation map
   x,y = lg.get_correlator()
   np.savetxt("CORRELATOR.OUT",np.array([x,y]).T)
   np.savetxt("ENERGY.OUT",np.array([np.arange(len(es)),es]).T)
+  _write_relaxation_frames(g,lg,initial_den,checkpoint_steps)
+
+
+def _write_relaxation_frames(g,lg,initial_den,checkpoint_steps):
+  """Write the occupation snapshots the anneal passed through (the
+  initial random configuration plus every step in checkpoint_steps,
+  captured into lg.checkpoints via optimize_energy's checkpoint_at
+  above) to LATTICEGAS_FRAMES/, following the same indexed-folder +
+  index-file convention ql-multildos/ql-multitimeevolution already use
+  for their own "step through a sequence of spatial snapshots" sliders
+  (see pyqula.timeevolution.evolve_local_state). Lets show_relaxation()
+  step through the whole relaxation instead of only ever seeing the
+  single final PROFILE.OUT."""
+  fs.rmdir("LATTICEGAS_FRAMES")
+  fs.mkdir("LATTICEGAS_FRAMES")
+  index = open("LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT","w")
+  frames = [(0,initial_den)]
+  frames += [(s,lg.checkpoints[s]) for s in checkpoint_steps if s in lg.checkpoints]
+  for step,den in frames:
+    name = "LATTICEGAS_STEP_%d_.OUT"%step
+    g.write_profile(den,name="LATTICEGAS_FRAMES/"+name)
+    index.write(name+"\n")
+  index.close()
 
 
 def _require_anneal(output_file):
@@ -119,6 +147,13 @@ def show_energy_trace():
   execute_script("ql-latticegas-energy")
 
 
+def show_relaxation():
+  """Step through the occupation snapshots recorded at each stage of the
+  last anneal, from the initial random configuration to the final one"""
+  _require_anneal("LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT")
+  execute_script("ql-latticegas-relaxation")
+
+
 def show_structure():
   """Show the lattice of the system"""
   common.show_structure(qtwrap,get_geometry)
@@ -134,6 +169,7 @@ signals = {
   "show_configuration": show_configuration,
   "show_correlator": show_correlator,
   "show_energy_trace": show_energy_trace,
+  "show_relaxation": show_relaxation,
   "show_structure": show_structure,
   "show_structure_3d": show_structure_3d,
 }

@@ -370,6 +370,7 @@ Save results, ...) don't.
 | Show configuration | Lattice gas only: plots the occupied/empty sites of the last annealed configuration over the lattice. |
 | Show correlator | Lattice gas only: plots the neighbor-shell density-density correlator of the last annealed configuration — a diagnostic for ordered phases (e.g. striped or vacancy order). |
 | Show energy trace | Lattice gas only: plots the energy trajectory recorded during the last anneal. |
+| Show relaxation | Lattice gas only: steps through occupation snapshots recorded at intervals during the last anneal (from the initial random configuration to the final one) via a slider, alongside the energy trace with a marker showing the current step. |
 
 ## Reference: modes
 
@@ -464,15 +465,19 @@ variation on one of them.
   **Filling** (fraction of occupied sites) in the Geometry tab; the
   neighbor couplings **J1/J2/J3** (positive = repulsive, negative =
   attractive) and an optional position-dependent **chemical potential
-  profile** in the Interactions tab; and the Metropolis **Temperature** and
-  **Number of attempts** used to search for a low-energy configuration in
-  the Anneal settings tab. Clicking **Run anneal** starts from a fresh
-  random configuration at the requested filling and searches for its
-  lowest-energy arrangement; **Show configuration**, **Show correlator**,
-  and **Show energy trace** then visualize the result (occupation map,
-  neighbor-shell density-density correlator, and the anneal's energy
-  trajectory, respectively) without recomputing it. No SCF, no bands/DOS —
-  none of the usual electronic-structure calculations apply here.
+  profile** in the Interactions tab; and the Metropolis **Temperature**,
+  **Number of attempts**, and **Number of snapshots** used to search for a
+  low-energy configuration in the Anneal settings tab. Clicking
+  **Run anneal** starts from a fresh random configuration at the requested
+  filling and searches for its lowest-energy arrangement, recording
+  **Number of snapshots** occupation snapshots at evenly-spaced points
+  along the way; **Show configuration**, **Show correlator**,
+  **Show energy trace**, and **Show relaxation** then visualize the result
+  (the final occupation map, the neighbor-shell density-density
+  correlator, the anneal's energy trajectory, and a step-by-step slider
+  through the recorded snapshots, respectively) without recomputing it. No
+  SCF, no bands/DOS — none of the usual electronic-structure calculations
+  apply here.
 
 ## Updating the application
 
