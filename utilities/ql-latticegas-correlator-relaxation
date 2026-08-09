@@ -9,6 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import plotstyle
 plotstyle.apply()
 
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 path = os.path.dirname(os.path.realpath(__file__)) # current path
 path += "/../pysrc"
 sys.path.append(path) # add library
@@ -70,12 +72,22 @@ def plot(main):
     qx,qy,sq = sframes[ii][0],sframes[ii][1],sframes[ii][2]
     n = int(round(np.sqrt(len(qx))))
     zmap = sq.reshape((n,n))
-    cplot = ax.imshow(zmap.T,aspect="equal",origin="lower",cmap="inferno",
+    cplot = ax.imshow(zmap.T,aspect="auto",origin="lower",cmap="inferno",
             extent=(np.min(qx),np.max(qx),np.min(qy),np.max(qy)))
-    fig.colorbar(cplot,ax=ax,label="S(q)",fraction=0.046,pad=0.04)
+    # "auto" (not "equal") aspect lets the image fill its subplot box the
+    # same way the energy panel does, instead of being letterboxed down
+    # to a small square - both panels end up similarly sized. A thin
+    # make_axes_locatable sibling axes (rather than fig.colorbar's own
+    # ax=/fraction= shrinkage, which visibly narrowed ax further once
+    # its tick/axis labels were accounted for) keeps as much of ax's own
+    # width as possible
+    cax = make_axes_locatable(ax).append_axes("right",size="5%",pad=0.1)
+    cb = fig.colorbar(cplot,cax=cax,label="S(q)",ticks=[np.min(sq),np.max(sq)])
+    cb.ax.set_yticklabels(["Min","Max"]) # qualitative scale, not the raw numbers
     ax.set_xlabel("$q_x$")
     ax.set_ylabel("$q_y$")
-    ax.set_title("Structure factor")
+    ax.set_title("S(q)") # short: the right panel is now as wide as the left
+      # one (aspect="auto" above), so a longer title runs into it otherwise
   else:
     x,y = cframes[ii][0],cframes[ii][1]
     ax.plot(x,y,color=plotstyle.PRIMARY,marker="o",linewidth=2.0)

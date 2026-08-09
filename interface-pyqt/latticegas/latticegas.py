@@ -83,19 +83,29 @@ _anneal_state = {} # stashes the objects (not just files) from the last
     # app-wide busy lock means only one handler ever runs at a time, so
     # there's no concurrent access.
 
+_anneal_dirty_time = None # window.params_dirty_time() as of the last
+    # successful run_anneal() - None means "never run yet, in this
+    # process". Compared against the live params_dirty_time() by
+    # _needs_live_anneal()/_ensure_annealed() below to decide whether a
+    # Show button needs a fresh anneal first - same "rebuild only if
+    # something changed" pattern as huge_0d.py's
+    # initialize()/_ensure_initialized().
+
 
 def run_anneal():
   """Build a fresh random configuration at the requested filling and
   anneal it with pyqula's Metropolis swap optimizer. Writes every output
-  file the Show */Show * buttons below read, so a later click on one of
-  those just re-plots the last anneal without recomputing it."""
+  file the Show */Show * buttons below read. Not wired to a button of its
+  own - every Show button calls _ensure_annealed() first, which calls
+  this automatically only when needed (see _anneal_dirty_time)."""
+  global _anneal_dirty_time
   filling = get("filling")
   if not 0.0<filling<1.0:
     raise ValueError("Filling must be strictly between 0 and 1 (got %r) - "
         "optimize_energy() needs both an occupied and an empty site to swap" % filling)
-  _anneal_state.clear() # so a failed anneal (below) leaves show_correlator_relaxation()
-      # correctly refusing with "Run anneal first" instead of serving stale frames
-      # from whatever anneal last succeeded
+  _anneal_state.clear() # so a failed anneal (below) leaves _ensure_annealed()
+      # correctly retrying next time instead of serving stale results from
+      # whatever anneal last succeeded
   is_2d = getbox("lattice")!="Chain" # every LATTICES entry but Chain is a 2D Bravais lattice
   g = get_geometry()
   lg = latticegas.LatticeGas(g,filling=filling)
@@ -115,6 +125,37 @@ def run_anneal():
   _write_configuration_frames(g,frames)
   _anneal_state.update(g=g,lg=lg,frames=frames,is_2d=is_2d,
       correlator_computed=False)
+  _anneal_dirty_time = window.params_dirty_time()
+
+
+def _needs_live_anneal():
+  """Whether this process's own last live run_anneal() call (if any)
+  still matches the current parameters - i.e. whether _anneal_state's
+  Python objects (g, lg, frames) can be trusted. Unlike
+  _ensure_annealed()'s file-freshness check below, this ignores disk
+  state entirely: _anneal_state only ever comes from an actual
+  run_anneal() call in this process, never from a Load Results file
+  restore, so params_dirty_time() alone (not PROFILE.OUT's mtime) is
+  what tells us whether it's still current."""
+  return _anneal_dirty_time is None or window.params_dirty_time()>_anneal_dirty_time
+
+
+def _ensure_annealed():
+  """Run the anneal automatically if this process doesn't already have
+  a result matching the current parameters - so every Show button below
+  works standalone, with no separate explicit Run step. Two things
+  count as "already matching": this process's own last live anneal, if
+  no parameter has changed since (_needs_live_anneal() False); or - since
+  Load Results' reset_dirty() bumps params_dirty_time() forward exactly
+  the way a live field edit would - a PROFILE.OUT already on disk that's
+  at least as new as the current parameters, covering "the user just
+  loaded a saved anneal and hasn't touched anything since" without this
+  silently discarding what they loaded and replacing it with a fresh,
+  differently-random anneal."""
+  if not _needs_live_anneal(): return
+  if os.path.isfile("PROFILE.OUT") and os.path.getmtime("PROFILE.OUT")>=window.params_dirty_time():
+    return
+  run_anneal()
 
 
 def _checkpoint_frames(lg,initial_den,checkpoint_steps):
@@ -199,45 +240,46 @@ def _write_correlator_frames(g,lg,frames,is_2d):
   lg.den = final_den
 
 
-def _require_anneal(output_file):
-  """Show configuration/correlator/relaxation read a file run_anneal()
-  writes - guard against the silent failure of launching a plotting script
-  against a file that was never written (execute_script() runs it as a
-  non-blocking background subprocess, so a crash there would otherwise
-  never reach an InfoBar). show_correlator_relaxation() checks
-  _anneal_state instead, since its data isn't written until it's clicked."""
-  if not os.path.exists(output_file):
-    raise RuntimeError("Run anneal first")
-
-
 def show_configuration():
-  """Show the last annealed occupation (0/1) map"""
-  _require_anneal("PROFILE.OUT")
+  """Show the last annealed occupation (0/1) map, running the anneal
+  automatically first if needed (see _ensure_annealed)"""
+  _ensure_annealed()
   execute_script("ql-potential --input PROFILE.OUT --cmap binary --colorbar false")
 
 
 def show_correlator():
-  """Show the neighbor-shell density-density correlator of the last anneal"""
-  _require_anneal("CORRELATOR.OUT")
+  """Show the neighbor-shell density-density correlator of the last
+  anneal, running the anneal automatically first if needed"""
+  _ensure_annealed()
   execute_script("ql-latticegas-correlator")
 
 
 def show_relaxation():
   """Step through the occupation snapshots recorded at each stage of the
-  last anneal, from the initial random configuration to the final one"""
-  _require_anneal("LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT")
+  last anneal, from the initial random configuration to the final one,
+  running the anneal automatically first if needed"""
+  _ensure_annealed()
   execute_script("ql-latticegas-relaxation")
 
 
 def show_correlator_relaxation():
-  """Compute (only the first time this is clicked for a given anneal, so
-  run_anneal() and every other button stay unaffected by this one's cost
-  - see _anneal_state) and step through the neighbor-shell correlator -
-  and, for 2D lattices, the reciprocal-space structure factor - at each
-  stage of the last anneal. A later click just replots the same frames,
-  same as every other Show button here."""
-  if not _anneal_state:
-    raise RuntimeError("Run anneal first")
+  """Run the anneal automatically first if needed, then compute (only
+  the first time this is clicked for a given anneal, so every other
+  button stays unaffected by this one's cost - see _anneal_state) and
+  step through the neighbor-shell correlator - and, for 2D lattices, the
+  reciprocal-space structure factor - at each stage of the last anneal.
+  A later click just replots the same frames, same as every other Show
+  button here.
+
+  Unlike the other Show buttons, this doesn't go through
+  _ensure_annealed(): that function's file-freshness bypass (letting a
+  freshly Load Results-restored PROFILE.OUT count as "up to date") isn't
+  enough here, since this button needs the actual LatticeGas object
+  (_anneal_state), not just flat files - Load Results doesn't restore
+  that (or the LATTICEGAS_*_FRAMES/ folders this button reads/writes),
+  so a live anneal is required whenever _needs_live_anneal() is True."""
+  if _needs_live_anneal():
+    run_anneal()
   if not _anneal_state["correlator_computed"]:
     _write_correlator_frames(_anneal_state["g"],_anneal_state["lg"],
         _anneal_state["frames"],_anneal_state["is_2d"])
@@ -256,7 +298,6 @@ def show_structure_3d():
 
 
 signals = {
-  "run_anneal": run_anneal,
   "show_configuration": show_configuration,
   "show_correlator": show_correlator,
   "show_correlator_relaxation": show_correlator_relaxation,

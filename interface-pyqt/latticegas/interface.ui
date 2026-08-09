@@ -234,16 +234,9 @@
       </widget>
       <widget class="QWidget" name="tab_anneal_results">
        <attribute name="title">
-        <string>Anneal &amp; results</string>
+        <string>Results</string>
        </attribute>
        <layout class="QVBoxLayout" name="verticalLayout_anneal_results">
-        <item>
-         <widget class="PushButton" name="run_anneal">
-          <property name="text">
-           <string>Run anneal</string>
-          </property>
-         </widget>
-        </item>
         <item>
          <widget class="PushButton" name="show_configuration">
           <property name="text">

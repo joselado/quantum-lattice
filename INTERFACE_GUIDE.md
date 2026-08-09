@@ -479,6 +479,41 @@ convention (e.g. `ql-dos-path`) rather than the older, unwired
 `ql-plot1d`/`ql-multiplot1d` (which don't call `plotstyle.apply()`, so
 they wouldn't pick up the shell's theme).
 
+`run_anneal()` has no button of its own - there's no explicit "Run" step
+in this mode's UI at all. Every Show button calls `_ensure_annealed()`
+first, which calls `run_anneal()` automatically, but only if it's never
+run (`_anneal_dirty_time is None`) or a parameter has been edited since
+the last run (`_needs_live_anneal()`: `window.params_dirty_time()>
+_anneal_dirty_time` - the same edit-timestamp/dirty-flag primitive
+`huge_0d.py`'s `initialize()`/`_ensure_initialized()` already uses for
+its own "rebuild only if something changed" check). `run_anneal()`
+itself sets `_anneal_dirty_time = window.params_dirty_time()` as its
+last line, once everything else has succeeded - so a click that finds
+nothing changed just reuses the existing results instead of
+re-annealing.
+
+`_ensure_annealed()` has one more layer beyond `_needs_live_anneal()`,
+for **Load Results**: `save_state()`/`load_state()` (`qlinterface.py`)
+copy this mode's flat result files (`PROFILE.OUT`, `CORRELATOR.OUT`,
+`ENERGY.OUT`, ...) in and out of a named folder, and `load_state()` ends
+with `window.reset_dirty()` - which bumps `params_dirty_time()` forward
+exactly the way a live field edit would, since it's the same timestamp.
+Naively treating that the same as "the user edited a parameter" would
+make the very next Show click discard what was just loaded and silently
+replace it with a fresh, differently-random anneal - `_ensure_annealed()`
+avoids this with a second check: even when `_needs_live_anneal()` is
+`True`, if `PROFILE.OUT` already exists on disk and its mtime is at
+least as new as the current `params_dirty_time()` (true right after a
+Load, since `load_state()`'s `shutil.copy()` loop runs *after* its
+`reset_dirty()` call - false after a real edit, since the file predates
+it), that's accepted as already-current and `run_anneal()` is skipped.
+`show_correlator_relaxation()` can't use this same bypass, though - it
+needs `_anneal_state`'s live `LatticeGas` object (`g`, `lg`, `frames`),
+which `save_state()`/`load_state()` never touch (like the
+`LATTICEGAS_*_FRAMES/` folders it reads/writes, see below), so it checks
+`_needs_live_anneal()` directly and always anneals for real when that's
+`True`, regardless of file freshness.
+
 `run_anneal()` also captures intermediate occupation snapshots during the
 anneal, not just the final one: `LatticeGas.optimize_energy()` accepts a
 `checkpoint_at` kwarg (an iterable of 1-indexed trial-step counts) and
@@ -505,7 +540,7 @@ The neighbor-shell correlator (`LatticeGas.get_correlator()`) per
 snapshot is not cheap the same way: its per-shell loop is O(nsites^2),
 and multiplied across ~21 frames at the library's default resolution it
 measured ~8s extra on a 600-site Kagome supercell - real added latency to
-*every* `Run anneal` click even though most anneals never get their
+*every* anneal even though most anneals never get their
 correlator-across-snapshots viewed. So `run_anneal()` does **not** call
 `_write_correlator_frames()` - instead it stashes the objects that
 function needs (`g`, `lg`, `frames`, `is_2d`, plus a `correlator_computed`
@@ -527,23 +562,28 @@ concurrent access to worry about - the one case where a parent-process
 global like this wouldn't be visible is a handler that runs via
 `qtwrap.py`'s "Subprocess-based calculations" path (a `calc.py`-based
 handler running in a child OS process, e.g. `1d/calc.py`), which doesn't
-apply here since `latticegas` has no `calc.py`. `_write_correlator_frames()` writes each snapshot's correlator
-to `LATTICEGAS_CORRELATOR_FRAMES/` (temporarily pointing `lg.den` at that
-snapshot, restoring it afterwards) the same indexed-folder way, capped at
-`n=8` neighbor shells rather than the library's default (a quick slider
-scrub doesn't need 20 shells' worth of resolution to show the ordering
-trend, and it keeps `show_correlator_relaxation()` itself responsive) -
-and, only when the chosen lattice isn't `Chain` (`is_2d =
+apply here since `latticegas` has no `calc.py`. `_write_correlator_frames()`,
+per snapshot, writes only whichever of the two is actually plotted (see
+`ql-latticegas-correlator-relaxation` below) - never both, since the
+other would just be wasted computation: for a 2D lattice (`is_2d =
 getbox("lattice")!="Chain"`, since every other `LATTICES` entry is a 2D
-Bravais lattice), also writes each snapshot's reciprocal-space structure
-factor (`LatticeGas.get_structure_factor()`, the 2D companion to
+Bravais lattice), the reciprocal-space structure factor
+(`LatticeGas.get_structure_factor()`, the 2D companion to
 `get_correlator()`: `get_correlator()` gives the ordering length scale,
 `get_structure_factor()` gives its wavevector) to
-`LATTICEGAS_STRUCTURE_FRAMES/`. The `show_correlator_relaxation` button
-launches `ql-latticegas-correlator-relaxation` to view these; unlike the
-other Show buttons, it doesn't guard with `_require_anneal()` against a
-file that might not exist yet (nothing's written until the button itself
-writes it) but against `_anneal_state` being empty instead.
+`LATTICEGAS_STRUCTURE_FRAMES/`; otherwise (`Chain`, which has no
+meaningful `S(q)`) the neighbor-shell correlator itself
+(`LatticeGas.get_correlator()`, temporarily pointing `lg.den` at that
+snapshot and restoring it afterwards) to `LATTICEGAS_CORRELATOR_FRAMES/`,
+capped at `n=8` neighbor shells rather than the library's default (a
+quick slider scrub doesn't need 20 shells' worth of resolution to show
+the ordering trend, and it keeps `show_correlator_relaxation()` itself
+responsive). The `show_correlator_relaxation` button launches
+`ql-latticegas-correlator-relaxation` to view whichever folder exists -
+unlike the other Show buttons, it checks `_needs_live_anneal()` directly
+rather than going through `_ensure_annealed()` (see above), which
+guarantees `_anneal_state` is populated and current by the time this
+handler's own logic runs.
 
 Both viewer scripts are `plotpyqt`-based (same
 `interfacetk.plotpyqt.get_interface()` scaffolding `ql-multildos` uses)
@@ -558,14 +598,30 @@ energy` script redundant, so both were removed rather than kept alongside
 it. `ql-latticegas-correlator-relaxation` puts the same energy trace +
 marker on its left panel (also reading `ENERGY.OUT` directly, rather than
 being handed it - the two scripts don't share any code) and, on the
-right, an `imshow` of `S(q)` reshaped from its `nq`x`nq` grid (same
-"reshape a flattened grid back to 2D" move `ql-multildos --grid` uses,
-with `fraction=0.046,pad=0.04` on its colorbar so it matches the plot's
-height instead of `fig.colorbar()`'s oversized default) if
-`LATTICEGAS_STRUCTURE_FRAMES/` exists (2D lattice) - a script consuming
-that folder should treat its absence as "this lattice wasn't 2D", not an
-error - or, if not (`Chain`, which has no meaningful `S(q)`), the
-correlator line plot instead.
+right, whichever of `LATTICEGAS_STRUCTURE_FRAMES/`/`LATTICEGAS_CORRELATOR_FRAMES/`
+actually exists (exactly one does, per `_write_correlator_frames()`
+above - a script reading one should treat the other's absence as "this
+lattice doesn't have that kind of correlator", not an error) is
+authoritative for the frame count/step sequence, not just an arbitrary
+default: for a 2D lattice, an `imshow` of `S(q)` reshaped from its
+`nq`x`nq` grid (same "reshape a flattened grid back to 2D" move
+`ql-multildos --grid` uses), `aspect="auto"` rather than `"equal"` so the
+image fills its subplot box the same way the energy panel does instead
+of being letterboxed down to a small square, and its colorbar drawn into
+a thin `mpl_toolkits.axes_grid1.make_axes_locatable(ax).append_axes(
+"right",size="5%",pad=0.1)` sibling axes rather than via
+`fig.colorbar()`'s own `ax=`/`fraction=` shrinkage (which visibly
+narrowed the image further, once its tick/axis labels were accounted
+for, than the `5%` nominally taken) - together these keep both panels
+similarly sized. `ticks=[sq.min(),sq.max()]` relabeled `["Min","Max"]`
+(same `cb.ax.set_yticklabels(...)` move `ql-multildos` uses for its own
+`[0,'Max']`) rather than showing the raw `S(q)` values, which aren't
+individually meaningful - only the ordering wavevector's location in the
+map is; for `Chain` (no meaningful `S(q)`), the correlator line plot
+instead, with short axis labels (`"G(r)"`/`"Distance"` rather than
+`"Density-density correlator"`/`"Neighbor distance"`) since this panel is
+now only half the figure's width and the longer labels clipped into the
+left panel.
 
 `common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
 what used to be five separate repeated lines: it calls `create_folder()`
