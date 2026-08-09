@@ -489,27 +489,61 @@ tab) evenly-spaced steps via `np.linspace(1,ntries,n_snapshots)`, builds
 `(step,den)` pairs via `_checkpoint_frames()` (the pre-anneal random
 configuration as step 0, plus every requested checkpoint) - shared by
 every "across snapshots" writer so their Step sliders all index the same
-sequence - and hands them to two writers:
+sequence.
 
-- `_write_configuration_frames()` writes each snapshot's occupation map to
-  `LATTICEGAS_FRAMES/` with an index file
-  (`LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT`, one frame filename per line)
-  - the same "indexed folder + `.TXT` filename list" convention
-  `pyqula.timeevolution.evolve_local_state`'s `MULTITIMEEVOLUTION/` folder
-  and `pyqula.ldos`'s `MULTILDOS/` folder already use for their own
-  multi-frame outputs. The `show_relaxation` button launches
-  `ql-latticegas-relaxation` to view it (see below).
-- `_write_correlator_frames()` writes each snapshot's neighbor-shell
-  correlator (`LatticeGas.get_correlator()`, temporarily pointing `lg.den`
-  at that snapshot) to `LATTICEGAS_CORRELATOR_FRAMES/` the same way, and -
-  only when the chosen lattice isn't `Chain` (`is_2d =
-  getbox("lattice")!="Chain"`, since every other `LATTICES` entry is a 2D
-  Bravais lattice) - also writes each snapshot's reciprocal-space
-  structure factor (`LatticeGas.get_structure_factor()`, the 2D companion
-  to `get_correlator()`: `get_correlator()` gives the ordering length
-  scale, `get_structure_factor()` gives its wavevector) to
-  `LATTICEGAS_STRUCTURE_FRAMES/`. The `show_correlator_relaxation` button
-  launches `ql-latticegas-correlator-relaxation` to view these.
+`_write_configuration_frames()` writes each snapshot's occupation map to
+`LATTICEGAS_FRAMES/` with an index file
+(`LATTICEGAS_FRAMES/LATTICEGAS_FRAMES.TXT`, one frame filename per line) -
+the same "indexed folder + `.TXT` filename list" convention
+`pyqula.timeevolution.evolve_local_state`'s `MULTITIMEEVOLUTION/` folder
+and `pyqula.ldos`'s `MULTILDOS/` folder already use for their own
+multi-frame outputs - and `run_anneal()` calls it directly, since writing
+an occupation map per snapshot is cheap. The `show_relaxation` button
+launches `ql-latticegas-relaxation` to view it (see below).
+
+The neighbor-shell correlator (`LatticeGas.get_correlator()`) per
+snapshot is not cheap the same way: its per-shell loop is O(nsites^2),
+and multiplied across ~21 frames at the library's default resolution it
+measured ~8s extra on a 600-site Kagome supercell - real added latency to
+*every* `Run anneal` click even though most anneals never get their
+correlator-across-snapshots viewed. So `run_anneal()` does **not** call
+`_write_correlator_frames()` - instead it stashes the objects that
+function needs (`g`, `lg`, `frames`, `is_2d`, plus a `correlator_computed`
+flag starting `False`) into a module-level `_anneal_state` dict, cleared
+right after the cheap `filling` validation at the top of `run_anneal()`
+and only repopulated at the very end, once every step in between has
+succeeded - so a `run_anneal()` that fails partway through (a bad
+parameter, a construction error) leaves `_anneal_state` empty rather than
+serving `show_correlator_relaxation()` a stale anneal's frames.
+`_write_correlator_frames()` only actually runs inside
+`show_correlator_relaxation()`, and only the first time it's clicked for
+a given anneal (guarded by `correlator_computed`, set `True` right after)
+- a later click just replots the same frames, same as every other Show
+button here, rather than recomputing. This is safe as a plain module
+global rather than something written to disk: each mode's `.py`
+is imported once for the app's lifetime (no page-rebuild/reload path),
+and `qtwrap`'s app-wide busy lock serializes every handler, so there's no
+concurrent access to worry about - the one case where a parent-process
+global like this wouldn't be visible is a handler that runs via
+`qtwrap.py`'s "Subprocess-based calculations" path (a `calc.py`-based
+handler running in a child OS process, e.g. `1d/calc.py`), which doesn't
+apply here since `latticegas` has no `calc.py`. `_write_correlator_frames()` writes each snapshot's correlator
+to `LATTICEGAS_CORRELATOR_FRAMES/` (temporarily pointing `lg.den` at that
+snapshot, restoring it afterwards) the same indexed-folder way, capped at
+`n=8` neighbor shells rather than the library's default (a quick slider
+scrub doesn't need 20 shells' worth of resolution to show the ordering
+trend, and it keeps `show_correlator_relaxation()` itself responsive) -
+and, only when the chosen lattice isn't `Chain` (`is_2d =
+getbox("lattice")!="Chain"`, since every other `LATTICES` entry is a 2D
+Bravais lattice), also writes each snapshot's reciprocal-space structure
+factor (`LatticeGas.get_structure_factor()`, the 2D companion to
+`get_correlator()`: `get_correlator()` gives the ordering length scale,
+`get_structure_factor()` gives its wavevector) to
+`LATTICEGAS_STRUCTURE_FRAMES/`. The `show_correlator_relaxation` button
+launches `ql-latticegas-correlator-relaxation` to view these; unlike the
+other Show buttons, it doesn't guard with `_require_anneal()` against a
+file that might not exist yet (nothing's written until the button itself
+writes it) but against `_anneal_state` being empty instead.
 
 Both viewer scripts are `plotpyqt`-based (same
 `interfacetk.plotpyqt.get_interface()` scaffolding `ql-multildos` uses)

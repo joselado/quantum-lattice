@@ -471,17 +471,19 @@ variation on one of them.
   **Run anneal** starts from a fresh random configuration at the requested
   filling and searches for its lowest-energy arrangement, recording
   **Number of snapshots** occupation snapshots at evenly-spaced points
-  along the way; **Show configuration**, **Show correlator**,
-  **Show relaxation**, and **Show correlator relaxation** then visualize
-  the result without recomputing it: the final occupation map, the final
-  neighbor-shell density-density correlator, a step-by-step slider through
-  the recorded occupation snapshots (with the energy trajectory alongside,
-  marked at the current step), and a matching slider through the
-  correlator at each of those snapshots — for a 2D lattice (any choice but
-  Chain), also showing the reciprocal-space structure factor S(q) at each
-  step, so you can watch the ordering wavevector emerge as the system
-  relaxes. No SCF, no bands/DOS — none of the usual electronic-structure
-  calculations apply here.
+  along the way. **Show configuration**, **Show relaxation**, and
+  **Show correlator** then visualize the result instantly, without
+  recomputing anything: the final occupation map, a step-by-step slider
+  through the recorded occupation snapshots (with the energy trajectory
+  alongside, marked at the current step), and the final neighbor-shell
+  density-density correlator, respectively. **Show correlator relaxation**
+  is the one exception — the correlator at every recorded snapshot (and,
+  for a 2D lattice, the reciprocal-space structure factor S(q) alongside
+  it, revealing the ordering wavevector as it develops) is only computed
+  when you click that button, not during **Run anneal** itself, so expect
+  a short wait the first time you click it for a given anneal — later
+  clicks replot the same computed frames instantly. No SCF, no bands/DOS —
+  none of the usual electronic-structure calculations apply here.
 
 ## Updating the application
 

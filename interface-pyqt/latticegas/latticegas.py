@@ -71,6 +71,19 @@ def get_mu_array(g):
     return np.full(len(g.r),mu_fun)
 
 
+_anneal_state = {} # stashes the objects (not just files) from the last
+    # successful anneal - g, lg, frames, is_2d, plus a
+    # correlator_computed flag - so show_correlator_relaxation() can
+    # compute the per-snapshot correlator/structure factor lazily, only
+    # when that button is actually pressed (once per anneal, cached
+    # across repeat clicks via the flag), instead of run_anneal() always
+    # paying for it - see show_correlator_relaxation()'s docstring for
+    # why that cost matters. Safe to keep as a plain module global: this
+    # module is imported once for the app's lifetime, and qtwrap's
+    # app-wide busy lock means only one handler ever runs at a time, so
+    # there's no concurrent access.
+
+
 def run_anneal():
   """Build a fresh random configuration at the requested filling and
   anneal it with pyqula's Metropolis swap optimizer. Writes every output
@@ -80,6 +93,9 @@ def run_anneal():
   if not 0.0<filling<1.0:
     raise ValueError("Filling must be strictly between 0 and 1 (got %r) - "
         "optimize_energy() needs both an occupied and an empty site to swap" % filling)
+  _anneal_state.clear() # so a failed anneal (below) leaves show_correlator_relaxation()
+      # correctly refusing with "Run anneal first" instead of serving stale frames
+      # from whatever anneal last succeeded
   is_2d = getbox("lattice")!="Chain" # every LATTICES entry but Chain is a 2D Bravais lattice
   g = get_geometry()
   lg = latticegas.LatticeGas(g,filling=filling)
@@ -97,7 +113,8 @@ def run_anneal():
   np.savetxt("ENERGY.OUT",np.array([np.arange(len(es)),es]).T)
   frames = _checkpoint_frames(lg,initial_den,checkpoint_steps)
   _write_configuration_frames(g,frames)
-  _write_correlator_frames(g,lg,frames,is_2d)
+  _anneal_state.update(g=g,lg=lg,frames=frames,is_2d=is_2d,
+      correlator_computed=False)
 
 
 def _checkpoint_frames(lg,initial_den,checkpoint_steps):
@@ -139,9 +156,12 @@ def _write_correlator_frames(g,lg,frames,is_2d):
   LATTICEGAS_STRUCTURE_FRAMES/, so show_correlator_relaxation() can
   step through how the ordering builds up (both its length scale and,
   for 2D lattices, its wavevector) over the anneal instead of only ever
-  seeing the final snapshot's correlator. Temporarily overwrites lg.den
-  per frame since get_correlator()/get_structure_factor() read it,
-  restoring the final configuration afterwards."""
+  seeing the final snapshot's correlator. Only called from
+  show_correlator_relaxation() itself (see _anneal_state), not from
+  run_anneal(), since this is the expensive part of the two (see below)
+  and most anneals never get this button clicked. Temporarily overwrites
+  lg.den per frame since get_correlator()/get_structure_factor() read
+  it, restoring the final configuration afterwards."""
   final_den = lg.den.copy()
   fs.rmdir("LATTICEGAS_CORRELATOR_FRAMES")
   fs.mkdir("LATTICEGAS_CORRELATOR_FRAMES")
@@ -153,13 +173,13 @@ def _write_correlator_frames(g,lg,frames,is_2d):
   for step,den in frames:
     lg.den = den
     # get_nnc's per-shell loop is O(nsites^2), so at the full default of
-    # n=20 shells this dominates run_anneal's wall time once multiplied
-    # across every frame (measured ~0.4s/frame on a 600-site Kagome
-    # supercell, i.e. ~8s just for this loop at the default 21 frames) -
-    # capped lower here since a quick slider scrub doesn't need 20
-    # shells' worth of resolution to show the ordering trend. The final
-    # snapshot's own CORRELATOR.OUT (below) and show_correlator() keep
-    # the uncapped default.
+    # n=20 shells this dominates the wall time of this function once
+    # multiplied across every frame (measured ~0.4s/frame on a 600-site
+    # Kagome supercell, i.e. ~8s just for this loop at the default 21
+    # frames) - capped lower here since a quick slider scrub doesn't
+    # need 20 shells' worth of resolution to show the ordering trend.
+    # The final snapshot's own CORRELATOR.OUT (in run_anneal()) and
+    # show_correlator() keep the uncapped default.
     x,y = lg.get_correlator(n=8)
     cname = "LATTICEGAS_CORR_STEP_%d_.OUT"%step
     np.savetxt("LATTICEGAS_CORRELATOR_FRAMES/"+cname,np.array([x,y]).T)
@@ -176,11 +196,12 @@ def _write_correlator_frames(g,lg,frames,is_2d):
 
 
 def _require_anneal(output_file):
-  """Show configuration/correlator/relaxation all read a file run_anneal()
+  """Show configuration/correlator/relaxation read a file run_anneal()
   writes - guard against the silent failure of launching a plotting script
   against a file that was never written (execute_script() runs it as a
   non-blocking background subprocess, so a crash there would otherwise
-  never reach an InfoBar)."""
+  never reach an InfoBar). show_correlator_relaxation() checks
+  _anneal_state instead, since its data isn't written until it's clicked."""
   if not os.path.exists(output_file):
     raise RuntimeError("Run anneal first")
 
@@ -205,10 +226,18 @@ def show_relaxation():
 
 
 def show_correlator_relaxation():
-  """Step through the neighbor-shell correlator - and, for 2D lattices,
-  the reciprocal-space structure factor - recorded at each stage of the
-  last anneal"""
-  _require_anneal("LATTICEGAS_CORRELATOR_FRAMES/LATTICEGAS_CORRELATOR_FRAMES.TXT")
+  """Compute (only the first time this is clicked for a given anneal, so
+  run_anneal() and every other button stay unaffected by this one's cost
+  - see _anneal_state) and step through the neighbor-shell correlator -
+  and, for 2D lattices, the reciprocal-space structure factor - at each
+  stage of the last anneal. A later click just replots the same frames,
+  same as every other Show button here."""
+  if not _anneal_state:
+    raise RuntimeError("Run anneal first")
+  if not _anneal_state["correlator_computed"]:
+    _write_correlator_frames(_anneal_state["g"],_anneal_state["lg"],
+        _anneal_state["frames"],_anneal_state["is_2d"])
+    _anneal_state["correlator_computed"] = True
   execute_script("ql-latticegas-correlator-relaxation")
 
 
