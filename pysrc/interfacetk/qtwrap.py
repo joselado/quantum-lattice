@@ -811,6 +811,32 @@ def _retint_theme_images(*_):
 qconfig.themeChanged.connect(_retint_theme_images)
 
 
+def _restyle_tab_bars(*_):
+    """Every mode's top-level QTabWidgets ("Geometry"/"Interactions"/...,
+    "Structure"/"Anneal & results"/... - 2-5 per mode) are plain stock
+    QTabWidget, never promoted to a qfluentwidgets widget the way
+    BodyLabel/ComboBox/LineEdit/PushButton are (see each interface.ui's
+    <customwidgets> block) - so they never register with qfluentwidgets'
+    setTheme()/updateStyleSheet() machinery and keep native/OS-default
+    tab-bar styling regardless of theme. That collides with the shell's
+    own `QWidget { background: transparent; }` rules (bin/versions/
+    quantum-lattice-pyqt, applied to every mode's top-level page so the
+    dark chrome shows through underneath it) - the tab strip's native
+    background goes transparent, letting the dark background show
+    through, while the tab text stays at its native black, illegible in
+    dark mode. A single QApplication-wide stylesheet rule fixes every
+    mode's tabs at once without touching any interface.ui (whose
+    QTabWidget promotion would need re-running tools/convert_ui.sh,
+    which needs pyside6-uic's backing Qt tools - not guaranteed present
+    in every environment this repo is developed in)."""
+    app = QtWidgets.QApplication.instance()
+    if app is None: return # called before ensure_app(), shouldn't happen but don't crash
+    app.setStyleSheet("QTabBar::tab { color: %s; }"%_ink_color().name())
+
+
+qconfig.themeChanged.connect(_restyle_tab_bars)
+
+
 def find_layout_of(widget):
   """Find whichever QGridLayout under `widget`'s parent actually contains
   `widget` - Designer nests one QGridLayout inside another for each term

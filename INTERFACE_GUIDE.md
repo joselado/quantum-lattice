@@ -87,6 +87,41 @@ change — it hardcodes `tabWidget_2`/`tabWidget_3` because those object
 names were verified consistent across all six SCF-capable modes via the
 grep above, rather than searched for generically.
 
+### QTabWidget tab labels don't follow the dark/light theme on their own
+
+Every `QTabWidget` across every mode's `interface.ui` is plain stock
+`QTabWidget` - unlike `QPushButton`/`QLineEdit`/`QComboBox`/`QLabel`, it's
+never promoted to a qfluentwidgets equivalent (no compatible drop-in
+replacement exists to promote it *to*). A promoted widget registers
+itself with qfluentwidgets' `FluentStyleSheet.apply()` machinery
+(`styleSheetManager`, a `WeakKeyDictionary` in
+`qfluentwidgets/common/style_sheet.py`), which is what `setTheme()`/
+`updateStyleSheet()` actually iterates - an unpromoted stock widget never
+registers, so `setTheme(Theme.DARK)` never touches it at all, and its tab
+bar keeps native/OS-default styling regardless of theme. That collided
+with `bin/versions/quantum-lattice-pyqt`'s own
+`real_page.setStyleSheet("QWidget { background: transparent; }")` (set on
+every mode's top-level page so the shell's dark chrome shows through
+underneath it): the tab strip's native background went transparent,
+letting the dark background show through, while the tab *text* stayed at
+its native black - illegible in dark mode, across every mode (confirmed
+via an offscreen `shell.grab()` screenshot comparison, not just by
+reading the code).
+
+The fix is `pysrc/interfacetk/qtwrap.py`'s `_restyle_tab_bars()`: a single
+`QApplication`-wide `app.setStyleSheet("QTabBar::tab { color: %s; }" %
+_ink_color().name())` call, wired to `qconfig.themeChanged` the same way
+`_retint_theme_images()` (the Hamiltonian-term formula PNG re-tinting,
+same file) is - so it applies once at startup and again on every later
+flip of the shell's "Dark interface" switch. This covers every mode's
+2-5 `QTabWidget`s at once with one small addition to a file every mode
+already imports, without touching any `interface.ui`/`interface.py`. If a
+future dark-mode legibility bug turns up in some *other* stock
+(never-promoted) widget type - `QGroupBox`, `QRadioButton`, `QSpinBox`,
+... - this same `app.setStyleSheet()` call in `_restyle_tab_bars()` is
+the natural place to add another selector rule, not a new standalone
+mechanism.
+
 ## Runtime dynamic-widget patterns
 
 Three modules build/rearrange widgets in Python at runtime instead of
