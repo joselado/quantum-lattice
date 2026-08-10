@@ -54,7 +54,7 @@ def plot(main):
     axe = fig.add_subplot(122)
     axe.plot(es[0],es[1],color=plotstyle.PRIMARY)
     marker = step if step<=es[0][-1] else es[0][-1]
-    axe.axvline(marker,color=plotstyle.SECONDARY,linewidth=2.0)
+    axe.axvline(marker,color=plotstyle.ACCENT,linewidth=2.0)
     axe.set_xlabel("Iteration")
     axe.set_ylabel("Energy",color=plotstyle.PRIMARY)
     if ms is not None: # total magnetization on a shared twin axis

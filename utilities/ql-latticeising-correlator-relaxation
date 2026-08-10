@@ -66,7 +66,7 @@ def plot(main):
   if es is not None:
     axe.plot(es[0],es[1],color=plotstyle.PRIMARY)
     marker = step if step<=es[0][-1] else es[0][-1]
-    axe.axvline(marker,color=plotstyle.SECONDARY,linewidth=2.0)
+    axe.axvline(marker,color=plotstyle.ACCENT,linewidth=2.0)
   axe.set_xlabel("Iteration")
   axe.set_ylabel("Energy",color=plotstyle.PRIMARY)
   axe.set_title("Step %d/%d"%(step,steps[-1]))
