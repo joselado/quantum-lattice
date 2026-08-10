@@ -38,6 +38,7 @@ from pyqula import timeevolution
 from pyqula import embedding
 from pyqula import filesystem as fs
 from pyqula import latticegas
+from pyqula import latticeising
 
 from . import qtwrap
 

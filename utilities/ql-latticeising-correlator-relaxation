@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+path = os.path.dirname(os.path.realpath(__file__)) # current path
+path += "/../pysrc"
+sys.path.append(path) # add library
+from interfacetk import plotpyqt
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--input",default="LATTICEISING_CORRELATOR_FRAMES",
+        help='Input folder for the neighbor-shell correlator (Chain lattice)')
+parser.add_argument("--structure-input",default="LATTICEISING_STRUCTURE_FRAMES",
+        help='Input folder for the 2D structure factor (2D lattices)')
+args = parser.parse_args() # get the arguments
+
+# _write_correlator_frames() only ever writes one of these two folders per
+# anneal (whichever its right panel below actually needs), never both -
+# so exactly one of has_structure/has_correlator is true, and that folder
+# alone is authoritative for the frame count/step sequence.
+cfolder = args.input+"/"
+sfolder = args.structure_input+"/"
+has_structure = os.path.isfile(sfolder+"LATTICEISING_STRUCTURE_FRAMES.TXT")
+has_correlator = os.path.isfile(cfolder+"LATTICEISING_CORRELATOR_FRAMES.TXT")
+if has_structure:
+  snames = open(sfolder+"LATTICEISING_STRUCTURE_FRAMES.TXT").readlines()
+  snames = [name.replace("\n","") for name in snames] # remove newline
+  steps = [int(name.split("_")[3]) for name in snames] # trial step of each frame
+  sframes = [np.genfromtxt(sfolder+name).transpose() for name in snames] # load every snapshot up front
+elif has_correlator:
+  cnames = open(cfolder+"LATTICEISING_CORRELATOR_FRAMES.TXT").readlines()
+  cnames = [name.replace("\n","") for name in cnames]
+  steps = [int(name.split("_")[3]) for name in cnames]
+  cframes = [np.genfromtxt(cfolder+name).transpose() for name in cnames]
+else:
+  raise RuntimeError("Neither %s nor %s found - run the anneal first"%(sfolder,cfolder))
+
+es = None
+if os.path.isfile("ENERGY.OUT"):
+  es = np.genfromtxt("ENERGY.OUT").transpose() # iteration, energy
+
+ms = None
+if os.path.isfile("MAGNETIZATION.OUT"):
+  ms = np.genfromtxt("MAGNETIZATION.OUT").transpose() # iteration, total magnetization
+
+
+def plot(main):
+  """Plotting function"""
+  fig = plt.gcf()
+  fig.set_facecolor(plotstyle.BACKGROUND)
+  fig.canvas.setWindowTitle("Ising model correlator relaxation")
+  ii = int(main.get_slider("Step"))
+  step = steps[ii]
+
+  axe = fig.add_subplot(121) # energy/magnetization trace, marked at the current step
+  if es is not None:
+    axe.plot(es[0],es[1],color=plotstyle.PRIMARY)
+    marker = step if step<=es[0][-1] else es[0][-1]
+    axe.axvline(marker,color=plotstyle.SECONDARY,linewidth=2.0)
+  axe.set_xlabel("Iteration")
+  axe.set_ylabel("Energy",color=plotstyle.PRIMARY)
+  axe.set_title("Step %d/%d"%(step,steps[-1]))
+  if ms is not None:
+    axm = axe.twinx()
+    axm.plot(ms[0],ms[1],color=plotstyle.SECONDARY,alpha=0.6)
+    axm.set_ylabel("Magnetization",color=plotstyle.SECONDARY)
+
+  ax = fig.add_subplot(122) # structure factor (2D lattice) or correlator (Chain)
+  if has_structure:
+    qx,qy,sq = sframes[ii][0],sframes[ii][1],sframes[ii][2]
+    n = int(round(np.sqrt(len(qx))))
+    zmap = sq.reshape((n,n))
+    cplot = ax.imshow(zmap.T,aspect="equal",origin="lower",cmap="inferno",
+            extent=(np.min(qx),np.max(qx),np.min(qy),np.max(qy)))
+    # "equal" aspect: q_x and q_y share the same physical scale, so a
+    # square S(q) map is the physically correct one, not a distortion.
+    # A thin make_axes_locatable sibling axes (rather than
+    # fig.colorbar's own ax=/fraction= shrinkage) keeps as much of ax's
+    # own size as the "equal" aspect leaves available
+    cax = make_axes_locatable(ax).append_axes("right",size="5%",pad=0.1)
+    cb = fig.colorbar(cplot,cax=cax,label="S(q)",ticks=[np.min(sq),np.max(sq)])
+    cb.ax.set_yticklabels(["Min","Max"]) # qualitative scale, not the raw numbers
+    ax.set_xlabel("$q_x$")
+    ax.set_ylabel("$q_y$")
+    ax.set_title("S(q)") # short: the right panel is now as wide as the left
+      # one (aspect="auto" above), so a longer title runs into it otherwise
+  else:
+    x,y = cframes[ii][0],cframes[ii][1]
+    ax.plot(x,y,color=plotstyle.PRIMARY,marker="o",linewidth=2.0)
+    ax.axhline(0.0,color=plotstyle.SECONDARY,linewidth=1.0)
+    ax.set_xlabel("Distance") # short: this panel is narrower than a
+    ax.set_ylabel("Correlator") # full-width plot, tight_layout clips long labels
+    ax.set_title("Spin correlator")
+  return fig
+
+
+app,main = plotpyqt.get_interface(plot)
+main.add_slider(label="Step",vs=range(len(steps)),v0=0)
+main.setWindowTitle("Ising model correlator relaxation")
+
+main.plot()
+main.show()
+sys.exit(app.exec_())

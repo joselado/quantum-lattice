@@ -127,6 +127,9 @@ BUTTON_TOOLTIPS = {
 "show_configuration": "Build a fresh random configuration at the requested filling, anneal it via Metropolis-annealed discrete swaps if needed (or reuse the last anneal if no parameter has changed since), then plot the occupied (1) vs. empty (0) sites over the lattice.",
 "show_relaxation": "Step through the occupation snapshots recorded at intervals during the last anneal, from the initial random configuration to the final one, alongside the energy trajectory with a marker showing the current step.",
 "show_correlator_relaxation": "Step through the anneal alongside the energy trace, showing the reciprocal-space structure factor S(q) at each snapshot for a 2D lattice (its ordering wavevector), or the neighbor-shell density-density correlator for the Chain lattice (its ordering length scale).",
+"show_spin_configuration": "Build a fresh random spin configuration at the requested initial magnetization, relax it via single-spin-flip Metropolis dynamics if needed (or reuse the last anneal if no parameter has changed since), then plot the up (+1) vs. down (-1) spins over the lattice.",
+"show_spin_relaxation": "Step through the spin-configuration snapshots recorded at intervals during the last anneal, from the initial random configuration to the final one, alongside the energy and total-magnetization trajectories with a marker showing the current step.",
+"show_spin_correlator_relaxation": "Step through the anneal alongside the energy and magnetization traces, showing the reciprocal-space structure factor S(q) at each snapshot for a 2D lattice (its ordering wavevector - e.g. ferromagnetic order peaks at q=0, checkerboard antiferromagnetic order at the zone corner), or the neighbor-shell spin-spin correlator for the Chain lattice (its ordering length scale).",
 }
 
 
@@ -340,11 +343,15 @@ PARAM_TOOLTIPS = {
 "nsuper_impurity": "Supercell size used when embedding the impurity/impurities, controlling how many host unit cells surround them.",
 "energy_embedding_ldos": "Energy at which the host+impurity local density of states is evaluated.",
 "ncells_embedding_ldos": "Number of host unit cells plotted around the embedded impurity in the embedding LDOS map.",
-# --- lattice gas (classical occupation model) ---
-"supercell_size": "Number of unit cells per side of the finite patch built to host the lattice gas - a larger patch reduces boundary effects at higher annealing cost.",
+# --- classical lattice models (lattice gas, Ising) ---
+"supercell_size": "Number of unit cells per side of the finite patch built to host the classical model (lattice gas / Ising) - a larger patch reduces boundary effects at higher annealing cost.",
 "filling": "Fraction of sites occupied (strictly between 0 and 1 - the swap-based anneal needs at least one occupied and one empty site) - the number of occupied sites is fixed at this value and preserved by every swap move during annealing.",
 "Jij": "Neighbor-shell coupling strengths (J1, J2, J3, ...), entered as comma-separated numbers, for the classical density-density interaction between occupied sites - positive values are repulsive, negative values attractive.",
 "mu_profile": "Site-dependent chemical potential bias, either a single number (uniform - has no effect on the annealed ground state since filling is fixed) or a position-dependent expression 'r[0]', 'r[1]', 'r[2]' being the site's x/y/z coordinates.",
-"temp": "Metropolis temperature used during annealing - higher values accept more energy-increasing swaps, helping escape local minima at the cost of a noisier final configuration.",
-"ntries": "Number of Metropolis swap attempts performed during annealing - more attempts give the search more chances to reach a low-energy configuration, at higher computational cost.",
+"temp": "Metropolis temperature used during annealing - higher values accept more energy-increasing moves (swaps or spin flips, depending on the model), helping escape local minima at the cost of a noisier final configuration.",
+"ntries": "Number of Metropolis move attempts (swaps or spin flips, depending on the model) performed during annealing - more attempts give the search more chances to reach a low-energy configuration, at higher computational cost.",
+"n_snapshots": "Number of intermediate configurations captured during the anneal for the relaxation/correlator-relaxation Step slider - more snapshots give a finer-grained view of the relaxation at negligible extra cost (a snapshot itself is cheap to write; only the correlator/structure-factor view recomputes anything expensive, and only once per anneal).",
+"magnetization": "Initial average magnetization in [-1,1] used to build the random starting spin configuration (0: half up, half down) - since the default single-spin-flip dynamics does not conserve magnetization, this only sets the starting point, not a constraint on the final annealed state.",
+"Jij_ising": "Neighbor-shell coupling strengths (J1, J2, J3, ...), entered as comma-separated numbers, for the classical spin-spin exchange between sites - positive values are ferromagnetic (favor aligned spins), negative values antiferromagnetic. Opposite sign convention from the lattice gas model's Jij.",
+"field_profile": "Site-dependent external (Zeeman-like) field bias, either a single number (uniform - unlike the lattice gas model's chemical potential, a uniform field here does matter, since the default single-spin-flip dynamics does not conserve magnetization) or a position-dependent expression 'r[0]', 'r[1]', 'r[2]' being the site's x/y/z coordinates.",
 }

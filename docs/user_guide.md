@@ -56,8 +56,9 @@ dimensionality:
   spatial parts (e.g. a bilayer with different parameters per layer).
 - **Misc** — Hofstadter butterflies, a heavy-fermion Kondo lattice, and
   thin-film slabs.
-- **Classical models** — a lattice gas: classical, occupation-based
-  particles on a lattice, no quantum Hamiltonian involved.
+- **Classical models** — a lattice gas (classical, occupation-based
+  particles on a lattice) and an Ising model (classical up/down spins on a
+  lattice), no quantum Hamiltonian involved in either.
 
 See [Reference: modes](#reference-modes) below for what's distinctive about
 each one. The first time you open a mode's page in a session it takes a
@@ -369,6 +370,9 @@ Save results, ...) don't.
 | Show configuration | Lattice gas only: plots the occupied/empty sites of the last annealed configuration over the lattice — anneals automatically first (a fresh random occupation at the requested filling, searched for its lowest-energy arrangement via Metropolis swaps) if no anneal has run yet or a parameter has changed since. |
 | Show relaxation | Lattice gas only: steps through occupation snapshots recorded at intervals during the last anneal (from the initial random configuration to the final one) via a slider, alongside the energy trace with a marker showing the current step. |
 | Show correlator relaxation | Lattice gas only: steps through the anneal via a slider, showing the energy trace (marked at the current step) alongside — for a 2D lattice — the reciprocal-space structure factor S(q) at that step, or — for the Chain lattice, which has no meaningful S(q) — the neighbor-shell density-density correlator instead. |
+| Show configuration (Ising) | Ising model only: plots the up/down spins of the last annealed configuration over the lattice — anneals automatically first (a fresh random spin configuration at the requested initial magnetization, relaxed via single-spin-flip Metropolis dynamics) if no anneal has run yet or a parameter has changed since. |
+| Show relaxation (Ising) | Ising model only: steps through spin-configuration snapshots recorded at intervals during the last anneal (from the initial random configuration to the final one) via a slider, alongside the energy and total-magnetization traces with a marker showing the current step. |
+| Show correlator relaxation (Ising) | Ising model only: steps through the anneal via a slider, showing the energy/magnetization traces (marked at the current step) alongside — for a 2D lattice — the reciprocal-space structure factor S(q) at that step, or — for the Chain lattice — the neighbor-shell spin-spin correlator instead. |
 
 ## Reference: modes
 
@@ -492,6 +496,39 @@ variation on one of them.
   anyway, replacing the loaded result (and what the other two buttons now
   show) with a new, differently random one. No SCF, no bands/DOS — none
   of the usual electronic-structure calculations apply here.
+
+- **Ising model** — also not a quantum tight-binding model: a classical
+  model of up/down spins ($\pm1$) sitting on every site of a lattice
+  (Chain, Square, Triangular, Honeycomb, Kagome, Lieb), aligning or
+  anti-aligning with their neighbors through a real-space exchange
+  coupling and an optional external field — the same classical-anneal
+  mechanic as Lattice gas, applied to spins instead of occupations. Set
+  the lattice, patch size (Supercell size), and **Initial magnetization**
+  (average spin, $-1$ to $1$, used only to build the random starting
+  configuration) in the Geometry tab; the neighbor couplings **J1/J2/J3**
+  (positive = ferromagnetic/aligning, negative = antiferromagnetic — the
+  opposite sign convention from Lattice gas's couplings) and an optional
+  position-dependent **external field profile** in the Interactions tab;
+  and the Metropolis **Temperature**, **Number of attempts**, and
+  **Number of snapshots** in the Anneal settings tab. As with Lattice gas,
+  there is no separate "run" step: clicking any Show button anneals
+  automatically first if needed, starting from a fresh random spin
+  configuration at the requested initial magnetization and relaxing it
+  via single-spin-flip Metropolis dynamics (magnetization is **not**
+  conserved during this relaxation — unlike Lattice gas's fixed filling,
+  it's free to drift toward whichever value the field and couplings
+  favor), recording **Number of snapshots** spin snapshots at
+  evenly-spaced points along the way. **Show configuration** visualizes
+  the final spin map, and **Show relaxation** steps through every
+  recorded snapshot via a slider, alongside the energy and total
+  magnetization trajectories (marked at the current step). **Show
+  correlator relaxation** works the same way as Lattice gas's — its
+  neighbor-shell spin correlator (or, for a 2D lattice, the
+  reciprocal-space structure factor S(q)) is only computed the first time
+  you click it for a given anneal, so expect a short extra wait then, not
+  on later clicks. **Load Results** and the same anneal-freshness/Load
+  interaction described above for Lattice gas apply here too. No SCF, no
+  bands/DOS.
 
 ## Updating the application
 

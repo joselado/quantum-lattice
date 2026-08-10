@@ -51,18 +51,18 @@ maintenance doc, not a one-time snapshot.
 - **See how a specific mode is wired before touching it** (which buttons
   are auto-wired vs. hand-rolled, whether it has SCF, whether it restricts
   terms by lattice family) — see "Per-mode organization map" below, so you
-  don't have to re-derive it by reading all fifteen `<mode>.py` files.
+  don't have to re-derive it by reading all sixteen `<mode>.py` files.
 
 ## Per-mode organization map
 
-All fifteen modern modes (everything under `interface-pyqt/` except
+All sixteen modern modes (everything under `interface-pyqt/` except
 `quasiperiodic/`, unwired/pre-existing and not part of this architecture —
 see `CLAUDE.md` — and `huge_0d/`, the one three-*module* exception, also
 covered in `CLAUDE.md`) follow the shared conventions described throughout
 this file and `CLAUDE.md`, but differ in *which* of those conventions they
 actually use. This section is a reference map of that variation, so
 checking a mode's wiring before changing it doesn't mean re-reading all
-fifteen `<mode>.py` files from scratch. It reflects the codebase as of the
+sixteen `<mode>.py` files from scratch. It reflects the codebase as of the
 consistency pass that also fixed the dead code/duplication findings below
 it — re-derive it (the same way it was built: grep each `<mode>.py` for
 `wire_standard_signals`/`extra=`, `latticeterms.connect`, `scfterms.build`)
@@ -77,8 +77,8 @@ doesn't fit the `pickup_hamiltonian`-based auto-wiring model: `hofstader1d`
 it just predates consistent use of it), `impurity_embedding`/
 `ribbon_embedding` (no bands/DOS/Chern/... buttons at all — only
 structure, atom removal, and the three embedding-LDOS handlers), and
-`latticegas` (no Hamiltonian to build in the first place — see "Adding a
-mode" below). For everyone else, only buttons whose behavior differs from
+`latticegas`/`latticeising` (no Hamiltonian to build in the first place —
+see "Adding a mode" below). For everyone else, only buttons whose behavior differs from
 `common.STANDARD_HANDLERS` need an `extra={}` entry:
 
 | Mode | `extra={}` overrides |
@@ -104,7 +104,7 @@ calls it with a constant `lambda: "Honeycomb"` instead of `getbox
 ("lattice")`, since its own `lattice` combobox is a stacking code
 (`"ABA"`, ...) rather than a lattice-family name. `impurity_embedding`/
 `ribbon_embedding` do call it (0d island / ribbon host, both
-user-selectable). `latticegas` doesn't (classical model, no
+user-selectable). `latticegas`/`latticeising` don't (classical models, no
 Hamiltonian-restricted terms to hide).
 
 **SCF.** `0d`/`2dslab`/`hybridfilm`/`hybridribbon`/`multilayergraphene`
@@ -117,8 +117,8 @@ and reporting the broken symmetry via `scf.identify_symmetry_breaking()`.
 "Hard-cancelling a calculation" below) — its `solve_scf()` is a thin
 `run_calculation_subprocess()` call, with the real math in `1d/calc.py`.
 `tbg`/`hofstader1d`/`heavyfermion`/`impurity_embedding`/`ribbon_embedding`/
-`tmdc`/`latticegas` have no SCF at all (no `scfterms.build()` call, no SCF
-tab).
+`tmdc`/`latticegas`/`latticeising` have no SCF at all (no `scfterms.build()`
+call, no SCF tab).
 
 **Distinctive mechanic** (one phrase each, beyond the shared conventions):
 
@@ -139,6 +139,7 @@ tab).
 | ribbon_embedding | same embedding mechanic onto a 1d ribbon host |
 | tmdc | built-in `specialhamiltonian.NbSe2(...)` — no generic geometry+`get_hamiltonian()` construction at all |
 | latticegas | classical occupation model, no Hamiltonian — see "Adding a mode" below |
+| latticeising | classical Ising spin model, no Hamiltonian — mirrors latticegas, see "Adding a mode" below |
 
 "pyqula code" tab (`codeview.build`): only `0d`/`1d`/`2d` have it.
 
@@ -768,6 +769,44 @@ ordering wavevector's location in the map is; for `Chain` (no meaningful
 (`"G(r)"`/`"Distance"` rather than `"Density-density correlator"`/
 `"Neighbor distance"`) since this panel is only half the figure's width
 and the longer labels clipped into the left panel.
+
+`latticeising` (`interface-pyqt/latticeising/latticeising.py`, wrapping
+`pyqula.latticeising.LatticeIsing`) is the second mode built on this
+Hamiltonian-less pattern, and mirrors `latticegas` almost line for line —
+same `_anneal_state`/`_anneal_dirty_time`/`_ensure_annealed()` machinery,
+same checkpointed-snapshot/indexed-folder frame writers, same lazy
+correlator-frames computation gated on a `correlator_computed` flag, same
+`ql-latticeising-relaxation`/`ql-latticeising-correlator-relaxation`
+viewer pair (`LATTICEISING_FRAMES/`, `LATTICEISING_STRUCTURE_FRAMES/`,
+`LATTICEISING_CORRELATOR_FRAMES/` in place of the `LATTICEGAS_*`
+equivalents). Two physics differences ripple through the copy: `LatticeIsing`
+uses spins `s` in `{-1,+1}` with the **opposite** `add_interaction()` sign
+convention from `LatticeGas` (positive `Jij` is ferromagnetic, not
+repulsive — hence the distinct field name `Jij_ising`, so its
+`PARAM_TOOLTIPS` entry doesn't collide with `latticegas`'s `Jij`), and its
+default dynamics is `li.optimize_energy()` — single-spin-flip Metropolis,
+which does **not** conserve magnetization (unlike `LatticeGas.
+optimize_energy()`'s fixed-filling swaps) — so the "Initial magnetization"
+field (`magnetization`, `-1..1`) is only a starting point, not a
+conserved quantity, and the external field (`field_profile`) genuinely
+matters even when uniform, unlike `latticegas`'s `mu_profile` (see both
+fields' `PARAM_TOOLTIPS` entries). Because `li.optimize_energy()` also
+returns a total-magnetization trajectory (`ms`, alongside the energy
+trajectory `es`) with no extra cost, `run_anneal()` writes it to
+`MAGNETIZATION.OUT` and both viewer scripts plot it as a second trace
+(`twinx()`) alongside the energy trace — a small addition beyond
+`latticegas`'s pattern, since magnetization is the standard Ising order
+parameter and the data was already there for free. Button names are
+`show_spin_configuration`/`show_spin_relaxation`/
+`show_spin_correlator_relaxation` rather than `latticegas`'s
+`show_configuration`/`show_relaxation`/`show_correlator_relaxation` —
+distinct names so their `BUTTON_TOOLTIPS` text (up/down spins, not
+occupied/empty sites) doesn't collide with `latticegas`'s entries for the
+same shared-registry reason as `Jij_ising`. `supercell_size`/`temp`/
+`ntries` keep their `latticegas` names and tooltips (generalized to cover
+"swap or flip" moves and "lattice gas / Ising" hosts, rather than adding
+a duplicate `_ising`-suffixed entry for each) since their meaning doesn't
+actually differ between the two models.
 
 `common.finalize_page(qtwrap,window,signals,inipath,robust=True)` replaces
 what used to be five separate repeated lines: it calls `create_folder()`

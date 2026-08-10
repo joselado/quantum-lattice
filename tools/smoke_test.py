@@ -46,6 +46,7 @@ MODES = [
     "2d", "hybridfilm", "tbg", "1d", "0d", "2dslab", "hybridribbon",
     "hofstader1d", "3d", "heavyfermion", "huge_0d", "multilayergraphene",
     "impurity_embedding", "tmdc", "ribbon_embedding", "latticegas",
+    "latticeising",
 ]
 
 ALIVE_TIMEOUT = 6  # seconds a healthy GUI should stay up (blocked in app.exec())
