@@ -19,7 +19,7 @@ from interfacetk import common # common routines for all the geometries
 
 common.initialize(qtwrap) # do several common initializations
 
-pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True)
+pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
 qtwrap.set_combobox("bands_color",operators.operator_list)
 qtwrap.set_combobox("dos_operator",operators.operator_list)
@@ -45,9 +45,9 @@ def initialize():
 
 
 
-def show_dos(silent=False):
+def show_dos():
   h = pickup_hamiltonian() # get hamiltonian
-  common.get_dos(h,qtwrap,silent=silent)
+  common.get_dos(h,qtwrap)
 
 
 
@@ -66,87 +66,9 @@ def show_structure():
   common.show_structure(qtwrap,get_geometry)
 
 
-def show_qpi():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_qpi(h,qtwrap)
-
-
-
-def show_magnetism_3d():
-  """Show the magnetism of the system"""
-  h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization(nrep=int(get("magnetization_nrep"))) 
-  execute_script("ql-moments")
-
-
-def show_magnetism():
-  """Show the magnetism of the system"""
-  h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization(nrep=int(get("magnetization_nrep"))) 
-  execute_script("ql-quiver")
-
-
 def show_structure_3d():
   """Show the lattice of the system"""
   common.show_structure_3d(qtwrap,get_geometry)
-
-
-
-def sweep_parameter():
-    """Perform a sweep in a parameter"""
-    pname = getbox("sweep_parameter") # get the parameter
-    ps = np.linspace(get("sweep_initial"),get("sweep_final"),
-               int(get("sweep_steps"))) # parameters
-    def modify(p): # function to change the parameter
-        if pname=="Sublattice imbalance": qtwrap.modify("mAB",p)
-        elif pname=="Kane-Mele": qtwrap.modify("kanemele",p)
-        elif pname=="Jx": qtwrap.modify("Bx",p)
-        elif pname=="Jy": qtwrap.modify("By",p)
-        elif pname=="Jz": qtwrap.modify("Bz",p)
-        elif pname=="Rashba": qtwrap.modify("rashba",p)
-        elif pname=="Haldane": qtwrap.modify("haldane",p)
-        elif pname=="Anti-Haldane": qtwrap.modify("antihaldane",p)
-        elif pname=="s-wave pairing": qtwrap.modify("swave",p)
-        elif pname=="Fermi": qtwrap.modify("fermi",p)
-        else: raise # not implemented
-    cname = getbox("sweep_task") # type of computation
-    out = [] # empty list
-    for p in ps: # loop over the values
-        modify(p) # modify the Hamiltonian
-        h = pickup_hamiltonian() # get hamiltonian
-        if cname=="DOS": 
-            show_dos(silent=True) # compute DOS
-            m = np.genfromtxt("DOS.OUT").transpose() # get dos
-            es,ds = m[0],m[1]
-            for (e,d) in zip(es,ds): # loop over energies
-                out.append([p,e,d])
-        elif cname=="Indirect gap": # compute the gap
-            g = h.get_gap() # compute Gap
-            out.append([p,g]) # store result
-        elif cname=="Chern number": # compute the gap
-            c = topology.chern(h,nk=int(np.sqrt(get("nk_topology"))))
-            out.append([p,c]) # store result
-        elif cname=="Eigenvalues": # store the band eigenvalues
-            (ks,es) = h.get_bands() # compute eigenvalues
-            for e in es: out.append([p,e]) # store
-        else: raise
-    np.savetxt("SWEEP.OUT",np.matrix(out)) # store result
-    if cname=="DOS":
-        execute_script("ql-sweep-dos SWEEP.OUT") # remove the file
-    elif cname=="Indirect gap":
-        execute_script("ql-indirect-gap SWEEP.OUT") # remove the file
-    elif cname=="Chern number":
-        execute_script("ql-chern-evolution SWEEP.OUT") # remove the file
-    elif cname=="Eigenvalues":
-        execute_script("ql-sweep-eigenvalues SWEEP.OUT") # remove the file
-    else:
-        execute_script("ql-indirect-gap SWEEP.OUT") # remove the file
-    
-
-
-
-
-
 
 
 # create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
@@ -155,7 +77,7 @@ def sweep_parameter():
 # wired automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,  # show bandstructure
-  "show_dos": show_dos,  # also used by sweep_parameter
+  "show_dos": show_dos,
   "show_structure_3d": show_structure_3d,
 })
 

@@ -195,43 +195,8 @@ def show_structure():
 
 def solve_scf():
   """Perform a selfconsistent calculation"""
-  scfin = window.getbox("scf_initialization")
   h = initialize() # initialize the Hamiltonian
-  mf = scftypes.guess(h,mode=scfin)
-  nk = int(get("nk_scf"))
-  U = get("U")
-  V1 = get("V1")
-  V2 = get("V2")
-  filling = get("filling_scf")
-  filling = filling%1.
-  # flavor of the mean field
-#  compute_dd = window.is_checked("compute_dd",default=True)
-#  compute_anomalous = window.is_checked("compute_anomalous",default=False)
-#  compute_cross = window.is_checked("compute_cross",default=True)
-#  compute_normal = window.is_checked("compute_normal",default=True)
-  error = window.get("scf_error",default=1e-5) # error in the mean field
-#  if compute_anomalous: h.add_swave(0.)
-  mix = get("mix_scf")
-  if h.has_spin: # J1/J2/J3 exchange has no meaning without a spin degree
-                 # of freedom - see common.solve_scf, which this mirrors
-    J1 = get("J1")
-    J2 = get("J2")
-    J3 = get("J3")
-    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
-                  J1=J1,J2=J2,J3=J3,
-                  mf=mf,mix=mix,maxerror=error,verbose=1,
-                  **common.get_scf_solver_kwargs(h,window,for_vjinteraction=True)
-                  )
-  else:
-    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
-                  mf=mf,load_mf=False,
-                  mix=mix,maxerror=error,verbose=1,
-                  **common.get_scf_solver_kwargs(h,window,for_vjinteraction=False)
-                  )
-  mfname = scf.identify_symmetry_breaking(as_string=True)
-  window.set("identified_mean_field",mfname)
-  scf.hamiltonian.save() # save in a file
-  common.mark_scf_solved(qtwrap)
+  common.solve_scf_identify_symmetry_breaking(h,qtwrap)
 
 
 

@@ -48,6 +48,107 @@ maintenance doc, not a one-time snapshot.
   below.
 - **Run the automated test suite, or add a test for a new mode/term/button** —
   see "Testing" below.
+- **See how a specific mode is wired before touching it** (which buttons
+  are auto-wired vs. hand-rolled, whether it has SCF, whether it restricts
+  terms by lattice family) — see "Per-mode organization map" below, so you
+  don't have to re-derive it by reading all fifteen `<mode>.py` files.
+
+## Per-mode organization map
+
+All fifteen modern modes (everything under `interface-pyqt/` except
+`quasiperiodic/`, unwired/pre-existing and not part of this architecture —
+see `CLAUDE.md` — and `huge_0d/`, the one three-*module* exception, also
+covered in `CLAUDE.md`) follow the shared conventions described throughout
+this file and `CLAUDE.md`, but differ in *which* of those conventions they
+actually use. This section is a reference map of that variation, so
+checking a mode's wiring before changing it doesn't mean re-reading all
+fifteen `<mode>.py` files from scratch. It reflects the codebase as of the
+consistency pass that also fixed the dead code/duplication findings below
+it — re-derive it (the same way it was built: grep each `<mode>.py` for
+`wire_standard_signals`/`extra=`, `latticeterms.connect`, `scfterms.build`)
+rather than trust it blindly once enough new modes/changes have landed
+that it might have drifted.
+
+**Signal wiring.** Every mode calls `common.wire_standard_signals(qtwrap,
+pickup_hamiltonian,extra={...})` except three that build `signals` fully
+by hand, because their button set (or the absence of a Hamiltonian at all)
+doesn't fit the `pickup_hamiltonian`-based auto-wiring model: `hofstader1d`
+(hand-rolled for historical reasons — its button set does fit the model,
+it just predates consistent use of it), `impurity_embedding`/
+`ribbon_embedding` (no bands/DOS/Chern/... buttons at all — only
+structure, atom removal, and the three embedding-LDOS handlers), and
+`latticegas` (no Hamiltonian to build in the first place — see "Adding a
+mode" below). For everyone else, only buttons whose behavior differs from
+`common.STANDARD_HANDLERS` need an `extra={}` entry:
+
+| Mode | `extra={}` overrides |
+|---|---|
+| 0d | solve_scf, show_structure, show_hoppings, show_structure_3d, show_interactive_ldos, show_magnetism, select_atoms_removal, select_atom_time_evolution, show_time_evolution, show_local_chern |
+| 1d | show_structure, show_ldos, show_edge_dos, show_band_ldos, show_structure_3d, show_magnetism, solve_scf, select_atoms_removal |
+| 2d | solve_scf, show_structure, show_dos, show_dosbands, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal |
+| 2dslab | show_structure, show_structure_3d, show_kdos, show_ldos, show_magnetism, solve_scf, select_atoms_removal |
+| 3d | show_structure, show_structure_3d, show_magnetism, solve_scf |
+| tbg | show_dos, show_site_dos (forced KPM — moiré cells too large for ED), show_ldos_single, show_structure, show_structure_3d, select_atoms_removal |
+| hybridfilm | show_structure, show_structure_3d, show_dos, show_ldos, solve_scf |
+| hybridribbon | show_structure, show_interactive_ldos, solve_scf |
+| heavyfermion | show_structure, show_structure_3d, select_atoms_removal |
+| multilayergraphene | solve_scf, show_structure, show_dos, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal, show_interactive_ldos |
+| tmdc | show_structure, show_dos, show_structure_3d |
+
+**`latticeterms.connect()` (honeycomb-only term hiding) + lattice family.**
+Every mode with a user-selectable `lattice` combobox calls this; three
+don't, because there's nothing to restrict — `tbg`/`tmdc` have no
+`lattice` combobox at all (fixed geometry: `specialgeometry.
+twisted_multilayer`/`specialhamiltonian.NbSe2`), and `multilayergraphene`
+calls it with a constant `lambda: "Honeycomb"` instead of `getbox
+("lattice")`, since its own `lattice` combobox is a stacking code
+(`"ABA"`, ...) rather than a lattice-family name. `impurity_embedding`/
+`ribbon_embedding` do call it (0d island / ribbon host, both
+user-selectable). `latticegas` doesn't (classical model, no
+Hamiltonian-restricted terms to hide).
+
+**SCF.** `0d`/`2dslab`/`hybridfilm`/`hybridribbon`/`multilayergraphene`
+call the shared `common.solve_scf(h,qtwrap)`. `2d`/`3d` call the richer
+`common.solve_scf_identify_symmetry_breaking(h,qtwrap)` instead — same
+V/U/J mean-field solve, but converging on a `scf_error`-driven `maxerror`
+rather than `solve_scf()`'s thermal smearing, and additionally identifying
+and reporting the broken symmetry via `scf.identify_symmetry_breaking()`.
+`1d` is the one mode migrated to hard-cancellable subprocess SCF (see
+"Hard-cancelling a calculation" below) — its `solve_scf()` is a thin
+`run_calculation_subprocess()` call, with the real math in `1d/calc.py`.
+`tbg`/`hofstader1d`/`heavyfermion`/`impurity_embedding`/`ribbon_embedding`/
+`tmdc`/`latticegas` have no SCF at all (no `scfterms.build()` call, no SCF
+tab).
+
+**Distinctive mechanic** (one phrase each, beyond the shared conventions):
+
+| Mode | Distinctive mechanic |
+|---|---|
+| 0d | finite island; time-evolution buttons, local Chern marker |
+| 1d | hard-cancellable subprocess SCF (`calc.py`) |
+| 2d | parameter-sweep button; richest SCF; has the "pyqula code" tab |
+| 2dslab | finite-thickness slab via `films.geometry_film` before supercell |
+| 3d | fully 3D bulk lattice; richer SCF mirroring 2d's |
+| tbg | twist angle/stacking combos (`specialgeometry.twisted_multilayer`); forces KPM for site-DOS |
+| hybridfilm | multi-part z-slab composition via `hybridparts.py` |
+| hybridribbon | same `hybridparts.py` composition, along the ribbon cross-section instead of z |
+| hofstader1d | Peierls-phase flux field (`peierls`); numba-typing workaround forcing `dos.dos()` over `dos.dos1d()`/`dos.dos2d()` |
+| heavyfermion | `H2HFH(h,JK=kondo,J=exchange)` converts a conventional Hamiltonian into a Kondo-lattice one |
+| multilayergraphene | stacking-code combobox (`"ABA"`, ...) drives `specialgeometry.multilayer_graphene` |
+| impurity_embedding | `embedding.Embedding(...)` Green's-function embedding onto a 0d cluster host; no bands/DOS buttons |
+| ribbon_embedding | same embedding mechanic onto a 1d ribbon host |
+| tmdc | built-in `specialhamiltonian.NbSe2(...)` — no generic geometry+`get_hamiltonian()` construction at all |
+| latticegas | classical occupation model, no Hamiltonian — see "Adding a mode" below |
+
+"pyqula code" tab (`codeview.build`): only `0d`/`1d`/`2d` have it.
+
+The embedding-LDOS calculation (`get_impurity_matrix`/`get_embedding_ldos`/
+`get_embedding_ldos_sweep`/`select_impurity_sites` in `common.py`) is
+shared between `impurity_embedding`/`ribbon_embedding` even though neither
+goes through `wire_standard_signals()` — a mode not using the standard
+auto-wiring model doesn't mean its individual calculations can't still be
+factored into `common.py` the normal way; it just means more of its
+`signals` dict is hand-built.
 
 ## The QTabWidget naming trap
 

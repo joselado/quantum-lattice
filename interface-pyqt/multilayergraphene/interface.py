@@ -145,10 +145,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout.addWidget(self.label_39, 1, 0, 1, 1)
 
-        self.bias = LineEdit(self.tab_3)
-        self.bias.setObjectName(u"bias")
+        self.interlayer_bias = LineEdit(self.tab_3)
+        self.interlayer_bias.setObjectName(u"interlayer_bias")
 
-        self.gridLayout.addWidget(self.bias, 1, 1, 1, 1)
+        self.gridLayout.addWidget(self.interlayer_bias, 1, 1, 1, 1)
 
         self.antikanemele = LineEdit(self.tab_3)
         self.antikanemele.setObjectName(u"antikanemele")
@@ -1015,7 +1015,7 @@ class Ui_MainWindow(object):
         self.label_16.setText(QCoreApplication.translate("MainWindow", u"Interlayer hopping", None))
         self.interlayer.setText(QCoreApplication.translate("MainWindow", u"0.3", None))
         self.label_39.setText(QCoreApplication.translate("MainWindow", u"Interlayer bias", None))
-        self.bias.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
+        self.interlayer_bias.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.antikanemele.setText(QCoreApplication.translate("MainWindow", u"0.0", None))
         self.label_antikanemele.setText(QCoreApplication.translate("MainWindow", u"Anti Kane-Mele", None))
 #if QT_CONFIG(tooltip)

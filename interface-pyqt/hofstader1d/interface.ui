@@ -437,7 +437,7 @@
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="LineEdit" name="DOS_smearing">
+           <widget class="LineEdit" name="dos_delta">
             <property name="text">
              <string>0.01</string>
             </property>

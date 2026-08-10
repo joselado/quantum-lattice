@@ -134,17 +134,17 @@ def show_dos():
   h = pickup_hamiltonian() # get hamiltonian
 #  mode = getbox("mode_dos") # mode for the DOS
   if h.dimensionality==0:
-    dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("DOS_smearing"))
+    dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("dos_delta"))
   elif h.dimensionality==1:
     # dos.dos1d() hits a numba typing error inside pyqula's
     # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
     # dispatcher the other modes' "show_dos" already relies on instead
-    dos.dos(h,delta=get("DOS_smearing"),energies=np.linspace(-3.1,3.1,500))
+    dos.dos(h,delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   elif h.dimensionality==2:
     # dos.dos2d() hits a numba typing error inside pyqula's
     # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
     # dispatcher the other modes' "show_dos" already relies on instead
-    dos.dos(h,delta=get("DOS_smearing"),energies=np.linspace(-3.1,3.1,500))
+    dos.dos(h,delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   else: raise
   execute_script("ql-dos  ")
 
@@ -156,35 +156,6 @@ def solve_scf():
   """Perform a selfconsistent calculation"""
   h = initialize()
   common.solve_scf(h,qtwrap)
-
-
-
-
-
-
-
-
-
-
-def show_stm():
-  h = pickup_hamiltonian() # get hamiltonian
-#  ldos.multi_ldos()
-  ewin = abs(get("window_ldos")) # energy window
-  ne = int(get("num_ldos")) # number of LDOS
-  delta = ewin/ne # delta
-  ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=1,delta=delta)
-  execute_script("ql-multildos ")
-#  hamiltonians.ldos(h,e=get("stm_bias"),delta=get("DOS_smearing")) # calculate the stm spectra
-#  print("Using semaring",get("DOS_smearing"))
-#  execute_script("ql-ldos  LDOS.OUT")
-  return
-
-
-def show_magnetism():
-  h = pickup_hamiltonian() # get hamiltonian
-  h.get_magnetization() # get the magnetization
-  execute_script("ql-magnetism  ")
-#  execute_script("ql-magnetism  ")
 
 
 def show_structure():

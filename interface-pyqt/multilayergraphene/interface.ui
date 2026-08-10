@@ -181,7 +181,7 @@
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="LineEdit" name="bias">
+           <widget class="LineEdit" name="interlayer_bias">
             <property name="text">
              <string>0.0</string>
             </property>

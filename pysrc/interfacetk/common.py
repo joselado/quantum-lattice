@@ -76,13 +76,6 @@ def get_surface_dos(h,window):
 
 
 
-def show_magnetism():
-  """Show the magnetism of the system"""
-  h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization() # write the magnetism
-
-
-
 def show_exchange(h,window):
     """Show the exchange field"""
     nrep = max([int(window.get("magnetization_nrep")),1]) # replicas
@@ -438,13 +431,54 @@ def solve_scf(h,window):
   mark_scf_solved(window)
 
 
+def solve_scf_identify_symmetry_breaking(h,window):
+  """Perform a selfconsistent calculation, converging on a maxerror
+  threshold (the "SCF error" field) rather than solve_scf()'s thermal
+  smearing, then identify and report the broken symmetry - used by 2d.py
+  and 3d.py, which need this richer variant instead of plain solve_scf()."""
+  scfin = window.getbox("scf_initialization")
+  get = window.get # redefine
+  mf = scftypes.guess(h,mode=scfin)
+  nk = int(get("nk_scf"))
+  U = get("U")
+  V1 = get("V1")
+  V2 = get("V2")
+  filling = get("filling_scf")
+  filling = filling%1.
+  error = get("scf_error",default=1e-5) # error in the mean field
+  mix = get("mix_scf")
+  if h.has_spin: # J1/J2/J3 exchange has no meaning without a spin degree
+                 # of freedom - see solve_scf(), which this mirrors
+    J1 = get("J1")
+    J2 = get("J2")
+    J3 = get("J3")
+    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+                  J1=J1,J2=J2,J3=J3,
+                  mf=mf,mix=mix,maxerror=error,verbose=1,
+                  **get_scf_solver_kwargs(h,window,for_vjinteraction=True)
+                  )
+  else:
+    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+                  mf=mf,load_mf=False,
+                  mix=mix,maxerror=error,verbose=1,
+                  **get_scf_solver_kwargs(h,window,for_vjinteraction=False)
+                  )
+  mfname = scf.identify_symmetry_breaking(as_string=True)
+  window.modify("identified_mean_field",mfname) # window is the qtwrap
+                 # module here (not a page object), so this must go
+                 # through modify() rather than a page's .set() method
+  # write atomically - see solve_scf()'s comment for why
+  scf.hamiltonian.save(output_file="hamiltonian.pkl.tmp")
+  os.replace("hamiltonian.pkl.tmp","hamiltonian.pkl")
+  mark_scf_solved(window)
+
+
 def mark_scf_solved(qtwrap):
-    """Call right after any solve_scf implementation - this file's own,
-    or a mode's own richer copy (2d.py/3d.py mirror this function but add
-    maxerror/identify_symmetry_breaking, so they can't just call this one)
-    - saves its converged Hamiltonian. Clears page._scf_dirty so
-    pickup_hamiltonian() knows the cached result is still valid for the
-    current parameters and won't silently re-solve on the next click."""
+    """Call right after any solve_scf implementation - solve_scf() or
+    solve_scf_identify_symmetry_breaking() - saves its converged
+    Hamiltonian. Clears page._scf_dirty so pickup_hamiltonian() knows the
+    cached result is still valid for the current parameters and won't
+    silently re-solve on the next click."""
     page = qtwrap._current_page()
     if hasattr(page,"_scf_dirty"): page._scf_dirty = False
 
@@ -509,6 +543,77 @@ def get_nk(h,delta=1e-2,fac=1.0):
     elif d==3: return int(nk**(1./3.)*fac)
 
 
+def get_impurity_matrix(h0,window):
+    """Get the impurity matrix: shared by impurity_embedding/ribbon_embedding,
+    whose per-mode files used to carry this verbatim"""
+    get = window.get
+    n = int(get("nsuper_impurity")) # supercell for the impurities
+    if n>1: h0 = h0.supercell(n) # create the supercell
+    h = h0.copy()*0. # initialize
+    v = get("impurity_potential") # (additional) potential in this site
+    jv = window.get_array("impurity_exchange") # (additional) Zeeman field
+    from pyqula import potentials
+    pot_ons = 0. # initialize
+    pot_j = 0. # initialize
+    try: # many impurities
+        inds = np.genfromtxt("IMPURITY_SITES.OUT") # read the indexes
+        if inds.shape==(): inds = [inds] # just one number
+        print(inds)
+    except: inds = [0] # just the first site
+    for i in inds:
+        i = int(i) # to integer
+        imp_ons = potentials.impurity(h.geometry.r[i],v=v) # onsite
+        imp_j = potentials.impurity(h.geometry.r[i],v=jv) # exchange
+        pot_ons = pot_ons + imp_ons # add contribution
+        pot_j = pot_j + imp_j # add contribution
+    h.add_onsite(pot_ons) # add the onsite
+    h.add_exchange(pot_j) # add the exchange
+    return h+h0 # return the defective Hamiltonian
+
+
+def get_embedding_ldos(h,window):
+    """Embed the impurity matrix and compute/plot the LDOS - shared by
+    impurity_embedding/ribbon_embedding"""
+    get = window.get
+    vintra = get_impurity_matrix(h,window)
+    ns0 = int(get("nsuper_impurity")) # supercell of the impurity
+    eb = embedding.Embedding(h,m=vintra,nsuper=ns0)
+    e = get("energy_embedding_ldos") # energy
+    delta = get("delta_embedding_ldos") # energy
+    ns = int(get("ncells_embedding_ldos"))
+    nks = get("nk_scaling_embedding_ldos")
+    nk = get_nk(h,delta=delta,fac=20*nks) # number of kpoints
+    (x,y,d) = eb.ldos(nsuper=ns,energy=e,delta=delta,nk=nk)
+    np.savetxt("LDOS.OUT",np.array([x,y,d]).T)
+    execute_script("ql-ldos --input LDOS.OUT")
+
+
+def get_embedding_ldos_sweep(h,window):
+    """Embed the impurity matrix and compute/plot a multi-energy LDOS sweep -
+    shared by impurity_embedding/ribbon_embedding"""
+    get = window.get
+    vintra = get_impurity_matrix(h,window)
+    ns0 = int(get("nsuper_impurity")) # supercell of the impurity
+    eb = embedding.Embedding(h,m=vintra,nsuper=ns0)
+    ewin = get("energy_window_embedding_ldos_sweep") # energy
+    ne = int(get("num_energies_embedding_ldos_sweep")) # energy
+    es = np.linspace(-ewin,ewin,ne,endpoint=True) # number of energies
+    delta = get("delta_embedding_ldos_sweep") # energy
+    ns = int(get("ncells_embedding_ldos_sweep"))
+    nks = int(get("nk_scaling_embedding_ldos_sweep"))
+    nk = get_nk(h,delta=delta,fac=20*nks) # number of kpoints
+    eb.multildos(es=es,delta=delta,nk=nk,nsuper=ns) # compute
+    execute_script("ql-multildos ")
+
+
+def select_impurity_sites(g,window):
+    """Launch the atom-picker for impurity sites on geometry g - shared by
+    impurity_embedding/ribbon_embedding"""
+    n = int(window.get("nsuper_impurity")) # supercell for the impurities
+    g = g.supercell(n) # supercell
+    np.savetxt("POSITIONS_PP.OUT",np.array(g.r)) # write in file
+    # select the sites
+    execute_script("ql-select-atoms-geometry  --input POSITIONS_PP.OUT --output IMPURITY_SITES.OUT --initially_selected \"0\"  --caption \" Sites with impurities\"")
 
 
 
@@ -798,7 +903,7 @@ def set_formulas(qtwrap):
     terms += ["rashba","kondo","kexchange"]
     terms += ["exchange_impurity","fermi_impurity"]
     terms += ["crystalfield","peierls","inplaneb","interlayer","tinter"]
-    terms += ["bias","interlayer_bias","ising_SOC","cdw","strain"]
+    terms += ["interlayer_bias","ising_SOC","cdw","strain"]
     # mean-field (many-body) terms: scfterms.py narrows their number field
     # to give the formula column the room, so render these into a larger
     # box than the single-particle terms above

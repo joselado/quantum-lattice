@@ -154,49 +154,6 @@ def show_ldos():
   execute_script("ql-fast-ldos LDOS.OUT  ")
 
 
-
-def show_z2_invariant():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  nk = get("nkpoints")/4
-  topology.z2_vanderbilt(h,nk=nk,nt=nk/2) # calculate z2 invariant
-  execute_script("ql-wannier-center  ") # plot the result
-
-
-
-
-def show_kdos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  ew = get("e_kdos")
-  new = int(get("nkpoints")/10) # scale as kpoints
-  energies = np.linspace(-ew,ew,new) # number of ene
-  klist = np.linspace(0.,1.,new)
-  kdos.write_surface_2d(h,energies=energies,delta=ew/new,klist=klist)
-  execute_script("ql-kdos KDOS.OUT  ")
-
-
-def show_2dband():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  nk = get("nkpoints")/4
-  ns = get_text("num_2dband") # get indexes of the bands
-  if "," in ns: ns = [int(n) for n in ns.split(",")] # get the different numbers
-  else: ns=[int(ns)] # single one
-  if 0 in ns: # in case all eigenvalues wanted
-    ns = [i+1 for i in range(h.intra.shape[0]//2)]
-    ns += [-i for i in ns]
-  spectrum.get_bands(h,nindex=ns,nk=nk,reciprocal=True)
-  string = ""
-  for n in ns: string += "BANDS2D__"+str(n)+".OUT "
-  execute_script("ql-plot3d "+string +"  ")
-
-
-
-
-
-
-
-
-
-
 def show_structure_3d():
   """Show the lattice of the system"""
   common.show_structure_3d(qtwrap,get_geometry,script="ql-structure-tbg ")

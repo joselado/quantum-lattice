@@ -109,19 +109,6 @@ def initialize():
   return h
 
 
-def show_ldos():
-  """Return the LDOS"""
-  h = pickup_hamiltonian() # get hamiltonian
-  ewin = abs(get("window_ldos"))
-  energies = np.linspace(-ewin,ewin,int(get("ne_ldos")))
-  delta = get("delta_ldos")
-  ldos.slabldos(h,energies=energies,delta=delta,nk=int(get("nk_ldos")))
-  execute_script("ql-ldos-slab DOSMAP.OUT  ")
-
-
-
-
-
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True,solve=solve_scf)
 
 
@@ -131,72 +118,9 @@ def solve_scf():
   common.solve_scf(h,qtwrap)
 
 
-
-
-
-
-
-
-
-
-def show_stm():
-  h = pickup_hamiltonian() # get hamiltonian
-#  ldos.multi_ldos()
-  ewin = abs(get("window_ldos")) # energy window
-  ne = int(get("num_ldos")) # number of LDOS
-  delta = ewin/ne # delta
-  ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=1,delta=delta)
-  execute_script("ql-multildos ")
-#  hamiltonians.ldos(h,e=get("stm_bias"),delta=get("DOS_smearing")) # calculate the stm spectra
-#  print("Using semaring",get("DOS_smearing"))
-#  execute_script("ql-ldos  LDOS.OUT")
-  return
-
-
-def show_berry2d():
-  h = pickup_hamiltonian() # get hamiltonian
-  nk = int(get("nk_topology"))
-  topology.berry_map(h,nk=nk)
-  execute_script("ql-berry2d BERRY_MAP.OUT")
-
-  
-
-def show_magnetism():
-  h = pickup_hamiltonian() # get hamiltonian
-  h.get_magnetization() # get the magnetization
-  execute_script("ql-magnetism  ")
-#  execute_script("ql-magnetism  ")
-
-
 def show_structure():
   """Show the lattice of the system"""
   common.show_structure(qtwrap,get_geometry,script="ql-structure-bond POSITIONS.OUT")
-
-
-
-def show_kdos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  ew = get("ewindow_kdos")
-  new = int(get("mesh_kdos")) # scale as kpoints
-  energies = np.linspace(-ew,ew,new) # number of ene
-  klist = np.linspace(0.,1.,new)
-  kdos.write_surface_2d(h,energies=energies,delta=ew/new,klist=klist)
-  execute_script("ql-kdos-both KDOS.OUT  ")
-
-
-
-def show_berry1d():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  ks = klist.default(h.geometry,nk=int(get("nk_topology")))  # write klist
-  topology.write_berry(h,ks)
-  execute_script("ql-berry1d  label  ")
-
-
-def show_z2():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  nk = get("nk_topology")
-  topology.z2_vanderbilt(h,nk=nk,nt=nk/2) # calculate z2 invariant
-  execute_script("ql-wannier-center  ") # plot the result
 
 
 def show_interactive_ldos():

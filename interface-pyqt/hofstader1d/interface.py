@@ -311,10 +311,10 @@ class Ui_MainWindow(object):
 
         self.gridLayout_5.addWidget(self.label_16, 0, 0, 1, 1)
 
-        self.DOS_smearing = LineEdit(self.tab_6)
-        self.DOS_smearing.setObjectName(u"DOS_smearing")
+        self.dos_delta = LineEdit(self.tab_6)
+        self.dos_delta.setObjectName(u"dos_delta")
 
-        self.gridLayout_5.addWidget(self.DOS_smearing, 0, 1, 1, 1)
+        self.gridLayout_5.addWidget(self.dos_delta, 0, 1, 1, 1)
 
 
         self.gridLayout_15.addLayout(self.gridLayout_5, 1, 0, 1, 1)
@@ -690,7 +690,7 @@ class Ui_MainWindow(object):
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_9), QCoreApplication.translate("MainWindow", u"DOS Bands", None))
         self.show_dos.setText(QCoreApplication.translate("MainWindow", u"Density of states", None))
         self.label_16.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
-        self.DOS_smearing.setText(QCoreApplication.translate("MainWindow", u"0.01", None))
+        self.dos_delta.setText(QCoreApplication.translate("MainWindow", u"0.01", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_6), QCoreApplication.translate("MainWindow", u"DOS", None))
         self.ne_ldos.setText(QCoreApplication.translate("MainWindow", u"300", None))
         self.delta_ldos.setText(QCoreApplication.translate("MainWindow", u"0.03", None))

@@ -78,32 +78,6 @@ def generate_hamiltonian(window,g=None):
 
 
 
-
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  nk = int(get("ne_kbands"))
-  op = getbox("operator_kdos")
-  ewindow=get("window_kbands")
-  ne=int(get("ne_kbands"))
-  es = np.linspace(-ewindow,ewindow,ne)
-  kdos.kdos_bands(h,scale=get("scale_kbands"),
-                   energies = es,
-                   delta=get("delta_kbands"),
-                   ntries=int(get("nv_kbands")),nk=nk,operator=op)
-  execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
-#  execute_script("ql-map2d --input KDOS_BANDS.OUT --xlabel k --ylabel E/t --zlabel A --show_cuts False --title 'Spectral function'")
-
-
-
-
-  
-
-
-
-
-  
-
-
 def show_structure():
   """Show the lattice of the system"""
   common.show_structure(qtwrap,get_geometry)
@@ -124,7 +98,6 @@ inipath = os.getcwd() # get the initial directory, before common.finalize_page()
 # wired automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,  # show bandstructure
-  "show_dosbands": show_dosbands,  # custom kbands-specific implementation
   "show_structure_3d": show_structure_3d,
   "select_atoms_removal": select_atoms_removal,
 })

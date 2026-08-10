@@ -89,7 +89,8 @@ def show_bands():
   elif opname=="Valley": op = h.get_operator("valley")
   elif opname=="y-position": op = h.get_operator("yposition")
   else: op =None
-  h.get_bands(operator=op)
+  kpath = klist.default(h.geometry,nk=int(get("nk_bands")))
+  h.get_bands(operator=op,kpath=kpath)
   execute_script("ql-bands1d  ")
 
 
@@ -125,17 +126,17 @@ def show_dos():
   h = pickup_hamiltonian() # get hamiltonian
 #  mode = getbox("mode_dos") # mode for the DOS
   if h.dimensionality==0:
-    dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("DOS_smearing"))
+    dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("dos_delta"))
   elif h.dimensionality==1:
     # dos.dos1d() hits a numba typing error inside pyqula's
     # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
     # dispatcher the other modes' "show_dos" already relies on instead
-    dos.dos(h,delta=get("DOS_smearing"),energies=np.linspace(-3.1,3.1,500))
+    dos.dos(h,delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   elif h.dimensionality==2:
     # dos.dos2d() hits a numba typing error inside pyqula's
     # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
     # dispatcher the other modes' "show_dos" already relies on instead
-    dos.dos(h,delta=get("DOS_smearing"),energies=np.linspace(-3.1,3.1,500))
+    dos.dos(h,delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   else: raise
   execute_script("ql-dos  ")
 

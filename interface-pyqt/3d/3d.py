@@ -92,53 +92,6 @@ def initialize():
   return h
 
 
-def show_ldos():
-  """Return the LDOS"""
-  h = pickup_hamiltonian() # get hamiltonian
-  ewin = abs(get("window_ldos"))
-  energies = np.linspace(-ewin,ewin,int(get("ne_ldos")))
-  delta = get("delta_ldos")
-  ldos.slabldos(h,energies=energies,delta=delta,nk=int(get("nk_ldos")))
-  execute_script("ql-ldos-slab DOSMAP.OUT  ")
-
-
-
-
-
-
-def show_dosbands():
-  h = pickup_hamiltonian() # get hamiltonian
-  kdos.kdos_bands(h,scale=get("scale_kbands"),ewindow=get("window_kbands"),
-                   ne=int(get("ne_kbands")),delta=get("delta_kbands"),
-                   ntries=int(get("nv_kbands")))
-  execute_script("ql-dosbands --input KDOS_BANDS.OUT ")
-
-
-
-def show_dos():
-  h = pickup_hamiltonian() # get hamiltonian
-  common.get_dos(h,qtwrap)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def show_berry2d():
-  h = pickup_hamiltonian() # get hamiltonian
-  nk = int(get("nk_topology"))
-  topology.berry_map(h,nk=nk)
-  execute_script("ql-berry2d BERRY_MAP.OUT")
-
-  
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
@@ -157,62 +110,10 @@ def show_structure_3d():
   common.show_structure_3d(qtwrap,get_geometry)
 
 
-
-
-def show_berry1d():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  ks = klist.default(h.geometry,nk=int(get("nk_topology")))  # write klist
-  topology.write_berry(h,ks)
-  execute_script("ql-berry1d  label  ")
-
-
-def show_z2():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  nk = get("nk_topology")
-  topology.z2_vanderbilt(h,nk=nk,nt=nk/2) # calculate z2 invariant
-  execute_script("ql-wannier-center  ") # plot the result
-
-
-
 def solve_scf():
   """Perform a selfconsistent calculation"""
-  scfin = window.getbox("scf_initialization")
   h = initialize() # initialize the Hamiltonian
-  mf = scftypes.guess(h,mode=scfin)
-  nk = int(get("nk_scf"))
-  U = get("U")
-  V1 = get("V1")
-  V2 = get("V2")
-  filling = get("filling_scf")
-  filling = filling%1.
-  # flavor of the mean field
-#  compute_dd = window.is_checked("compute_dd",default=True)
-#  compute_anomalous = window.is_checked("compute_anomalous",default=False)
-#  compute_cross = window.is_checked("compute_cross",default=True)
-#  compute_normal = window.is_checked("compute_normal",default=True)
-  error = window.get("scf_error",default=1e-5) # error in the mean field
-#  if compute_anomalous: h.add_swave(0.)
-  mix = get("mix_scf")
-  if h.has_spin: # J1/J2/J3 exchange has no meaning without a spin degree
-                 # of freedom - see common.solve_scf, which this mirrors
-    J1 = get("J1")
-    J2 = get("J2")
-    J3 = get("J3")
-    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
-                  J1=J1,J2=J2,J3=J3,
-                  mf=mf,mix=mix,maxerror=error,verbose=1,
-                  **common.get_scf_solver_kwargs(h,window,for_vjinteraction=True)
-                  )
-  else:
-    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
-                  mf=mf,load_mf=False,
-                  mix=mix,maxerror=error,verbose=1,
-                  **common.get_scf_solver_kwargs(h,window,for_vjinteraction=False)
-                  )
-  mfname = scf.identify_symmetry_breaking(as_string=True)
-  window.set("identified_mean_field",mfname)
-  scf.hamiltonian.save() # save in a file
-  common.mark_scf_solved(qtwrap)
+  common.solve_scf_identify_symmetry_breaking(h,qtwrap)
 
 
 

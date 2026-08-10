@@ -92,7 +92,7 @@ def initialize():
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   h.add_crystal_field(qtwrap.get("crystalfield"))
   h.shift_fermi(get("fermi")) # shift fermi energy
-  h.shift_fermi(lambda r: get("bias")*r[2]) # interlayer bias
+  h.shift_fermi(lambda r: get("interlayer_bias")*r[2]) # interlayer bias
   if abs(get("haldane"))>0.0:  h.add_haldane(get("haldane")) # intrinsic SOC
   if abs(get("antihaldane"))>0.0:  h.add_antihaldane(get("antihaldane"))
   if abs(get("inplaneb"))>0.0:

@@ -94,73 +94,15 @@ def show_structure_3d():
 
 
 def show_embedding_ldos():
-    h = pickup_hamiltonian()
-    vintra = get_impurity_matrix(h)
-    ns0 = int(window.get("nsuper_impurity")) # supercell of the impurity
-    eb = embedding.Embedding(h,m=vintra,nsuper=ns0)
-    e = get("energy_embedding_ldos") # energy
-    delta = get("delta_embedding_ldos") # energy
-    ns = int(get("ncells_embedding_ldos"))
-    nks = get("nk_scaling_embedding_ldos")
-    nk = common.get_nk(h,delta=delta,fac=20*nks) # number of kpoints
-    (x,y,d) = eb.ldos(nsuper=ns,energy=e,delta=delta,nk=nk)
-    np.savetxt("LDOS.OUT",np.array([x,y,d]).T)
-    execute_script("ql-ldos --input LDOS.OUT")
-
-
-def get_impurity_matrix(h0):
-    """Get the impurity matrix"""
-    n = int(window.get("nsuper_impurity")) # supercell for the impurities
-    if n>1: h0 = h0.supercell(n) # create the supercell
-    h = h0.copy()*0. # initialize
-    v = get("impurity_potential") # (additional) potential in this site
-    jv = qtwrap.get_array("impurity_exchange") # (additional) Zeeman field
-    from pyqula import potentials
-    pot_ons = 0. # initialize
-    pot_j = 0. # initialize
-    try: # many impurities
-        inds = np.genfromtxt("IMPURITY_SITES.OUT") # read the indexes
-        if inds.shape==(): inds = [inds] # just one number
-        print(inds)
-    except: inds = [0] # just the first site
-    for i in inds:
-        i = int(i) # to integer
-        imp_ons = potentials.impurity(h.geometry.r[i],v=v) # onsite
-        imp_j = potentials.impurity(h.geometry.r[i],v=jv) # exchange
-        pot_ons = pot_ons + imp_ons # add contribution
-        pot_j = pot_j + imp_j # add contribution
-    h.add_onsite(pot_ons) # add the onsite
-    h.add_exchange(pot_j) # add the exchange
-    return h+h0 # return the defective Hamiltonian
-
-
+    common.get_embedding_ldos(pickup_hamiltonian(),window)
 
 
 def show_embedding_ldos_sweep():
-    h = pickup_hamiltonian()
-    vintra = get_impurity_matrix(h)
-    ns0 = int(window.get("nsuper_impurity")) # supercell of the impurity
-    eb = embedding.Embedding(h,m=vintra,nsuper=ns0)
-    ewin = get("energy_window_embedding_ldos_sweep") # energy
-    ne = int(get("num_energies_embedding_ldos_sweep")) # energy
-    es = np.linspace(-ewin,ewin,ne,endpoint=True) # number of energies
-    delta = get("delta_embedding_ldos_sweep") # energy
-    ns = int(get("ncells_embedding_ldos_sweep"))
-    nks = int(get("nk_scaling_embedding_ldos_sweep"))
-    nk = common.get_nk(h,delta=delta,fac=20*nks) # number of kpoints
-    ds = [] # density of states
-    eb.multildos(es=es,delta=delta,nk=nk,nsuper=ns) # compute
-    execute_script("ql-multildos ")
-
+    common.get_embedding_ldos_sweep(pickup_hamiltonian(),window)
 
 
 def select_impurity_sites():
-    g = get_geometry() # get the geometry
-    n = int(window.get("nsuper_impurity")) # supercell for the impurities
-    g = g.supercell(n) # supercell
-    np.savetxt("POSITIONS_PP.OUT",np.array(g.r)) # write in file
-    # select the sites
-    execute_script("ql-select-atoms-geometry  --input POSITIONS_PP.OUT --output IMPURITY_SITES.OUT --initially_selected \"0\"  --caption \" Sites with impurities\"")
+    common.select_impurity_sites(get_geometry(),window)
 
 
 
