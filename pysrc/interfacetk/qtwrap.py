@@ -699,25 +699,36 @@ def get(page,name,string=False,default=0.0,call=True):
   """Return a certain value"""
   try:
       obj = getattr(page,name) # get the object
-      out = obj.text()
-      if string: return out # return as string
-      try: # if it is a number
-          return float(out) # return as float
-      except: # execute
-          if call:
-              if "import os" in out: raise # silly sanity check
-              out = out.replace("\n","")
-              a = eval("lambda r: "+out) # execute the string
-              # try the function
-              try:
-                  a([0.,0.,0.])
-                  return a
-              except: raise
-          else: raise
   except:
       if holler(): print(name,"not found, set to ",default)
-      _modify_impl(page,name,default) # set this value
       return default
+  out = obj.text()
+  if string: return out # return as string
+  try: # if it is a number
+      return float(out) # return as float
+  except: # execute
+      try:
+          if call:
+              if "import os" in out: raise # silly sanity check
+              expr = out.replace("\n","")
+              a = eval("lambda r: "+expr) # execute the string
+              # try the function
+              a([0.,0.,0.])
+              return a
+          else: raise
+      except:
+          # unlike a missing widget (an internal wiring bug, silent), this
+          # means the user typed something that isn't a number or a valid
+          # r->value formula - worth a visible InfoBar, since get()'s old
+          # behavior of silently resetting to `default` and only printing
+          # under holler() let a calculation quietly run on defaults with
+          # no clue why the field's value didn't take effect.
+          if holler(): print(name,"invalid value",repr(out),"set to",default)
+          InfoBar.warning(title="Invalid value",
+              content="\"%s\" isn't a valid entry for %s - using %s instead."%(out,name.replace("_"," "),default),
+              parent=page,duration=6000,position=InfoBarPosition.TOP)
+          _modify_impl(page,name,default) # set this value
+          return default
 
 
 
