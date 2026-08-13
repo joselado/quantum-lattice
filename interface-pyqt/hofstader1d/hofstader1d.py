@@ -113,13 +113,7 @@ def show_dosbands():
 
 def show_interactive_ldos():
   h = pickup_hamiltonian()  # get the hamiltonian
-  ewin = get("window_ldos")
-  nrep = int(get("nsuper_ldos"))
-  nk = int(get("nk_ldos"))
-  ne = int(get("ne_ldos"))
-  delta = get("delta_ldos")
-  ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
-  execute_script("ql-multildos ")
+  common.get_interactive_ldos(h,qtwrap)
 
 
 

@@ -182,8 +182,7 @@ def show_structure_3d():
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization() # write the magnetism
-  execute_script("ql-moments")
+  common.show_exchange(h,qtwrap)
 
 
 # create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian

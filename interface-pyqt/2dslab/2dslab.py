@@ -162,18 +162,6 @@ def show_structure_3d():
 
 
 
-def show_kdos():
-  h = pickup_hamiltonian()  # get the hamiltonian
-  ew = get("kdos_ewindow")
-  new = int(get("kdos_mesh")) # scale as kpoints
-  energies = np.linspace(-ew,ew,new) # number of ene
-  kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
-  kdos.surface(h,energies=energies,delta=ew/new,kpath=kpath)
-  execute_script("ql-kdos-both KDOS.OUT  ")
-
-
-
-
 
 
 def solve_scf():
@@ -186,8 +174,7 @@ def solve_scf():
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization() # write the magnetism
-  execute_script("ql-moments")
+  common.show_exchange(h,qtwrap)
 
 
 # create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
@@ -197,7 +184,6 @@ def show_magnetism():
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_structure": show_structure,
   "show_structure_3d": show_structure_3d,
-  "show_kdos": show_kdos,  # custom kdos_mesh/kdos_ewindow fields
   "show_ldos": show_ldos,  # show DOS
   "show_magnetism": show_magnetism,
   "solve_scf": solve_scf,

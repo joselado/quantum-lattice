@@ -86,7 +86,7 @@ see "Adding a mode" below). For everyone else, only buttons whose behavior diffe
 | 0d | solve_scf, show_structure, show_hoppings, show_structure_3d, show_interactive_ldos, show_magnetism, select_atoms_removal, select_atom_time_evolution, show_time_evolution, show_local_chern |
 | 1d | show_structure, show_ldos, show_edge_dos, show_band_ldos, show_structure_3d, show_magnetism, solve_scf, select_atoms_removal |
 | 2d | solve_scf, show_structure, show_dos, show_dosbands, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal |
-| 2dslab | show_structure, show_structure_3d, show_kdos, show_ldos, show_magnetism, solve_scf, select_atoms_removal |
+| 2dslab | show_structure, show_structure_3d, show_ldos, show_magnetism, solve_scf, select_atoms_removal |
 | 3d | show_structure, show_structure_3d, show_magnetism, solve_scf, select_atoms_removal |
 | tbg | show_dos, show_site_dos (forced KPM — moiré cells too large for ED), show_ldos_single, show_structure, show_structure_3d, select_atoms_removal |
 | hybridfilm | show_structure, show_structure_3d, show_dos, show_ldos, solve_scf, show_magnetism, select_atoms_removal |
@@ -144,12 +144,24 @@ call, no SCF tab).
 "pyqula code" tab (`codeview.build`): only `0d`/`1d`/`2d` have it.
 
 The embedding-LDOS calculation (`get_impurity_matrix`/`get_embedding_ldos`/
-`get_embedding_ldos_sweep`/`select_impurity_sites` in `common.py`) is
-shared between `impurity_embedding`/`ribbon_embedding` even though neither
-goes through `wire_standard_signals()` — a mode not using the standard
-auto-wiring model doesn't mean its individual calculations can't still be
-factored into `common.py` the normal way; it just means more of its
-`signals` dict is hand-built.
+`get_embedding_ldos_sweep`/`select_impurity_sites`/`build_embedding_hamiltonian`
+in `common.py`) is shared between `impurity_embedding`/`ribbon_embedding`
+even though neither goes through `wire_standard_signals()` — a mode not
+using the standard auto-wiring model doesn't mean its individual
+calculations can't still be factored into `common.py` the normal way; it
+just means more of its `signals` dict is hand-built. `build_embedding_
+hamiltonian(g,qtwrap)` covers the two modes' identical spinful
+Zeeman/Rashba/AF/Kane-Mele/Haldane/swave/pwave Hamiltonian construction —
+only `get_geometry()`/`LATTICES` differ between them, so their own
+`initialize()` is just `return common.build_embedding_hamiltonian
+(get_geometry(),qtwrap)`.
+
+`common.get_interactive_ldos(h,qtwrap)` is the same idea for the
+`window_ldos`/`nsuper_ldos`/`nk_ldos`/`ne_ldos`/`delta_ldos` interactive-
+multi-LDOS convention shared by `hofstader1d`/`hybridribbon`/
+`multilayergraphene`'s `show_interactive_ldos` — not the same field
+convention as `get_multildos()` (`multildos_*`, used by `0d`/`huge_0d`/
+`tbg`), so kept as a separate function.
 
 ## The QTabWidget naming trap
 

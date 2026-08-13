@@ -78,7 +78,11 @@ def get_surface_dos(h,window):
 
 def show_exchange(h,window):
     """Show the exchange field"""
-    nrep = max([int(window.get("magnetization_nrep")),1]) # replicas
+    # default=5 matches hamiltonians.write_magnetization()'s own default
+    # (htk/write.py) - modes with no magnetization_nrep field of their own
+    # (2dslab/hybridfilm/hybridribbon/multilayergraphene) must fall back to
+    # the same value h.write_magnetization() with no args would use
+    nrep = max([int(window.get("magnetization_nrep",default=5)),1]) # replicas
     h.write_magnetization(nrep=nrep) # write the magnetism
     if window.getbox("magnetization_plot_mode")=="2D":
         execute_script("ql-magnetism2d")
@@ -531,6 +535,22 @@ def get_multildos(h,window):
 
 
 
+def get_interactive_ldos(h,window):
+    """Open the interactive multi-energy LDOS view (window_ldos/nsuper_ldos/
+    nk_ldos/ne_ldos/delta_ldos fields) - shared by hofstader1d/hybridribbon/
+    multilayergraphene, whose per-mode files used to carry this verbatim.
+    Not the same field convention as get_multildos() above (multildos_*,
+    used by 0d/huge_0d/tbg), so kept as a separate function rather than
+    merged into it."""
+    ewin = window.get("window_ldos")
+    nrep = int(window.get("nsuper_ldos"))
+    nk = int(window.get("nk_ldos"))
+    ne = int(window.get("ne_ldos"))
+    delta = window.get("delta_ldos")
+    ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
+    execute_script("ql-multildos ")
+
+
 def get_nk(h,delta=1e-2,fac=1.0):
     """Return the number of k-points to be used"""
     delta = delta or 1e-3 # avoid a division by zero below
@@ -541,6 +561,29 @@ def get_nk(h,delta=1e-2,fac=1.0):
     elif d==1: return int(nk*fac)
     elif d==2: return int(np.sqrt(nk)*fac)
     elif d==3: return int(nk**(1./3.)*fac)
+
+
+def build_embedding_hamiltonian(g,window):
+    """Build the spinful Hamiltonian from geometry g for the embedding
+    modes - shared by impurity_embedding/ribbon_embedding, whose
+    initialize() used to carry this verbatim (only get_geometry() and
+    LATTICES differ between the two modes)"""
+    get = window.get
+    h = g.get_hamiltonian(has_spin=True)
+    h.add_zeeman(window.get_array("exchange")) # Zeeman fields
+    h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+    h.add_rashba(get("rashba"))  # Rashba field
+    h.add_antiferromagnetism(get("mAF"))  # AF order
+    h.shift_fermi(get("fermi")) # shift fermi energy
+    h.add_kane_mele(get("kanemele")) # intrinsic SOC
+    h.add_haldane(get("haldane")) # intrinsic SOC
+    h.add_antihaldane(get("antihaldane"))
+    h.add_anti_kane_mele(get("antikanemele"))
+    if get("swave")!=0.: h.add_swave(get("swave"))
+    p = window.get_array("pwave")
+    if np.sum(np.abs(p))>0.0:
+        h.add_pairing(d=p,mode="triplet",delta=1.0)
+    return h
 
 
 def get_impurity_matrix(h0,window):

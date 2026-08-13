@@ -63,21 +63,7 @@ def get_geometry(modify=True):
 def initialize():
     """Initialize the calculation"""
     g = get_geometry() # get the geometry
-    h = g.get_hamiltonian(has_spin=True)
-    h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
-    h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
-    h.add_rashba(get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(get("mAF"))  # AF order
-    h.shift_fermi(get("fermi")) # shift fermi energy
-    h.add_kane_mele(get("kanemele")) # intrinsic SOC
-    h.add_haldane(get("haldane")) # intrinsic SOC
-    h.add_antihaldane(get("antihaldane"))
-    h.add_anti_kane_mele(get("antikanemele"))
-    if get("swave")!=0.: h.add_swave(get("swave"))
-    p = qtwrap.get_array("pwave")
-    if np.sum(np.abs(p))>0.0:
-        h.add_pairing(d=p,mode="triplet",delta=1.0)
-    return h
+    return common.build_embedding_hamiltonian(g,qtwrap)
 
 
 

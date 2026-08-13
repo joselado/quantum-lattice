@@ -135,19 +135,12 @@ def show_structure_3d():
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization() # write the magnetism
-  execute_script("ql-moments")
+  common.show_exchange(h,qtwrap)
 
 
 def show_interactive_ldos():
   h = pickup_hamiltonian()  # get the hamiltonian
-  ewin = get("window_ldos")
-  nrep = int(get("nsuper_ldos"))
-  nk = int(get("nk_ldos"))
-  ne = int(get("ne_ldos"))
-  delta = get("delta_ldos")
-  ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
-  execute_script("ql-multildos ")
+  common.get_interactive_ldos(h,qtwrap)
 
 
 
