@@ -3,15 +3,18 @@
 # (done automatically by `python install.py`)
 #
 # pyvista (optional, only needed for the 3D plotting utilities in utilities/)
-# and jax (optional, only needed for the SCF tab's "error_gradient"/
-# "linear_mixing" solver choice) are installed separately by install.py,
-# best-effort, so a failure there does not block the rest of the install.
+# is installed separately by install.py, best-effort, so a failure there
+# does not block the rest of the install.
 PySide6
 PySide6-Fluent-Widgets
-# numpy/scipy/numba/matplotlib/multiprocess/dill/threadpoolctl mirror pyqula's
-# own required `dependencies` (pysrc/pyqula/../pyproject.toml upstream) -
-# recheck this list against upstream's pyproject.toml whenever pysrc/pyqula
-# is refreshed via tools/update_pyqula.sh.
+# numpy/scipy/numba/matplotlib/multiprocess/dill/threadpoolctl/jax mirror
+# pyqula's own required `dependencies` (pysrc/pyqula/../pyproject.toml
+# upstream) - recheck this list against upstream's pyproject.toml whenever
+# pysrc/pyqula is refreshed via tools/update_pyqula.sh. jax used to be an
+# install.py best-effort extra (only the SCF tab's "error_gradient"/
+# "linear_mixing" solver choice needed it); upstream promoted it to a hard
+# dependency (used unconditionally by graphenetk's structural relaxation,
+# among others), so it moved here too.
 numpy>=2.1
 scipy>=1.13.1
 numba>=0.60.0
@@ -19,3 +22,4 @@ matplotlib>=3.10.0
 multiprocess>=0.70.19
 dill>=0.4.1
 threadpoolctl>=3.5.0
+jax>=0.8.1

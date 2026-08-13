@@ -109,7 +109,7 @@ class scfclass():
     self.kvectors = koccs # store kvectors
   def adaptive_correlator(self):
     """Calculate the correlators using the Simpson's adaptive algorithm"""
-    raise # not finished yet
+    raise NotImplementedError
   def update_hamiltonian(self):
     """Updates the total mean field Hamiltonian"""
     self.hamiltonian = self.hamiltonian0.copy() # copy original
@@ -356,12 +356,12 @@ def get_gap(es,fermi):
 
 
 
-from .selfconsistency.hubbard import hubbardscf
-from .selfconsistency.coulomb import coulombscf
-from .selfconsistency.densitydensity import densitydensity
+from .scftk.hubbard import hubbardscf
+from .scftk.coulomb import coulombscf
+from .scftk.densitydensity import densitydensity
 
 repulsive_hubbard = hubbardscf
-from .selfconsistency.attractive_hubbard_spinless import attractive_hubbard
+from .scftk.attractive_hubbard_spinless import attractive_hubbard
 
 
 def write_magnetization(mag):

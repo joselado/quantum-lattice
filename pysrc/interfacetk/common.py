@@ -302,17 +302,20 @@ def get_scf_solver_kwargs(h,window,for_vjinteraction):
     """use_jax=True/solver=.../maxite=... kwargs for the SCF solver
     dropdown + max-iterations field, or {} when the solver choice doesn't
     apply. use_jax=True only supports a normal-state (has_eh=False)
-    Hamiltonian, and needs the optional jax extra installed (`pip install
-    pyqula[jax]`) - a BdG Hamiltonian (swave/pwave pairing added in
-    generate_hamiltonian) or a missing jax both silently fall back to the
-    existing plain-mixing behavior instead of raising, since the dropdown
-    offers no "default" option to fall back to explicitly. maxite is
-    always returned (independent of jax/pairing) since it's honored by
-    both the jax and plain-mixing SCF loops."""
+    Hamiltonian, and jax is a required dependency (requirements.txt) - but
+    a stale install (installed before jax was promoted from a best-effort
+    extra to a hard requirement, or a manual pip failure) can still be
+    missing it, so this still checks rather than assuming. A BdG
+    Hamiltonian (swave/pwave pairing added in generate_hamiltonian) or a
+    missing jax both silently fall back to the existing plain-mixing
+    behavior instead of raising, since the dropdown offers no "default"
+    option to fall back to explicitly. maxite is always returned
+    (independent of jax/pairing) since it's honored by both the jax and
+    plain-mixing SCF loops."""
     maxite = int(window.get("scf_maxite",default=100))
     if h.has_eh: return dict(maxite=maxite)
     import importlib.util
-    if importlib.util.find_spec("jax") is None: return dict(maxite=maxite) # optional extra, not installed
+    if importlib.util.find_spec("jax") is None: return dict(maxite=maxite) # stale install missing it
     solver = window.getbox("scf_solver")
     if for_vjinteraction: solver = _VJINTERACTION_SOLVER_NAMES.get(solver,solver)
     else: solver = _VINTERACTION_SOLVER_NAMES[solver]

@@ -988,11 +988,11 @@ benchmarked across several small (5-13 atom) systems, starting the
 multisecant phase directly on a cold guess (the paper's own literal
 algorithm) regularly failed to converge, while the warm-up fixed every
 observed case and also converged 2-10x faster than plain linear mixing
-alone; see `selfconsistency.broydenmixing`'s module docstring for the
+alone; see `scftk.broydenmixing`'s module docstring for the
 algorithm and that benchmark. See the reference entry below for the full
 solver list and scope restrictions
 (normal-state only, no `constrains`), and
-`selfconsistency.vjinteraction_jax`'s module docstring for why
+`scftk.vjinteraction_jax`'s module docstring for why
 `solver="error_gradient"` minimizes the SCF residual rather than the
 physical free energy directly.
 
@@ -1184,7 +1184,7 @@ ill-posed starting point); `filling=0.15` above keeps $\mu$ inside the
 dispersing conduction band instead. **The finite Fermi-Dirac smearing
 `T` this SCF loop necessarily runs at** (needed for the $\lambda$
 feedback's numerical stability -- see
-`selfconsistency.kondolattice.kondo_lattice_mean_field`'s docstring)
+`scftk.kondolattice.kondo_lattice_mean_field`'s docstring)
 turns the textbook, continuous $T_K=D\,e^{-1/(J\rho)}$ onset into a
 genuine finite-temperature Kondo crossover: below a $T$-dependent
 threshold in $J$, thermal smearing washes out the hybridization
@@ -1275,6 +1275,49 @@ h.add_rashba(0.1) # break z-mirror symmetry to expose the edge states
 ```
 
 `ds` and `db` are, respectively, the surface and bulk spectral weight at each `(k,e)`; plotting `k,e` colored by `ds` shows the topologically-protected edge states living at the boundary, absent from the bulk spectrum `db`. See `examples/readme_examples/surface_2dTI/main.py` for a runnable version.
+
+
+# Twisted bilayer graphene structural relaxation
+
+Rigidly twisting two graphene layers is only an approximation: below a few
+degrees of twist, the real lattice relaxes so that the energetically costly
+AA-stacked regions shrink and triangular AB/BA (Bernal) domains grow around
+them, separated by solitonic domain walls (Nam & Koshino,
+[arXiv:1706.03908](https://arxiv.org/abs/1706.03908)). `GrapheneGeometry`
+wraps any graphene multilayer `Geometry` (bilayer, twisted bilayer, twisted
+trilayer, ...) and adds a `.relax()` method that reproduces this effect by
+minimizing a phenomenological energy over an in-plane relaxation
+displacement field: the interlayer Generalized Stacking Fault Energy (GSFE,
+a closed-form periodic function of the local interlayer registry, fit to
+graphene's AA/AB/BA stacking energies) plus the intralayer linear-elastic
+energy, both taken from Carr, Massatt, Torrisi, Cazeaux, Luskin, Kaxiras,
+[arXiv:1805.06972](https://arxiv.org/abs/1805.06972), Table 1. The
+minimization runs entirely in-plane (no out-of-plane corrugation yet) using
+jax autodiff gradients passed to a scipy L-BFGS-B solver.
+
+`GrapheneHamiltonian` builds the actual tight-binding Hamiltonian from a
+(relaxed or rigid) `GrapheneGeometry`, defaulting to the same
+distance-decaying hoppings as `specialhamiltonian.twisted_bilayer_graphene`
+-- since those hoppings depend on the true 3D interatomic distance, the
+relaxed positions feed into the electronic structure automatically
+
+```python
+from pyqula import specialgeometry
+from pyqula.graphenetk.geometry import GrapheneGeometry
+from pyqula.graphenetk.hamiltonian import GrapheneHamiltonian
+
+g0 = specialgeometry.twisted_bilayer(m0=15) # ~2 degree twist
+g = GrapheneGeometry(g0).relax() # AA area shrinks, AB/BA domains grow
+h = GrapheneHamiltonian(g)
+(k,e) = h.get_bands(num_bands=20)
+```
+
+See `examples/2d/graphene_relax/main.py` for a runnable version comparing
+the rigid and relaxed lattices, and `tests/moire/test_graphene_relax.py`
+for the physical invariants this is checked against (AA is the GSFE
+maximum and AB/BA the degenerate minima; relaxed bond lengths stay
+physical; the local relaxation amplitude grows monotonically as the twist
+angle shrinks).
 
 
 # Topological insulators
@@ -1622,7 +1665,7 @@ Since different q-points can have a different number of poles, `qs`,`ws`,`gammas
 `V` (passed to `get_rpa_kernel_poles`/`get_chi`) and `h.V` (the mean-field interaction `get_magnon_bands` reads automatically) are not restricted to a single onsite matrix: they can also be a real-space hopping-like dictionary `{(n1,n2,n3): matrix}`, keyed by lattice-vector offset in the same convention as `h.get_hopping_dict()`, for an interaction with support beyond the same unit cell (e.g. a neighbor-shell exchange `J1`/`V1` from `VJinteraction`, whose `h.V` after convergence typically has more than just the `(0,0,0)` key). It is Fourier-transformed to $V(q)$ at whatever `q` the response is evaluated at, using the same Bloch-phase convention as the Hamiltonian's own hoppings -- an extended interaction is dressed exactly like an extended hopping:
 
 ```python
-from pyqula.selfconsistency.spinspin import _build_v
+from pyqula.scftk.spinspin import _build_v
 g = geometry.chain()
 h = g.get_hamiltonian(has_spin=True)
 h.V = _build_v(h,J1=-1.0) # nearest-neighbor ferromagnetic exchange, no onsite U at all
@@ -1931,6 +1974,42 @@ from pyqula import kpm
 See `examples/0d/kpm_dos/main.py` and `examples/0d/kpm_correlator/main.py`
 for runnable versions, including a comparison of the KPM correlator against
 the exact Green's function calculation.
+
+The batched Chebyshev-moment kernels underneath KPM (one starting vector
+per random try, or per site for a full trace) run on numba by default, but
+can be dispatched to a GPU through [jax](https://github.com/jax-ml/jax)
+instead by passing `kpm_cpugpu="GPU"` down to any KPM entry point --
+`h.get_dos(mode="KPM", ...)`, `kpm.tdos`/`kpm.pdos`/`kpm.ldos`, or the
+lower-level `kpm` module functions themselves all forward it:
+
+```python
+(x,y) = h.get_dos(mode="KPM",
+            energies=np.linspace(-3.0,3.0,200),
+            delta=1e-4,ntries=10,
+            kpm_cpugpu="GPU") # dispatch the Chebyshev moments to a GPU
+```
+
+`kpm_cpugpu="GPU"` transparently falls back to running on the CPU (through
+jax's own CPU backend) if no GPU is visible, so it is always safe to pass
+even on a machine without one. The batch of starting vectors is sent to
+the device in fixed-size chunks (`gpu_batch_size`, default 256, currently
+a reasoned default rather than a GPU-benchmarked one) rather than all at
+once, so device memory use stays bounded even for a full-space trace over
+a large system; pass a smaller `gpu_batch_size` to trade fewer, larger
+device dispatches for a smaller memory footprint. `kpm_prec="single"`
+(also forwarded the same way) switches the moments to single precision,
+useful for squeezing more parallelism out of a GPU when double-precision
+accuracy is not needed.
+
+There are two distinct KPM code paths for an operator-weighted quantity
+(a projected DOS/spectral function): passing `operator=` reaches the
+operator-weighted moments directly (`kpm.tdos`/`kpm.pdos`'s `operator=`
+argument, or `h.get_kdos_bands(mode="KPM", operator=...)`), while
+`h.get_dos(mode="KPM", operator=...)` instead confines the random
+starting vectors to the operator's subspace and falls back to the plain
+(non-operator-weighted) moments internally. `kpm_cpugpu="GPU"` reaches
+both, but only the first actually exercises the operator-weighted GPU
+kernel (`kpm_momentsA_batch_gpu`).
 
 
 # Classical spin models
@@ -2445,30 +2524,30 @@ pairing (see the example above).
   via matrix-free Levenberg-Marquardt (`jax.jvp`/`jax.vjp` Jacobian-vector
   and Jacobian-transpose-vector products of the residual + `scipy`'s `lsqr`
   for each damped LM subproblem) -- not the physical free energy directly
-  (see `selfconsistency.vjinteraction_jax`'s module docstring for why that
+  (see `scftk.vjinteraction_jax`'s module docstring for why that
   alternative was tried and abandoned: the physical SCF solution turned out
   to be a saddle point, not a minimum, of the free-energy functional).
   `"error_gradient"` scales per-iteration like `"newton_krylov"`/
   `"linear_mixing"` (no dense Jacobian), and matches `"newton"`/
   `"newton_krylov"` well from small systems up through at least ~60
-  orbitals (see `selfconsistency.vjinteraction_jax`'s module docstring for
+  orbitals (see `scftk.vjinteraction_jax`'s module docstring for
   measured numbers), but as a local method it can in principle still stall
   short of `maxerror` on a sufficiently hard landscape -- always check
   `.converged`. `"broyden_mixing"` is a black-box
   mixing scheme rather than a root-finder/gradient method (regularized,
   limited-memory multisecant Broyden mixing, Marks & Luke arXiv:0801.3098 --
-  see `selfconsistency.broydenmixing`'s module docstring); it only ever
+  see `scftk.broydenmixing`'s module docstring); it only ever
   evaluates $f$ itself, so it plugs into the same solver dispatch with no
   Jacobian/gradient machinery of its own, and is also reachable from the
   plain (non-jax) engine as `solver="broyden_mixing"` (alongside the
   existing `"broyden1"`/`"krylov"`/`"anderson"`/`"linear"` `scipy.optimize`
-  wrappers in `selfconsistency.densitydensity.generic_densitydensity`).
+  wrappers in `scftk.densitydensity.generic_densitydensity`).
   Restricted to a normal-state (non-BdG)
   Hamiltonian, dense exact diagonalization only (no `integration="kpm"`),
   and no `constrains`; needs the optional `jax` extra
-  (`pip install pyqula[jax]`). See `selfconsistency.vjinteraction_jax`'s
+  (`pip install pyqula[jax]`). See `scftk.vjinteraction_jax`'s
   module docstring for how this reuses (unmodified) the solver
-  infrastructure `selfconsistency.densitydensity_jax` already built for the
+  infrastructure `scftk.densitydensity_jax` already built for the
   simpler `Vinteraction` (V/U-only) case:
 ```python
 hmf = h.get_combined_mean_field_hamiltonian(U=4.0,J1=-0.5,filling=0.5,
@@ -2530,6 +2609,33 @@ onto `hc`'s geometry, with the Kondo coupling supplied through
     site (target is exactly 1.0)
   - `h2.hybridization`: converged $V_j$ per localized site
   - `h2.constraint_lambda`: converged per-site Lagrange multiplier
+
+### GrapheneGeometry(g)
+`Geometry` subclass wrapping a graphene multilayer geometry `g` (bilayer,
+twisted bilayer, twisted trilayer, ...), adding a `.relax()` method -- see
+"Twisted bilayer graphene structural relaxation" above. `from
+pyqula.graphenetk.geometry import GrapheneGeometry`; `g` must have
+`has_sublattice=True` (raises `ValueError` otherwise).
+
+- `g.relax(nrep=1,maxiter=500,verbose=False,layer_pairs=None,gsfe_coeffs=...,elastic_coeffs=...)`:
+  minimizes the GSFE (interlayer) + elastic (intralayer) energy over an
+  in-plane displacement field and returns a new, relaxed
+  `GrapheneGeometry`. `layer_pairs` selects which (lower,upper) pairs of
+  layers (ordered by z) get an interlayer GSFE term, defaulting to all
+  adjacent pairs; `gsfe_coeffs`/`elastic_coeffs` override the graphene
+  Table 1 constants of `pyqula.graphenetk.gsfe.GRAPHENE_GSFE` /
+  `pyqula.graphenetk.elastic.GRAPHENE_ELASTIC`.
+
+### GrapheneHamiltonian(geometry)
+Hamiltonian built from a graphene multilayer `geometry` (typically a
+`GrapheneGeometry`, relaxed or not) -- see "Twisted bilayer graphene
+structural relaxation" above. `from pyqula.graphenetk.hamiltonian import
+GrapheneHamiltonian`; defaults to the distance-decaying hoppings of
+`specialhopping.twisted_matrix` (`ti=0.12,lambi=8.0,lamb=12.0,dl=3.0`,
+matching `specialhamiltonian.twisted_bilayer_graphene`'s defaults) rather
+than the generic first-neighbor default, so relaxed (in-plane displaced)
+positions feed into the electronic structure automatically. Pass
+`mgenerator=...` to use a different hopping generator instead.
 
 ### h.get_central_heterostructure()
 Build a two-terminal `Heterostructure` using `h` (a finite, 0d Hamiltonian) as the central scattering region, contacted by two semi-infinite 1D chain leads attached at sites `i`/`j` (see "Transport through an arbitrary finite region" above).

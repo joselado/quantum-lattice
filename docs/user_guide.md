@@ -223,10 +223,10 @@ means physically.
   Newton-Krylov root finder, which can converge in fewer iterations on
   larger systems at the cost of a more expensive step. This choice only
   applies to a normal-state (non-superconducting) Hamiltonian, and needs
-  the optional `jax` package that the installer tries to set up
-  automatically; with s-wave/p-wave pairing turned on, or if jax could not
-  be installed on your system, Solve SCF silently uses its previous
-  fixed-mixing behavior regardless of what's selected here.
+  the `jax` package that the installer sets up automatically; with
+  s-wave/p-wave pairing turned on, or if jax could not be installed on your
+  system, Solve SCF silently uses its previous fixed-mixing behavior
+  regardless of what's selected here.
 - **Max iterations** caps how many SCF steps are attempted before giving up
   (default `100`); a run that hits this limit without converging prints a
   warning instead of raising an error, and you'll see the (unconverged)
