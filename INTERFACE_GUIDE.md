@@ -88,7 +88,7 @@ see "Adding a mode" below). For everyone else, only buttons whose behavior diffe
 | 2d | solve_scf, show_structure, show_dos, show_dosbands, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal |
 | 2dslab | show_structure, show_structure_3d, show_ldos, show_magnetism, solve_scf, select_atoms_removal |
 | 3d | show_structure, show_structure_3d, show_magnetism, solve_scf, select_atoms_removal |
-| tbg | show_dos, show_site_dos (forced KPM — moiré cells too large for ED), show_ldos_single, show_structure, show_structure_3d, select_atoms_removal |
+| tbg | show_dos, show_site_dos (forced KPM — moiré cells too large for ED), show_ldos_single, show_structure, show_structure_3d, show_structure_relax, select_atoms_removal |
 | hybridfilm | show_structure, show_structure_3d, show_dos, show_ldos, solve_scf, show_magnetism, select_atoms_removal |
 | hybridribbon | show_structure, show_structure_3d, show_interactive_ldos, solve_scf, show_magnetism, select_atoms_removal |
 | heavyfermion | show_structure, show_structure_3d, select_atoms_removal |
@@ -129,7 +129,7 @@ call, no SCF tab).
 | 2d | parameter-sweep button; richest SCF; has the "pyqula code" tab |
 | 2dslab | finite-thickness slab via `films.geometry_film` before supercell |
 | 3d | fully 3D bulk lattice; richer SCF mirroring 2d's |
-| tbg | twist angle/stacking combos (`specialgeometry.twisted_multilayer`); forces KPM for site-DOS |
+| tbg | twist angle/stacking combos (`specialgeometry.twisted_multilayer`); forces KPM for site-DOS; optional phenomenological structural relaxation (`do_relax` switch, `pyqula.graphenetk.relax`), cached per (cell_size,multilayer_type) |
 | hybridfilm | multi-part z-slab composition via `hybridparts.py` |
 | hybridribbon | same `hybridparts.py` composition, along the ribbon cross-section instead of z |
 | hofstader1d | Peierls-phase flux field (`peierls`); numba-typing workaround forcing `dos.dos()` over `dos.dos1d()`/`dos.dos2d()` |
@@ -238,9 +238,12 @@ mechanism.
 
 ## Runtime dynamic-widget patterns
 
-Three modules build/rearrange widgets in Python at runtime instead of
-(or in addition to) Designer, each replacing or reparenting a whole
-placeholder/page rather than editing generated code:
+Three shared modules build/rearrange widgets in Python at runtime instead
+of (or in addition to) Designer, each replacing or reparenting a whole
+placeholder/page rather than editing generated code (a fourth, mode-local
+instance of the same pattern - `tbg.py`'s own relax switch/button - is
+covered separately below the shared three, since it isn't a module other
+modes call into):
 
 - **`scfterms.py`** — replaces the `scf_terms_container` placeholder
   `QWidget` (Designer already reserves its grid cell) with a real
@@ -319,6 +322,29 @@ placeholder/page rather than editing generated code:
   Designer-authored part 1/2 fields must agree on this (both `"0.0, 0.0,
   0.0"` for a vector field), or a part's exchange field silently reads
   back as a 1-element array instead of a 3-vector.
+- **`tbg.py`'s `_build_relax_switch()`/`_build_show_structure_relax_button()`**
+  — mode-local (not a shared module like the three above, since only `tbg`
+  has this mechanic): a `SwitchButton` named `do_relax` added to the
+  Geometry tab's `gridLayout_2` and a `PushButton` named
+  `show_structure_relax` added to the Structure tab's `gridLayout_8`, both
+  built right after `qtwrap.new_page()` (same ordering requirement as
+  `scfterms.build()` above - before `common.finalize_page()`'s
+  `connect_clicks()`/tooltip passes, which resolve widgets by
+  `getattr(form,name)`/`findChild` regardless of whether Designer or this
+  built them). Uses the exact same `SwitchButton` construction as
+  `scfterms.py`'s `do_scf` (`setOnText`/`setOffText`, starts unchecked,
+  `checkedChanged` wired to `form._mark_dirty`) since the two switches mean
+  the same kind of thing (an opt-in extra calculation stage before the
+  Hamiltonian is built) - but `do_relax` has no dirty-flag/auto-on
+  machinery of its own: the relaxed geometry is cached directly by
+  `get_relaxed_geometry()`, keyed on the `(cell_size,multilayer_type)`
+  tuple that actually determines it, which is simpler than
+  `scfterms.py`'s `_scf_dirty` sweep and can't go stale from a missed wire.
+  This pattern (runtime `QWidget`/`SwitchButton`/`PushButton` construction
+  inline in a `<mode>.py`, not via a shared `interfacetk` module) is the
+  right template for a *one-mode* dynamic widget - reach for a shared
+  module like `scfterms.py` instead only once a second mode needs the same
+  mechanic.
 - **`common.py:set_formulas()`'s `_ensure_formula_image()`** — not a
   standalone module, but the same pattern: creates a mode's `<term>_image`
   label at runtime (next to the term's field, one grid column over) the

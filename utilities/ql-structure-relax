@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--before",default="POSITIONS_UNRELAXED.OUT",
+        help='Positions before relaxation')
+parser.add_argument("--after",default="POSITIONS_RELAXED.OUT",
+        help='Positions after relaxation')
+args = parser.parse_args() # get the arguments
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import plotstyle
+plotstyle.apply()
+import _cell
+
+m0 = np.genfromtxt(args.before).transpose() # positions before relaxation
+m1 = np.genfromtxt(args.after).transpose() # positions after relaxation
+x0,y0 = m0[0],m0[1]
+x1,y1 = m1[0],m1[1]
+
+# the relaxation displacement is a small fraction of a bond length (see
+# pyqula/graphenetk/relax.py's docstring) - a plain unscaled scatter of
+# both panels would look identical, so the right-hand panel is colored by
+# the local displacement magnitude instead of just replotted positions
+u = np.sqrt((x1-x0)**2 + (y1-y0)**2)
+umax = np.max(u) if len(u) else 0.0
+
+fig,(ax0,ax1) = plt.subplots(1,2,figsize=(11,5.5))
+fig.canvas.setWindowTitle('Structure before/after relaxation')
+fig.set_facecolor(plotstyle.BACKGROUND)
+
+size = 500./np.sqrt(len(x0)) if len(x0) else 10.
+
+ax0.scatter(x0,y0,color=plotstyle.PRIMARY,s=size)
+ax0.set_title(str(len(x0))+" atoms (unrelaxed)")
+
+sc = ax1.scatter(x1,y1,c=u,cmap="inferno",s=size)
+ax1.set_title("relaxed (max |u| = %.4f)" % umax)
+fig.colorbar(sc,ax=ax1,label="|u| (bond lengths)",shrink=0.8)
+
+# shared limits/aspect so a domain that visibly shrinks/grows under
+# relaxation is not an artifact of the two panels being scaled differently
+xmin,xmax = min(x0.min(),x1.min()),max(x0.max(),x1.max())
+ymin,ymax = min(y0.min(),y1.min()),max(y0.max(),y1.max())
+for ax in (ax0,ax1):
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlim(xmin,xmax)
+    ax.set_ylim(ymin,ymax)
+    ax.set_aspect("equal")
+
+cell = _cell.read_cell()
+if cell is not None:
+  dim, vecs = cell
+  edges = _cell.cell_edges(dim,vecs) if dim!=1 else \
+          _cell.cell_1d_ticks(vecs,np.column_stack([x0,y0,y0*0.]))
+  for ax in (ax0,ax1):
+    for (p0,p1) in edges:
+      ax.plot([p0[0],p1[0]],[p0[1],p1[1]],color=plotstyle.ACCENT,
+                linestyle="--",linewidth=1.8,zorder=10)
+
+plt.tight_layout()
+plt.show()

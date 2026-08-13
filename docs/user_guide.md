@@ -346,6 +346,7 @@ Save results, ...) don't.
 | Show site DOS | Interactive: click a site in the geometry to compute and plot the LDOS at that site, or drag a lasso around an area to select several sites at once and plot their combined DOS. |
 | Show structure (2D) | Writes the geometry and plots the lattice (atomic positions, optionally bonds). |
 | Show structure (3D) | Writes the geometry and opens an interactive 3D view (atomic positions and bonds). |
+| Show structure (before/after relax) | Twisted multilayer graphene only: plots the rigid and relaxed structure side by side, the relaxed panel colored by local displacement magnitude. Triggers (and reuses) the relaxation if it hasn't run yet for the current cell size/stacking choice, regardless of whether the Relax structure switch is on. |
 | Show magnetism | Computes self-consistent or externally-set magnetic moments per site and overlays them as arrows on the geometry. |
 | Solve SCF | Runs the self-consistent mean-field loop to convergence and saves the result for other calculations to use. |
 | Compute sweep | Repeats a calculation while sweeping one parameter over a range, collecting results into one sweep plot. |
@@ -415,7 +416,16 @@ variation on one of them.
   bilayer/trilayer/tetralayer stacking and twist configurations, sized by an
   integer commensuration index rather than a literal angle in degrees. DOS
   and site-DOS are KPM-only (moiré cells are large), with an optional
-  multi-core toggle. No SCF.
+  multi-core toggle. No SCF. A "Relax structure" switch (off by default) lets
+  atomic positions relax in-plane before the Hamiltonian is built, so AA-
+  stacked regions shrink and AB/BA domains grow the way they do in a real
+  twisted bilayer, instead of the rigid (undistorted) lattice used by
+  default; the relaxation itself runs once per cell size/stacking choice
+  (whenever the first calculation after a change needs it) and is reused
+  after that. "Show structure (before/after relax)" plots the rigid and
+  relaxed structure side by side, the relaxed panel colored by local
+  displacement, regardless of whether the switch is on - useful to preview
+  the effect before turning relaxation on for real calculations.
 - **Transition metal dichalcogenides** — not a generic lattice builder: a
   fixed NbSe2 Hamiltonian, with Ising spin-orbit coupling and CDW strength
   as the structural knobs instead of a lattice choice. Adds a 3D magnetism

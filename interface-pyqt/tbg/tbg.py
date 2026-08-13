@@ -37,17 +37,59 @@ qtwrap.set_combobox("multilayer_type",
             ,"Twisted bi-trilayer ABC"
             ])
 
-def get_geometry(modify=True):
-  """ Create a 2d honeycomb lattice"""
-  n = int(qtwrap.get("cell_size")) # size of the unit cell
-  name = qtwrap.getbox("multilayer_type")
+
+from PySide6.QtWidgets import QWidget, QHBoxLayout
+from qfluentwidgets import SwitchButton, BodyLabel, PushButton
+
+def _build_relax_switch(window):
+  """Add the "Relax structure" switch to the Geometry tab, at runtime -
+  interface.ui isn't hand-edited for this: tools/convert_ui.sh
+  (pyside6-uic) is broken in some dev environments, and this mirrors
+  scfterms.py's own "do_scf" SwitchButton, built the exact same way for the
+  same reason (see that module's docstring). Off by default - relaxation
+  is opt-in extra work on top of building the geometry, see
+  get_relaxed_geometry()."""
+  switch = SwitchButton(window.tab_8)
+  switch.setOnText("Relax: on")
+  switch.setOffText("Relax: off")
+  switch.setChecked(False)
+  switch.setObjectName("do_relax")
+  switch.checkedChanged.connect(window._mark_dirty)
+  row = QWidget(window.tab_8)
+  row_layout = QHBoxLayout(row)
+  row_layout.setContentsMargins(0,4,0,0)
+  row_layout.addWidget(BodyLabel("Relax structure",row))
+  row_layout.addStretch(1)
+  row_layout.addWidget(switch)
+  window.gridLayout_2.addWidget(row,2,0,1,2)
+  window.do_relax = switch
+
+
+def _build_show_structure_relax_button(window):
+  """Add the "Show structure (before/after relax)" button to the Structure
+  tab, at runtime - see _build_relax_switch()."""
+  button = PushButton("Show structure (before/after relax)",window.tab_2)
+  button.setObjectName("show_structure_relax")
+  window.gridLayout_8.addWidget(button,2,0,1,2)
+  window.show_structure_relax = button
+
+
+_build_relax_switch(window)
+_build_show_structure_relax_button(window)
+
+
+def _raw_lattices(n):
+  """The multilayer_type -> pristine-geometry-builder table, keyed by
+  name. Factored out of get_geometry() so get_relaxed_geometry()'s cache
+  key and show_structure_relax() can both build the same pristine geometry
+  independently of modify_geometry()/relaxation."""
   def _aligned_bilayer_ab():
     gb = specialgeometry.multilayer_graphene(l=[0,1])
     return specialgeometry.twisted_multilayer(n,rot=[0],g=gb,dz=6.0)
   def _aligned_trilayer_abc():
     gb = specialgeometry.multilayer_graphene(l=[0,1,2])
     return specialgeometry.twisted_multilayer(n,rot=[0],g=gb,dz=6.0)
-  lattices = {
+  return {
     "Twisted bilayer": lambda: specialgeometry.twisted_multilayer(n,rot=[0,1]),
     "Aligned bilayer AA": lambda: specialgeometry.twisted_multilayer(n,rot=[0,0]),
     "Aligned bilayer AB": _aligned_bilayer_ab,
@@ -59,7 +101,65 @@ def get_geometry(modify=True):
     "Twisted bi-bilayer AB BA": lambda: specialgeometry.parse_twisted_multimultilayer([["AB","BA"],[0,1]],n=n),
     "Twisted bi-trilayer ABC": lambda: specialgeometry.parse_twisted_multimultilayer([["ABC","ABC"],[0,1]],n=n),
   }
-  g = lattices[name]()
+
+
+def get_raw_geometry():
+  """The pristine (unrelaxed, unmodified) multilayer geometry for the
+  current cell size/multilayer type, plus the (n,name) key that
+  determines it."""
+  n = int(qtwrap.get("cell_size")) # size of the unit cell
+  name = qtwrap.getbox("multilayer_type")
+  return _raw_lattices(n)[name](), n, name
+
+
+def get_relaxed_geometry():
+  """Return the atomically relaxed version of the pristine geometry for
+  the current cell size/multilayer type (pyqula's phenomenological
+  GSFE+elastic in-plane relaxation - graphenetk/relax.py), cached on this
+  page keyed by (cell_size,multilayer_type) - the only two parameters that
+  determine the pristine geometry relax_structure() starts from. So
+  toggling "Relax structure" on/off, or changing any other field (tinter,
+  crystal field, ...), never re-triggers the minimization - only actually
+  changing the moire cell does, and switching cell_size/multilayer_type
+  back to an already-seen combination reuses that earlier result instead
+  of resolving. This is also what show_structure_relax() calls directly,
+  independent of whether the switch itself is on, so it doubles as a
+  preview before committing to relaxation for the real calculation."""
+  g,n,name = get_raw_geometry()
+  page = qtwrap._current_page()
+  cache = getattr(page,"_relax_cache",None)
+  if cache is None:
+      cache = {}
+      page._relax_cache = cache
+  key = (n,name)
+  if key not in cache:
+      try:
+          from pyqula.graphenetk.relax import relax_structure
+      except ImportError as e:
+          raise RuntimeError("Structural relaxation needs the 'jax' "
+              "package (pip install jax) - see requirements.txt.") from e
+      cache[key] = relax_structure(g,verbose=True)
+  return cache[key]
+
+
+def show_structure_relax():
+  """Show the pristine and relaxed structure side by side (left/right
+  panels), triggering (and caching in get_relaxed_geometry()) the
+  relaxation if it hasn't run yet for the current cell size/multilayer
+  type."""
+  g0,_,_ = get_raw_geometry()
+  g1 = get_relaxed_geometry()
+  common.write_unit_cell(g0) # same a1,a2,a3 for both - only r differs
+  nsuper = int(qtwrap.get("nsuper_struct"))
+  g0.supercell(nsuper).write_positions(output_file="POSITIONS_UNRELAXED.OUT")
+  g1.supercell(nsuper).write_positions(output_file="POSITIONS_RELAXED.OUT")
+  execute_script("ql-structure-relax --before POSITIONS_UNRELAXED.OUT --after POSITIONS_RELAXED.OUT")
+
+
+def get_geometry(modify=True):
+  """ Create a 2d honeycomb lattice"""
+  if is_checked("do_relax"): g = get_relaxed_geometry()
+  else: g,_,_ = get_raw_geometry()
   if modify: g = modify_geometry(g) # remove atoms if necessary
   return g
 
@@ -171,6 +271,7 @@ signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_ldos_single": show_ldos,  # interactive single-energy LDOS map
   "show_structure": show_structure,  # potential-colored structure plot
   "show_structure_3d": show_structure_3d,
+  "show_structure_relax": show_structure_relax,  # before/after relaxation panels
   "select_atoms_removal": select_atoms_removal,
 })
 
