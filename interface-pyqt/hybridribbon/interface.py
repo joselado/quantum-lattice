@@ -315,6 +315,11 @@ class Ui_MainWindow(object):
 
         self.gridLayout_8.addWidget(self.show_structure, 1, 0, 1, 1)
 
+        self.show_structure_3d = PushButton(self.tab_4)
+        self.show_structure_3d.setObjectName(u"show_structure_3d")
+
+        self.gridLayout_8.addWidget(self.show_structure_3d, 1, 1, 1, 1)
+
         self.tabWidget_3.addTab(self.tab_4, "")
         self.tab_5 = QWidget()
         self.tab_5.setObjectName(u"tab_5")
@@ -737,6 +742,16 @@ class Ui_MainWindow(object):
         self.gridLayout_scf_16.addWidget(self.tabWidget_scf_bc, 0, 0, 1, 1)
 
         self.tabWidget_3.addTab(self.tab_scf, "")
+        self.tab_magnetism = QWidget()
+        self.tab_magnetism.setObjectName(u"tab_magnetism")
+        self.gridLayout_magnetism = QGridLayout(self.tab_magnetism)
+        self.gridLayout_magnetism.setObjectName(u"gridLayout_magnetism")
+        self.show_magnetism = PushButton(self.tab_magnetism)
+        self.show_magnetism.setObjectName(u"show_magnetism")
+
+        self.gridLayout_magnetism.addWidget(self.show_magnetism, 0, 0, 1, 1)
+
+        self.tabWidget_3.addTab(self.tab_magnetism, "")
 
         self.gridLayout_7.addWidget(self.tabWidget_3, 0, 1, 1, 1)
 
@@ -792,6 +807,32 @@ class Ui_MainWindow(object):
         self.gridLayout_18.addLayout(self.gridLayout_4, 0, 0, 1, 1)
 
         self.tabWidget.addTab(self.tab_2, "")
+        self.tab_modify_geometry = QWidget()
+        self.tab_modify_geometry.setObjectName(u"tab_modify_geometry")
+        self.verticalLayout_modify_geometry = QVBoxLayout(self.tab_modify_geometry)
+        self.verticalLayout_modify_geometry.setObjectName(u"verticalLayout_modify_geometry")
+        self.gridLayout_modify_geometry = QGridLayout()
+        self.gridLayout_modify_geometry.setObjectName(u"gridLayout_modify_geometry")
+        self.remove_single_bonded = CheckBox(self.tab_modify_geometry)
+        self.remove_single_bonded.setObjectName(u"remove_single_bonded")
+        self.remove_single_bonded.setChecked(True)
+
+        self.gridLayout_modify_geometry.addWidget(self.remove_single_bonded, 0, 0, 1, 1)
+
+        self.remove_selected = CheckBox(self.tab_modify_geometry)
+        self.remove_selected.setObjectName(u"remove_selected")
+
+        self.gridLayout_modify_geometry.addWidget(self.remove_selected, 1, 0, 1, 1)
+
+        self.select_atoms_removal = PushButton(self.tab_modify_geometry)
+        self.select_atoms_removal.setObjectName(u"select_atoms_removal")
+
+        self.gridLayout_modify_geometry.addWidget(self.select_atoms_removal, 2, 0, 1, 1)
+
+
+        self.verticalLayout_modify_geometry.addLayout(self.gridLayout_modify_geometry)
+
+        self.tabWidget.addTab(self.tab_modify_geometry, "")
 
         self.gridLayout_7.addWidget(self.tabWidget, 1, 1, 1, 1)
 
@@ -893,6 +934,7 @@ class Ui_MainWindow(object):
         self.label_7.setText(QCoreApplication.translate("MainWindow", u"Supercell", None))
         self.nsuper_struct.setText(QCoreApplication.translate("MainWindow", u"5", None))
         self.show_structure.setText(QCoreApplication.translate("MainWindow", u"Show structure", None))
+        self.show_structure_3d.setText(QCoreApplication.translate("MainWindow", u"Show 3D structure", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_4), QCoreApplication.translate("MainWindow", u"Structure", None))
         self.label_9.setText(QCoreApplication.translate("MainWindow", u"# kpoints", None))
         self.label_15.setText(QCoreApplication.translate("MainWindow", u"Operator", None))
@@ -990,6 +1032,8 @@ class Ui_MainWindow(object):
         self.scf_maxite.setText(QCoreApplication.translate("MainWindow", u"100", None))
         self.tabWidget_scf_bc.setTabText(self.tabWidget_scf_bc.indexOf(self.tab_scf_convergence), QCoreApplication.translate("MainWindow", u"Convergence", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_scf), QCoreApplication.translate("MainWindow", u"SCF", None))
+        self.show_magnetism.setText(QCoreApplication.translate("MainWindow", u"Show magnetism", None))
+        self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_magnetism), QCoreApplication.translate("MainWindow", u"Magnetism", None))
         self.label_8.setText(QCoreApplication.translate("MainWindow", u"Type of lattice", None))
         self.lattice.setItemText(0, QCoreApplication.translate("MainWindow", u"Honeycomb zigzag", None))
         self.lattice.setItemText(1, QCoreApplication.translate("MainWindow", u"Honeycomb armchair", None))
@@ -1004,6 +1048,13 @@ class Ui_MainWindow(object):
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Width", None))
         self.ribbon_width.setText(QCoreApplication.translate("MainWindow", u"10", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Geometry", None))
+#if QT_CONFIG(tooltip)
+        self.remove_single_bonded.setToolTip(QCoreApplication.translate("MainWindow", u"Remove atoms that have a single bond in the structure", None))
+#endif // QT_CONFIG(tooltip)
+        self.remove_single_bonded.setText(QCoreApplication.translate("MainWindow", u"Remove single bonds", None))
+        self.remove_selected.setText(QCoreApplication.translate("MainWindow", u"Remove selected atoms", None))
+        self.select_atoms_removal.setText(QCoreApplication.translate("MainWindow", u"Select atoms to remove", None))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_modify_geometry), QCoreApplication.translate("MainWindow", u"Modify geometry", None))
 #if QT_CONFIG(tooltip)
         self.label_46.setToolTip(QCoreApplication.translate("MainWindow", u"This module allows to compute heterostructures consisting of two different films. You have to specify the parameters of the two films", None))
 #endif // QT_CONFIG(tooltip)

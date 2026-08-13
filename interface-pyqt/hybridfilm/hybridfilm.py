@@ -26,6 +26,9 @@ scfterms.build(qtwrap,grid="gridLayout_scf_10") # build the Density-density/Spin
 from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 from interfacetk import hybridparts # per-part (Upper/Lower/...) parameter widgets
+from interfacetk import interfacetk
+modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
 
 
 
@@ -67,7 +70,7 @@ hybridparts.connect(qtwrap,PART_FIELDS,
         form,form.lattice.currentText(),hamiltoniantype.get_type(form)))
 
 
-def get_geometry():
+def get_geometry(modify=True):
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
   g = LATTICES[lattice_name]() # call the geometry
@@ -76,6 +79,7 @@ def get_geometry():
   g.real2fractional()
   g.fractional2real()
   g.center()
+  if modify: g = modify_geometry(g)
   return g
 
 
@@ -175,17 +179,25 @@ def show_structure_3d():
   common.show_structure_3d(qtwrap,get_geometry,script="ql-structure-tbg POSITIONS.OUT")
 
 
+def show_magnetism():
+  """Show the magnetism of the system"""
+  h = pickup_hamiltonian() # get the Hamiltonian
+  h.write_magnetization() # write the magnetism
+  execute_script("ql-moments")
+
 
 # create signals: STANDARD_HANDLERS covers the plain "pickup_hamiltonian
 # + common.get_X" buttons automatically; only the buttons with mode-specific
 # behavior need to be listed explicitly here (save_results/load_results are
 # wired automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
-  "show_structure": show_structure,  # show bandstructure
-  "show_structure_3d": show_structure_3d,  # show bandstructure
+  "show_structure": show_structure,
+  "show_structure_3d": show_structure_3d,
   "show_dos": show_dos,  # custom dimensionality-dependent DOS
-  "show_ldos": show_ldos,  # show DOS
+  "show_ldos": show_ldos,
   "solve_scf": solve_scf,
+  "show_magnetism": show_magnetism,
+  "select_atoms_removal": select_atoms_removal,
 })
 
 inipath = os.getcwd() # get the initial directory, before common.finalize_page()'s create_folder() chdirs away

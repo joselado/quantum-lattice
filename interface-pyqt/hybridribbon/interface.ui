@@ -431,6 +431,13 @@
           </property>
          </widget>
         </item>
+        <item row="1" column="1">
+         <widget class="PushButton" name="show_structure_3d">
+          <property name="text">
+           <string>Show 3D structure</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="tab_5">
@@ -1060,6 +1067,20 @@
         </item>
        </layout>
       </widget>
+      <widget class="QWidget" name="tab_magnetism">
+       <attribute name="title">
+        <string>Magnetism</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_magnetism">
+        <item row="0" column="0">
+         <widget class="PushButton" name="show_magnetism">
+          <property name="text">
+           <string>Show magnetism</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
      </widget>
     </item>
     <item row="1" column="1">
@@ -1154,6 +1175,44 @@
            <widget class="LineEdit" name="ribbon_width">
             <property name="text">
              <string>10</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_modify_geometry">
+       <attribute name="title">
+        <string>Modify geometry</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_modify_geometry">
+        <item>
+         <layout class="QGridLayout" name="gridLayout_modify_geometry">
+          <item row="0" column="0">
+           <widget class="CheckBox" name="remove_single_bonded">
+            <property name="toolTip">
+             <string>Remove atoms that have a single bond in the structure</string>
+            </property>
+            <property name="text">
+             <string>Remove single bonds</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="CheckBox" name="remove_selected">
+            <property name="text">
+             <string>Remove selected atoms</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="PushButton" name="select_atoms_removal">
+            <property name="text">
+             <string>Select atoms to remove</string>
             </property>
            </widget>
           </item>

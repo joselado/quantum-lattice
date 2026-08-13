@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QApplication, QGridLayout, QMainWindow, QMenuBar,
     QSizePolicy, QStatusBar, QTabWidget, QVBoxLayout,
     QWidget)
 
-from qfluentwidgets import (BodyLabel, ComboBox, LineEdit, PushButton)
+from qfluentwidgets import (BodyLabel, CheckBox, ComboBox, LineEdit, PushButton)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -596,6 +596,32 @@ class Ui_MainWindow(object):
         self.gridLayout_10.addLayout(self.gridLayout_4, 0, 0, 1, 1)
 
         self.tabWidget.addTab(self.tab_2, "")
+        self.tab_10 = QWidget()
+        self.tab_10.setObjectName(u"tab_10")
+        self.verticalLayout = QVBoxLayout(self.tab_10)
+        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.gridLayout_21 = QGridLayout()
+        self.gridLayout_21.setObjectName(u"gridLayout_21")
+        self.remove_single_bonded = CheckBox(self.tab_10)
+        self.remove_single_bonded.setObjectName(u"remove_single_bonded")
+        self.remove_single_bonded.setChecked(True)
+
+        self.gridLayout_21.addWidget(self.remove_single_bonded, 0, 0, 1, 1)
+
+        self.remove_selected = CheckBox(self.tab_10)
+        self.remove_selected.setObjectName(u"remove_selected")
+
+        self.gridLayout_21.addWidget(self.remove_selected, 1, 0, 1, 1)
+
+        self.select_atoms_removal = PushButton(self.tab_10)
+        self.select_atoms_removal.setObjectName(u"select_atoms_removal")
+
+        self.gridLayout_21.addWidget(self.select_atoms_removal, 2, 0, 1, 1)
+
+
+        self.verticalLayout.addLayout(self.gridLayout_21)
+
+        self.tabWidget.addTab(self.tab_10, "")
 
         self.gridLayout_9.addWidget(self.tabWidget, 1, 1, 1, 1)
 
@@ -756,6 +782,13 @@ class Ui_MainWindow(object):
         self.ribbon_width.setText(QCoreApplication.translate("MainWindow", u"30", None))
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Width", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), QCoreApplication.translate("MainWindow", u"Geometry", None))
+#if QT_CONFIG(tooltip)
+        self.remove_single_bonded.setToolTip(QCoreApplication.translate("MainWindow", u"Remove atoms that have a single bond in the structure", None))
+#endif // QT_CONFIG(tooltip)
+        self.remove_single_bonded.setText(QCoreApplication.translate("MainWindow", u"Remove single bonds", None))
+        self.remove_selected.setText(QCoreApplication.translate("MainWindow", u"Remove selected atoms", None))
+        self.select_atoms_removal.setText(QCoreApplication.translate("MainWindow", u"Select atoms to remove", None))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_10), QCoreApplication.translate("MainWindow", u"Modify geometry", None))
         self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save results", None))
         self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load results", None))
     # retranslateUi

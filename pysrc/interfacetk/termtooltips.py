@@ -264,7 +264,6 @@ PARAM_TOOLTIPS = {
 "nk_iets": "Density of the k-mesh (Brillouin-zone sampling) used in the RPA spin-susceptibility calculation underlying the IETS signal.",
 "nk_kbands": "Number of k-points used in the KDOS-resolved-along-bands calculation.",
 "kdos_mesh": "Number of k-points sampled along the path for the k-resolved density of states.",
-"mesh_kdos": "Number of k-points sampled along the path for the k-resolved density of states.",
 "nq_iets": "Number of q-points sampled along the path for the momentum-resolved IETS calculation.",
 # --- energy broadening (smearing) ---
 "delta_kbands": "Energy broadening (smearing) applied to each band when coloring/computing the KPM-based band structure.",
@@ -291,7 +290,6 @@ PARAM_TOOLTIPS = {
 "fs_ewindow": "Energy window around the target energies used when selecting states for the Fermi-surface map.",
 "qpi_ewindow": "Energy window over which the QPI pattern is computed.",
 "kdos_ewindow": "Energy window (range around the Fermi level) shown in the k-resolved density of states plot.",
-"ewindow_kdos": "Energy window (range around the Fermi level) shown in the k-resolved density of states plot.",
 "site_dos_ewindow": "Energy window over which the density of states at the clicked site is computed.",
 "sdos_ewindow": "Energy window over which the spatial density of states is computed.",
 # --- number of energy points sampled within a window ---

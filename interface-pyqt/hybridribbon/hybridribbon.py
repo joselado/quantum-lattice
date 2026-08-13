@@ -26,6 +26,9 @@ scfterms.build(qtwrap,grid="gridLayout_scf_10") # build the Density-density/Spin
 from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 from interfacetk import hybridparts # per-part (Upper/Lower/...) parameter widgets
+from interfacetk import interfacetk
+modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
 
 from interfacetk import latticeterms
 from interfacetk import hamiltoniantype
@@ -56,7 +59,7 @@ hybridparts.connect(qtwrap,PART_FIELDS,
         form,form.lattice.currentText(),hamiltoniantype.get_type(form)))
 
 
-def get_geometry():
+def get_geometry(modify=True):
   """ Create a 0d island"""
   lattice_name = getbox("lattice") # get the option
   n = int(get("ribbon_width")) # thickness of the system
@@ -75,6 +78,7 @@ def get_geometry():
     g = ribbon.bulk2ribbon(g,n=n)
   nsuper = int(get("nsuper"))
   g = g.supercell(nsuper)
+  if modify: g = modify_geometry(g)
   return g
 
 
@@ -123,6 +127,18 @@ def show_structure():
   common.show_structure(qtwrap,get_geometry,script="ql-structure-bond POSITIONS.OUT")
 
 
+def show_structure_3d():
+  """Show the lattice of the system"""
+  common.show_structure_3d(qtwrap,get_geometry,script="ql-structure-tbg POSITIONS.OUT")
+
+
+def show_magnetism():
+  """Show the magnetism of the system"""
+  h = pickup_hamiltonian() # get the Hamiltonian
+  h.write_magnetization() # write the magnetism
+  execute_script("ql-moments")
+
+
 def show_interactive_ldos():
   h = pickup_hamiltonian()  # get the hamiltonian
   ewin = get("window_ldos")
@@ -142,9 +158,12 @@ def show_interactive_ldos():
 # need to be listed explicitly here (save_results/load_results are wired
 # automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
-  "show_structure": show_structure,  # show bandstructure
-  "show_interactive_ldos": show_interactive_ldos,  # show DOS
+  "show_structure": show_structure,
+  "show_structure_3d": show_structure_3d,
+  "show_interactive_ldos": show_interactive_ldos,
   "solve_scf": solve_scf,
+  "show_magnetism": show_magnetism,
+  "select_atoms_removal": select_atoms_removal,
 })
 
 common.initialize(qtwrap) # initialize

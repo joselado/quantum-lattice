@@ -929,7 +929,7 @@
         <item row="0" column="0">
          <layout class="QGridLayout" name="gridLayout_9">
           <item row="0" column="1">
-           <widget class="LineEdit" name="ewindow_kdos">
+           <widget class="LineEdit" name="kdos_ewindow">
             <property name="text">
              <string>0.5</string>
             </property>
@@ -943,7 +943,7 @@
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="LineEdit" name="mesh_kdos">
+           <widget class="LineEdit" name="kdos_mesh">
             <property name="text">
              <string>100</string>
             </property>

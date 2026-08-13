@@ -25,6 +25,10 @@ qtwrap.set_combobox("dos_operator",operators.operator_list)
 
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=True,solve=solve_scf)
 
+from interfacetk import interfacetk
+modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
+
 
 LATTICES = {
   "Cubic": geometry.cubic_lattice,
@@ -40,7 +44,7 @@ latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # Kane-Mele, valley)
                                                          # for other lattices
 
-def get_geometry():
+def get_geometry(modify=True):
   """ Create geometry"""
   lattice_name = getbox("lattice") # get the option
   g = LATTICES[lattice_name]() # call the geometry
@@ -49,6 +53,7 @@ def get_geometry():
   g.real2fractional()
   g.fractional2real()
   g.center()
+  if modify: g = modify_geometry(g)
   return g
 
 
@@ -126,10 +131,11 @@ def solve_scf():
 # behavior need to be listed explicitly here (save_results/load_results are
 # wired automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
-  "show_structure": show_structure,  # show bandstructure
-  "show_structure_3d": show_structure_3d,  # show bandstructure
+  "show_structure": show_structure,
+  "show_structure_3d": show_structure_3d,
   "show_magnetism": show_magnetism,
   "solve_scf": solve_scf,
+  "select_atoms_removal": select_atoms_removal,
 })
 
 

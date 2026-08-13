@@ -168,8 +168,8 @@ def show_structure_3d():
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
   "show_dos": show_dos,  # custom KPM/Lowest DOS modes
   "show_site_dos": lambda: common.get_site_dos(pickup_hamiltonian(),qtwrap,use_kpm=True), # moire cells are too large for ED
-  "show_ldos_single": show_ldos,  # show Berry curvature
-  "show_structure": show_structure,  # show magnetism
+  "show_ldos_single": show_ldos,  # interactive single-energy LDOS map
+  "show_structure": show_structure,  # potential-colored structure plot
   "show_structure_3d": show_structure_3d,
   "select_atoms_removal": select_atoms_removal,
 })

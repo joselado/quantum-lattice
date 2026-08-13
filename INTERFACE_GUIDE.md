@@ -87,10 +87,10 @@ see "Adding a mode" below). For everyone else, only buttons whose behavior diffe
 | 1d | show_structure, show_ldos, show_edge_dos, show_band_ldos, show_structure_3d, show_magnetism, solve_scf, select_atoms_removal |
 | 2d | solve_scf, show_structure, show_dos, show_dosbands, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal |
 | 2dslab | show_structure, show_structure_3d, show_kdos, show_ldos, show_magnetism, solve_scf, select_atoms_removal |
-| 3d | show_structure, show_structure_3d, show_magnetism, solve_scf |
+| 3d | show_structure, show_structure_3d, show_magnetism, solve_scf, select_atoms_removal |
 | tbg | show_dos, show_site_dos (forced KPM — moiré cells too large for ED), show_ldos_single, show_structure, show_structure_3d, select_atoms_removal |
-| hybridfilm | show_structure, show_structure_3d, show_dos, show_ldos, solve_scf |
-| hybridribbon | show_structure, show_interactive_ldos, solve_scf |
+| hybridfilm | show_structure, show_structure_3d, show_dos, show_ldos, solve_scf, show_magnetism, select_atoms_removal |
+| hybridribbon | show_structure, show_structure_3d, show_interactive_ldos, solve_scf, show_magnetism, select_atoms_removal |
 | heavyfermion | show_structure, show_structure_3d, select_atoms_removal |
 | multilayergraphene | solve_scf, show_structure, show_dos, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal, show_interactive_ldos |
 | tmdc | show_structure, show_dos, show_structure_3d |

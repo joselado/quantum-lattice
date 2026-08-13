@@ -164,8 +164,8 @@ def show_structure_3d():
 
 def show_kdos():
   h = pickup_hamiltonian()  # get the hamiltonian
-  ew = get("ewindow_kdos")
-  new = int(get("mesh_kdos")) # scale as kpoints
+  ew = get("kdos_ewindow")
+  new = int(get("kdos_mesh")) # scale as kpoints
   energies = np.linspace(-ew,ew,new) # number of ene
   kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
   kdos.surface(h,energies=energies,delta=ew/new,kpath=kpath)
@@ -195,9 +195,9 @@ def show_magnetism():
 # behavior need to be listed explicitly here (save_results/load_results are
 # wired automatically by common.finalize_page())
 signals = common.wire_standard_signals(qtwrap,pickup_hamiltonian,extra={
-  "show_structure": show_structure,  # show bandstructure
-  "show_structure_3d": show_structure_3d,  # show bandstructure
-  "show_kdos": show_kdos,  # custom mesh_kdos/ewindow_kdos fields
+  "show_structure": show_structure,
+  "show_structure_3d": show_structure_3d,
+  "show_kdos": show_kdos,  # custom kdos_mesh/kdos_ewindow fields
   "show_ldos": show_ldos,  # show DOS
   "show_magnetism": show_magnetism,
   "solve_scf": solve_scf,

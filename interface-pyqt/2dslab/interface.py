@@ -652,20 +652,20 @@ class Ui_MainWindow(object):
         self.gridLayout_21.setObjectName(u"gridLayout_21")
         self.gridLayout_9 = QGridLayout()
         self.gridLayout_9.setObjectName(u"gridLayout_9")
-        self.ewindow_kdos = LineEdit(self.tab)
-        self.ewindow_kdos.setObjectName(u"ewindow_kdos")
+        self.kdos_ewindow = LineEdit(self.tab)
+        self.kdos_ewindow.setObjectName(u"kdos_ewindow")
 
-        self.gridLayout_9.addWidget(self.ewindow_kdos, 0, 1, 1, 1)
+        self.gridLayout_9.addWidget(self.kdos_ewindow, 0, 1, 1, 1)
 
         self.label_20 = BodyLabel(self.tab)
         self.label_20.setObjectName(u"label_20")
 
         self.gridLayout_9.addWidget(self.label_20, 0, 0, 1, 1)
 
-        self.mesh_kdos = LineEdit(self.tab)
-        self.mesh_kdos.setObjectName(u"mesh_kdos")
+        self.kdos_mesh = LineEdit(self.tab)
+        self.kdos_mesh.setObjectName(u"kdos_mesh")
 
-        self.gridLayout_9.addWidget(self.mesh_kdos, 1, 1, 1, 1)
+        self.gridLayout_9.addWidget(self.kdos_mesh, 1, 1, 1, 1)
 
         self.label_21 = BodyLabel(self.tab)
         self.label_21.setObjectName(u"label_21")
@@ -1038,9 +1038,9 @@ class Ui_MainWindow(object):
         self.show_berry2d.setText(QCoreApplication.translate("MainWindow", u"2D Berry curvature", None))
         self.show_berry1d.setText(QCoreApplication.translate("MainWindow", u"1D Berry curvature", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab_10), QCoreApplication.translate("MainWindow", u"Topology 2D", None))
-        self.ewindow_kdos.setText(QCoreApplication.translate("MainWindow", u"0.5", None))
+        self.kdos_ewindow.setText(QCoreApplication.translate("MainWindow", u"0.5", None))
         self.label_20.setText(QCoreApplication.translate("MainWindow", u"Energy window", None))
-        self.mesh_kdos.setText(QCoreApplication.translate("MainWindow", u"100", None))
+        self.kdos_mesh.setText(QCoreApplication.translate("MainWindow", u"100", None))
         self.label_21.setText(QCoreApplication.translate("MainWindow", u"# of points", None))
         self.show_kdos.setText(QCoreApplication.translate("MainWindow", u"Show Surface DOS", None))
         self.tabWidget_3.setTabText(self.tabWidget_3.indexOf(self.tab), QCoreApplication.translate("MainWindow", u"SDOS", None))

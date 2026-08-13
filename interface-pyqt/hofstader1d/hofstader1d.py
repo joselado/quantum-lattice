@@ -19,6 +19,9 @@ window = qtwrap.new_page(os.path.dirname(os.path.realpath(__file__))) # this mod
 from interfacetk.qh_interface import * # import all the libraries needed
 from interfacetk import common # common routines for all the geometries
 
+from interfacetk import interfacetk
+modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
+
 from interfacetk import latticeterms
 latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # terms (Haldane,
@@ -26,7 +29,7 @@ latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
                                                          # for other lattices
 
 
-def get_geometry():
+def get_geometry(modify=True):
   lattice_name = getbox("lattice") # get the option
   n = int(get("ribbon_width")) # thickness of the system
   lattices = {
@@ -47,6 +50,7 @@ def get_geometry():
     g = ribbon.bulk2ribbon(g,n=n,clean=False)
   nsuper = int(get("nsuper"))
   g = g.supercell(nsuper)
+  if modify: g = modify_geometry(g)
   return g
 
 
@@ -152,6 +156,9 @@ def show_structure():
   common.show_structure(qtwrap,get_geometry)
 
 
+select_atoms_removal = lambda: common.select_atoms_removal(get_geometry)
+
+
 def show_hofstader():
   bmin = get("minb_hofs")
   bmax = get("maxb_hofs")
@@ -196,12 +203,13 @@ def show_hofstader():
 signals = dict()
 #signals["initialize"] = initialize  # initialize and run
 signals["show_bands"] = show_bands  # show bandstructure
-signals["show_structure"] = show_structure  # show bandstructure
-signals["show_dos"] = show_dos  # show DOS
-signals["show_dosbands"] = show_dosbands  # show DOS
-signals["show_hofstader"] = show_hofstader  # show DOS
-signals["show_interactive_ldos"] = show_interactive_ldos  # show DOS
+signals["show_structure"] = show_structure
+signals["show_dos"] = show_dos
+signals["show_dosbands"] = show_dosbands  # DOS resolved along the band structure
+signals["show_hofstader"] = show_hofstader  # Hofstadter butterfly spectrum
+signals["show_interactive_ldos"] = show_interactive_ldos
 signals["show_site_dos"] = lambda: common.get_site_dos(pickup_hamiltonian(),qtwrap,use_kpm=True) # magnetic-field supercells are too large for ED
+signals["select_atoms_removal"] = select_atoms_removal
 
 
 
