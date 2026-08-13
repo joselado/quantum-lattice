@@ -34,6 +34,7 @@ from PySide6.QtWidgets import QWidget, QGridLayout
 from qfluentwidgets import BodyLabel, LineEdit
 from .termtooltips import TERM_TOOLTIPS
 from . import termhighlight
+from .common import FORMULA_SCALE_SINGLE_PARTICLE
 
 MAX_PARTS = 6
 
@@ -154,7 +155,7 @@ def _add_formula_column(qtwrap, tab, name, suffix):
     image.setObjectName(name + suffix + "_image")
     grid.addWidget(image, row, col)
     setattr(qtwrap.form, name + suffix + "_image", image)
-    qtwrap.set_logo(name + suffix + "_image", name + ".png", width=400, height=30)
+    qtwrap.set_logo(name + suffix + "_image", name + ".png", scale=FORMULA_SCALE_SINGLE_PARTICLE)
     tip = TERM_TOOLTIPS.get(name)
     if tip is not None:
         qtwrap.set_tooltip(name + suffix, tip)

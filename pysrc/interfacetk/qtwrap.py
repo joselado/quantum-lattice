@@ -884,14 +884,34 @@ def find_any_layout_of(widget):
 
 
 @_form_thread_only
-def set_image(page,name,path,width=None,height=None):
-  """Set a certain image"""
+def set_image(page,name,path,width=None,height=None,scale=None):
+  """Set a certain image.
+
+  `scale`, if given, multiplies the image's native pixel size by a fixed
+  factor - unlike `width`/`height` (fit independently into a box, keeping
+  aspect ratio), which normalizes every image to the same *bounding-box*
+  size regardless of how tall its own content actually is. For a family of
+  formula PNGs sharing one source fontset/fontsize (e.g. every
+  single-particle Hamiltonian-term formula, all rendered with the same
+  mathtext fontsize), a formula with deeper sub/superscript stacking (e.g.
+  a exponential term) has a taller bounding box than a shallower one at the
+  *same* font size - fitting both into the same WxH box then shrinks the
+  deeper formula's glyphs more, so it reads as a smaller font even though
+  it isn't. `scale` preserves each image's native pixel proportions, so
+  glyphs stay visually consistent across a set of same-fontsize images;
+  width/height stays the right tool for a single self-contained image (e.g.
+  the Home page banner logo) with no sibling to stay visually consistent
+  with. `width`/`height` and `scale` are mutually exclusive - `scale`
+  wins if both are passed."""
   label = page.findChild(QtWidgets.QLabel,name) # get the object
   if label is None:
       print(name,"label not found")
       return
   pixmap = QPixmap(path)
-  if width and height:
+  if scale is not None:
+    pixmap = pixmap.scaled(round(pixmap.width()*scale),round(pixmap.height()*scale),
+            Qt.KeepAspectRatio, Qt.SmoothTransformation)
+  elif width and height:
         # Scale to exact size, keeping aspect ratio (optional)
     pixmap = pixmap.scaled(width, height,
             Qt.KeepAspectRatio, Qt.SmoothTransformation)

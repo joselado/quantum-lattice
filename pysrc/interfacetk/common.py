@@ -902,6 +902,34 @@ def set_param_tooltips(qtwrap):
         qtwrap.set_tooltip(name, tip)
 
 
+# Term-formula PNGs (interface-pyqt/logos/*.png) are matplotlib mathtext
+# renders sharing one fontsize per category (single-particle vs mean-field,
+# see b070996/5ddad28) at a fixed dpi, so within a category every image's
+# glyphs are the same absolute pixel size - only each formula's own
+# vertical stacking (deep sub/superscripts, exponentials) makes its canvas
+# taller or shorter. Passing `scale=` to qtwrap.set_logo() (a fixed
+# multiplier on native pixel size, not a fit-into-box) preserves that: every
+# formula in a category ends up with the same glyph size on screen,
+# regardless of how much taller one canvas is than another. Fitting into a
+# fixed WxH box instead (the old convention) shrinks a taller-canvas
+# formula's glyphs more than a shorter one's, even though both were
+# rendered at the identical source fontsize - that's what made
+# multilayergraphene's "Interlayer hopping"/"Inplane B field" formulas read
+# smaller than "Fermi energy" next to them. These two constants are
+# calibrated to the average native canvas height of each category's PNGs
+# (as of this fix) so the two categories keep landing close to their prior
+# ~30px/~50px on-screen height - recalibrate (divide the target height by
+# the new average native canvas height) if the logos/*.png set is
+# regenerated at a different source fontsize/dpi.
+FORMULA_SCALE_SINGLE_PARTICLE = 30/215.8
+FORMULA_SCALE_MEANFIELD = 50/315.0
+# calc_*.png (calculation-button formulas, tools/gen_calc_formula_logos.py)
+# are their own third category - one script, one fontsize=34/dpi=200 for
+# all of them - calibrated the same way against their average native
+# canvas height.
+FORMULA_SCALE_CALC = 40/151.6
+
+
 def _ensure_formula_image(qtwrap, term):
     """Make sure this page has a "<term>_image" label between the
     "<term>" field and its descriptive label (shifting the field one grid
@@ -942,24 +970,64 @@ def _ensure_formula_image(qtwrap, term):
     image.setVisible(not field.isHidden())
 
 
+# Fields that sit in the same term-block grid as formula'd terms, but have
+# no formula of their own - either because they're a companion parameter
+# already depicted inside a sibling term's formula (inplaneb_phi is the
+# phase phi already shown in inplaneb.png's e^{i...(Delta x sin phi -
+# Delta y cos phi)}), or some other reason a term-shaped field doesn't get
+# a "<name>_image". Without this, _ensure_formula_image() shifts every
+# *other* row's field to column 2 to make room for its image, leaving a
+# field listed here as the only row still at column 1 - visually orphaned,
+# sitting where the row above/below it shows a formula. See
+# _ensure_alignment_spacer()'s docstring below. (2dslab/tbg/
+# multilayergraphene all share this exact inplaneb/inplaneb_phi pairing.)
+ALIGNMENT_ONLY_FIELDS = ["inplaneb_phi"]
+
+
+def _ensure_alignment_spacer(qtwrap, field_name):
+    """Shift `field_name`'s field one grid column to the right, inserting
+    an empty spacer label in the column it vacates - the alignment-only
+    half of what _ensure_formula_image() does above, for a field in
+    ALIGNMENT_ONLY_FIELDS that has no formula of its own to place there.
+    A no-op if the field doesn't exist on this page, or was already
+    shifted (idempotent, same convention as _ensure_formula_image())."""
+    form = qtwrap.form
+    field = form.findChild(QtWidgets.QWidget,field_name)
+    if field is None: return
+    spacer_name = field_name+"_spacer"
+    if form.findChild(QtWidgets.QWidget,spacer_name) is not None: return
+    grid = qtwrap.find_layout_of(field)
+    if grid is None: return
+    idx = grid.indexOf(field)
+    row,col,rowspan,colspan = grid.getItemPosition(idx)
+    grid.removeWidget(field)
+    grid.addWidget(field,row,col+1,rowspan,colspan)
+    spacer = BodyLabel("",field.parentWidget())
+    spacer.setObjectName(spacer_name)
+    grid.addWidget(spacer,row,col)
+    setattr(form,spacer_name,spacer)
+    spacer.setVisible(not field.isHidden())
+
+
 def set_formulas(qtwrap):
     """Set all the formulas and their physics tooltips in the interface"""
     terms = ["hopping","fermi","exchange","haldane","kanemele"]
     terms += ["antihaldane","antikanemele","mAB","mAF","swave","pwave"]
     terms += ["rashba","kondo","kexchange"]
     terms += ["exchange_impurity","fermi_impurity"]
-    terms += ["crystalfield","peierls","inplaneb","interlayer","tinter"]
+    terms += ["crystalfield","peierls","inplaneb","interlayer","tinter","ti"]
     terms += ["interlayer_bias","ising_SOC","cdw","strain"]
     # mean-field (many-body) terms: scfterms.py narrows their number field
     # to give the formula column the room, so render these into a larger
-    # box than the single-particle terms above
+    # scale than the single-particle terms above
     meanfield_terms = ["U","V1","V2","J1","J2","J3"]
     form = qtwrap.form
+    for name in ALIGNMENT_ONLY_FIELDS: _ensure_alignment_spacer(qtwrap,name)
     for t in terms + meanfield_terms:
-        width, height = (600,50) if t in meanfield_terms else (400,30)
+        scale = FORMULA_SCALE_MEANFIELD if t in meanfield_terms else FORMULA_SCALE_SINGLE_PARTICLE
         if t not in meanfield_terms: _ensure_formula_image(qtwrap,t) # meanfield
              # images are placed by scfterms.build() itself (images=True)
-        qtwrap.set_logo(t+"_image",t+".png",width=width,height=height)
+        qtwrap.set_logo(t+"_image",t+".png",scale=scale)
         tip = TERM_TOOLTIPS.get(t)
         if tip is not None:
             qtwrap.set_tooltip(t,tip)
@@ -1117,7 +1185,7 @@ def set_calculation_formulas(qtwrap):
                        # row below it, shared by buttons in the same row
     for name,key in CALC_FORMULAS.items():
         _ensure_button_formula_image(qtwrap,name,formula_rows)
-        qtwrap.set_logo(name+"_formula","calc_"+key+".png",width=500,height=40)
+        qtwrap.set_logo(name+"_formula","calc_"+key+".png",scale=FORMULA_SCALE_CALC)
         tip = BUTTON_TOOLTIPS.get(name)
         if tip is not None: qtwrap.set_tooltip(name+"_formula",tip)
 

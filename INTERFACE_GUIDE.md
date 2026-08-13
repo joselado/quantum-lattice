@@ -353,6 +353,57 @@ modes call into):
   formula image/tooltip just by calling `common.set_formulas(qtwrap)`,
   without needing a matching `interface.ui` edit - see "Adding a
   Hamiltonian term" below.
+- **Formula-image sizing is a fixed `scale=` multiplier, not a per-image
+  fit-to-box** — `qtwrap.set_image()`/`set_logo()` take a `scale` kwarg
+  (multiplies the PNG's *native* pixel size by a constant) as an
+  alternative to `width=`/`height=` (independently fits each image into
+  the same WxH box, keeping aspect ratio). All four formula-image call
+  sites (`common.py:set_formulas()` for single-particle/mean-field terms,
+  `common.py:set_calculation_formulas()` for calculation buttons,
+  `hybridparts.py:_add_formula_column()`) use `scale=`, via the
+  `FORMULA_SCALE_SINGLE_PARTICLE`/`FORMULA_SCALE_MEANFIELD`/
+  `FORMULA_SCALE_CALC` constants in `common.py` - one per PNG family that
+  shares a source fontsize/dpi (see `tools/gen_calc_formula_logos.py` for
+  the calc-button family's generation script; the term-formula PNGs under
+  `interface-pyqt/logos/` predate a shared generation script and were
+  rendered by hand, one matplotlib snippet at a time, but by convention
+  share `fontsize=30`/`dpi=200` for single-particle terms and a larger
+  fontsize for mean-field ones - see `b070996`/`5ddad28`). This matters
+  because fit-to-box is *not* size-preserving across a formula family: two
+  formulas rendered at the identical source fontsize can still have very
+  different bounding-box heights if one has deeper sub/superscript
+  stacking (e.g. an exponential term) than the other - fitting both into
+  the same box then shrinks the taller one's glyphs more, so it reads as a
+  smaller font despite being rendered at the same size. `scale` sidesteps
+  this by preserving every image's native proportions; only `width=`/
+  `height=` normalizes size at all (right for a single self-contained
+  image with no sibling to stay visually consistent with, e.g. the Home
+  page banner logo, which does not go through `set_formulas()`/
+  `set_calculation_formulas()` at all - it's loaded directly by
+  `bin/versions/quantum-lattice-pyqt`). When adding a new term-formula PNG,
+  render it at the same fontsize/dpi as its family (do not eyeball a
+  smaller box) - `python -c` snippets checking each PNG's tallest connected
+  alpha-channel component (the `∑` glyph, for most single-particle terms)
+  are how the family's existing PNGs were verified/recalibrated; a new PNG
+  that doesn't match is exactly the bug this convention now prevents (see
+  the "multilayer graphene formula sizing" fix that introduced it - eight
+  term PNGs, rendered at a visibly smaller fontsize than the rest, had to
+  be rescaled to match).
+- **`common.py:set_formulas()`'s `_ensure_alignment_spacer()`/
+  `ALIGNMENT_ONLY_FIELDS`** — a field that shares a term-block grid with
+  formula'd terms but has no formula of its own (e.g. `inplaneb_phi`, the
+  phase companion to `inplaneb` - already depicted inside `inplaneb.png`'s
+  own formula) would otherwise be the only row left at column 1 once
+  `_ensure_formula_image()` shifts every *other* row's field to column 2 to
+  make room for its image - visually orphaned, sitting where the row
+  above/below it shows a formula. `_ensure_alignment_spacer()` does the
+  same column-1-to-2 shift for a field in `ALIGNMENT_ONLY_FIELDS`, inserting
+  an empty spacer label instead of a formula image. Runs once, unconditionally,
+  for every field in that list, before the main terms loop - a no-op if the
+  field doesn't exist on a given mode (same missing-widget convention as
+  everywhere else in `set_formulas()`). `2dslab`/`tbg`/`multilayergraphene`
+  all share the `inplaneb`/`inplaneb_phi` pairing, so this one shared
+  helper (rather than a per-mode fix) covers all three.
 - **`common.py:set_calculation_formulas()`'s `_move_params_above_buttons()`
   and `_ensure_button_formula_image()`** — together these make every
   calculation tab read as parameters, then its button(s) second-to-last,
@@ -474,8 +525,14 @@ checklist form.)
    `interface.py`).
 2. Add a formula image: white-on-transparent PNG via matplotlib
    `mathtext` (`color="white", transparent=True`) under
-   `interface-pyqt/logos/<term>.png`; check `pysrc/pyqula_user_guide.md`
-   or the relevant vendored docstring
+   `interface-pyqt/logos/<term>.png`, rendered at the **same fontsize/dpi**
+   as the rest of its family (`fontsize=30, dpi=200` for a single-particle
+   term, a larger fontsize for a mean-field one - match an existing PNG in
+   the same category, don't eyeball a size) - see the `FORMULA_SCALE_*`
+   bullet under "Runtime-built widgets" above for why a mismatched
+   fontsize silently produces a wrong-looking formula that only shows up
+   once displayed next to its siblings, not from the PNG alone. Check
+   `pysrc/pyqula_user_guide.md` or the relevant vendored docstring
    (`selfconsistency/spinspin.py::VJinteraction`,
    `selfconsistency/densitydensity.py::Vinteraction`) for the exact
    convention/prefactor before writing the LaTeX. Add `<term>` to the
@@ -1424,7 +1481,20 @@ past it.
   — a pre-existing gap `FIELD_ALIASES` doesn't attempt to fix. A new term
   with the same kind of mismatch either needs its own `FIELD_ALIASES`
   entry (highlighting only) or, better, should just be named to match its
-  term key in `interface.ui` in the first place.
+  term key in `interface.ui` in the first place. When the same physical
+  term is simply *named differently* across modes rather than reversed
+  (e.g. the interlayer-hopping term is `"interlayer"` in
+  `multilayergraphene`, `"tinter"` in `tbg`, `"ti"` in `hofstader1d`), the
+  established convention is a separate `terms`-list entry per alias, each
+  with its own `interface-pyqt/logos/<alias>.png` (a byte-identical copy of
+  the canonical PNG - `interlayer.png`/`tinter.png`/`ti.png` are all the
+  same image) and its own `TERM_TOOLTIPS` entry (reusing the canonical
+  text, or writing mode-specific wording if the physical context actually
+  differs - `tinter`'s tooltip calls out the twist angle, since `tbg`'s
+  interlayer coupling is between twisted layers). No `FIELD_ALIASES` entry
+  needed for this case, since the terms-list key and the field's object
+  name already match (`"ti"` finds a field literally named `ti`) - only
+  the two-fields-styled-as-one-term case above needs that table.
 - **Serial vs. parallel execution is a single shell-wide flag, not a
   per-mode widget** — `qtwrap.is_parallel_execution()`/
   `set_parallel_execution()` back a single "Parallel execution" switch in
