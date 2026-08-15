@@ -46,6 +46,11 @@ maintenance doc, not a one-time snapshot.
 - **Make a calculation button hard-cancellable** (run in a killable child
   process instead of in-process) — see "Hard-cancelling a calculation"
   below.
+- **See what a page actually renders as** (which widgets exist after the
+  runtime mutation layers have run, what's hidden, what each tab looks
+  like) — `python tools/dump_ui.py <mode>`; see "Seeing what a page
+  actually looks like" below. Diff two dumps to check a refactor changed
+  nothing.
 - **Run the automated test suite, or add a test for a new mode/term/button** —
   see "Testing" below.
 - **See how a specific mode is wired before touching it** (which buttons
@@ -1290,6 +1295,69 @@ not already done for that mode), then `_cell.read_cell()`/`cell_edges()`
 in the script — rather than reading `LATTICE.OUT` directly, which (after
 `g.write()` on the *supercell*) holds the enlarged, not primitive,
 vectors.
+
+## Seeing what a page actually looks like — `tools/dump_ui.py`
+
+Reading `interface.ui` (or the generated `interface.py`) does **not** tell
+you what a mode's page contains. The Designer XML is only the starting
+point; four separate layers rewrite the page after it is built:
+`common.set_formulas()`'s `_ensure_formula_image()` injects formula
+columns, `scfterms.py` nests a whole tab widget inside the mean-field tab,
+`hybridparts.py` grows per-part tabs, and `latticeterms.connect()` /
+`hamiltoniantype.connect()` hide widgets that don't apply to the current
+lattice or Hamiltonian type. The only reliable description of a page is a
+*built* page — which is what this script produces, headlessly:
+
+```bash
+python tools/dump_ui.py                 # every mode
+python tools/dump_ui.py 2d tmdc         # specific modes
+python tools/dump_ui.py --no-png 2d     # text tree only (much faster)
+python tools/dump_ui.py --theme light 2d
+```
+
+It builds each mode exactly the way the shell's `load_mode()` does
+(`importlib.util.spec_from_file_location`, so the `if __name__ ==
+"__main__"` guard keeps `window.run()` from blocking), under
+`QT_QPA_PLATFORM=offscreen`, and writes into `ui_dump/` (override with
+`--out`):
+
+- **`<mode>.txt` — the primary artifact.** An indented widget tree: class,
+  object name, layout kind, geometry, current value / combobox items /
+  checked state, and a truncated tooltip, for every widget. Child order is
+  Qt's own construction order, so the output is stable and two dumps
+  **diff** cleanly — that is the intended way to check a refactor didn't
+  change the rendered page.
+- **`png/<mode>__<tab-trail>__<tab>.png`** — one render per tab of every
+  tab widget. A single screenshot only ever shows one tab of each tab
+  widget, so this walks them all, pointing each ancestor tab widget at the
+  page containing the current one first; nested tabs (e.g. the SCF ones,
+  four levels deep in `2d`) therefore render correctly.
+
+Three conventions worth knowing before reading a dump:
+
+- **`hidden` means `QWidget.isHidden()`** — *explicitly* hidden, i.e. what
+  `latticeterms`/`hamiltoniantype` do. It deliberately isn't `isVisible()`,
+  which is also false for everything on a non-current tab and would bury
+  that signal, and it is suppressed for `QStackedWidget` pages, which Qt
+  hides structurally whenever they aren't current.
+- **Geometry is recorded during the tab walk**, at the moment each widget
+  is genuinely laid out and on screen. A widget never reached prints
+  without one.
+- **Comboboxes are detected by duck typing** (`currentText`/`itemText`),
+  not `isinstance(QComboBox)`: qfluentwidgets' promoted `ComboBox` is not
+  a `QComboBox` subclass — it derives from a button — though it does carry
+  the API `qtwrap.getbox()` drives it through.
+
+`--theme dark` (the default, matching the shipped app) has to paint a dark
+palette itself: in the real app the shell sets each page transparent and
+the `FluentWindow` behind it paints the dark ground, so a page dumped
+standalone would otherwise come out white-on-white.
+
+Each mode is dumped in its own subprocess — a mode's import chdirs into
+its own scratch folder and takes over `qtwrap`'s active-page pointer, and
+a mode that fails to build shouldn't take the rest of the run down with
+it. The mode list is imported from `tools/smoke_test.py` rather than
+duplicated, so it stays in sync with the shell's `MODES`.
 
 ## Testing
 
