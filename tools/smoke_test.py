@@ -69,20 +69,58 @@ AUTO_WIRED_BUTTONS = {
 FINALIZE_PAGE_BUTTONS = {"save_results", "load_results"}
 
 
+def _spec_buttons(moddir):
+    """Button names of a declaratively-built page (one whose interface.py
+    is a formbuilder spec rather than pyside6-uic output - see
+    pysrc/interfacetk/formbuilder.py). Returns None if this mode doesn't
+    use one. Unlike the interface.ui path this imports the module, which
+    is safe: a spec module only builds plain dicts at import time."""
+    import importlib.util
+    path = os.path.join(moddir, "interface.py")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        if "formbuilder" not in f.read():
+            return None
+    pysrc = os.path.join(QLROOT, "pysrc")
+    if pysrc not in sys.path:
+        sys.path.insert(0, pysrc)
+    spec_ = importlib.util.spec_from_file_location("specui_" + os.path.basename(moddir), path)
+    mod = importlib.util.module_from_spec(spec_)
+    spec_.loader.exec_module(mod)
+    names = set(n for n, _text in mod.SPEC["footer"])
+    for side in ("left", "right"):
+        for t in mod.SPEC[side]:
+            for row in t["rows"]:
+                if row["kind"] == "buttons":
+                    names |= set(n for n, _text in row["buttons"])
+    return names
+
+
 def check_signal_wiring(mode):
-    """Static check: every QPushButton in interface.ui has a signals[...] entry."""
+    """Static check: every button the page defines has a signals[...] entry.
+
+    Buttons come from interface.ui for a Designer-built mode, or from the
+    formbuilder spec in interface.py for a declaratively-built one."""
     moddir = os.path.join(QLROOT, "interface-pyqt", mode)
     ui_path = os.path.join(moddir, "interface.ui")
     py_path = os.path.join(moddir, mode + ".py")
-    if not os.path.exists(ui_path) or not os.path.exists(py_path):
-        return [f"{mode}: missing interface.ui or {mode}.py"]
-    with open(ui_path) as f: ui_text = f.read()
+    spec_buttons = _spec_buttons(moddir)
+    if not os.path.exists(py_path):
+        return [f"{mode}: missing {mode}.py"]
+    if spec_buttons is None and not os.path.exists(ui_path):
+        return [f"{mode}: no interface.ui and no formbuilder spec in interface.py"]
+    ui_text = ""
+    if os.path.exists(ui_path):
+        with open(ui_path) as f: ui_text = f.read()
     with open(py_path) as f: py_text = f.read()
     # strip '#' comments per line so commented-out wiring isn't counted as live
     py_text = "\n".join(line.split("#", 1)[0] for line in py_text.splitlines())
     # QPushButton in an unpromoted .ui, or PushButton after the qfluentwidgets
     # "promote to..." widget swap (see CLAUDE.md's Per-module structure)
     buttons = set(re.findall(r'<widget class="(?:Q?PushButton)" name="([a-zA-Z_0-9]+)"', ui_text))
+    if spec_buttons is not None:
+        buttons |= spec_buttons
     wired = set(re.findall(r'signals\["([a-zA-Z_0-9]+)"\]', py_text))
     wired |= set(re.findall(r'"([a-zA-Z_0-9]+)"\s*:', py_text))  # extra={"x": ...} dict-literal keys
     if "wire_standard_signals(" in py_text:

@@ -252,6 +252,7 @@ PARAM_TOOLTIPS = {
 "nume_hofs": "Number of energy points computed at each magnetic field value in the Hofstadter butterfly.",
 "hofstader_mode": "Restricts the Hofstadter spectrum to all states, bulk-projected states, or edge-projected states, letting you distinguish bulk Landau levels from edge/chiral states.",
 "nsuper_ldos": "Number of times the unit cell is repeated when plotting the interactive multi-energy LDOS.",
+"multildos_nrep": "Number of repeated unit cells shown around the plotted multi-energy LDOS map, so the spatial pattern can be seen over more than one cell.",
 # --- k-point mesh density (Brillouin-zone sampling) for a given calculation ---
 "nk_bands": "Number of k-points sampled along the band-structure path (or per KPM stochastic evaluation) - denser sampling gives a smoother band structure at higher computational cost.",
 "nk_dos": "Density of the k-point mesh used to compute the density of states - a denser mesh gives a smoother DOS at higher computational cost.",
@@ -266,6 +267,7 @@ PARAM_TOOLTIPS = {
 "band_ldos_nk": "Density of the k-point mesh used for the LDOS resolved along the band structure.",
 "nk_iets": "Density of the k-mesh (Brillouin-zone sampling) used in the RPA spin-susceptibility calculation underlying the IETS signal.",
 "nk_kbands": "Number of k-points used in the KDOS-resolved-along-bands calculation.",
+"multildos_nk": "Density of the k-point mesh used to compute the multi-energy local density of states - a denser mesh gives a smoother LDOS map at higher computational cost.",
 "kdos_mesh": "Number of k-points sampled along the path for the k-resolved density of states.",
 "nq_iets": "Number of q-points sampled along the path for the momentum-resolved IETS calculation.",
 # --- energy broadening (smearing) ---

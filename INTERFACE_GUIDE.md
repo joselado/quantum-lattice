@@ -46,6 +46,10 @@ maintenance doc, not a one-time snapshot.
 - **Make a calculation button hard-cancellable** (run in a killable child
   process instead of in-process) — see "Hard-cancelling a calculation"
   below.
+- **Add/change fields or buttons in `tmdc`** — edit the spec in
+  `interface-pyqt/tmdc/interface.py`; there is no `interface.ui` for that
+  mode. See "Declarative pages" below, including how to convert another
+  mode the same way.
 - **See what a page actually renders as** (which widgets exist after the
   runtime mutation layers have run, what's hidden, what each tab looks
   like) — `python tools/dump_ui.py <mode>`; see "Seeing what a page
@@ -142,7 +146,7 @@ call, no SCF tab).
 | multilayergraphene | stacking-code combobox (`"ABA"`, ...) drives `specialgeometry.multilayer_graphene` |
 | impurity_embedding | `embedding.Embedding(...)` Green's-function embedding onto a 0d cluster host; no bands/DOS buttons |
 | ribbon_embedding | same embedding mechanic onto a 1d ribbon host |
-| tmdc | built-in `specialhamiltonian.NbSe2(...)` — no generic geometry+`get_hamiltonian()` construction at all |
+| tmdc | built-in `specialhamiltonian.NbSe2(...)` — no generic geometry+`get_hamiltonian()` construction at all. Also the one mode with **no `interface.ui`**: its page is a `formbuilder` spec in `interface.py` — see "Declarative pages" below |
 | latticegas | classical occupation model, no Hamiltonian — see "Adding a mode" below |
 | latticeising | classical Ising spin model, no Hamiltonian — mirrors latticegas, see "Adding a mode" below |
 
@@ -1295,6 +1299,61 @@ not already done for that mode), then `_cell.read_cell()`/`cell_edges()`
 in the script — rather than reading `LATTICE.OUT` directly, which (after
 `g.write()` on the *supercell*) holds the enlarged, not primitive,
 vectors.
+
+## Declarative pages — `formbuilder.py` instead of `interface.ui`
+
+`tmdc` is the first mode whose page is **not** built from Qt Designer XML.
+It has no `interface.ui` at all; its `interface.py` is a hand-written
+declarative spec that `pysrc/interfacetk/formbuilder.py` turns into
+widgets. Read `interface-pyqt/tmdc/interface.py` — the whole page is ~90
+lines of `field(...)`/`combo(...)`/`button(...)` calls, replacing 906 lines
+of XML plus 776 lines of generated Python.
+
+Why: a mode's page is very regular (two tab widgets side by side, each tab
+a column of labelled parameter rows followed by calculation buttons), the
+XML carries roughly ten times the volume of the information in it, neither
+the XML nor the generated file is readable by a human or an agent, and
+`pyside6-uic` doesn't even run in every environment (see the note in
+"Known gotchas"). A spec is data: greppable, diffable, and editable without
+Designer.
+
+`formbuilder.build(owner, MainWindow, spec)` deliberately preserves three
+things the rest of the toolkit depends on:
+
+- **Parameter rows go in a nested `QGridLayout`**, label in column 0,
+  widget in column 1. `common.py`'s `_ensure_formula_image()` walks the
+  field's containing grid to add a formula column to its right, and
+  `latticeterms.py`'s `_row_label_siblings()` finds a term's label by grid
+  row, not by object name. Both need exactly this shape.
+- **Parameters are written before buttons.** `common.py`'s
+  `_move_params_above_buttons()` enforces that at runtime anyway, so specs
+  are simply written in the order that already wins.
+- **The two tab widgets keep the names `tabWidget_2` (terms) and
+  `tabWidget_3` (calculations)**, Designer's auto-generated names, because
+  `scfterms.py` looks them up by exactly those names (see "The QTabWidget
+  naming trap"). Readable aliases `terms_tabs`/`calc_tabs` are set
+  alongside. Do not "clean up" those two names.
+
+Field and button object names are the contract with `<mode>.py`
+(`qtwrap.get()`/`getbox()`, the `signals` dict); **label** names are not —
+nothing looks a label up by name, so `formbuilder` generates them as
+`label_<field>`.
+
+A spec-built mode carries **no per-field tooltips of its own**: what used
+to be a hand-written `<property name="toolTip">` in the XML now belongs in
+`termtooltips.py`'s `PARAM_TOOLTIPS`, where one entry serves every mode
+with that field name. (Converting `tmdc` surfaced two fields —
+`multildos_nk`, `multildos_nrep` — that had XML tooltips in five modes and
+no registry entry; they have one now.)
+
+To convert another mode: extract its current contents (easiest via a built
+page — walk each tab's grid and print `(row, col)`, widget class, object
+name and text), write the spec, `git rm interface.ui`, then **dump before
+and after and diff** (see the next section) — the set of named widgets and
+the set of per-tab PNGs should be unchanged. `tools/smoke_test.py`'s
+`check_signal_wiring()` already understands both kinds of mode: it reads
+buttons from `interface.ui` when there is one, and from the spec's
+`SPEC` otherwise (`_spec_buttons()`).
 
 ## Seeing what a page actually looks like — `tools/dump_ui.py`
 
