@@ -156,7 +156,11 @@ def test_hofstader1d_ti_changes_hamiltonian(monkeypatch):
     modobj = import_mode("hofstader1d")
     _stub_in(modobj, monkeypatch, [])
     set_combo(modobj, "lattice", "Bilayer graphene AB")
-    set_field(modobj, "width", "2")
+    # "ribbon_width", not "width": a field literally named "width" shadowed
+    # QWidget.width() on the page object (see qtwrap._on_runner_cancelled's
+    # note and INTERFACE_GUIDE.md), and was renamed - this test kept the
+    # old name and so silently fetched the bound method instead.
+    set_field(modobj, "ribbon_width", "2")
     activate(modobj)
 
     set_field(modobj, "ti", "0.0")
