@@ -182,11 +182,6 @@ def initialize():
 #  h.add_sublattice_imbalance(lambda r: ml*(r[2]<0.))  # lower mass
   efield = get("interlayer_bias")
   h.add_onsite(lambda r: r[2]*efield)
-  if h.has_spin:
-    h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
-    h.add_rashba(get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(get("mAF"))  # AF order
-    h.add_kane_mele(get("kanemele")) # intrinsic SOC
   h.shift_fermi(get("fermi")) # shift fermi energy
   if is_checked("set_half_filling"): h.set_filling(.5,nk=2)
   return h

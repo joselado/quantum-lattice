@@ -39,21 +39,11 @@ def initialize(qtwrap):
                                    # silently reused on rebuild
   g = islandbuild.get_geometry0d(qtwrap) # get the geometry
   h = hamiltonians.hamiltonian(g) # get the hamiltonian
+  # this mode is spinless by construction - the islands it builds are far
+  # too large for a spinful (2x) Hamiltonian to be diagonalized
   h.has_spin = False # spin treatment
-  if h.has_spin: # spinful hamiltonian
-    print("Spinful hamiltonian, DO NOT USE VERY LARGE ISLANDS!!!")
-    h.is_sparse = False
-    h.first_neighbors()  # first neighbor hoppin
-    h.add_zeeman([get("Bx"),get("By"),get("Bz")]) # Zeeman fields
-    if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(get("mAF"))  # AF order
-    if abs(get("kanemele"))>0.0:  h.add_kane_mele(get("kanemele")) # intrinsic SOC
-    h.shift_fermi(get("fermi")) # shift fermi energy
-    h.turn_sparse() # turn it sparse
-  else: # spinless treatment
-    h.is_sparse = True
-    print("Spinless hamiltonian")
-    h.first_neighbors()  # first neighbor hopping
+  h.is_sparse = True
+  h.first_neighbors()  # first neighbor hopping
   h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
   h.add_peierls(get("peierls")) # add magnetic field
   h.add_crystal_field(get("crystalfield")) # add magnetic field

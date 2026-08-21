@@ -27,20 +27,10 @@ def getfile(name):
   return builder.get_object(name).get_filename()
 
 
-def get_vacancies():
-  """Get the value of a certain variable"""
-  name = "vacancies" # name of the object
-  ats = builder.get_object(name).get_text()
-  ats = ats.replace(","," ") # substitute comma by space
-  ats = ats.split() # separte bu commas
-  ats = [int(float(a)) for a in ats] # convert to int
-  return ats # return list
-
-
-def get_geometry0d(qtwrap,second_call=False):
+def get_geometry0d(qtwrap):
   """ Create a 0d island"""
   get,getbox = qtwrap.get,qtwrap.getbox
-  getactive,modify = qtwrap.is_checked,qtwrap.modify
+  getactive = qtwrap.is_checked
   t0 = time.perf_counter() # initial time
   lattice_name = getbox("lattice")
   # first create a raw unit cell
@@ -61,16 +51,6 @@ def get_geometry0d(qtwrap,second_call=False):
     print("Direction",getfile("image_path"))
     g = sculpt.image2island(getfile("image_path"),gbulk,size=int(nf),color="black")
   else: raise
-  # if a precise diameter is wanted, only for the first call
-  if getactive("target_diameter") and not second_call:
-    diameter = get("desired_diameter")
-    ratio = diameter/g.get_diameter() # ratio between wanted and obtained
-    print("\nChecking that it has the desired size",ratio)
-    if not 0.99<ratio<1.01: # if outside the tolerance
-      newsize = round(ratio*float(get("island_size"))) # new size
-      modify("island_size",newsize) # modify the value
-      print("Recalling the geometry with size",newsize)
-      return get_geometry0d(qtwrap,second_call=True)
   # clean the island
   g.center() # center the geometry
   print("Total number of atoms =",len(g.r))
@@ -78,26 +58,6 @@ def get_geometry0d(qtwrap,second_call=False):
   if getactive("clean_island"): # if it is cleaned
     g = g.clean(iterative=True)  # remove single bonded atoms
   return g
-
-
-def modify_geometry(qtwrap,g):
-  """Modify the geometry according to the interface"""
-  mtype = qtwrap.getbox("modify_geometry")
-  print("Modifying geometry according to",mtype)
-  if mtype == "None": return g # do nothing
-  elif mtype == "Index":
-    return g.remove(get_vacancies()) # removes several atoms
-  elif mtype=="Choose atoms": # special case
-    print("Removing as chosen\n")
-    try:
-      inds = np.genfromtxt("REMOVE_ATOMS.INFO") # selected atoms
-      print("Removed indexes",inds)
-    except: return g
-    try:
-      inds = [int(i) for i in inds] # as integer
-    except: inds = [int(inds)]
-    try: return g.remove(inds) # removes several atoms
-    except: return g
 
 
 def edge_atoms(g,nn=3):

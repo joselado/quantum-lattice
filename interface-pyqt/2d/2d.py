@@ -140,25 +140,6 @@ def get_pyqula_code():
   return "\n".join(lines)
 
 
-def special_pairing(h):
-    """Create a special pairing function"""
-    delta = get("swave") # value
-    deltatype = getbox("pairing_type") # type of pairing
-    if deltatype=="Uniform":
-        h.add_pairing(delta,mode="swave")
-    elif deltatype=="One sublattice": # only in one sublattice
-        h.add_pairing(delta,mode="swaveA")
-    elif deltatype=="sigma_z": # only in one sublattice
-        h.add_pairing(delta,mode="swavez")
-    elif deltatype=="Haldane": # only in one sublattice
-        h.add_pairing(delta,mode="haldane")
-    elif deltatype=="AntiHaldane": # only in one sublattice
-        h.add_pairing(delta,mode="antihaldane")
-    else: raise # not implemented
-
-
-
-
 
 def show_dosbands():
   h = pickup_hamiltonian() # get hamiltonian
