@@ -65,6 +65,8 @@
 # `mmax` first whenever a fit saturates its cap. This was a real, measured
 # multi-minute-plus hang (from bug (1) above compounding with unbounded
 # ncand doubling) before both the SVD fix and this escalation split.
+import warnings
+
 import numpy as np
 from numba import jit
 
@@ -248,18 +250,47 @@ class SelfenergyAAA:
     def __init__(self, get_selfenergy, dim, emin, emax, delta,
                  tolerance=1e-3, ncand0=None, ncand_max=20000,
                  nvalidate=32, mmax0=100, mmax_max=400, aaa_tolerance=None,
-                 maxrounds=20, refine_growth=0.5, **kwargs):
+                 maxrounds=20, refine_growth=0.5, get_selfenergy_batch=None,
+                 **kwargs):
         if emax <= emin: raise ValueError("emax must be > emin")
         self.dim = dim
         self.emin, self.emax = emin, emax
         if ncand0 is None: ncand0 = default_ncand(emax-emin, delta)
         if aaa_tolerance is None: aaa_tolerance = 0.1*tolerance
         solved = {}
-        def full_matrix(e):
-            key = round(e, 12)
-            if key not in solved:
-                solved[key] = algebra.todense(get_selfenergy(e))
-            return solved[key]
+        def full_matrix_many(es):
+            """Solve every energy in `es` not already in `solved`, in ONE
+            batched call when `get_selfenergy_batch` is available (the
+            numba prange-parallel Sancho-Rubio iteration, transporttk.
+            selfenergy.get_selfenergy_batch / greentk.rg.
+            green_renormalization_jit_batch -- see keldyshtk/current.py's
+            _batch_selfenergy for the same batching pattern used elsewhere
+            on this codebase's Keldysh path), falling back to a per-energy
+            Python loop over `get_selfenergy` otherwise (e.g. a LocalProbe,
+            which has no batched solve). Every solved energy is cached
+            into `solved` either way, so later rounds/validation calls
+            reuse it exactly as before -- this is a pure batching of the
+            SAME true solves the unbatched path made, not a change to what
+            gets solved or how many rounds/candidates are needed, so it
+            cannot change the resulting fit."""
+            # One vectorized np.round over the whole array instead of a Python
+            # `round(e,12)` per energy, three times per call: `es` here is the
+            # candidate grid, which grows to ncand_max (20000) over up to
+            # `maxrounds` rounds, so the per-item version was a measurable
+            # share of build time. Same pattern (and same reason) as
+            # keldyshtk/current.py:_batch_selfenergy. Keys are bit-identical
+            # to the old per-item round(), so cache hits are unchanged.
+            keys = np.round(es, 12).tolist()
+            missing = [(k, e) for k, e in zip(keys, es) if k not in solved]
+            if missing:
+                if get_selfenergy_batch is not None:
+                    mats = get_selfenergy_batch(np.asarray([e for _, e in missing]))
+                    for (k, _), m in zip(missing, mats):
+                        solved[k] = algebra.todense(m)
+                else:
+                    for k, e in missing:
+                        solved[k] = algebra.todense(get_selfenergy(e))
+            return np.array([solved[k] for k in keys])
         self._solved = solved  # exposed for diagnostics/benchmarking
 
         rng = np.random.default_rng(0)  # deterministic validation draws
@@ -267,7 +298,7 @@ class SelfenergyAAA:
         mmax = min(mmax0, mmax_max)
         converged = False
         for _round in range(maxrounds):
-            Fmats = np.array([full_matrix(e) for e in Z])
+            Fmats = full_matrix_many(Z)
             entries = {}
             saturated = False
             for i in range(dim):
@@ -303,13 +334,10 @@ class SelfenergyAAA:
                                         for f in (0.3, 0.7)])
             bulk_val = rng.uniform(emin, emax, nvalidate)
             Zval = np.concatenate([feat_val, bulk_val])
-            maxerr, denom = 0., 0.
-            for e in Zval:
-                true = full_matrix(e)
-                denom = max(denom, np.max(np.abs(true)))
-            denom = max(denom, 1e-12)
-            for e in Zval:
-                true = full_matrix(e)
+            Trues = full_matrix_many(Zval)
+            denom = max(np.max(np.abs(Trues)), 1e-12)
+            maxerr = 0.
+            for e, true in zip(Zval, Trues):
                 approx = np.zeros((dim, dim), dtype=np.complex128)
                 for (i, j), r in entries.items():
                     if r is not None: approx[i, j] = r(np.complex128(e))
@@ -330,7 +358,30 @@ class SelfenergyAAA:
         self.mmax = mmax
         self.validation_error = maxerr
         self.converged = converged
+        self._domain_warned = False  # __call__/call_batch warn at most once
         self._pack_entries()
+
+    def _check_domain(self, emin_e, emax_e):
+        """Warn (once per instance) if [emin_e,emax_e] pokes outside the
+        fitted window [self.emin,self.emax]. This interpolant performs no
+        domain enforcement -- __call__/call_batch will happily return a
+        barycentric-formula value for an out-of-window energy, which is
+        extrapolation, not interpolation, and carries no accuracy guarantee
+        at all (unlike the in-window error `validation_error` actually
+        bounds). A caller hitting this should widen the window the
+        interpolant was built with (e.g. build_selfenergy_aaa's `erange`,
+        build_shared_selfenergy's `vmax`/`dv`), not treat the returned
+        value as trustworthy."""
+        if emin_e >= self.emin and emax_e <= self.emax: return
+        if self._domain_warned: return
+        self._domain_warned = True
+        warnings.warn(
+            "SelfenergyAAA: evaluated outside its fitted window "
+            f"[{self.emin:.6g},{self.emax:.6g}] (energy reached "
+            f"[{emin_e:.6g},{emax_e:.6g}]); the interpolant performs no "
+            "domain check and is silently extrapolating there -- treat the "
+            "result as untrustworthy. This warning is shown once per "
+            "interpolant.", stacklevel=3)
 
     def _pack_entries(self):
         """Precompute a padded (nentries, maxlen) array layout of every
@@ -362,6 +413,8 @@ class SelfenergyAAA:
 
     def __call__(self, e):
         """Return the interpolated self-energy matrix at energy e."""
+        er = e.real if isinstance(e, complex) else e
+        self._check_domain(er, er)
         return _eval_matrix_jit(complex(e), self._zj_pad, self._wf_pad,
                                  self._w_pad, self._ii, self._jj, self.dim)
 
@@ -371,6 +424,9 @@ class SelfenergyAAA:
         compiled call -- see _eval_matrix_batch_jit for why this beats
         calling __call__ once per energy in a Python loop."""
         es = np.asarray(es, dtype=np.complex128)
+        if es.size:
+            er = es.real
+            self._check_domain(er.min(), er.max())
         return _eval_matrix_batch_jit(es, self._zj_pad, self._wf_pad,
                                        self._w_pad, self._ii, self._jj, self.dim)
 

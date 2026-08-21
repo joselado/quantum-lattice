@@ -136,22 +136,75 @@ class Hamiltonian():
         tensor) at a single k-point"""
         return topology.quantum_metric(h,**kwargs)
 
+    def get_optical_conductivity(h,**kwargs):
+        """Frequency-dependent (optical) conductivity tensor
+        sigma_ab(omega) in the Kubo-Greenwood formalism, see
+        conductivity.py for the formula and conventions"""
+        from . import conductivity
+        return conductivity.optical_conductivity(h,**kwargs)
+
+    def get_drude_weight(h,**kwargs):
+        """Drude (intraband) weight tensor, the Fermi-surface average of
+        the squared band velocity, see conductivity.py"""
+        from . import conductivity
+        return conductivity.drude_weight(h,**kwargs)
+
+    def get_sum_rule_weight(h,**kwargs):
+        """Diamagnetic weight tensor W entering the optical f-sum rule
+        int Re sigma_aa(omega) domega = pi*W_aa, see conductivity.py"""
+        from . import conductivity
+        return conductivity.sum_rule_weight(h,**kwargs)
+
+    def get_superfluid_weight(h,**kwargs):
+        """Superfluid weight (superfluid stiffness) tensor of a BdG
+        Hamiltonian, see sctk/superfluidweight.py for the formula"""
+        from . import superfluid
+        return superfluid.superfluid_weight(h,**kwargs)
+
+    def get_bkt_temperature(h,**kwargs):
+        """Berezinskii-Kosterlitz-Thouless temperature of a 2d BdG
+        Hamiltonian, from the superfluid weight"""
+        from . import superfluid
+        return superfluid.bkt_temperature(h,**kwargs)
+
+    def get_entanglement_entropy(h,**kwargs):
+        """Entanglement entropy of a real-space region, from the
+        one-particle correlation matrix (Peschel's method), see
+        entanglement.py"""
+        from . import entanglement
+        return entanglement.entanglement_entropy(h,**kwargs)
+
+    def get_entanglement_spectrum(h,**kwargs):
+        """Entanglement spectrum (single-particle entanglement
+        Hamiltonian eigenvalues) of a real-space region, see
+        entanglement.py"""
+        from . import entanglement
+        return entanglement.entanglement_spectrum(h,**kwargs)
+
     def get_chi(self,**kwargs):
         from . import chi
         return chi.chiAB_trace(self,**kwargs)
     def get_spinchi_ladder(self,**kwargs):
         """Spin-spin response function with ladder operators.
 
-        RPA=True (the default) requires H.V to be a plain onsite
-        (Hubbard-like) interaction -- raises ValueError otherwise, see
-        chitk.spinchi._require_onsite_only_V's docstring."""
+        RPA=True (the default) needs an interaction the site-basis spin
+        vertex can represent: an onsite (Hubbard-like) H.V, or a
+        neighbor-shell EXCHANGE one, whose three spin channels the SCF
+        records in H.Vchannels. A neighbor-shell density-density
+        interaction raises ValueError, see
+        chitk.spinchi._require_onsite_only_V's docstring. This is the
+        transverse (S+/S-) channel, so an in-plane anisotropy (Kx != Ky)
+        also raises -- use get_spinchi_full there."""
         from . import chi
         return chi.spinchi_ladder(self,**kwargs)
     def get_spinchi_full(self,**kwargs):
         """Full spin-spin response function.
 
-        RPA=True (the default) requires H.V to be a plain onsite
-        (Hubbard-like) interaction -- raises ValueError otherwise, see
+        RPA=True (the default) needs an interaction the site-basis spin
+        vertex can represent: an onsite (Hubbard-like) H.V, or a
+        neighbor-shell EXCHANGE one, whose three spin channels the SCF
+        records in H.Vchannels. A neighbor-shell density-density
+        interaction raises ValueError, see
         chitk.spinchi._require_onsite_only_V's docstring."""
         from . import chi
         return chi.spinchi_full(self,**kwargs)
@@ -169,17 +222,68 @@ class Hamiltonian():
         interacting response function"""
         from . import chi
         return chi.rpa_kernel_poles(self,**kwargs)
-    def get_magnon_bands(self,**kwargs):
-        """Return the magnon bands: the poles of the full spin RPA kernel
-        (the Sx,Sy,Sz channel used by get_spinchi_full/get_iets_ldos),
-        scanned along a q-path.
+    def get_magnon_bands(self,method="rpa",**kwargs):
+        """Return the magnon bands of a magnetic mean-field state, scanned
+        along a q-path.
 
-        Requires H.V to be a plain onsite (Hubbard-like) interaction --
-        raises ValueError for any non-onsite H.V (bond exchange,
-        density-density, or a combination, e.g. from VJinteraction), see
-        chitk.spinchi._require_onsite_only_V's docstring for why."""
+        method="rpa" (the default) takes the poles of the site-basis spin
+        RPA kernel (the Sx,Sy,Sz channel used by
+        get_spinchi_full/get_iets_ldos) on a frequency grid. It works for
+        metals as well as insulators, and takes an onsite (Hubbard-like)
+        H.V or a neighbor-shell EXCHANGE interaction, whose three spin
+        channels the SCF records in H.Vchannels. It raises ValueError for
+        a neighbor-shell DENSITY-DENSITY one, whose contribution to the
+        spin response is a rung on the electron-hole pair index that a
+        site-separable vertex cannot represent at all (see
+        chitk.spinchi._require_onsite_only_V).
+
+        method="pair" sums the same ladder as "rpa" but in the basis of
+        the interaction's pair index, where the rung of a neighbour-shell
+        density-density interaction actually lives. It keeps the frequency
+        scan and the metal support of "rpa" and gains the interaction
+        coverage of "tdhf"; see chitk.pairchi.
+
+        method="tdhf" solves the time-dependent Hartree-Fock (Bethe-
+        Salpeter) problem in the spin-flip electron-hole pair basis
+        instead, which is where that rung belongs: it handles any
+        density-density interaction, onsite or not, and has an exact
+        Goldstone mode at Q=0 (check it with get_goldstone_residual). In
+        exchange it needs the same k-mesh the mean field was converged
+        on, and by default a gapped reference -- pass metal=True for an
+        itinerant magnet, which decides the occupied and empty sets per
+        k-point instead. See bsetk.spinflip.magnon_bands_tdhf."""
+        if method=="tdhf":
+            from . import bse
+            return bse.magnon_bands_tdhf(self,**kwargs)
+        if method=="pair":
+            from . import chi
+            return chi.pair_magnon_bands(self,**kwargs)
+        if method!="rpa":
+            raise ValueError("method must be 'rpa', 'tdhf' or 'pair', got "
+                    "%r"%(method,))
         from . import chi
         return chi.magnon_bands(self,**kwargs)
+    def get_transverse_spinchi(self,**kwargs):
+        """Transverse (S+/S-) spin response computed in the basis of the
+        interaction's PAIR index rather than of sites, which is what lets
+        it carry a neighbour-shell density-density interaction -- the one
+        the site-basis RPA maps to exactly zero. Needs no gap, and returns
+        a frequency-resolved chi. See chitk.pairchi"""
+        from . import chi
+        return chi.transverse_spinchi(self,**kwargs)
+    def get_magnon_energies(self,**kwargs):
+        """Return the magnon energies at a single momentum Q, from the
+        spin-flip channel of the Bethe-Salpeter equation, see
+        bsetk.spinflip.magnon_energies"""
+        from . import bse
+        return bse.magnon_energies(self,**kwargs)
+    def get_goldstone_residual(self,**kwargs):
+        """Return how far this magnetic mean field is from having a
+        zero-energy magnon at Q=0, as the Goldstone theorem requires of
+        any magnetic state without spin-orbit coupling. Zero up to the SCF
+        tolerance; see bsetk.spinflip.goldstone_residual"""
+        from . import bse
+        return bse.goldstone_residual(self,**kwargs)
     def get_densitychi_RPA(self,**kwargs):
         """Density (charge) RPA response function for a V1/V2/V3/U/Vr
         neighbor-shell density-density interaction"""
@@ -191,6 +295,47 @@ class Hamiltonian():
         interaction, scanned along a q-path"""
         from . import chi
         return chi.plasmon_bands(self,**kwargs)
+    def get_bse(self,**kwargs):
+        """Return the solved Bethe-Salpeter (exciton) problem on top of
+        this mean-field Hamiltonian, as a bsetk.solve.BSE object"""
+        from . import bse
+        return bse.get_bse(self,**kwargs)
+    def get_exciton_energies(self,**kwargs):
+        """Return the exciton energies from the Bethe-Salpeter equation
+        solved on top of this mean-field Hamiltonian. The interaction
+        defaults to the one the mean field was converged with (self.V);
+        pass V explicitly for a different (e.g. screened) interaction"""
+        from . import bse
+        return bse.exciton_energies(self,**kwargs)
+    def get_exciton_states(self,**kwargs):
+        """Return (energies,amplitudes) of the excitons, the amplitudes
+        being the electron-hole amplitudes A_vc(k) of each exciton"""
+        from . import bse
+        return bse.exciton_states(self,**kwargs)
+    def get_exciton_binding_energies(self,**kwargs):
+        """Return the exciton binding energies, i.e. how far below the
+        lowest independent-particle transition each exciton lies"""
+        from . import bse
+        return bse.exciton_binding_energies(self,**kwargs)
+    def get_screened_interaction(self,**kwargs):
+        """Return the static RPA screened interaction W = eps^-1 v built
+        from this Hamiltonian's own bands, as a ScreenedInteraction. Pass
+        V= for the bare interaction to screen (it defaults to self.V, the
+        one a mean field was converged with -- but note that a fitted
+        Hubbard U is already screened and should not be screened again)"""
+        from . import screening
+        return screening.get_screened_interaction(self,**kwargs)
+    def get_polarizability(self,**kwargs):
+        """Return (qs,chi0), the static polarizability of this Hamiltonian
+        on its k-mesh, in the orbital basis"""
+        from . import screening
+        return screening.get_polarizability(self,**kwargs)
+    def get_exciton_bands(self,**kwargs):
+        """Return the exciton bands E_X(Q): the Bethe-Salpeter energies at
+        finite center-of-mass momentum, scanned along a q-path. Returns
+        flat (qs,es) arrays, same convention as get_bands"""
+        from . import bse
+        return bse.exciton_bands(self,**kwargs)
     def get_hopping_dict(self):
         """Return the dictionary with the hoppings"""
         return multicell.get_hopping_dict(self)
@@ -217,6 +362,12 @@ class Hamiltonian():
         self.data = dict() # empty dictionary with various data
         self.has_spin = True # has spin degree of freedom
         self.V = None # density-density interaction
+        self.Vchannels = None # the x/y/z exchange channels and the
+        # density-density part of the interaction, kept separately because
+        # self.V is a single matrix and an isotropic J and an anisotropic
+        # Jz leave exactly the same one in it. Set by the exchange SCF
+        # (scftk.spinspin), read by the spin-channel RPA
+        # (chitk.spinchi._full_spin_U)
         self.has_kondo = False # has Kondo sites
         self.prefix = "" # a string used a prefix for different files
         self.path = "" # a path used for different files
