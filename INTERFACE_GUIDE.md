@@ -145,7 +145,7 @@ call, no SCF tab).
 | tbg | twist angle/stacking combos (`specialgeometry.twisted_multilayer`); forces KPM for site-DOS; optional phenomenological structural relaxation (`do_relax` switch, `pyqula.graphenetk.relax`), cached per (cell_size,multilayer_type) |
 | hybridfilm | multi-part z-slab composition via `hybridparts.py` |
 | hybridribbon | same `hybridparts.py` composition, along the ribbon cross-section instead of z |
-| hofstader1d | Peierls-phase flux field (`peierls`); numba-typing workaround forcing `h.get_dos()` over `dos.dos1d()`/`dos.dos2d()` |
+| hofstader1d | Peierls-phase flux field (`peierls`); Hofstadter butterfly sweep (`show_hofstader`) driving KPM DOS with a Bulk/Edge `frand` random-vector generator |
 | heavyfermion | `H2HFH(h,JK=kondo,J=exchange)` converts a conventional Hamiltonian into a Kondo-lattice one |
 | multilayergraphene | stacking-code combobox (`"ABA"`, ...) drives `specialgeometry.multilayer_graphene` |
 | impurity_embedding | `embedding.Embedding(...)` Green's-function embedding onto a 0d cluster host; no bands/DOS buttons |
@@ -684,6 +684,15 @@ call, and some deliberately stayed on the module function:
   `films.geometry_film`, `islands.get_geometry`, `scftypes.guess`,
   `embedding.Embedding`, or the `kpm.*`-on-`h.intra` calls in `huge_0d` —
   leave those as module-level calls.
+
+One more reason to prefer it: the per-dimensionality DOS entry points
+`dos.dos1d`/`dos.dos2d` do not exist in pyqula at all (and `dos.dos0d`
+takes `energies=`, not `es=`), so several handlers that branched on
+`h.dimensionality` to call them were dead on arrival. `h.get_dos()` is
+the general entry point and dispatches over dimensionality, KPM vs ED
+(`use_kpm=True`), sparse ARPACK (`num_bands=`) and Green's functions
+(`mode="Green"`) itself - call it and pass options, rather than reaching
+for a specialized function per case.
 
 Monkeypatching in `tests/` keeps working for the one case a test relies
 on: `Hamiltonian.get_kdos_bands` does its `from .kdos import kdos_bands`
@@ -1484,11 +1493,12 @@ duplicated, so it stays in sync with the shell's `MODES`.
 suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
 sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
-other setup is required. Currently measured at ~25s wall clock and
-~760MB peak RSS for the whole suite (115 passed, 5 skipped as of this
-writing) — comfortably inside a self-imposed budget of **under 3 minutes
+other setup is required. Currently measured at ~37s wall clock and
+~760MB peak RSS for the whole suite (274 passed, 9 skipped as of this
+writing - most of that count is `test_pyqula_api_surface.py`'s cheap
+per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are
-expensive to touch broadly (see point 3 below); keep both budgets in mind
+expensive to touch broadly (see point 4 below); keep both budgets in mind
 before widening any layer. It's layered, cheapest/most-general first:
 
 1. **`test_signal_wiring.py`/`test_shell.py`** — thin pytest wrappers
@@ -1511,10 +1521,20 @@ before widening any layer. It's layered, cheapest/most-general first:
    an `interface-pyqt/logos/<term>.png`, and every `STANDARD_HANDLERS`
    button has a `BUTTON_TOOLTIPS` entry — the two "whenever you add X, add
    Y" rules documented above, enforced instead of just written down.
-3. **`test_handlers.py`** (+ helper module `_handler_harness.py`) — the
+3. **`test_pyqula_api_surface.py`** — static AST scan of every
+   hand-written interface-layer file for `<pyqula module>.<function>(...)`
+   calls, asserting the function still exists in the vendored copy and
+   that the keyword arguments passed are ones it accepts. Costs ~3s and
+   covers every handler, including ones no test runs, so it's the net for
+   "upstream removed/renamed something a button calls" after a
+   `tools/update_pyqula.sh` refresh. It caught three latent bugs when it
+   was added (`dos.dos1d`/`dos.dos2d` never existed; `dos.dos0d(h,es=...)`
+   used the wrong keyword) — see its module docstring. Bound-method calls
+   (`h.get_dos(...)`) can't be checked statically; layer 4 covers those.
+4. **`test_handlers.py`** (+ helper module `_handler_harness.py`) — the
    layer that actually calls handler functions, which is what catches a
    handler that only breaks once it runs with a real value (see the two
-   bugs cited in its module docstring — both were invisible to layers 1-2,
+   bugs cited in its module docstring — both were invisible to layers 1-3,
    since neither exercises a button with non-default parameters).
    `import_mode(mode)` imports a mode the same way
    `bin/versions/quantum-lattice-pyqt`'s `load_mode()` does
@@ -1590,7 +1610,7 @@ before widening any layer. It's layered, cheapest/most-general first:
    `test_kdos_bands_uses_nk_kbands_field` do) rather than only "no
    exception raised" whenever the bug could be a wrong-value-not-a-crash
    - the latter would have missed hofstader1d's silent no-op.
-4. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+5. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
    tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
    Automated version of the "skim `git diff --stat pysrc/pyqula`" step
    `tools/update_pyqula.sh`'s own instructions already ask for by hand —

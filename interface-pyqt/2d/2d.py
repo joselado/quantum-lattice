@@ -247,7 +247,7 @@ def sweep_parameter():
             g = h.get_gap() # compute Gap
             out.append([p,g]) # store result
         elif cname=="Chern number": # compute the gap
-            c = h.get_chern(nk=int(np.sqrt(get("nk_topology"))))
+            c = h.get_chern(nk=int(np.sqrt(get("topology_nk"))))
             out.append([p,c]) # store result
         elif cname=="Eigenvalues": # store the band eigenvalues
             (ks,es) = h.get_bands() # compute eigenvalues

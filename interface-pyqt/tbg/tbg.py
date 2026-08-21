@@ -189,7 +189,6 @@ def initialize():
     h.add_kane_mele(get("kanemele")) # intrinsic SOC
   h.shift_fermi(get("fermi")) # shift fermi energy
   if is_checked("set_half_filling"): h.set_filling(.5,nk=2)
-  g.get_default_kpath(nk=int(get("nkpoints")))  # write klist
   return h
 
 
@@ -208,9 +207,6 @@ def check_parallel():
 def show_dos():
   h = pickup_hamiltonian()  # get the hamiltonian
   nk = int(round(np.sqrt(get("nk_dos"))))
-  ndos = int(get("nume_dos"))
-  npol = int(get("numpol_dos"))
-  ndos = npol*10
   delta = get("delta_dos") or 1e-3 # avoid a division by zero below
   scale = 10.0 # scale for KPM
   check_parallel() # check if there is parallelization
@@ -219,9 +215,14 @@ def show_dos():
     h.get_dos(use_kpm=True,nk=nk,ntries=1,scale=scale,delta=5*delta,
             energies=np.linspace(-5.0,5.0,int(20./delta)))
   elif name=="Lowest":
+    # sparse (ARPACK) diagonalization keeping only the numw_dos eigenvalues
+    # closest to zero - h.get_dos(), pyqula's general DOS entry point,
+    # forwards num_bands down to h.get_bands() for exactly that (the old
+    # dos.dos2d() call did not exist). Only the region around E=0 is
+    # meaningful; widen it by raising numw_dos, as its tooltip says.
     numw = int(get("numw_dos")) # number of waves
-    energies = None
-    dos.dos2d(h,nk=nk,delta=delta,numw=numw)
+    h.get_dos(nk=nk,delta=delta,num_bands=numw,
+            energies=np.linspace(-1.0,1.0,int(2./delta)))
   else: raise
   execute_script("ql-dos --input DOS.OUT ")
   return

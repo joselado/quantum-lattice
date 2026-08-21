@@ -122,20 +122,11 @@ def show_interactive_ldos():
 
 def show_dos():
   h = pickup_hamiltonian() # get hamiltonian
-#  mode = getbox("mode_dos") # mode for the DOS
-  if h.dimensionality==0:
-    dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("dos_delta"))
-  elif h.dimensionality==1:
-    # dos.dos1d() hits a numba typing error inside pyqula's
-    # calculate_dos_hkgen (int dtype k-point); use the same h.get_dos()
-    # dispatcher the other modes' "show_dos" already relies on instead
-    h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
-  elif h.dimensionality==2:
-    # dos.dos2d() hits a numba typing error inside pyqula's
-    # calculate_dos_hkgen (int dtype k-point); use the same h.get_dos()
-    # dispatcher the other modes' "show_dos" already relies on instead
-    h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
-  else: raise
+  # h.get_dos() is pyqula's general DOS entry point and handles every
+  # dimensionality itself - no per-dimensionality branch needed (the
+  # dos.dos0d/dos1d/dos2d calls this used to make were wrong: dos0d takes
+  # "energies", not "es", and dos1d/dos2d do not exist at all)
+  h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   execute_script("ql-dos  ")
 
 
@@ -173,13 +164,20 @@ def show_hofstader():
         v = np.random.random(op.shape[0])-0.5
         return v - op@v # return the edge
   else: raise
+  ew = get("ewindow_hofs") # energy window of each DOS
+  ne = int(get("nume_hofs")) # number of energies of each DOS
   f = open("HOFSTADER.OUT","w")
   for b in bs:
     modify("peierls",str(round(b,4)))
     h = pickup_hamiltonian() # pick the Hamiltonian
-    npol = 10*int(get("nume_hofs"))
-    (es,ds)=dos.dos1d(h,ewindow=get("ewindow_hofs"),ndos=int(get("nume_hofs")),
-               use_kpm=True,nk=int(get("nk_hofs")),npol=npol,
+    # h.get_dos() is pyqula's general DOS entry point (the old dos.dos1d()
+    # call did not exist); use_kpm routes it to the stochastic KPM
+    # estimator, which is what accepts frand (the Bulk/Edge random-vector
+    # generator above) and ntries. The number of Chebyshev polynomials is
+    # set indirectly through delta (npol = scale/delta inside dos_kpm),
+    # here the spacing of the energy grid.
+    (es,ds) = h.get_dos(energies=np.linspace(-ew,ew,ne),use_kpm=True,
+               nk=int(get("nk_hofs")),delta=2.*ew/ne,
                ntries=int(get("nite_hofs")),frand=fun)
     for (e,d) in zip(es,ds):
       f.write(str(b)+"   ")

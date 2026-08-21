@@ -136,20 +136,11 @@ def show_ldos():
 
 def show_dos():
   h = pickup_hamiltonian() # get hamiltonian
-#  mode = getbox("mode_dos") # mode for the DOS
-  if h.dimensionality==0:
-    dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("dos_delta"))
-  elif h.dimensionality==1:
-    # dos.dos1d() hits a numba typing error inside pyqula's
-    # calculate_dos_hkgen (int dtype k-point); use the same h.get_dos()
-    # dispatcher the other modes' "show_dos" already relies on instead
-    h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
-  elif h.dimensionality==2:
-    # dos.dos2d() hits a numba typing error inside pyqula's
-    # calculate_dos_hkgen (int dtype k-point); use the same h.get_dos()
-    # dispatcher the other modes' "show_dos" already relies on instead
-    h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
-  else: raise
+  # h.get_dos() is pyqula's general DOS entry point and handles every
+  # dimensionality itself - no per-dimensionality branch needed (the
+  # dos.dos0d/dos1d/dos2d calls this used to make were wrong: dos0d takes
+  # "energies", not "es", and dos1d/dos2d do not exist at all)
+  h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   execute_script("ql-dos  ")
 
 
