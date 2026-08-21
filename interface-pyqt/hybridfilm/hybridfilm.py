@@ -141,14 +141,14 @@ def show_dos():
     dos.dos0d(h,es=np.linspace(-3.1,3.1,500),delta=get("dos_delta"))
   elif h.dimensionality==1:
     # dos.dos1d() hits a numba typing error inside pyqula's
-    # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
+    # calculate_dos_hkgen (int dtype k-point); use the same h.get_dos()
     # dispatcher the other modes' "show_dos" already relies on instead
-    dos.dos(h,delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
+    h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   elif h.dimensionality==2:
     # dos.dos2d() hits a numba typing error inside pyqula's
-    # calculate_dos_hkgen (int dtype k-point); use the same dos.dos()
+    # calculate_dos_hkgen (int dtype k-point); use the same h.get_dos()
     # dispatcher the other modes' "show_dos" already relies on instead
-    dos.dos(h,delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
+    h.get_dos(delta=get("dos_delta"),energies=np.linspace(-3.1,3.1,500))
   else: raise
   execute_script("ql-dos  ")
 

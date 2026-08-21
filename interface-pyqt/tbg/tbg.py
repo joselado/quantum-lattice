@@ -189,7 +189,7 @@ def initialize():
     h.add_kane_mele(get("kanemele")) # intrinsic SOC
   h.shift_fermi(get("fermi")) # shift fermi energy
   if is_checked("set_half_filling"): h.set_filling(.5,nk=2)
-  klist.default(g,nk=int(get("nkpoints")))  # write klist
+  g.get_default_kpath(nk=int(get("nkpoints")))  # write klist
   return h
 
 
@@ -216,7 +216,7 @@ def show_dos():
   check_parallel() # check if there is parallelization
   name = qtwrap.getbox("mode_dos") # mode of the DOS
   if name=="KPM":
-    dos.dos(h,use_kpm=True,nk=nk,ntries=1,scale=scale,delta=5*delta,
+    h.get_dos(use_kpm=True,nk=nk,ntries=1,scale=scale,delta=5*delta,
             energies=np.linspace(-5.0,5.0,int(20./delta)))
   elif name=="Lowest":
     numw = int(get("numw_dos")) # number of waves
@@ -250,7 +250,7 @@ def show_ldos():
   nk = get("nk_ldos_single")
   nk = int(round(np.sqrt(nk)))
   nsuper = int(get("nsuper_ldos_single"))
-  ldos.ldos(h,e=e,delta=delta,nk=nk,mode="arpack",nrep=nsuper)
+  h.get_ldos(e=e,delta=delta,nk=nk,mode="arpack",nrep=nsuper)
   execute_script("ql-fast-ldos LDOS.OUT  ")
 
 

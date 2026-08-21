@@ -31,6 +31,10 @@ maintenance doc, not a one-time snapshot.
 - **Restrict a term to a Hamiltonian type (Spinless/Spinful/Nambu)** — `pysrc/interfacetk/hamiltoniantype.py` (`SPIN_TERMS`/`PAIRING_TERMS`); see "Runtime dynamic-widget patterns" below.
 - **Add a new plot/postprocessing view** — write/extend a `ql-*` script
   under `utilities/`; see "Adding a ql-* script" below.
+- **Call a `pyqula` calculation from a handler** — prefer the bound
+  method (`h.get_chern(...)`, `g.get_default_kpath(...)`) over the
+  module-level function; see "Calling pyqula — prefer the bound methods"
+  below for the exceptions that deliberately stayed module-level.
 - **Change how "this term is currently active" is shown** —
   `pysrc/interfacetk/termhighlight.py`.
 - **Change the save/load-results naming dialogs** —
@@ -141,7 +145,7 @@ call, no SCF tab).
 | tbg | twist angle/stacking combos (`specialgeometry.twisted_multilayer`); forces KPM for site-DOS; optional phenomenological structural relaxation (`do_relax` switch, `pyqula.graphenetk.relax`), cached per (cell_size,multilayer_type) |
 | hybridfilm | multi-part z-slab composition via `hybridparts.py` |
 | hybridribbon | same `hybridparts.py` composition, along the ribbon cross-section instead of z |
-| hofstader1d | Peierls-phase flux field (`peierls`); numba-typing workaround forcing `dos.dos()` over `dos.dos1d()`/`dos.dos2d()` |
+| hofstader1d | Peierls-phase flux field (`peierls`); numba-typing workaround forcing `h.get_dos()` over `dos.dos1d()`/`dos.dos2d()` |
 | heavyfermion | `H2HFH(h,JK=kondo,J=exchange)` converts a conventional Hamiltonian into a Kondo-lattice one |
 | multilayergraphene | stacking-code combobox (`"ABA"`, ...) drives `specialgeometry.multilayer_graphene` |
 | impurity_embedding | `embedding.Embedding(...)` Green's-function embedding onto a 0d cluster host; no bands/DOS buttons |
@@ -622,7 +626,7 @@ checklist form.)
    text doesn't (it was written assuming only one physical quantity would
    ever feed it): `common.py`'s `get_iets_ldos` (0d) writes the same
    `MULTILDOS/` folder layout (`MULTILDOS.TXT` + one `LDOS_<e>_.OUT` per
-   energy + `DOS.OUT`) that `get_multildos`'s `ldos.multi_ldos` call
+   energy + `DOS.OUT`) that `get_multildos`'s `h.get_multildos()` call
    writes, by hand - `pyqula.ldos.multi_ldos_tb` has no "give me an
    arbitrary per-site quantity at N energies" mode, only real LDOS, so
    there's no pyqula call to reuse, just the file format it produces.
@@ -636,6 +640,60 @@ checklist form.)
    hardcoded labels into args with the original text as the default -
    over forking a near-identical copy of a `ql-*` script for a second
    physical quantity.
+
+## Calling pyqula — prefer the bound methods
+
+`pyqula`'s `Hamiltonian`/`Geometry` classes expose most calculations as
+bound methods that are thin, exact delegations to the module-level
+function (`Hamiltonian.get_chern` → `topology.chern`,
+`Hamiltonian.get_dos` → `dos.get_dos`, `Geometry.clean` →
+`sculpt.remove_unibonded`, ...). **Call the bound method** in
+`common.py`/`<mode>.py`/`codeview.py`'s emitted code — `h.get_chern(nk=nk)`,
+not `topology.chern(h,nk=nk)` — so the interface layer reads like the
+`pyqula` user guide and doesn't depend on which submodule a function
+happens to live in today. Conversions already made: `dos.dos` →
+`h.get_dos`, `kdos.surface` → `h.get_surface_kdos`, `kdos.kdos_bands` →
+`h.get_kdos_bands`, `topology.berry_map` → `h.get_berry_curvature`,
+`topology.chern` → `h.get_chern`, `spectrum.multi_fermi_surface` →
+`h.get_multi_fermi_surface`, `ldos.multi_ldos` → `h.get_multildos`,
+`ldos.ldos` → `h.get_ldos`, `klist.default` → `g.get_default_kpath`,
+`sculpt.remove`/`remove_unibonded` → `g.remove`/`g.clean`,
+`meanfield.VJinteraction`/`Vinteraction` → `h.get_mean_field_hamiltonian`.
+
+Before converting one, check the method body in `pysrc/pyqula/` — a
+bound method whose name merely *sounds* right is not necessarily the same
+call, and some deliberately stayed on the module function:
+
+- `Geometry.get_orthogonal()` is `supercelltk.target_angle_volume`, **not**
+  `supercell.turn_orthorhombic` (still used by `latticegas`/`latticeising`).
+- `Geometry.remove()` dispatches on `type(i)==list`, so a numpy array of
+  indices must be converted to a plain list of ints first (see
+  `interfacetk.modify_geometry`) or it is silently wrapped as one element.
+- `h.get_mean_field_hamiltonian()` returns only the converged Hamiltonian,
+  discarding the SCF object — so `common.solve_scf()` uses it, but
+  `solve_scf_identify_symmetry_breaking()` still calls
+  `meanfield.VJinteraction`/`Vinteraction` directly, since it needs
+  `scf.identify_symmetry_breaking()`. It dispatches on `h.has_spin`
+  internally (VJinteraction vs Vinteraction), exactly as the two callers'
+  own `h.has_spin` branch does.
+- `h.get_topological_invariant()` is a dimensionality/symmetry dispatcher,
+  not a replacement for `topology.z2_vanderbilt`.
+- No bound equivalent exists (as of the current vendored copy) for
+  `ldos.slabldos`/`spatial_energy_profile`, `topology.write_berry`,
+  `topology.real_space_chern`, `timeevolution.evolve_local_state`,
+  `films.geometry_film`, `islands.get_geometry`, `scftypes.guess`,
+  `embedding.Embedding`, or the `kpm.*`-on-`h.intra` calls in `huge_0d` —
+  leave those as module-level calls.
+
+Monkeypatching in `tests/` keeps working for the one case a test relies
+on: `Hamiltonian.get_kdos_bands` does its `from .kdos import kdos_bands`
+import *inside* the method body, so
+`monkeypatch.setattr(pyqula.kdos,"kdos_bands",...)` is still picked up.
+That is not a general guarantee - `get_mean_field_hamiltonian`, for one,
+resolves `VJinteraction`/`Vinteraction` from names bound at
+`hamiltonians.py` import time, so patching `pyqula.meanfield` would *not*
+intercept it. Check the method body before writing a test that patches
+through a bound method.
 
 ## Tooltip conventions
 
@@ -992,8 +1050,8 @@ the GUI. Retrofitting this onto another mode:
    (`richer=False`) while `2d.py` (and `3d.py`, if/when it gets this
    feature) has its own richer `solve_scf()` that passes `maxerror=`
    instead of `T=` (`richer=True`) - see that function's docstring. This
-   only ever needs the `meanfield.VJinteraction(...)` branch, never the
-   spinless `meanfield.Vinteraction(...)` branch `solve_scf()` also
+   only ever needs `h.get_mean_field_hamiltonian(...)`'s spinful
+   (J1/J2/J3) branch, never the spinless one `solve_scf()` also
    supports, since every mode that has this tab always builds a
    `has_spin=True` Hamiltonian.
 5. Manual atom removal (the "Modify geometry" tab) is reproduced via
@@ -1003,7 +1061,7 @@ the GUI. Retrofitting this onto another mode:
    (`remove_selected`/`remove_single_bonded`). `remove_selected`'s actual
    atom indices are read once, from `REMOVE_ATOMS.INFO` in the page's own
    scratch folder, and baked into the generated code as a literal list
-   (`sculpt.remove(g, [3, 7, 12])`) rather than the generated script
+   (`g.remove([3, 7, 12])`) rather than the generated script
    re-reading that scratch file itself, so it stays self-contained and
    correct even if run later/elsewhere. This is why `build()`'s `refresh()`
    restores the page's own `scratch_dir` as the process cwd before calling
@@ -1108,7 +1166,7 @@ plan this was built from).
   write any on-disk cache (`hamiltonian.pkl` in particular) to a temp name
   and `os.replace()` it into place at the end, not write in place -
   `common.py`'s `solve_scf()` now does this
-  (`scf.hamiltonian.save(output_file="hamiltonian.pkl.tmp")` then
+  (`hscf.save(output_file="hamiltonian.pkl.tmp")` then
   `os.replace(...)`) - otherwise a killed subprocess could leave a
   half-written `hamiltonian.pkl` that `pickup_hamiltonian()`'s
   `os.path.exists("hamiltonian.pkl")` check would later mistake for a
@@ -1213,8 +1271,10 @@ combobox default) and, together with `scf_maxite` (a plain `LineEdit`
 right after it, default `"100"`), is read by
 `common.get_scf_solver_kwargs(h,window,for_vjinteraction)`, called from
 every `solve_scf()` (the shared `common.py` one, and `2d.py`/`3d.py`'s own
-richer copies) right inside the `meanfield.VJinteraction(...)`/
-`meanfield.Vinteraction(...)` call via `**common.get_scf_solver_kwargs(...)`.
+richer copies) right inside the mean-field solve call
+(`h.get_mean_field_hamiltonian(...)`, or `meanfield.VJinteraction(...)`/
+`meanfield.Vinteraction(...)` in the richer copies - see "Calling pyqula"
+above) via `**common.get_scf_solver_kwargs(...)`.
 Things to know before touching this:
 
 - **`maxite` is unconditional.** Unlike the solver choice below, `maxite`

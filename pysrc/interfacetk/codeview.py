@@ -95,7 +95,6 @@ def geometry_removal_code(qtwrap, center=False):
     scratch-dir-relative, the same way every pyqula-facing handler in this
     codebase depends on qtwrap's own chdir-to-scratch-dir convention."""
     lines = []
-    needs_sculpt_import = False
     if qtwrap.is_checked("remove_selected"):
         try:
             inds = np.array(np.genfromtxt("REMOVE_ATOMS.INFO", dtype=np.int_))
@@ -103,13 +102,9 @@ def geometry_removal_code(qtwrap, center=False):
             inds = [int(i) for i in inds]
         except Exception:
             inds = []
-        needs_sculpt_import = True
-        lines.append("g = sculpt.remove(g, %r)  # atoms removed in \"Modify geometry\"" % inds)
+        lines.append("g = g.remove(%r)  # atoms removed in \"Modify geometry\"" % inds)
     if qtwrap.is_checked("remove_single_bonded"):
-        needs_sculpt_import = True
-        lines.append("g = sculpt.remove_unibonded(g, iterative=True)")
-    if needs_sculpt_import:
-        lines.insert(0, "from pyqula import sculpt")
+        lines.append("g = g.clean(iterative=True)")
     if center:
         lines.append("g.center()")
     return lines

@@ -76,7 +76,7 @@ def get_geometry0d(qtwrap,second_call=False):
   print("Total number of atoms =",len(g.r))
   print("Time spent in creating the geometry =",time.perf_counter() - t0)
   if getactive("clean_island"): # if it is cleaned
-    g = sculpt.remove_unibonded(g,iterative=True)  # remove single bonded atoms
+    g = g.clean(iterative=True)  # remove single bonded atoms
   return g
 
 
@@ -86,7 +86,7 @@ def modify_geometry(qtwrap,g):
   print("Modifying geometry according to",mtype)
   if mtype == "None": return g # do nothing
   elif mtype == "Index":
-    return sculpt.remove(g,get_vacancies()) # removes several atoms
+    return g.remove(get_vacancies()) # removes several atoms
   elif mtype=="Choose atoms": # special case
     print("Removing as chosen\n")
     try:
@@ -96,7 +96,7 @@ def modify_geometry(qtwrap,g):
     try:
       inds = [int(i) for i in inds] # as integer
     except: inds = [int(inds)]
-    try: return sculpt.remove(g,inds) # removes several atoms
+    try: return g.remove(inds) # removes several atoms
     except: return g
 
 

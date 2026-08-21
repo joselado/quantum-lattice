@@ -3,7 +3,6 @@ from . import qtwrap
 from . import hamiltoniantype
 import os
 import numpy as np
-from pyqula import klist
 from .qh_interface import *
 from pyqula import parallel
 from PySide6 import QtWidgets
@@ -34,7 +33,7 @@ def get_bands(h,window):
     """Compute the bandstructure of the system"""
     opname = window.getbox("bands_color")
     op = get_operator(h,opname) # get operator
-    kpath = klist.default(h.geometry,nk=int(window.get("nk_bands")))
+    kpath = h.geometry.get_default_kpath(nk=int(window.get("nk_bands")))
     num_bands = int(window.get("nbands"))
     if num_bands<1: num_bands = None # all the eigenvalues
     check_parallel(window) # check if use parallelization
@@ -54,7 +53,7 @@ def get_kdos(h,window):
     energies = np.linspace(-ew,ew,new) # number of ene
     kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
     h = h.reduce() # reduce dimensionality if possible
-    kdos.surface(h,energies=energies,delta=4*ew/new,kpath=kpath)
+    h.get_surface_kdos(energies=energies,delta=4*ew/new,kpath=kpath)
     command = "ql-kdos-both --input KDOS.OUT"
     execute_script(command) # execute the script
 
@@ -69,7 +68,7 @@ def get_surface_dos(h,window):
     energies = np.linspace(-ew,ew,new) # number of ene
     kpath = [[i,0.,0.] for i in np.linspace(0.,1.,new)]
     h = h.reduce() # reduce dimensionality if possible
-    kdos.surface(h,energies=energies,delta=delta)
+    h.get_surface_kdos(energies=energies,delta=delta)
     command = "ql-sdos --input KDOS.OUT"
     execute_script(command) # execute the script
 
@@ -100,11 +99,11 @@ def get_dos(h,window,silent=False):
     op = get_operator(h,opname) if opname else None
     mode = window.getbox("dos_mode")
     if mode=="Green":
-      dos.dos(h,delta=delta,nk=nk,energies=energies,mode="Green",operator=op) # compute DOS
+      h.get_dos(delta=delta,nk=nk,energies=energies,mode="Green",operator=op) # compute DOS
     elif mode=="KPM":
-      dos.dos(h,delta=delta,nk=nk,energies=energies,use_kpm=True,operator=op) # compute DOS
+      h.get_dos(delta=delta,nk=nk,energies=energies,use_kpm=True,operator=op) # compute DOS
     else:
-      dos.dos(h,delta=delta,nk=nk,energies=energies,operator=op) # compute DOS
+      h.get_dos(delta=delta,nk=nk,energies=energies,operator=op) # compute DOS
     if not silent: execute_script("ql-dos --input DOS.OUT")
 
 
@@ -121,10 +120,10 @@ def get_site_dos(h,window,use_kpm=False):
     use_kpm picks the diagonalization method: KPM for the modes whose
     Hamiltonians are too large for exact diagonalization (huge_0d, tbg,
     hofstader1d - wired with use_kpm=True in their own <mode>.py), ED
-    (the dos.dos default) for every other mode."""
+    (the h.get_dos default) for every other mode."""
     # a dedicated filename, not the "hamiltonian.pkl" default: that one is
     # pickup_hamiltonian()'s canonical SCF result (written by
-    # scf.hamiltonian.save() above), and this handler runs regardless of
+    # solve_scf()'s own hscf.save() above), and this handler runs regardless of
     # whether "do_scf" is checked - saving over the default here would
     # silently clobber the converged SCF Hamiltonian with a fresh one
     hfile = "SITE_DOS_HAMILTONIAN.pkl"
@@ -139,7 +138,7 @@ def get_site_dos(h,window,use_kpm=False):
 
 def get_berry1d(h,window):
     """Get the one dimensional Berry curvature"""
-    ks = klist.default(h.geometry,
+    ks = h.geometry.get_default_kpath(
             nk=int(window.get("topology_nk")))  # write klist
     opname = window.getbox("topology_operator")
     op = get_operator(h,opname,projector=True) # get operator
@@ -157,7 +156,7 @@ def get_berry2d(h,window):
     nk = int(np.sqrt(window.get("topology_nk")))
     opname = window.getbox("topology_operator")
     op = get_operator(h,opname,projector=True) # get operator
-    topology.berry_map(h,nk=nk,operator=op)
+    h.get_berry_curvature(nk=nk,operator=op)
     execute_script("ql-map2d --input BERRY_MAP.OUT --xlabel px --ylabel py --zlabel \Omega --show_cuts False --title 'Berry curvature map'")
 
 
@@ -168,7 +167,7 @@ def get_kdos_bands(h,window):
     nk = int(get("nk_kbands",default=100))
     if nk==0: nk = 100 # workaround
     op = window.getbox("operator_kdos") # get the operator
-    kdos.kdos_bands(h,scale=get("scale_kbands"),
+    h.get_kdos_bands(scale=get("scale_kbands"),
                  operator=op,
                 energies=energies,delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")),nk=nk)
@@ -245,7 +244,7 @@ def get_chern(h,window):
     nk = int(np.sqrt(window.get("topology_nk")))
     opname = window.getbox("topology_operator")
     op = get_operator(h,opname,projector=True) # get operator
-    topology.chern(h,nk=nk,operator=op)
+    h.get_chern(nk=nk,operator=op)
     execute_script("ql-chern BERRY_CURVATURE.OUT")
 
 def get_fermi_surface(h,window):
@@ -257,7 +256,7 @@ def get_fermi_surface(h,window):
     delta = window.get("fs_delta")
     operator = window.getbox("fs_operator")
     h = h.reduce() # reduce dimensionality if possible
-    spectrum.multi_fermi_surface(h,nk=nk,energies=energies,
+    h.get_multi_fermi_surface(nk=nk,energies=energies,
         delta=delta,nsuper=1,numw=numw,operator=operator)
     execute_script("ql-multifermisurface")
 
@@ -352,18 +351,19 @@ def pyqula_code_scf_block(qtwrap,richer=False):
     2d.py's own richer solve_scf() (richer=True: passes maxerror=<scf_error>
     instead of T=<smearing_scf>, and has no extra_electron term in its
     filling). Branches on hamiltoniantype.wants_spin(qtwrap) the same way
-    solve_scf() branches on h.has_spin - meanfield.VJinteraction(...) for a
-    spinful Hamiltonian (J1/J2/J3 included, for_vjinteraction=True for the
-    solver-name translation below), meanfield.Vinteraction(...) for a
-    spinless one (no J1/J2/J3 - VJinteraction itself refuses a spinless h -
-    plus load_mf=False, matching solve_scf()'s else branch)."""
+    solve_scf() branches on h.has_spin - the emitted
+    h.get_mean_field_hamiltonian(...) call gets J1/J2/J3 for a spinful
+    Hamiltonian (for_vjinteraction=True for the solver-name translation
+    below), and no J1/J2/J3 plus load_mf=False for a spinless one (the
+    bound method routes the two cases to VJinteraction/Vinteraction
+    respectively, matching solve_scf()'s own branch)."""
     get = qtwrap.get
     getbox = qtwrap.getbox
     has_spin = hamiltoniantype.wants_spin(qtwrap)
     lines = []
     lines.append("")
     lines.append("# --- self-consistent mean field (SCF) ---")
-    lines.append("from pyqula import meanfield, scftypes")
+    lines.append("from pyqula import scftypes")
     lines.append("mf = scftypes.guess(h, mode=%r)" % getbox("scf_initialization"))
     lines.append("filling = %r %% 1." % get("filling_scf"))
     if not richer:
@@ -387,9 +387,9 @@ def pyqula_code_scf_block(qtwrap,richer=False):
         names = _VJINTERACTION_SOLVER_NAMES if has_spin else _VINTERACTION_SOLVER_NAMES
         solver = names.get(getbox("scf_solver"),getbox("scf_solver"))
         kwargs.append("solver=%r" % solver)
-    lines.append("scf = meanfield.%s(h," % ("VJinteraction" if has_spin else "Vinteraction"))
+    lines.append("h = h.get_mean_field_hamiltonian(")
     lines.append("    " + ", ".join(kwargs) + ")")
-    lines.append("scf.hamiltonian.save()")
+    lines.append("h.save()")
     return lines
 
 
@@ -408,20 +408,24 @@ def solve_scf(h,window):
   filling += extrae/h.intra.shape[0] # extra electron
   mix = get("mix_scf")
   T = get("smearing_scf") # thermal smearing of the SCF loop's occupations
+  # h.get_mean_field_hamiltonian() dispatches on h.has_spin itself
+  # (VJinteraction for a spinful Hamiltonian, Vinteraction for a spinless
+  # one) and returns the converged Hamiltonian directly, so the branch here
+  # is only about which kwargs are meaningful in each case
   if h.has_spin: # J1/J2/J3 exchange has no meaning without a spin degree
-                 # of freedom - meanfield.VJinteraction itself refuses a
+                 # of freedom - the spin-spin solver itself refuses a
                  # spinless h (returns NotImplemented), so route those to
                  # the plain density-density solver below instead
     J1 = get("J1")
     J2 = get("J2")
     J3 = get("J3")
-    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    hscf = h.get_mean_field_hamiltonian(nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   J1=J1,J2=J2,J3=J3,
                   mf=mf,mix=mix,T=T,verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=True)
                   )
   else:
-    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    hscf = h.get_mean_field_hamiltonian(nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   mf=mf,load_mf=False,T=T,
                   mix=mix,
                   verbose=1,
@@ -433,7 +437,7 @@ def solve_scf(h,window):
   # see qtwrap.run_calculation_subprocess()) must never leave a half-written
   # file there for the next click to mistake for one. os.replace() is an
   # atomic overwrite on both POSIX and Windows, unlike os.rename().
-  scf.hamiltonian.save(output_file="hamiltonian.pkl.tmp")
+  hscf.save(output_file="hamiltonian.pkl.tmp")
   os.replace("hamiltonian.pkl.tmp","hamiltonian.pkl")
   mark_scf_solved(window)
 
@@ -442,7 +446,11 @@ def solve_scf_identify_symmetry_breaking(h,window):
   """Perform a selfconsistent calculation, converging on a maxerror
   threshold (the "SCF error" field) rather than solve_scf()'s thermal
   smearing, then identify and report the broken symmetry - used by 2d.py
-  and 3d.py, which need this richer variant instead of plain solve_scf()."""
+  and 3d.py, which need this richer variant instead of plain solve_scf().
+  Unlike solve_scf(), this one calls meanfield.VJinteraction/Vinteraction
+  directly rather than h.get_mean_field_hamiltonian(): the bound method
+  returns only the converged Hamiltonian, and this variant also needs the
+  SCF object itself for scf.identify_symmetry_breaking()."""
   scfin = window.getbox("scf_initialization")
   get = window.get # redefine
   mf = scftypes.guess(h,mode=scfin)
@@ -530,7 +538,7 @@ def get_multildos(h,window):
     if proj=="Real space atomic orbitals":  projection = "atomic"
     else: projection = "TB" # default one
     h = h.reduce() # reduce dimensionality if possible
-    ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),
+    h.get_multildos(es=np.linspace(-ewin,ewin,ne),
             nk=nk,delta=delta,nrep=nrep,numw=numw,
             projection=projection,ratomic=window.get("ratomic_ldos"))
     if projection=="TB": execute_script("ql-multildos ")
@@ -550,7 +558,7 @@ def get_interactive_ldos(h,window):
     nk = int(window.get("nk_ldos"))
     ne = int(window.get("ne_ldos"))
     delta = window.get("delta_ldos")
-    ldos.multi_ldos(h,es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
+    h.get_multildos(es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
     execute_script("ql-multildos ")
 
 

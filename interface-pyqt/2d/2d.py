@@ -167,7 +167,7 @@ def show_dosbands():
   ewindow=get("window_kbands")
   ne=int(get("ne_kbands"))
   es = np.linspace(-ewindow,ewindow,ne)
-  kdos.kdos_bands(h,scale=get("scale_kbands"),
+  h.get_kdos_bands(scale=get("scale_kbands"),
                    energies = es,
                    delta=get("delta_kbands"),
                    ntries=int(get("nv_kbands")),nk=nk,operator=op)
@@ -247,7 +247,7 @@ def sweep_parameter():
             g = h.get_gap() # compute Gap
             out.append([p,g]) # store result
         elif cname=="Chern number": # compute the gap
-            c = topology.chern(h,nk=int(np.sqrt(get("nk_topology"))))
+            c = h.get_chern(nk=int(np.sqrt(get("nk_topology"))))
             out.append([p,c]) # store result
         elif cname=="Eigenvalues": # store the band eigenvalues
             (ks,es) = h.get_bands() # compute eigenvalues
