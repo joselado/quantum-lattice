@@ -145,6 +145,8 @@ def _build_tab(tabwidget, spec, index, owner):
         if kind == "note":
             lab = BodyLabel(tab_w)
             lab.setObjectName(row["name"] or ("note_%d" % orow))
+            lab.setWordWrap(True)  # a note is prose, not a field label - it
+                # has to wrap rather than clip when the page is narrow
             lab.setText(row["text"])
             outer.addWidget(lab, orow, 0, 1, 1)
             if row["name"]:

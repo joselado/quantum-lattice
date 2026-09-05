@@ -293,7 +293,7 @@ hidden unless Nambu is selected.
 | Fermi energy (`fermi`) | Shifts the Fermi (chemical potential) energy, controlling how many electron states below it are filled. Equivalent to doping the system away from half filling, without changing the bands themselves. |
 | Exchange field (`exchange`) | A Zeeman-like exchange field (Jx,Jy,Jz) that couples to the electron spin, favoring alignment along its direction. Splits spin-up and spin-down bands. |
 | Haldane (`haldane`) | A complex second-neighbor hopping that breaks time-reversal symmetry with zero net flux (Haldane model). Opens a topological gap and can produce a Chern insulator. |
-| Kane-Mele (`kanemele`) | Intrinsic spin-orbit coupling acting like a Haldane term with opposite sign per spin, preserving time-reversal symmetry. Opens a quantum-spin-Hall gap with counter-propagating spin-polarized edge states. |
+| Kane-Mele (`kanemele`) | Intrinsic spin-orbit coupling acting like a Haldane term with opposite sign per spin, preserving time-reversal symmetry. Opens a quantum-spin-Hall gap with counter-propagating spin-polarized edge states. Its amplitude follows the chirality of the two-hop path between the coupled sites, so it vanishes identically on a lattice whose paths are collinear, such as a linear chain. |
 | Anti-Haldane (`antihaldane`) | A staggered Haldane coupling that flips sign between the two valleys instead of sharing one chirality. Used to probe valley-contrasting physics such as valley Hall effects. |
 | Anti-Kane-Mele (`antikanemele`) | A staggered analogue of Kane-Mele spin-orbit coupling, opposite sign between valleys/sublattices. For valley- or sublattice-selective spin-orbit physics beyond standard QSH. |
 | Sublattice imbalance (`mAB`) | A staggered onsite potential raising one sublattice and lowering the other, breaking inversion symmetry. On honeycomb this opens a trivial mass gap at the Dirac points (as in hBN). |
@@ -320,6 +320,7 @@ hidden unless Nambu is selected.
 | Ising spin-orbit coupling (`ising_SOC`) | Ising-type SOC pinning spin out of plane with a sign tied to valley index, as in monolayer TMDCs. Locks spin and valley together, suppressing intra-valley spin-flip scattering. |
 | Charge density wave (`cdw`) | A charge-density-wave order parameter modulating onsite energy periodically with wavevector Q (as in NbSe2), reflecting a translational-symmetry-breaking instability. |
 | Strain (`strain`) | A local modification of hopping along a specific bond direction, mimicking mechanical strain — e.g. to probe strain-induced pseudo-magnetic fields in honeycomb lattices. |
+| Spiral exchange (`spiral_exchange`) | Amplitude of the exchange field imposing a spin spiral: every site feels a local field of this magnitude pointing along the spiral texture, so it sets how strongly the magnetic order splits the bands. An imposed (non-selfconsistent) order parameter — the direction it points at each site comes from the wavevector, plane and cone angle on the Spin spiral tab. Spin spirals mode only. |
 
 ## Reference: calculation buttons
 
@@ -334,6 +335,7 @@ Save results, ...) don't.
 | Show DOS | Computes the density of states (k-space integration or kernel polynomial method), optionally projected onto an operator. |
 | Show KDOS | Computes the k-resolved density of states along a path — useful for visualizing surface/edge states. |
 | Show DOS-bands | Computes the DOS resolved along the band-structure path (a smeared version of the bands). |
+| Show LDOS along the spiral | Computes the local density of states as a function of position along the spiral and of energy, and plots it as a colormap with dashed lines wherever the spiral completes a full turn. Sites related by the spiral's own symmetry are averaged together, so one row of the map is one point of the spiral period; the spin projection selects which component of the local spin density is resolved, and "Subtract the average" (on by default) shows each energy's spatial variation rather than the LDOS itself. Spin spirals mode only. |
 | Show IETS QDOS | Momentum-resolved inelastic tunneling spectroscopy: the RPA spin-excitation response along a q-path, showing the magnon/spin-wave-like dispersion of the converged magnetic state. Needs SCF solved first (mean field with an onsite interaction). 1D/2D/3D modes only. |
 | Show IETS LDOS | Real-space inelastic tunneling spectroscopy across a sweep of energies: opens an interactive viewer (energy slider) showing the spatial map at that energy next to the total (site-summed) IETS vs energy - the same style of viewer as Show multi-energy LDOS. Needs SCF solved first (mean field with an onsite interaction). Islands (0D) only. |
 | Show Berry curvature (1D) | Berry curvature along a 1D Brillouin-zone path — the same quantity as the 2D map below, evaluated along a path instead of over a mesh; used to diagnose 1D topological invariants such as edge polarization. |
@@ -466,6 +468,92 @@ variation on one of them.
 - **Films** — a finite-thickness slab cut from a 3D lattice (Cubic,
   Diamond, Pyrochlore, Hyperhoneycomb). Adds the same strain mechanic as 3D
   crystals, plus surface-sensitive KDOS/slab-LDOS views. Has SCF.
+- **Spin spirals** — a linear chain or a triangular lattice carrying a
+  **conical spin spiral**: the magnetic moments rotate as you move along
+  the lattice, and can additionally be tilted out of the rotation plane so
+  they sweep a cone rather than a circle. The order is *imposed*, not
+  solved for — there is no SCF here; you state the texture and the mode
+  builds the Hamiltonian that carries it.
+
+  The **Spin spiral** tab holds the texture:
+
+  - **Spiral wavevector** — how fast the moments turn, in fractional units
+    of the reciprocal lattice vectors (one number per periodic direction;
+    a chain takes just one). `0.25` means the moments make one full turn
+    every four unit cells. Because the spiral is built explicitly in real
+    space, only wavevectors that fit a whole number of turns into the cell
+    can be represented — so the value you type is snapped to the nearest
+    such fraction and the matching supercell is built for you.
+  - **Max. supercell** — the largest number of unit cells that supercell is
+    allowed to span. This is what limits how closely an arbitrary
+    wavevector can be approximated: raising it gets you closer to the value
+    you asked for, at the cost of a bigger, slower system. On the
+    triangular lattice both directions grow independently, so a wavevector
+    like `0.05, 0.05` needs a 20×20 = 400-site cell — cost climbs fast, and
+    a calculation once started cannot be cancelled.
+  - **Spiral plane** — the plane the moments rotate in (XY, YZ, ZX). The
+    cone axis is the normal to that plane. Pick **Custom** to give the cone
+    axis directly in the **Custom cone axis** field instead.
+  - **Cone angle** — how far the moments are tilted from the cone axis, in
+    degrees. **90°** is a flat spiral lying entirely in the spiral plane;
+    **0°** collapses it to a plain ferromagnet along the cone axis;
+    anything in between is a cone, with a uniform magnetization component
+    along the axis on top of the rotating one.
+
+  The line at the bottom of that tab always reports what was actually
+  built — the realized wavevector, the supercell, and how many sites it
+  has — so you can see how far the snapping moved you.
+
+  The **Terms in the Hamiltonian** tab adds hopping, Fermi energy, the
+  **Spiral exchange** amplitude (how strongly the texture couples to the
+  electrons), and the two spin-orbit couplings: **Rashba SOC**, and
+  **Intrinsic SOC** (Kane-Mele-like). Note that intrinsic SOC follows the
+  chirality of two-hop paths between sites, and those are collinear on a
+  chain — so it has no effect there, and only does something on the
+  triangular lattice.
+
+  The mode's own calculation is **LDOS along the spiral** (Spiral LDOS
+  tab): the local density of states as a colormap, with position along the
+  spiral across the bottom and energy up the side. Black dashed lines mark
+  every point where the spiral completes a full turn, so its wavelength can
+  be read straight off the plot. **Spiral periods to show** sets how much of
+  the system is drawn: the commensurate supercell often holds exactly one
+  turn, which would leave nothing to mark inside the plot, so the profile is
+  repeated (exactly — the system really is periodic with what one copy
+  covers) for as many turns as you ask for. The **Spin projection** dropdown
+  is what makes it interesting:
+
+  - **None** — the total (charge) LDOS. Without spin-orbit coupling this
+    comes out perfectly flat along the spiral, and that is physically
+    correct: charge cannot see a texture that only rotates spin. Turning on
+    Rashba or intrinsic SOC ties spin to real space and makes it modulate.
+  - **Sx / Sy / Sz / Custom axis** — the LDOS of one fixed spin direction in
+    the laboratory frame. An in-plane direction oscillates with the spiral
+    period, since the local moments turn past it; the cone axis does not.
+  - **Local moment** — the projection onto each site's *own* moment
+    direction, which follows the texture from site to site. Without SOC this
+    is flat again, for the same symmetry reason as the total LDOS.
+
+  **Subtract the average** (on by default) removes each energy's average
+  over positions, so the map shows the spatial *variation* along the spiral
+  rather than the LDOS itself. This is almost always what you want: the
+  uniform part is just the density of states at that energy, and it is
+  typically much larger than the modulation the spiral imprints on top of
+  it, so an absolute map is a flat wash with the interesting structure
+  invisible inside it. Turn it off to read absolute LDOS values.
+
+  Deviations below 1e-12 are set to exactly zero. Where a symmetry forbids
+  any spatial variation at all — the total LDOS with no spin-orbit coupling,
+  for instance — what is left after the subtraction is pure floating-point
+  rounding, and a colormap would happily rescale that to full colour and
+  draw it as vivid, entirely meaningless structure. With the floor, those
+  cases come out flat, which is the honest picture.
+
+  Signed (spin-projected) maps open on a diverging colormap so positive and
+  negative regions are distinguishable; you can change it in the plot
+  window. **Show spin texture** on the Structure tab draws the moments
+  themselves as arrows, which is the quickest way to confirm the spiral you
+  described is the one you got.
 
 ### Classical models
 

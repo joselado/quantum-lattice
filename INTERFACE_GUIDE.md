@@ -50,10 +50,10 @@ maintenance doc, not a one-time snapshot.
 - **Make a calculation button hard-cancellable** (run in a killable child
   process instead of in-process) — see "Hard-cancelling a calculation"
   below.
-- **Add/change fields or buttons in `tmdc`** — edit the spec in
-  `interface-pyqt/tmdc/interface.py`; there is no `interface.ui` for that
-  mode. See "Declarative pages" below, including how to convert another
-  mode the same way.
+- **Add/change fields or buttons in `tmdc` or `spinspiral`** — edit the
+  spec in `interface-pyqt/<mode>/interface.py`; there is no `interface.ui`
+  for those two modes. See "Declarative pages" below, including how to
+  convert another mode the same way.
 - **See what a page actually renders as** (which widgets exist after the
   runtime mutation layers have run, what's hidden, what each tab looks
   like) — `python tools/dump_ui.py <mode>`; see "Seeing what a page
@@ -64,18 +64,18 @@ maintenance doc, not a one-time snapshot.
 - **See how a specific mode is wired before touching it** (which buttons
   are auto-wired vs. hand-rolled, whether it has SCF, whether it restricts
   terms by lattice family) — see "Per-mode organization map" below, so you
-  don't have to re-derive it by reading all sixteen `<mode>.py` files.
+  don't have to re-derive it by reading all seventeen `<mode>.py` files.
 
 ## Per-mode organization map
 
-All sixteen modern modes (everything under `interface-pyqt/` except
+All seventeen modern modes (everything under `interface-pyqt/` except
 `quasiperiodic/`, unwired/pre-existing and not part of this architecture —
 see `CLAUDE.md` — and `huge_0d/`, the one three-*module* exception, also
 covered in `CLAUDE.md`) follow the shared conventions described throughout
 this file and `CLAUDE.md`, but differ in *which* of those conventions they
 actually use. This section is a reference map of that variation, so
 checking a mode's wiring before changing it doesn't mean re-reading all
-sixteen `<mode>.py` files from scratch. It reflects the codebase as of the
+seventeen `<mode>.py` files from scratch. It reflects the codebase as of the
 consistency pass that also fixed the dead code/duplication findings below
 it — re-derive it (the same way it was built: grep each `<mode>.py` for
 `wire_standard_signals`/`extra=`, `latticeterms.connect`, `scfterms.build`)
@@ -107,6 +107,7 @@ see "Adding a mode" below). For everyone else, only buttons whose behavior diffe
 | heavyfermion | show_structure, show_structure_3d, select_atoms_removal |
 | multilayergraphene | solve_scf, show_structure, show_dos, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal, show_interactive_ldos |
 | tmdc | show_structure, show_dos, show_structure_3d |
+| spinspiral | show_structure, show_structure_3d, show_magnetism, show_spiral_ldos |
 
 **`latticeterms.connect()` (honeycomb-only term hiding) + lattice family.**
 Every mode with a user-selectable `lattice` combobox calls this; three
@@ -118,7 +119,11 @@ calls it with a constant `lambda: "Honeycomb"` instead of `getbox
 (`"ABA"`, ...) rather than a lattice-family name. `impurity_embedding`/
 `ribbon_embedding` do call it (0d island / ribbon host, both
 user-selectable). `latticegas`/`latticeising` don't (classical models, no
-Hamiltonian-restricted terms to hide).
+Hamiltonian-restricted terms to hide). `spinspiral` deliberately doesn't
+either, even though it *has* a `lattice` combobox: its intrinsic-SOC field
+is named `kanemele` (to reuse that term's formula image and tooltip), and
+`RESTRICTED_TERMS` would hide it on any non-honeycomb lattice — i.e. on
+both lattices that mode offers.
 
 **SCF.** `0d`/`2dslab`/`hybridfilm`/`hybridribbon`/`multilayergraphene`
 call the shared `common.solve_scf(h,qtwrap)`. `2d`/`3d` call the richer
@@ -130,8 +135,10 @@ and reporting the broken symmetry via `scf.identify_symmetry_breaking()`.
 "Hard-cancelling a calculation" below) — its `solve_scf()` is a thin
 `run_calculation_subprocess()` call, with the real math in `1d/calc.py`.
 `tbg`/`hofstader1d`/`heavyfermion`/`impurity_embedding`/`ribbon_embedding`/
-`tmdc`/`latticegas`/`latticeising` have no SCF at all (no `scfterms.build()`
-call, no SCF tab).
+`tmdc`/`latticegas`/`latticeising`/`spinspiral` have no SCF at all (no
+`scfterms.build()` call, no SCF tab). `spinspiral`'s magnetic order is an
+*imposed* ansatz rather than a solved one, so an SCF tab would be
+misleading there rather than merely absent.
 
 **Distinctive mechanic** (one phrase each, beyond the shared conventions):
 
@@ -153,6 +160,7 @@ call, no SCF tab).
 | tmdc | built-in `specialhamiltonian.NbSe2(...)` — no generic geometry+`get_hamiltonian()` construction at all. Also the one mode with **no `interface.ui`**: its page is a `formbuilder` spec in `interface.py` — see "Declarative pages" below |
 | latticegas | classical occupation model, no Hamiltonian — see "Adding a mode" below |
 | latticeising | classical Ising spin model, no Hamiltonian — mirrors latticegas, see "Adding a mode" below |
+| spinspiral | conical spin spiral imposed as a site-dependent exchange field on an automatically-chosen commensurate supercell; its own site-resolved spin-projected LDOS (see "Site-resolved vs. global LDOS projection" below). Second mode with **no `interface.ui`** |
 
 "pyqula code" tab (`codeview.build`): only `0d`/`1d`/`2d` have it.
 
@@ -1369,12 +1377,65 @@ in the script — rather than reading `LATTICE.OUT` directly, which (after
 `g.write()` on the *supercell*) holds the enlarged, not primitive,
 vectors.
 
+### Sizing a 3D view's lattice against its arrows
+
+`ql-moments` (the 3D "Show magnetism"/"Show spin texture" view, shared by
+every mode through `common.show_exchange()`) exists to show the moment
+*arrows*; the atoms and bonds under them are scaffolding. `_pv3d.add_atoms()`
+defaults its sphere radius to a third of the nearest-neighbor distance,
+which is right for a structure plot but leaves neighboring spheres nearly
+touching — big enough to swallow the base of every arrow drawn from a site.
+`ql-moments` therefore overrides both: `SITE_RADIUS`/`BOND_RADIUS` at the
+top of the script, expressed as fractions of the nearest-neighbor distance
+(`_pv3d.nearest_neighbor_distance()`) rather than as absolute lengths, so
+they stay correct on a lattice of any scale — the old hardcoded
+`radius=0.1` bond was invisible on a moiré supercell and chunky on a
+unit-spaced chain. `--sitesize`/`--bondsize`/`--arrowsize` multiply them,
+matching the argument names its sibling `ql-magnetism` already uses. **A
+new 3D script whose point is an overlay (arrows, a picked site, a
+wavefunction) should size the structure the same way** — relative to the
+nearest-neighbor distance, thin enough that the overlay wins — rather than
+taking `add_atoms()`/`add_bonds()`'s structure-plot defaults.
+
+### `ql-map2d` — pixel edges and guide lines
+
+`ql-map2d` draws its colormap with `imshow(..., extent=...)`, and
+`extent` describes the **outer edges** of the pixel grid, not the
+positions of the data points. The script used to pass the data's own
+`min`/`max` there, which squeezes the whole map inward by half a pixel per
+side — invisible on a fine mesh, but it means nothing drawn on top in data
+coordinates lines up, and a coarse map (a spin spiral's 4-10 positions,
+say) is visibly offset from the axis. `_edges()` now derives the real
+edges from the uniform spacing, so a map of N cell-centered samples covers
+exactly N cells. This changes every existing `ql-map2d` caller (Berry maps,
+`1d`'s slab LDOS, ...) by that same half pixel, in the correct direction.
+
+`--vlines`/`--hlines` take comma-separated data coordinates and draw a
+black dashed line at each, on top of the map and clipped to its extent —
+used by `spinspiral`'s LDOS to mark each full turn of the spiral, so its
+wavelength can be read straight off the plot. Pass the positions as
+`--vlines=a,b,c` (one token): a list whose first value is negative would
+otherwise be read by argparse as another option name, and the whole command
+rejected. Both default
+to empty, so no existing caller is affected. `--center True` colors a
+signed map symmetrically about zero (with a `Min/0/Max` colorbar), which
+is what any deviation-from-mean or spin-projected map needs — a diverging
+colormap otherwise puts its neutral color at an arbitrary value.
+
+Which axis a map is drawn along is decided by the **column order of the
+`.OUT` file**, not by an argument: `ql-map2d` reshapes on column 0, so
+whatever varies slowest in the file becomes the horizontal axis. To rotate
+a map, swap the two coordinate columns (and the loop order that writes
+them) rather than transposing anything in the script — see
+`spinspiral.py`'s `write_spiral_ldos()`.
+
 ## Declarative pages — `formbuilder.py` instead of `interface.ui`
 
-`tmdc` is the first mode whose page is **not** built from Qt Designer XML.
-It has no `interface.ui` at all; its `interface.py` is a hand-written
-declarative spec that `pysrc/interfacetk/formbuilder.py` turns into
-widgets. Read `interface-pyqt/tmdc/interface.py` — the whole page is ~90
+`tmdc` is the first mode whose page is **not** built from Qt Designer XML,
+and `spinspiral` the second (written that way from the start — a new mode
+should follow it, not the XML path). Neither has an `interface.ui` at all;
+their `interface.py` is a hand-written declarative spec that
+`pysrc/interfacetk/formbuilder.py` turns into widgets. Read `interface-pyqt/tmdc/interface.py` — the whole page is ~90
 lines of `field(...)`/`combo(...)`/`button(...)` calls, replacing 906 lines
 of XML plus 776 lines of generated Python.
 
@@ -1493,8 +1554,8 @@ duplicated, so it stays in sync with the shell's `MODES`.
 suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
 sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
-other setup is required. Currently measured at ~37s wall clock and
-~760MB peak RSS for the whole suite (274 passed, 9 skipped as of this
+other setup is required. Currently measured at ~50s wall clock and
+~810MB peak RSS for the whole suite (324 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are
@@ -1508,7 +1569,7 @@ before widening any layer. It's layered, cheapest/most-general first:
    check that this suite deliberately omits - see below). Static
    button-wiring regex check per mode, plus one dynamic "does the shell +
    its initial page reach the Qt event loop without crashing" check.
-   `check_launches()` (launching each of the 15 modes standalone and
+   `check_launches()` (launching each of the 18 modes standalone and
    waiting out its own 6s "still alive" timeout - ~90s total, by design)
    is *not* wrapped into the pytest suite: it would consume most of the
    time budget on its own for coverage `test_handlers.py`'s `import_mode()`
@@ -1610,14 +1671,30 @@ before widening any layer. It's layered, cheapest/most-general first:
    `test_kdos_bands_uses_nk_kbands_field` do) rather than only "no
    exception raised" whenever the bug could be a wrong-value-not-a-crash
    - the latter would have missed hofstader1d's silent no-op.
-5. **`tests/test_plot_subprocess_env.py`** — the environment
+5. **`tests/test_spinspiral.py`** — the first *per-mode physics* test
+   file, as opposed to the wiring/handler layers above: it asserts the
+   symmetry that makes `spinspiral`'s spiral correct rather than merely
+   plausible (no spin-orbit coupling ⇒ the total LDOS, the cone-axis
+   projection and the local-moment projection are all exactly uniform
+   along the spiral, while a fixed in-plane projection oscillates at the
+   spiral period; SOC breaks that). It exists because every plausible
+   *wrong* implementation of that mode — phase read off the supercell
+   instead of the primitive lattice, sites grouped by coordinate instead
+   of by phase, projection applied per eigenstate instead of per site —
+   still produces a good-looking colormap, so "the handler ran" proves
+   nothing. Follow this pattern for a new mode whose output can't be
+   eyeballed for correctness: find the symmetry or limit the physics
+   guarantees, and assert *that*. It reuses `_handler_harness.py`, builds
+   the page once per module (`scope="module"`), and stays cheap by using
+   tiny supercells and coarse meshes — a symmetry holds at any resolution.
+6. **`tests/test_plot_subprocess_env.py`** — the environment
    `execute_script()` hands a `ql-*` subprocess (see "Known gotchas"'s
    conda-libstdc++/Mesa bullet). Its trigger condition is a property of the
    *machine*, so it can't be exercised for real on one that doesn't happen
    to have the broken combination — it fabricates the platform, prefix and
    filesystem instead and asserts the resulting `LD_PRELOAD`. No rendering,
    no subprocess, ~1s.
-6. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+7. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
    tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
    Automated version of the "skim `git diff --stat pysrc/pyqula`" step
    `tools/update_pyqula.sh`'s own instructions already ask for by hand —
@@ -1633,6 +1710,33 @@ just runs `python -m pytest tests/` under `QT_QPA_PLATFORM=offscreen` (no
 push/PR — ideally still wrapped in a memory cap (e.g. the `systemd-run`
 form above, or CI-native equivalent) given how easily layer 3 can regress
 past it.
+
+## Site-resolved vs. global LDOS projection
+
+`pyqula`'s `ldos.ldosmap(h,operator=...)` does **not** project the LDOS
+site by site. It computes one scalar `<psi|O|psi>` per eigenstate and uses
+it as a *weight* on that eigenstate's whole spatial density
+(`ldostk/ldoswaves.py`'s `weights = [operator.braket(v) for v in eigvec]`).
+That is the right thing for a global label (is this state electron- or
+hole-like, bulk or edge), and the wrong thing for anything whose sign
+varies across the cell: any in-plane spin component of a spin spiral
+averages to exactly zero over the supercell, so every eigenstate's weight
+is zero and the map comes back empty — silently, as a plausible-looking
+field of ~1e-17.
+
+`spinspiral.py`'s `compute_spiral_ldos()` is the site-resolved version:
+same Lorentzian-broadened eigenstate sum, but each site's weight is
+`psi_i^dagger M_i psi_i` with its own 2x2 spin matrix `M_i` (the identity
+for the total LDOS, `n.sigma` for a fixed global axis, `S_i.sigma` — a
+different matrix per site — for the projection onto each site's own
+moment). It also uses a regular k-mesh instead of `ldosmap`'s random
+sampling, so the same parameters always give the same map. Reach for it,
+not for `ldosmap(operator=...)`, whenever the quantity being resolved is a
+*local* observable rather than a per-state label.
+
+It lives in the mode rather than in `common.py` because `spinspiral` is so
+far its only user; a second mode wanting a site-resolved spin LDOS should
+move it there rather than copy it.
 
 ## Known gotchas
 
@@ -1698,6 +1802,20 @@ past it.
   page's own `form` as an explicit argument for exactly this reason — a
   new callback wired through shared per-page state should follow the same
   pattern instead of reading `qtwrap.form`/`getbox()` directly.
+- **`qtwrap.modify()` pumps the event loop** — `_modify_impl()` ends in
+  `app.processEvents()`, so calling `modify()` from a mode's *import-time*
+  code (i.e. while `_LazyPage.ensure_built()` is still building the page)
+  can dispatch a queued navigation click right there, re-pointing
+  `qtwrap.form` at another page while the rest of that import
+  (`wire_standard_signals`'s `hasattr(qtwrap.form,...)`,
+  `finalize_page()` → `set_formulas(qtwrap)`) still expects its own. That
+  is what makes the previous bullet's "safe during a page's own
+  construction" true only as long as nothing pumps events there. To
+  pre-fill a label at import, write it directly
+  (`window.<label>.setText(...)`) — you are on the GUI thread and own the
+  page — and keep `modify()` for handler code, where its marshaling is
+  what you actually need. `spinspiral.py`'s `report_spiral()` /
+  `spiral_report_text()` split is the worked example.
 - **The QTabWidget naming trap** above — always verify tab parentage via
   generated `interface.py`, never via `.ui` XML adjacency.
 - **Term key vs. field object name** — `common.py:set_formulas()`'s

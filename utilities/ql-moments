@@ -30,10 +30,27 @@ parser.add_argument("--magnetization",default="True",
         help='xwindow')
 parser.add_argument("--bondl",default="1.1",
         help='xwindow')
+parser.add_argument("--sitesize",default="1.0",
+        help='Size of the atoms, as a multiple of the default')
+parser.add_argument("--bondsize",default="1.0",
+        help='Size of the bonds, as a multiple of the default')
+parser.add_argument("--arrowsize",default="1.0",
+        help='Size of the moment arrows, as a multiple of the default')
 
 args = parser.parse_args() # get the arguments
 
-mag_factor = 1.5
+mag_factor = 1.5*float(args.arrowsize)
+
+# The point of this view is the moment arrows, so the lattice under them is
+# drawn deliberately thin: _pv3d.add_atoms()'s default radius (a third of
+# the nearest-neighbor distance) gives spheres nearly touching each other,
+# which swallow the base of every arrow, and the bonds are sized to match.
+# Both are expressed as fractions of the nearest-neighbor distance rather
+# than as absolute lengths, so they stay right on a lattice of any scale
+# (a moire supercell as much as a unit-spaced chain), and both take a
+# multiplier for anyone who wants the old, heavier look back.
+SITE_RADIUS = 1./8.  # of the nearest-neighbor distance (add_atoms: 1/3)
+BOND_RADIUS = 1./25. # of the nearest-neighbor distance (add_bonds: 0.1 absolute)
 
 
 def read_data():
@@ -86,9 +103,15 @@ def scale_mag(mag,threshold=1e-9):
 pl = _pv3d.new_plotter("Magnetism")
 
 
+def nn_distance(xyz):
+  """Nearest-neighbor distance, the scale everything below is drawn in"""
+  return _pv3d.nearest_neighbor_distance(np.asarray(xyz).T)
+
+
 def create_lattice(xyz):
   """ Creates a lattice using xyz coordinates"""
-  _pv3d.add_atoms(pl,xyz,color=lattice_color)
+  radius = nn_distance(xyz)*SITE_RADIUS*float(args.sitesize)
+  _pv3d.add_atoms(pl,xyz,color=lattice_color,radius=radius)
 
 
 def create_arrow(r,v,fac=2):
@@ -110,8 +133,9 @@ def plot_magnetization(xyz,mag,dr=np.array([0.,0.,0.])):
 def create_bonds(rs1,rs2):
   """ Creates the bonds of the crystal """
   bondl = float(args.bondl)
+  radius = nn_distance(xyz)*BOND_RADIUS*float(args.bondsize)
   _pv3d.add_bonds(pl,rs1,rs2,dmin=np.sqrt(0.1),dmax=np.sqrt(bondl),
-                   color=lattice_color,radius=0.1)
+                   color=lattice_color,radius=radius)
 
 
 create_lattice(xyz)    # plot the atoms

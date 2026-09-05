@@ -11,6 +11,20 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import plotstyle
 plotstyle.apply()
 
+def _edges(u):
+    """Outer edges of a uniformly-spaced axis given its pixel centers."""
+    if len(u)<2: return u[0]-0.5, u[0]+0.5 # single row/column: any width will do
+    d = (u[-1]-u[0])/(len(u)-1)
+    return u[0]-d/2., u[-1]+d/2.
+
+
+def _positions(text):
+    """Parse a comma-separated list of axis positions, [] if empty."""
+    text = (text or "").strip()
+    if not text: return []
+    return [float(v) for v in text.split(",")]
+
+
 def getplot(obj):
     fig = plt.figure(obj.figure.number)
     fig.set_facecolor(plotstyle.BACKGROUND)
@@ -34,8 +48,28 @@ def getplot(obj):
     maxx = np.max(x)
     miny = np.min(y)
     maxy = np.max(y)
-    vmax = np.max(z)*(1.01-obj.get_slider("Saturation"))
-    vmin = np.min(z)
+    # imshow's `extent` describes the outer *edges* of the pixel grid, while
+    # x/y here are pixel *centers* - passing the data's min/max directly (as
+    # this script used to) squeezes the whole map inward by half a pixel per
+    # side, so nothing drawn on top of it in data coordinates lines up. These
+    # are the real edges for a uniformly-spaced grid of centers.
+    ex0,ex1 = _edges(ux)
+    ey0,ey1 = _edges(uy)
+    if args.center=="True":
+        # a signed map (e.g. an LDOS with its per-energy average removed, or
+        # a spin projection) has to be colored symmetrically about zero, or
+        # a diverging colormap puts its neutral color somewhere arbitrary
+        # and the sign of the data stops being readable from the picture
+        vmax = np.max(np.abs(z))*(1.01-obj.get_slider("Saturation"))
+        # an all-zero map (e.g. a deviation map whose variation was floored
+        # away as noise) would give vmin==vmax, which maps every value to the
+        # *bottom* of the colormap - reading as "uniformly negative" rather
+        # than as the uniformly-zero data it is
+        if vmax<=0.: vmax = 1.
+        vmin = -vmax
+    else:
+        vmax = np.max(z)*(1.01-obj.get_slider("Saturation"))
+        vmin = np.min(z)
     ### get the index fr the cuts
     if args.show_cuts=="True":
         xcut = obj.get_slider("xcut") # xcut
@@ -52,15 +86,25 @@ def getplot(obj):
     else: pass
     zmap = z2d.copy() # copy array
     zmap[zmap>vmax] = vmax # maximum value
+    if args.center=="True": zmap[zmap<vmin] = vmin # clip both tails, not just the top
 #    print(zmap.shape) ; exit()
     cplot = plt.imshow(zmap.T, aspect='auto', origin='lower',
-            cmap = plt.get_cmap(obj.get_combobox("cmap")), 
-            extent = ( minx, maxx, miny, maxy),
+            cmap = plt.get_cmap(obj.get_combobox("cmap")),
+            vmin = vmin, vmax = vmax,
+            extent = ( ex0, ex1, ey0, ey1),
             interpolation=obj.get_combobox("Interpolation"))
+    # guide lines the caller asked for, in data coordinates (e.g. the
+    # unit-cell boundaries along a spin spiral) - drawn after the imshow so
+    # they sit on top of it, and clipped to the map's own extent
+    for v in _positions(args.vlines):
+        plt.axvline(v,color="black",ls="--",lw=0.8,alpha=0.7)
+    for v in _positions(args.hlines):
+        plt.axhline(v,color="black",ls="--",lw=0.8,alpha=0.7)
+    plt.xlim(ex0,ex1) ; plt.ylim(ey0,ey1) # axvline/axhline autoscale otherwise
     plt.xlabel(args.xlabel)
     plt.ylabel(args.ylabel)
-    cb = fig.colorbar(cplot,ticks=[vmin,vmax])
-    cb.ax.set_yticklabels(["Min",'Max'])
+    cb = fig.colorbar(cplot,ticks=[vmin,0.,vmax] if args.center=="True" else [vmin,vmax])
+    cb.ax.set_yticklabels(["Min","0",'Max'] if args.center=="True" else ["Min",'Max'])
     cb.set_label(args.zlabel)
     if args.show_cuts=="True": # now if there were cuts
         plt.plot(ux[iy]*(ya*0+1),ya,c=cx)
@@ -96,6 +140,12 @@ parser.add_argument("--save_cuts",default="False",help='Save the cuts')
 parser.add_argument("--save",default="False",help='Save image')
 parser.add_argument("--zlabel",default="z",help='z label')
 parser.add_argument("--show_cuts",default="False",help='Show cuts')
+parser.add_argument("--cmap",default="inferno",help='Colormap shown first in the dropdown')
+parser.add_argument("--center",default="False",help='Color the map symmetrically about zero (for signed data)')
+# pass these as --vlines=a,b,c (one token): a list starting with a negative
+# position would otherwise be read by argparse as another option name
+parser.add_argument("--vlines",default="",help='Comma-separated x positions to mark with a black dashed line (use --vlines=a,b,c)')
+parser.add_argument("--hlines",default="",help='Comma-separated y positions to mark with a black dashed line (use --hlines=a,b,c)')
 parser.add_argument("--title",default="Colormap",help='Window title')
 args = parser.parse_args() # get the arguments
 m = np.genfromtxt(args.input).transpose()
@@ -114,7 +164,14 @@ if args.show_cuts=="True":
     window.add_slider(label="ycut",vs=np.linspace(0.,1.,100),v0=0.5) # Slider for the dots
     window.add_combobox(["red","blue","green","black"],label="Color xcut",key="cx")
     window.add_combobox(["blue","red","green","black"],label="Color ycut",key="cy")
-window.add_combobox(["inferno","hot","plasma","viridis","cool","rainbow"],label="Color map",key="cmap")
+# diverging maps for signed data (e.g. a spin-projected LDOS, which is
+# negative where the minority spin dominates); --cmap picks which one the
+# dropdown starts on, since add_combobox() always selects its first entry
+CMAPS = ["inferno","hot","plasma","viridis","cool","rainbow",
+         "coolwarm","RdBu","bwr","seismic"]
+if args.cmap in CMAPS: CMAPS = [args.cmap] + [c for c in CMAPS if c!=args.cmap]
+else: CMAPS = [args.cmap] + CMAPS # a colormap this script doesn't list
+window.add_combobox(CMAPS,label="Color map",key="cmap")
 window.add_combobox(["bicubic","none"],label="Interpolation")
 window.add_combobox(["none","abs","logabs"],label="Scale")
 window.setWindowTitle(args.title)
