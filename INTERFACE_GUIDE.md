@@ -1610,7 +1610,14 @@ before widening any layer. It's layered, cheapest/most-general first:
    `test_kdos_bands_uses_nk_kbands_field` do) rather than only "no
    exception raised" whenever the bug could be a wrong-value-not-a-crash
    - the latter would have missed hofstader1d's silent no-op.
-5. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+5. **`tests/test_plot_subprocess_env.py`** — the environment
+   `execute_script()` hands a `ql-*` subprocess (see "Known gotchas"'s
+   conda-libstdc++/Mesa bullet). Its trigger condition is a property of the
+   *machine*, so it can't be exercised for real on one that doesn't happen
+   to have the broken combination — it fabricates the platform, prefix and
+   filesystem instead and asserts the resulting `LD_PRELOAD`. No rendering,
+   no subprocess, ~1s.
+6. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
    tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
    Automated version of the "skim `git diff --stat pysrc/pyqula`" step
    `tools/update_pyqula.sh`'s own instructions already ask for by hand —
@@ -1628,6 +1635,26 @@ form above, or CI-native equivalent) given how easily layer 3 can regress
 past it.
 
 ## Known gotchas
+
+- **A conda interpreter's bundled `libstdc++` breaks every 3D (PyVista/VTK)
+  script.** Anaconda/Miniconda ship their own `<prefix>/lib/libstdc++.so.6`
+  and put it ahead of the system one for everything they launch. Mesa's DRI
+  drivers (`/usr/lib/.../dri/iris_dri.so` and friends) are built against the
+  *system* libstdc++, which is normally newer — loaded against conda's copy
+  they fail to resolve, Mesa falls back to `swrast` (which fails the same
+  way), and VTK aborts the process. The symptom is precise and misleading:
+  the 3D buttons in **every** mode do nothing while every matplotlib-based
+  `ql-*` script keeps working, so it reads as "the 3D plots are broken"
+  rather than as an environment problem. Diagnose it from the script's own
+  log in the scratch folder (`ql-structure3d.log`, `ql-moments.log`, ...):
+  `libGL error: MESA-LOADER: failed to open iris` followed by
+  `vtkXOpenGLRenderWindow ... Cannot create GLX context. Aborting.`. The fix
+  lives in `qlinterface._plot_subprocess_env()`, which prepends the system
+  libstdc++ to `LD_PRELOAD` for every `ql-*` subprocess when (and only when)
+  the running interpreter bundles its own copy; it writes a comment block at
+  the top of each script log saying so, so the next investigation on a
+  different machine can see what the app is doing. Preloading in that
+  direction is safe — libstdc++ symbol versioning is backward compatible.
 
 - **`qfluentwidgets.ComboBox` is not a `QComboBox` subclass** - it's built
   on `QPushButton` (a custom-drawn Fluent dropdown, not a native Qt combo

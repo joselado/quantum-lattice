@@ -564,6 +564,15 @@ current session — save any results you want to keep first.
   any Hamiltonian-affecting change automatically invalidates the cached SCF
   solution, so the next calculation re-solves it. If you suspect otherwise,
   press **Solve SCF** yourself to force a fresh solve.
+- **The 3D plots (Show structure 3D, the 3D spin texture, 3D moments) open
+  nothing.** These are the only views that need a working 3D graphics
+  (OpenGL) stack — everything else is drawn with matplotlib, which is why
+  the rest of the app keeps working. Two common causes: PyVista isn't
+  installed (it's an optional dependency; re-run `python install.py`), or
+  your Python distribution ships a system library that conflicts with your
+  graphics drivers, which the app now works around automatically. Either way
+  the plotting script writes a log next to its results — if a 3D button does
+  nothing, that log says why.
 - **I need a calculation not covered here.** Check
   `pysrc/pyqula_user_guide.md` for what the underlying pyqula library
   supports beyond what's currently exposed in the interface.

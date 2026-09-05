@@ -169,6 +169,54 @@ def load_state(inipath,tmppath,window):
 
 
 
+# System libstdc++ locations, in the order they're worth trying (Debian/
+# Ubuntu multiarch first, then the RPM and plain-lib layouts).
+_SYSTEM_LIBSTDCXX = ("/usr/lib/x86_64-linux-gnu/libstdc++.so.6",
+                     "/usr/lib64/libstdc++.so.6",
+                     "/usr/lib/libstdc++.so.6")
+
+
+def _plot_subprocess_env():
+    """Return (env, note) for a ql-* plotting subprocess.
+
+    An Anaconda/Miniconda interpreter ships its own libstdc++.so.6 under
+    <prefix>/lib and puts it ahead of the system one for everything it
+    launches. Mesa's DRI drivers (/usr/lib/.../dri/iris_dri.so and friends)
+    are built against the *system* libstdc++, which on a current desktop is
+    newer than conda's - loaded against conda's copy they fail to resolve,
+    Mesa falls back to swrast (which fails the same way), and VTK aborts the
+    whole process with "Cannot create GLX context. Aborting.".
+
+    The visible symptom is precise and misleading: every 3D script
+    (ql-structure3d/ql-moments/ql-magnetism/ql-plot3d/ql-pick, i.e. every
+    PyVista/VTK one) dies instantly while the matplotlib-based scripts keep
+    working - so it reads as "the 3D plots are broken", not as an
+    environment problem. Preloading the system libstdc++ into the child
+    fixes it, and is safe in that direction: libstdc++'s symbol versioning
+    is backward compatible, so the newer library also satisfies whatever
+    conda's own extension modules were built against.
+
+    `note` is a comment block written at the top of the script's log, so a
+    later "3D is broken on this machine" investigation can see that the app
+    is doing this, and on which library."""
+    env = dict(os.environ)
+    if not sys.platform.startswith("linux"): return env,None
+    bundled = os.path.join(sys.prefix,"lib","libstdc++.so.6")
+    if not os.path.exists(bundled): return env,None # not a conda-style prefix
+    for path in _SYSTEM_LIBSTDCXX:
+        if not os.path.exists(path): continue
+        preload = env.get("LD_PRELOAD","")
+        # an LD_PRELOAD the user set themselves already wins; don't double it
+        if path in preload.split(":"): return env,None
+        env["LD_PRELOAD"] = path+((":"+preload) if preload else "")
+        return env,("# LD_PRELOAD="+path+"\n"
+            "# This interpreter bundles its own "+bundled+", which shadows the\n"
+            "# system libstdc++ that Mesa's DRI drivers are built against; without\n"
+            "# the preload above, every PyVista/VTK (3D) script aborts with\n"
+            "# \"Cannot create GLX context\". See qlinterface._plot_subprocess_env().\n")
+    return env,None
+
+
 def execute_script(name,background=True):
   """Executes a certain script from the folder utilities.
   `name` may be a bare script name or a full command string with
@@ -181,8 +229,12 @@ def execute_script(name,background=True):
   # log stdout/stderr instead of discarding them, so a failing script
   # (e.g. missing pyvista) leaves a diagnosable trace instead of vanishing
   logpath = os.path.join(os.getcwd(),args[0]+".log")
+  env,note = _plot_subprocess_env() # see its docstring: conda vs. Mesa/VTK
   with open(logpath,"w") as logfile:
-    proc = subprocess.Popen(cmd,stdout=logfile,stderr=subprocess.STDOUT)
+    if note:
+      logfile.write(note)
+      logfile.flush() # the child writes to this same fd, so order matters
+    proc = subprocess.Popen(cmd,stdout=logfile,stderr=subprocess.STDOUT,env=env)
   if not background: proc.wait() # block until the script finishes
   return proc
 
