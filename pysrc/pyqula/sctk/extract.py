@@ -1,11 +1,16 @@
 import numpy as np
-from ..superconductivity import get_eh_sector
-from ..superconductivity import build_nambu_matrix
 from ..multihopping import MultiHopping
 from .. import algebra
+from ..check import require_nambu
+
+# superconductivity.py imports several names from this module, so importing
+# get_eh_sector/build_nambu_matrix at the top level here would make the two
+# modules unimportable depending on which one is reached first; they are
+# imported inside the two functions that use them instead
 
 def extract_anomalous_dict(dd):
     """Given a dictionary, extract the anomalous part"""
+    from ..superconductivity import get_eh_sector,build_nambu_matrix
     out = dict()
     for key in dd:
         d = dd[key] # get this patrix
@@ -18,6 +23,7 @@ def extract_anomalous_dict(dd):
 
 def extract_normal_dict(dd):
     """Given a dictionary, extract the anomalous part"""
+    from ..superconductivity import get_eh_sector,build_nambu_matrix
     out = dict()
     for key in dd:
         d = dd[key] # get this patrix
@@ -54,15 +60,12 @@ def get_triplet_hamiltonian(self):
 
 def extract_pairing(m):
   """Extract the pairing from a matrix, assuming it has the Nambu form"""
-  nr = m.shape[0]//4 # number of positions
-  uu = np.array(np.zeros((nr,nr),dtype=np.complex128)) # zero matrix
-  dd = np.array(np.zeros((nr,nr),dtype=np.complex128)) # zero matrix
-  ud = np.array(np.zeros((nr,nr),dtype=np.complex128)) # zero matrix
-  for i in range(nr): # loop over positions
-    for j in range(nr): # loop over positions
-        ud[i,j] = m[4*i,4*j+2]
-        dd[i,j] = m[4*i+1,4*j+2]
-        uu[i,j] = m[4*i,4*j+3]
+  # the four spin x electron-hole components of a site are consecutive, so
+  # every pairing block is a constant-stride slice, ud[i,j] = m[4*i,4*j+2]
+  m = algebra.todense(m) # dense matrix
+  ud = np.array(m[0::4,2::4],dtype=np.complex128)
+  dd = np.array(m[1::4,2::4],dtype=np.complex128)
+  uu = np.array(m[0::4,3::4],dtype=np.complex128)
   return (uu,dd,ud) # return the three matrices
 
 
@@ -70,15 +73,10 @@ def extract_pairing(m):
 def extract_triplet_pairing(m):
   """Extract the pairing from a matrix, assuming it has the Nambu form"""
   m = algebra.todense(m) # dense matrix
-  nr = m.shape[0]//4 # number of positions
-  uu = np.array(np.zeros((nr,nr),dtype=np.complex128)) # zero matrix
-  dd = np.array(np.zeros((nr,nr),dtype=np.complex128)) # zero matrix
-  ud = np.array(np.zeros((nr,nr),dtype=np.complex128)) # zero matrix
-  for i in range(nr): # loop over positions
-    for j in range(nr): # loop over positions
-        ud[i,j] = (m[4*i,4*j+2] - np.conjugate(m[4*j+3,4*i+1]))/2.
-        dd[i,j] = m[4*i+1,4*j+2]
-        uu[i,j] = m[4*i,4*j+3]
+  # strided slices, the transpose implements the (4*j+3,4*i+1) index swap
+  ud = (np.array(m[0::4,2::4]) - np.conjugate(np.array(m[3::4,1::4]).T))/2.
+  dd = np.array(m[1::4,2::4],dtype=np.complex128)
+  uu = np.array(m[0::4,3::4],dtype=np.complex128)
   return (uu,dd,ud) # return the three matrices
 
 
@@ -87,17 +85,20 @@ def extract_singlet_dict(dd):
     out = dict()
     for key in dd:
         d = dd[key] # get this matrix
-        nr = d.shape[0]//4 # number of positions
         m = np.zeros(d.shape,dtype=np.complex128) # initialize
-        m0 = dd[key]
         key2 = (-key[0],-key[1],-key[2]) 
-        m1 = dd[key2]
-        for i in range(nr): # loop over positions
-            for j in range(nr): # loop over positions
-                m[4*i,4*j+2] = (m0[4*i,4*j+2]+np.conjugate(m1[4*j+3,4*i+1]))/2.
-                m[4*j+3,4*i+1] = (m0[4*j+3,4*i+1]+np.conjugate(m1[4*i,4*j+2]))/2.
-                m[4*i+2,4*j] = (m0[4*i+2,4*j]+np.conjugate(m1[4*j+1,4*i+3]))/2.
-                m[4*j+1,4*i+3] = (m0[4*j+1,4*i+3]+np.conjugate(m1[4*i+2,4*j]))/2.
+        m0 = algebra.todense(dd[key]) # dense matrix
+        m1 = algebra.todense(dd[key2]) # dense matrix
+        # the four blocks are strided slices, and the index swap between the
+        # two matrices of a pair is a transpose
+        m[0::4,2::4] = (np.array(m0[0::4,2::4])
+                       +np.conjugate(np.array(m1[3::4,1::4]).T))/2.
+        m[3::4,1::4] = (np.array(m0[3::4,1::4])
+                       +np.conjugate(np.array(m1[0::4,2::4]).T))/2.
+        m[2::4,0::4] = (np.array(m0[2::4,0::4])
+                       +np.conjugate(np.array(m1[1::4,3::4]).T))/2.
+        m[1::4,3::4] = (np.array(m0[1::4,3::4])
+                       +np.conjugate(np.array(m1[2::4,0::4]).T))/2.
         out[key] = m
     return out # return dictionary
 
@@ -112,11 +113,9 @@ def extract_triplet_dict(dd):
 
 def extract_singlet_pairing(m):
   """Extract the pairing from a matrix, assuming it has the Nambu form"""
-  nr = m.shape[0]//4 # number of positions
-  ud = np.array(np.zeros((nr,nr),dtype=np.complex128)) # zero matrix
-  for i in range(nr): # loop over positions
-    for j in range(nr): # loop over positions
-        ud[i,j] = (m[4*i,4*j+2] + np.conjugate(m[4*j+3,4*i+1]))/2.
+  m = algebra.todense(m) # dense matrix
+  # strided slices, the transpose implements the (4*j+3,4*i+1) index swap
+  ud = (np.array(m[0::4,2::4]) + np.conjugate(np.array(m[3::4,1::4]).T))/2.
   return ud
 
 
@@ -141,7 +140,8 @@ def extract_triplet_hamiltonian(h):
 
 def extract_custom_pairing(m,mode="all"):
     """Given a matrix, extract the pairing matrix according to some rule"""
-    raise # this may be buggy
+    raise NotImplementedError("extract_custom_pairing is not implemented; use "
+            "extract_absolute_pairing or extract_pairing_kmap instead")
     if mode=="singlet": # singlet, with sign
         m = extract_singlet_pairing(m) # matrix with pairings 
         return m
@@ -159,25 +159,33 @@ def extract_custom_pairing(m,mode="all"):
         if m.shape[0]==4: # this is a quick fix for single site models
             m = m@np.conjugate(m.T)
             return np.array([[np.trace(m)]])
-        else: raise
-    else: raise
+        else:
+            raise NotImplementedError("the 'both' mode is only implemented "
+                    "for single-site models")
+    else:
+        raise ValueError("unknown mode; the accepted ones are 'all', "
+                "'singlet', 'triplet' and 'both'")
 
 
 
 def extract_pairing_kmap(h,write=False,i=None,j=None,mode="all",**kwargs):
     """Extract the pairing in reciprocal space"""
-    if not h.has_eh: raise NotImplementedError
+    require_nambu(h,"the pairing k-map")
     h = get_anomalous_hamiltonian(h)
     if j is None: j = i # same site is the default
     if mode=="all": pass # do nothing 
     elif mode=="singlet": h = extract_singlet_hamiltonian(h) # singlet
     elif mode=="triplet": h = extract_triplet_hamiltonian(h) # triplet
-    else: raise
+    else:
+        raise ValueError("unknown mode; the accepted ones are 'all', "
+                "'singlet' and 'triplet'")
     fk = h.get_hk_gen() # Bloch Hamiltonian generator
     def f0(k):
         m = fk(k) # full k-dependent Hamiltonian
         if i is None: return np.trace(m@np.conjugate(m.T))/m.shape[0]
-        else: raise NotImplementedError
+        else:
+            raise NotImplementedError("a single pairing matrix element is not "
+                    "implemented, only the trace over all of them")
         # return m[i,j] # return pairing
     from .. import spectrum
     (ks,ds) = spectrum.reciprocal_map(h,f0,write=write,**kwargs)
@@ -197,7 +205,9 @@ def extract_absolute_pairing(h,mode="singlet",**kwargs):
     if mode=="all" or mode=="both": pass # do nothing 
     elif mode=="singlet": h = extract_singlet_hamiltonian(h) # singlet
     elif mode=="triplet": h = extract_triplet_hamiltonian(h) # triplet
-    else: raise # do nothing
+    else: # do nothing
+        raise ValueError("unknown mode; the accepted ones are 'all', 'both', "
+                "'singlet' and 'triplet'")
     fk = h.get_hk_gen() # Bloch Hamiltonian generator
     from ..klist import kmesh
     ks = kmesh(h.dimensionality,**kwargs) # kpoints
@@ -215,7 +225,9 @@ def extract_absolute_spatial_pairing(h,mode="singlet",**kwargs):
     if mode=="all" or mode=="both": pass # do nothing
     elif mode=="singlet": h = extract_singlet_hamiltonian(h) # singlet
     elif mode=="triplet": h = extract_triplet_hamiltonian(h) # triplet
-    else: raise # do nothing
+    else: # do nothing
+        raise ValueError("unknown mode; the accepted ones are 'all', 'both', "
+                "'singlet' and 'triplet'")
     fk = h.get_hk_gen() # Bloch Hamiltonian generator
     from ..klist import kmesh
     ks = kmesh(h.dimensionality,**kwargs) # kpoints
@@ -227,7 +239,11 @@ def extract_absolute_spatial_pairing(h,mode="singlet",**kwargs):
     out = np.mean([f(k) for k in ks],axis=0) # return mean value
     from ..increase_hilbert import full2profile
     out = full2profile(h,out) # resum
-    return np.sqrt(out.real/2.) # return the spatial profile
+    # full2profile has added the spin x electron-hole components of each
+    # site, and every one of them contributes |Delta_i|**2, so dividing by
+    # the number of components per site leaves |Delta_i|
+    nc = h.intra.shape[0]//len(h.geometry.r) # components per site
+    return np.sqrt(out.real/nc) # return the spatial profile
 
 
 

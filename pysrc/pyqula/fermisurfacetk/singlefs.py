@@ -36,7 +36,9 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
     else: # no operator given
         if mode=="full":
             operator = np.array(np.identity(h.intra.shape[0]))
-    if h.dimensionality!=2: raise  # continue if two dimensional
+    if h.dimensionality!=2: # continue if two dimensional
+        raise ValueError("the Fermi surface is only defined for 2d "
+                "Hamiltonians")
     hk_gen = h.get_hk_gen() # gets the function to generate h(k)
     from ..klist import int2dims
     nsupers = int2dims(nsuper) # get the array
@@ -85,14 +87,18 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
                         num_bands=num_waves)
             return ds[0] # return weight
     elif mode=='det': # use determinant method, this is not too stable
-        if operator is not None: raise NotImplementedError
+        if operator is not None:
+            raise NotImplementedError("the determinant mode of the Fermi "
+                    "surface does not support an operator")
         else: # None operator
             iden = algebra.identity(h.intra)
             def get_weight(hk,k=None,**kwargs):
                 hk0 = hk - e*iden # shift by the energy
                 return 1./(np.abs(algebra.det(hk0))+delta)
 
-    else: raise # unrecognized mode
+    else: # unrecognized mode
+        raise ValueError("unknown mode; the Fermi surface accepts 'full', "
+                "'eigen', 'lowest' and 'det'")
   
   ##############################################
   
@@ -158,7 +164,19 @@ def fermi_surface(h,write=True,output_file="FERMI_MAP.OUT",
         rs = np.array(rs) # transform into array
         kxout = rs[:,0] # x coordinate
         kyout = rs[:,1] # y coordinate
-        if parallel.cores==1: # serial execution
+        if mode=='eigen' and operator is None:
+            # batched, numba-parallel path -- no interprocess dispatch
+            from ..htk.eigenvectors import peigvalsh_bloch
+            ks = np.array([R(r)+k0 for r in rs]) # kpoints, change of basis applied
+            kdos = np.zeros(len(rs),dtype=np.float64)
+            batch_size = 64
+            for i0 in range(0,len(rs),batch_size): # loop over batches of kpoints
+                kbatch = ks[i0:i0+batch_size]
+                es_batch = peigvalsh_bloch(hk_gen,kbatch) # diagonalize the whole batch in parallel
+                for ii in range(len(kbatch)):
+                    es = es_batch[ii]
+                    kdos[i0+ii] = np.sum(delta/((e-es)**2+delta**2))
+        elif parallel.cores==1: # serial execution
             kdos = np.zeros(len(rs),dtype=np.float64) # empty array
             for ir in range(len(rs)): # loop
                 kdos[ir] = getf(rs[ir]) # store

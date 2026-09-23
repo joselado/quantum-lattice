@@ -16,7 +16,9 @@ def generate_profile(mus,xs,kernel="jackson",**kwargs):
     if kernel=="jackson": mus = jackson_kernel(mus)
     elif kernel=="lorentz": mus = lorentz_kernel(mus)
     elif kernel=="fejer": mus = fejer_kernel(mus)
-    else: raise
+    else:
+        raise ValueError("unknown kernel; the accepted ones are 'jackson', "
+                "'lorentz' and 'fejer'")
     ys = generate_profile_jit(mus,xs)
     return ys
 
@@ -34,7 +36,12 @@ def generate_profile_jit(mus,xs):
       tp = 2.*xs*t - tm # chebychev recursion relation
       tm = t + 0.
       t = 0. + tp # next iteration
-    ys = ys/np.sqrt(1.-xs*xs) # prefactor
+    # the rescaled spectrum lies inside (-1,1), so the profile vanishes
+    # outside it; evaluating the prefactor there would give sqrt(<0) = NaN
+    # (tdos samples out to 1.01 in rescaled units, so its endpoints land there)
+    inside = np.abs(xs)<1.
+    ys[inside] = ys[inside]/np.sqrt(1.-xs[inside]*xs[inside]) # prefactor
+    ys[~inside] = 0.
     ys = ys/np.pi
     return ys
 
@@ -50,7 +57,9 @@ def generate_green_profile(mus,xs,kernel="jackson",**kwargs):
   if kernel=="jackson": mus = jackson_kernel(mus)
   elif kernel=="lorentz": mus = lorentz_kernel(mus)
   elif kernel=="fejer": mus = fejer_kernel(mus)
-  else: raise
+  else:
+      raise ValueError("unknown kernel; the accepted ones are 'jackson', "
+              "'lorentz' and 'fejer'")
   for i in range(1,len(mus)): # loop over mus
     ys += np.exp(1j*i*np.arccos(xs))*mus[i] # add contribution
   ys = ys/np.sqrt(1.-xs*xs)

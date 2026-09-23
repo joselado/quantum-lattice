@@ -60,8 +60,16 @@ it. Two independent sequential setVisible() passes would be
 order-dependent (whichever module's pass runs last would win, silently
 un-hiding what the other just hid) - apply_term_restrictions() avoids
 that by computing one AND-combined boolean per widget base name across
-both modules' rules before calling setVisible() once."""
+both modules' rules before calling setVisible() once. That boolean is
+term_shown(), which the generated code preview (codeview.is_active())
+and add_staggered_term() also use, so a hidden term is off everywhere.
 
+add_staggered_term() is how a mode builds the mAB/mAF terms: pyqula
+refuses add_sublattice_imbalance/add_antiferromagnetism on a geometry
+without the sublattice structure they stagger, even for a zero value."""
+
+
+import numpy as np
 
 from . import hamiltoniantype
 
@@ -296,28 +304,42 @@ def _apply_combo_item_restriction(form, items, allowed):
         elif not allowed and idx >= 0: combo.removeItem(idx)
 
 
+def term_shown(name, lattice_name, hamiltonian_type=hamiltoniantype.DEFAULT_TYPE):
+    """Whether the term field `name` is shown for `lattice_name` and
+    `hamiltonian_type`: the AND of every RESTRICTED_TERMS widget rule
+    naming it and hamiltoniantype.term_allowed(). The one definition
+    apply_term_restrictions() (what the page shows), add_staggered_term()
+    (what gets built) and codeview.is_active() (what the generated code
+    shows) all share, so a hidden term is off in all three. A
+    `lattice_name` of None means the mode does not restrict terms by
+    lattice (it never calls connect()), so only the Hamiltonian type
+    counts."""
+    ok = hamiltoniantype.term_allowed(hamiltonian_type, name)
+    if lattice_name is None: return ok
+    for entry in RESTRICTED_TERMS:
+        if entry["kind"] == "widget" and name in entry["names"]:
+            ok = ok and entry["rule"](lattice_name)
+    return ok
+
+
 def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype.DEFAULT_TYPE):
     """Show/hide every registered restricted term on `form` according to
-    whether `lattice_name` (this module's own RESTRICTED_TERMS) and
-    `hamiltonian_type` (hamiltoniantype.SPIN_TERMS/PAIRING_TERMS) allow it
-    - AND-ed together per widget base name (see this module's docstring
-    for why a term named by both, e.g. kanemele/mAF, needs a combined
-    boolean rather than two independent setVisible() passes). Safe to
-    call on any page: entries whose widgets/comboboxes don't exist on
-    this particular mode are silently skipped."""
+    term_shown() - whether `lattice_name` (this module's own
+    RESTRICTED_TERMS) and `hamiltonian_type`
+    (hamiltoniantype.SPIN_TERMS/PAIRING_TERMS) allow it, AND-ed together
+    per widget base name (see this module's docstring for why a term named
+    by both, e.g. kanemele/mAF, needs a combined boolean rather than two
+    independent setVisible() passes). Safe to call on any page: entries
+    whose widgets/comboboxes don't exist on this particular mode are
+    silently skipped."""
     scf_current = _rebuild_scf_initialization_baseline(form, hamiltonian_type)
 
-    allowed = {} # widget base name -> AND of every rule naming it
+    names = set(hamiltoniantype.SPIN_TERMS + hamiltoniantype.PAIRING_TERMS)
     for entry in RESTRICTED_TERMS:
-        if entry["kind"] != "widget": continue
-        ok = entry["rule"](lattice_name)
-        for name in entry["names"]:
-            allowed[name] = allowed.get(name, True) and ok
-    for name in hamiltoniantype.SPIN_TERMS + hamiltoniantype.PAIRING_TERMS:
-        ok = hamiltoniantype.term_allowed(hamiltonian_type, name)
-        allowed[name] = allowed.get(name, True) and ok
-    for name, ok in allowed.items():
-        _apply_widget_restriction(form, [name], ok)
+        if entry["kind"] == "widget": names.update(entry["names"])
+    for name in names:
+        _apply_widget_restriction(form, [name],
+                                  term_shown(name, lattice_name, hamiltonian_type))
 
     for entry in RESTRICTED_TERMS:
         if entry["kind"] != "combo_item": continue
@@ -354,6 +376,9 @@ def connect(qtwrap, get_lattice_name):
     direct user interaction and a saved session being reloaded into it -
     see qtwrap.py's load_interface())."""
     form = qtwrap.form
+    # kept on the page so codeview.is_active() can ask term_shown() the
+    # same question for the generated code preview
+    form._term_lattice_name = get_lattice_name
     def _update(*_args):
         apply_term_restrictions(form, get_lattice_name(), hamiltoniantype.get_type(qtwrap))
     lattice_widget = getattr(form, "lattice", None)
@@ -363,3 +388,64 @@ def connect(qtwrap, get_lattice_name):
     if hamtype_widget is not None:
         hamtype_widget.currentTextChanged.connect(_update)
     _update()
+
+
+# The two staggered terms whose pyqula method needs a particular
+# sublattice structure in the *built* geometry: {field name: (Hamiltonian
+# method, the field's label in the UI, whether geometry g supports it,
+# what it needs, in words)}. pyqula raises on a geometry without that
+# structure - even for a zero value - rather than quietly adding nothing,
+# so a mode never calls these two methods directly: it goes through
+# add_staggered_term() below.
+_STAGGERED_TERMS = {
+    "mAB": ("add_sublattice_imbalance", "Sublattice imbalance",
+            lambda g: g.has_sublattice and g.sublattice_number == 2,
+            "exactly two sublattices"),
+    "mAF": ("add_antiferromagnetism", "Antiferromagnetism",
+            lambda g: g.has_sublattice,
+            "a sublattice structure"),
+}
+
+
+def _is_zero(value):
+    """A field value that adds nothing. A callable (a position-dependent
+    "r: <expr>" field, or hybridparts' per-part interpolator) counts as
+    nonzero."""
+    if callable(value): return False
+    return bool(np.all(np.asarray(value) == 0))
+
+
+def add_staggered_term(h, name, value, lattice_name=None):
+    """Add the staggered term `name` ("mAB" or "mAF", see _STAGGERED_TERMS)
+    with `value` to h, the way every mode's Hamiltonian builder should:
+
+      - a zero value adds nothing;
+      - a field term_shown() hides for `lattice_name` adds nothing either,
+        so a stale value left in a field the user can no longer see is
+        off, as it is in the generated code (codeview.is_active());
+      - a shown, nonzero field on a geometry that supports the term is
+        added;
+      - a shown, nonzero field on a geometry that does not (e.g.
+        hofstader1d's bilayer ribbons, which carry no sublattice labels)
+        raises a ValueError worded for the error InfoBar, instead of the
+        term silently doing nothing.
+
+    `lattice_name` is the same name the mode passes to connect() -
+    getbox("lattice"), or a constant for an always-honeycomb mode - passed
+    in rather than read off the page so this also works through a
+    DictForm accessor in a subprocess calculation. None means the mode
+    does not restrict terms by lattice. The spin side of term_shown()
+    (mAF on a Spinless Hamiltonian) is not checked here: callers already
+    skip every spin term for Spinless, since pyqula's add_antiferromagnetism
+    would turn the Hamiltonian spinful (see hamiltoniantype.py)."""
+    method, label, supports, needs = _STAGGERED_TERMS[name]
+    if _is_zero(value): return
+    if not term_shown(name, lattice_name): return
+    g = h.geometry
+    if not supports(g):
+        have = str(g.sublattice_number) if g.has_sublattice else "none"
+        where = "the selected lattice (%s)" % lattice_name if lattice_name else "this geometry"
+        raise ValueError("%s needs a lattice with %s, and %s has %s. Set it "
+                         "to 0, or choose a lattice with two sublattices, such "
+                         "as a honeycomb one." % (label, needs, where, have))
+    getattr(h, method)(value)

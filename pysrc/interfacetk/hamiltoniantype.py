@@ -15,9 +15,10 @@ Two disjoint groups of single-particle/mean-field term fields are gated by
 the current choice:
 
   - SPIN_TERMS: fields with no meaning for a spinless Hamiltonian
-    (exchange, kanemele, antikanemele, rashba, mAF, J1, J2, J3) - hidden
-    unless "Spinless" is *not* selected (i.e. shown for Spinful and
-    Nambu).
+    (exchange, kanemele, antikanemele, rashba, mAF, and the mean-field U,
+    J1, J2, J3 - U is the up-down density-density interaction, which
+    pyqula refuses on a spinless Hamiltonian) - hidden unless "Spinless"
+    is *not* selected (i.e. shown for Spinful and Nambu).
   - PAIRING_TERMS: the BdG pairing fields (swave, pwave) - hidden unless
     "Nambu" is selected.
 
@@ -40,9 +41,12 @@ has_spin=False Hamiltonian would silently promote it back to spinful,
 defeating the "Spinless" choice regardless of the UI hiding its field.
 add_haldane/add_antihaldane/add_sublattice_imbalance carry no such
 side effect (they adapt to whatever h.has_spin already is via
-spinless2full()), so they stay unconditional in every mode - only the
-five SPIN_TERMS above need this guard on the actual add_*() call, on top
-of the visibility hide every SPIN_TERMS field also gets.
+spinless2full()), so they need no spin guard - only the five
+SPIN_FORCING_TERMS below need one on the actual add_*() call, on top of
+the visibility hide every SPIN_TERMS field also gets. (mAB and mAF also
+go through latticeterms.add_staggered_term() rather than being called
+directly, for a different reason: pyqula refuses both on a geometry
+without the sublattice structure they stagger.)
 
 Nambu is treated as "spinful with an added electron-hole sector"
 (pyqula's "spinful_nambu" mode) rather than also offering a
@@ -58,16 +62,16 @@ HAMILTONIAN_TYPES = ["Spinless", "Spinful", "Nambu"]
 DEFAULT_TYPE = "Spinful"
 
 SPIN_TERMS = ["exchange", "kanemele", "antikanemele", "rashba", "mAF",
-              "J1", "J2", "J3"]
+              "U", "J1", "J2", "J3"]
 PAIRING_TERMS = ["swave", "pwave"]
 
 # The subset of SPIN_TERMS that are actual single-particle add_*() calls a
 # mode's generate/initialize() must skip outright for "Spinless" (rather
-# than call with a zero value) - see this module's docstring. J1/J2/J3
-# aren't add_*()'d directly; they're SCF interaction parameters already
-# routed correctly by the existing `if h.has_spin:` branch in
-# common.solve_scf()/pyqula_code_scf_block() and every mode's own
-# solve_scf(), once has_spin itself is wired to this combobox.
+# than call with a zero value) - see this module's docstring. U/J1/J2/J3
+# aren't add_*()'d directly; they're SCF interaction parameters routed by
+# the `if h.has_spin:` branch in common.solve_scf()/
+# solve_scf_identify_symmetry_breaking()/pyqula_code_scf_block(), which
+# passes none of them (U=0) for a spinless Hamiltonian.
 SPIN_FORCING_TERMS = ["exchange", "kanemele", "antikanemele", "rashba", "mAF"]
 
 
@@ -95,7 +99,7 @@ def term_allowed(hamiltonian_type, name):
     """Whether term `name` should be visible/active for `hamiltonian_type`.
     Terms not in SPIN_TERMS or PAIRING_TERMS (the orbital-only terms:
     hopping, fermi, mAB, haldane, antihaldane, crystalfield, peierls,
-    inplaneb, strain, U, V1, V2, ...) are unrestricted - always True."""
+    inplaneb, strain, V1, V2, ...) are unrestricted - always True."""
     if name in SPIN_TERMS: return hamiltonian_type != "Spinless"
     if name in PAIRING_TERMS: return hamiltonian_type == "Nambu"
     return True

@@ -60,7 +60,20 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
   # Keldysh sideband sweep (keldyshtk/current.py), where that redundant
   # deepcopy dominated the profile.
   h = h.get_dense() # dense Hamiltonian
-  hk_gen = h.get_hk_gen()  # generator of k dependent hamiltonian
+  # `h.get_hk_gen()` goes through `get_multicell()`, a full deepcopy of the
+  # Hamiltonian (geometry included), and only the two modes that integrate
+  # the Bloch Hamiltonian over the Brillouin zone explicitly ("full" and
+  # "full_adaptive") ever call the generator -- "adaptive" and
+  # "renormalization" go through the decimation instead and never look at
+  # it. Building it eagerly therefore paid that deepcopy once per energy
+  # for nothing on exactly the path the LocalProbe Keldysh sideband sweep
+  # (keldyshtk/current.py) spends its time on, tens of thousands of times
+  # per dI/dV point. Built on first use instead, which keeps it out of
+  # every mode that does not ask for it without any mode having to know.
+  _hk_gen = [] # holds the generator once something actually calls it
+  def hk_gen(k):
+      if len(_hk_gen)==0: _hk_gen.append(h.get_hk_gen())
+      return _hk_gen[0](k)
   # sanity check for surface mode
   if gtype=="surface": mode = "adaptive" # only the adaptive mode
   #######################################
@@ -77,7 +90,9 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
         for iky in kk:
           ks.append([ikx,iky,0.])
       ks = np.array(ks)  # all the kpoints
-    else: raise # raise error
+    else: # raise error
+      raise NotImplementedError("the full-integration selfenergy is only "
+              "implemented for 1d and 2d Hamiltonians")
     for k in ks:  # loop in BZ
       g += algebra.inv(e - hk_gen(k))  # add green function  
     g = g/len(ks)  # normalize
@@ -96,7 +111,9 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
                 error=error,only_bulk=True)
 #        g += green_kchain(h90,k=k,energy=energy,delta=delta,error=error)
       g = g/len(ks)
-    else: raise
+    else:
+      raise NotImplementedError("the renormalization selfenergy is only "
+              "implemented for 1d and 2d Hamiltonians")
   #####################################################
   #####################################################
   elif mode=="adaptive":
@@ -104,12 +121,16 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
       g,s = gr(h)  # perform renormalization
       if gtype=="surface": g = s.copy() # take the surface one
       elif gtype=="bulk": pass # do nothing
-      else: raise
+      else:
+        raise ValueError("unknown gtype; the accepted ones are 'surface' and "
+                "'bulk'")
     elif d==2: # two dimensional, loop over k's
       ks = [[k,0.,0.] for k in np.linspace(0.,1.,nk,endpoint=False)]
       if gtype=="surface": ig = 1 # take the surface one
       elif gtype=="bulk": ig = 0 # take the bulk one
-      else: raise
+      else:
+        raise ValueError("unknown gtype; the accepted ones are 'surface' and "
+                "'bulk'")
       def fint(k):
         """ Function to integrate """
         return green_kchain(h,k=[k,0.,0.],energy=energy,
@@ -117,17 +138,68 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
       # eps is error, might work....
       g = integration.integrate_matrix(fint,xlim=[0.,1.],eps=error)
         # chain in the y direction
-    else: raise
+    else:
+      raise NotImplementedError("the adaptive selfenergy is only implemented "
+              "for 1d and 2d Hamiltonians")
   elif mode=="full_adaptive":
     fint = lambda k: algebra.inv(e - hk_gen(k))  # green's function
     if d==1: # adaptive 1D
-        g = integration.integrate_matrix(fint,xlim=[0.,1.],eps=error)
+        # the 1D integrator hands the integrand a scalar, the Bloch
+        # generator wants a k-vector
+        g = integration.integrate_matrix(lambda k: fint([k]),xlim=[0.,1.],
+              eps=error)
     elif d==2: # adaptive 2D
         g = integration.integrate_matrix_2D(fint,xlim=[0.,1.],ylim=[0.,1.],
-              eps=.1)
-    else: raise NotImplementedError
+              eps=error)
+    else:
+      raise NotImplementedError("the fully adaptive selfenergy is only "
+              "implemented for 1d and 2d Hamiltonians")
   # now calculate selfenergy
   selfenergy = e - h.intra - algebra.inv(g)
   return g,selfenergy
 
 
+
+
+def bloch_selfenergy_batch(h,energies,delta=1e-2,mode="adaptive",
+                           gtype="bulk",error=1e-3,**kwargs):
+    """`bloch_selfenergy` at a whole set of energies at once, returned as
+    two (len(energies),n,n) arrays -- the Green's function and the
+    selfenergy, in the same order the scalar function returns them.
+
+    Only one shape actually batches: a 1d Hamiltonian with first-neighbour
+    hoppings solved by decimation (`mode="adaptive"`), where every energy
+    runs the same Sancho-Rubio iteration on the same (intra,inter) pair and
+    only the complex energy differs. Those go through
+    `greentk.rg.green_renormalization_jit_batch`, one numba prange-parallel
+    call for the whole set, instead of one Python-level call per energy --
+    which is what a LocalProbe's sample selfenergy costs in the Floquet
+    sideband sweep of `keldyshtk.current.dc_current`, tens of thousands of
+    times per dI/dV point.
+
+    Everything else falls back to a plain loop over `bloch_selfenergy`, so
+    this is always safe to call: the same numbers either way, and a
+    speedup only where there is one to be had."""
+    from ..htk.kchain import detect_longest_hopping
+    energies = np.asarray(energies,dtype=np.float64)
+    if not (h.dimensionality==1 and mode=="adaptive"
+                and detect_longest_hopping(h)==1):
+        out = [bloch_selfenergy(h,energy=e,delta=delta,mode=mode,
+                                gtype=gtype,error=error,**kwargs)
+               for e in energies]
+        return (np.array([o[0] for o in out]),np.array([o[1] for o in out]))
+    if gtype!="surface" and gtype!="bulk":
+        raise ValueError("unknown gtype; the accepted ones are 'surface' and "
+                "'bulk'")
+    h = h.get_dense() # dense Hamiltonian, as bloch_selfenergy does
+    if h.is_multicell: h = h.get_no_multicell()
+    from .rg import green_renormalization_jit_batch
+    g_bulk,g_surf = green_renormalization_jit_batch(h.intra,h.inter,energies,
+                                                     delta=delta,error=error)
+    g = g_surf if gtype=="surface" else g_bulk
+    intra = algebra.todense(h.intra)
+    iden = np.identity(intra.shape[0],dtype=np.complex128)
+    # one complex energy per entry of the batch, broadcast over the block
+    e = (energies+1j*delta)[:,None,None]*iden[None,:,:]
+    selfenergy = e - intra[None,:,:] - np.linalg.inv(g)
+    return g,selfenergy

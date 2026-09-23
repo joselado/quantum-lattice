@@ -192,6 +192,48 @@ def mf_matches_hamiltonian(h0,mf):
     return True
 
 
+def dm_sparse_pairs(v,ds,n,has_spin=True):
+    """The (row,col) entries of the density matrix that the normal-state
+    mean field actually reads, one set of index arrays per direction.
+
+    get_mf_normal's density-density terms (normal_term_ii/jj) read only
+    the DIAGONAL of dm[(0,0,0)]; its cross term (normal_term_ij) reads
+    dm[-d][j,i] wherever v[d][i,j] is nonzero -- the transpose of v[d]'s
+    pattern at the OPPOSITE direction -- and get_dc_energy reads
+    dm[d][i,j] at v[d]'s own pattern. Every one of them multiplies the
+    entry by v[i,j], so an entry where the interaction vanishes cannot
+    contribute to any of them and never has to be computed. A short-range
+    v is overwhelmingly zero, so this is a small fraction of the n^2 grid
+    per off-diagonal direction.
+
+    Same construction as scftk.spinspin._build_sparse_pairs, which does
+    this for the Jinteraction/VJinteraction engine; there the mask also has
+    to be complete on every 2x2 spin block because that engine rotates the
+    density matrix before reading it, which is not the case here.
+
+    Only valid for a normal-state Hamiltonian: the BdG decoupling
+    (superscf.get_mf_bdg) reads a different set of entries."""
+    masks = {d: np.zeros((n,n),dtype=bool) for d in ds}
+    for d,m in v.items(): # loop over the interaction directions
+        nz = np.array(m)!=0 # nonzero pattern of the interaction
+        masks[d] |= nz # read by get_dc_energy
+        d2 = (-d[0],-d[1],-d[2]) # the opposite direction
+        if d2 in masks: masks[d2] |= nz.T # read by the cross term
+    # the full onsite block of every site, not just its diagonal: the mean
+    # field only needs the diagonal, but this direction is dense anyway
+    # (see densitymatrix.full_dm_accumulate_sparse's dense_fraction) and
+    # scf.dm is user-visible, so an onsite magnetization read off it stays
+    # meaningful
+    norb = 2 if has_spin else 1 # orbitals per site
+    masks[(0,0,0)] |= np.kron(np.eye(n//norb,dtype=bool),
+            np.ones((norb,norb),dtype=bool))
+    pairs = dict()
+    for d,mask in masks.items():
+        rows,cols = np.nonzero(mask)
+        pairs[d] = (rows.astype(np.int64),cols.astype(np.int64))
+    return pairs
+
+
 def get_dm(h,v,nk=None,integration="ed",tolerance=1e-6,**kwargs):
     """Get the density matrix.
 
@@ -215,6 +257,19 @@ def get_dm(h,v,nk=None,integration="ed",tolerance=1e-6,**kwargs):
         ds = [(0,0,0)] # directions
 #    if h.dimensionality>0:
         for key in v: ds.append(key) # store the vector
+        # normal state, and v is the interaction dictionary (not just a
+        # list of directions, which carries no pattern to build a mask
+        # from -- scftk.spinspin's post-convergence recompute passes one,
+        # and wants the full matrices anyway): compute only the entries
+        # the mean field reads, with the same kernel VJinteraction uses,
+        # instead of a full (n,n) matmul per direction and kpoint
+        if not h.has_eh and isinstance(v,dict):
+            from ..densitymatrix import full_dm_accumulate_sparse, delta_dm
+            T = kwargs.pop("T",delta_dm) # the energy smearing
+            if T==0.: T = 1e-15 # as densitymatrix.full_dm does
+            pairs = dm_sparse_pairs(v,ds,h.intra.shape[0],
+                    has_spin=h.has_spin)
+            return full_dm_accumulate_sparse(h,pairs,nk=nk,delta=T,**kwargs)
         dms = h.get_density_matrix(ds=ds,nk=nk,**kwargs) # get all the density matrices
         return dms # return dictionary
     else:
@@ -296,6 +351,17 @@ def get_dc_energy_jit(v,dm00,dmd):
     return out
 
 
+def electron_dimension(h):
+    """Number of ELECTRON states per unit cell.
+
+    `filling` is always a fraction of the electron states -- for a Nambu
+    (BdG) Hamiltonian spectrum.get_fermi4filling removes the electron-hole
+    doubling before counting -- so the mu*N un-shift of a total energy has
+    to use this, and not the Nambu-doubled h.intra.shape[0]."""
+    n = h.intra.shape[0] # dimension of the Hamiltonian
+    return n//2 if h.has_eh else n # undo the Nambu doubling
+
+
 def get_dc_energy(v,dm):
     """Compute double counting energy"""
     out = 0.0
@@ -320,6 +386,13 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
         tolerance=1e-6, # qtci-only: crossinterpolate2 convergence tolerance
         callback_h=None,**kwargs):
     """Perform the SCF mean field"""
+    if len(kwargs)>0:
+        # this is the end of the mean-field call chain: anything left over
+        # here is a keyword nobody consumed, and used to be dropped in
+        # silence (a misspelled filling= would run with the default)
+        raise TypeError("unexpected keyword argument(s) "
+          +str(sorted(kwargs))+" in the mean-field calculation; nothing "
+          +"in the call chain consumes them, so they would be ignored")
     if verbose>1: info=True
 #    if not h0.check_mode("spinless"): raise # sanity check
     h1 = h0.copy() # initial Hamiltonian
@@ -470,7 +543,10 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
             if not converged:
                 print("No convergence has been reached in",ite,
                         "iterations, stopping")
-        else: raise # unrecognised solver
+        else: # unrecognised solver
+            raise ValueError("unknown solver; the accepted ones are 'plain', "
+                    "'krylov', 'anderson', 'broyden1', 'linear' and "
+                    "'broyden_mixing'")
         mf = fa2mf(x) # transform to MF
         scf = f(mf) # compute the SCF with the solution
         if solver=="broyden_mixing": scf.converged = converged # store convergence flag
@@ -516,6 +592,9 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
         from .densitydensity_jax import densitydensity_jax
         return densitydensity_jax(h,filling=filling,mu=mu,verbose=verbose,
                 **kwargs)
+    # read, not consumed: generic_densitydensity below still gets its own T
+    T = kwargs.get("T",1e-7) # temperature, same default as that function
+    integration = kwargs.get("integration","ed") # density-matrix backend
     if h.has_eh:
         if not h.has_spin: return NotImplemented # only for spinful
     h = h.get_multicell()
@@ -523,7 +602,11 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
     def callback_h(h):
         """Set the filling"""
         if mu is None:
-          fermi = h.get_fermi4filling(filling,nk=h.nk) # get the filling
+          # T, because the density matrix below is built with the
+          # Fermi-Dirac weight at this same T: a Fermi level located by a
+          # T=0 eigenvalue count would hold a different number of
+          # electrons than `filling` asks for
+          fermi = h.get_fermi4filling(filling,nk=h.nk,T=T) # get the filling
           if verbose>1: print("Fermi energy",fermi)
           h.fermi = fermi
           h.shift_fermi(-fermi) # shift by the fermi energy
@@ -534,9 +617,21 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
             **kwargs)
     # Now compute the total energy
     h = scf.hamiltonian
+    # scf.dm is user-visible, while the loop above only ever computed the
+    # entries the mean field reads (see get_dm's sparse branch) -- a small
+    # fraction of each off-diagonal direction's matrix for a large system,
+    # and eventually of the onsite one too. Recompute it in full once here,
+    # exactly as spinspin._run_anisotropic_scf does at the end of its own
+    # loop; only for the path that actually went sparse (a dense recompute
+    # would defeat the point of any other integrator)
+    if integration=="ed" and not h.has_eh:
+        ds = [(0,0,0)] + [d for d in scf.v] # every direction of the mean field
+        scf.dm = h.get_density_matrix(ds=ds,nk=h.nk,T=T)
     etot = h.get_total_energy(nk=h.nk)
     if mu is None:
-        etot += h.fermi*h.intra.shape[0]*filling # add the Fermi energy
+        # electron_dimension, not h.intra.shape[0]: N = filling*(number of
+        # electron states), which is not the Nambu-doubled dimension
+        etot += h.fermi*electron_dimension(h)*filling # add the Fermi energy
     #print("Occupied energies",etot)
     # get_dc_energy assumes dm's shape matches v's, which is never
     # Nambu-doubled even when h (hence scf.dm) is BdG -- so the electron
@@ -551,6 +646,12 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
         dm_dc = {key: superconductivity.get_eh_sector(m,i=0,j=0)
                 for (key,m) in scf.dm.items()}
     etot += get_dc_energy(scf.v,dm_dc) # add the double counting energy
+    if h.has_eh and kwargs.get("compute_anomalous",True):
+        # the pairing part of the interaction energy, which the band
+        # energy also counts twice (see get_dc_energy_anomalous)
+        from .superscf import get_dc_energy_anomalous
+        mf = get_mf(scf.v,scf.dm,has_eh=True)
+        etot += get_dc_energy_anomalous(mf,scf.dm)
     etot = etot.real
     scf.total_energy = etot
     if verbose>1:
@@ -589,6 +690,22 @@ def hubbard(h,U=1.0,constrains=[],**kwargs):
     else:
       return densitydensity(h,v=v,compute_cross=False,
               callback_mf=callback_mf,**kwargs)
+
+
+# The old scftypes.selfconsistency interface, which this function is now
+# aliased to (scftypes.py: `from .meanfield import Vinteraction as
+# selfconsistency`). None of these names exist in the current signature, so
+# they used to travel down the call chain and be dropped in silence -- a
+# call like selfconsistency(h,g=1.0,mode="U") ran with U=0, i.e. no
+# interaction at all, while looking like a Hubbard calculation.
+legacy_selfconsistency_kwargs = {
+  "g": "the interaction strength: pass U= for the local Hubbard term, or "
+       "V1=/V2=/V3=/Vr= for the intersite ones",
+  "mode": "the interaction channel is now chosen by which of U/V1/V2/V3/Vr "
+          "you pass, not by a mode string",
+  "vfun": "a distance dependent interaction is now passed as Vr=f(r1,r2)",
+  "vc": "the interaction strength: see U/V1/V2/V3/Vr",
+  }
 
 
 def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
@@ -635,6 +752,16 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
     reported total_energy is essentially just the unmodified initial guess
     evaluated once, not a converged answer.
     """
+    from ..utilities import rename_kwarg
+    kwargs = rename_kwarg(kwargs,"nkp","nk") # the old spelling of the k-mesh
+    legacy = [k for k in kwargs if k in legacy_selfconsistency_kwargs]
+    if len(legacy)>0:
+        msg = "".join(["\n  "+k+": "+legacy_selfconsistency_kwargs[k]
+                        for k in sorted(legacy)])
+        raise TypeError("keyword argument(s) "+str(sorted(legacy))+" belong "
+          +"to the old scftypes.selfconsistency interface and have no "
+          +"effect here -- a call that passes them silently runs with no "
+          +"interaction at all. The current spellings are:"+msg)
     h = h.get_multicell() # multicell Hamiltonian
     h = h.get_dense()
     # define the function
@@ -649,6 +776,16 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
       hv = hv + hv1 # add the two Hamiltonians
     v = hv.get_hopping_dict() # hopping dictionary
     U = obj2geometryarray(U,h.geometry) # convert to array
+    if not h.has_spin and np.max(np.abs(U))>0.0:
+        # the on-site Hubbard term is the up-down density-density
+        # interaction, so it has no meaning without spin -- it used to be
+        # built here and then quietly dropped by the has_spin branch below
+        raise ValueError("a local Hubbard U requires the spin degree of "
+          +"freedom (it is the interaction between the up and down "
+          +"densities on the same site), but this Hamiltonian has "
+          +"has_spin=False. Build it with g.get_hamiltonian(has_spin=True), "
+          +"or use the intersite interactions V1/V2/V3/Vr, which are "
+          +"defined for spinless fermions.")
     if h.has_spin: #raise # not implemented
         for d in v: # loop
             m = v[d] ; n = m.shape[0]
@@ -695,4 +832,6 @@ def obj2geometryarray(U,g):
         return np.array([U for ir in g.r]) # same for all
     elif callable(U):
         return np.array([U(ir) for ir in g.r]) # call for each
-    else: raise
+    else:
+        raise TypeError("the interaction must be a number or a callable of "
+                "the position")

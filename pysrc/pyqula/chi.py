@@ -10,13 +10,17 @@ from .operators import Operator
 
 def chargechi(h,i=0,j=0,es=np.linspace(-3.0,3.0,100),delta=0.01,temp=1e-7):
     """Compute charge response function"""
-    if h.dimensionality!=0: raise
+    if h.dimensionality!=0:
+        raise ValueError("the charge response function is only implemented "
+                "for 0d Hamiltonians")
     hk = h.get_hk_gen() # get generator
     m = hk(0) # get Hamiltonian
     esh,ws = algebra.eigh(m)
     ws = np.transpose(ws)
-    if i<0: raise
-    if j<0: raise
+    if i<0:
+        raise ValueError("the site index i must not be negative")
+    if j<0:
+        raise ValueError("the site index j must not be negative")
     out = 0*es + 0j # initialize
     return es,elementchi(ws,esh,ws,esh,es,i,j,temp,delta,out)
 
@@ -29,8 +33,15 @@ def elementchi(ws1,es1,ws2,es2,omegas,ii,jj,T,delta,out):
       oi = es1[i]<0.0 # first occupation
       for j in range(n): # second loop over states
           oj = es2[j]<0.0 # second occupation
-          fac = ws1[i][ii]*ws2[j][ii] # add the factor
-          fac *= np.conjugate(ws1[i][jj]*ws2[j][jj]) # add the factor
+          # the Lehmann matrix element is
+          # <n|rho_ii|m><m|rho_jj|n>, i.e. conj(psi_n(ii)) psi_m(ii)
+          # times conj(psi_m(jj)) psi_n(jj). This used to conjugate the
+          # wrong member of each pair, which agrees only for real
+          # amplitudes and otherwise breaks the gauge invariance of the
+          # response. chitk/static.py's elementchi and chitk/chiAB.py's
+          # chiAB_jit both already write it this way.
+          fac = np.conjugate(ws1[i][ii])*ws2[j][ii] # add the factor
+          fac *= np.conjugate(ws2[j][jj])*ws1[i][jj] # add the factor
           fac *= oi - oj # occupation factor
           out = out + fac*(1./(es1[i]-es2[j] - omegas + 1j*delta))
     return out
@@ -51,8 +62,10 @@ def elementchi_row(ws1,es1,ws2,es2,omegas,ii,T,delta):
             oi = es1[i]<0.0 # first occupation
             for j in range(n): # second loop over states
                 oj = es2[j]<0.0 # second occupation
-                fac = ws1[i][ii]*ws2[j][ii] # add the factor
-                fac = fac*np.conjugate(ws1[i][jj]*ws2[j][jj]) # add the factor
+                # see elementchi: the conjugation goes on the first
+                # amplitude of each pair, not on both of one index
+                fac = np.conjugate(ws1[i][ii])*ws2[j][ii] # add the factor
+                fac = fac*np.conjugate(ws2[j][jj])*ws1[i][jj] # add factor
                 fac = fac*(oi - oj) # occupation factor
                 row = row + fac*(1./(es1[i]-es2[j] - omegas + 1j*delta))
         out[jj] = row
@@ -65,12 +78,15 @@ def elementchi_row(ws1,es1,ws2,es2,omegas,ii,T,delta):
 
 def chargechi_row(h,i=0,es=np.linspace(-3.0,3.0,100),delta=1e-6,temp=1e-7):
     """Compute charge response function"""
-    if h.dimensionality!=0: raise
+    if h.dimensionality!=0:
+        raise ValueError("the charge response function is only implemented "
+                "for 0d Hamiltonians")
     hk = h.get_hk_gen() # get generator
     m = hk(0) # get Hamiltonian
     esh,ws = algebra.eigh(m)
     ws = np.transpose(ws)
-    if i<0: raise
+    if i<0:
+        raise ValueError("the site index i must not be negative")
     out = elementchi_row(ws,esh,ws,esh,es,i,temp,delta)
     return out
 
@@ -82,7 +98,9 @@ def chargechi_row(h,i=0,es=np.linspace(-3.0,3.0,100),delta=1e-6,temp=1e-7):
 def chargechi_reciprocal(h,i=None,
         es=np.linspace(-4.,4.,200),delta=1e-3,**kwargs):
     """Return the charge susceptibility in reciprocal space"""
-    if h.dimensionality!=0: raise
+    if h.dimensionality!=0:
+        raise ValueError("the reciprocal-space charge susceptibility is only "
+                "implemented for 0d Hamiltonians")
     if i is None: i = h.geometry.get_central(1)[0]
     # compute correlators
     cs = chargechi_row(h,es=es,delta=delta,**kwargs) 

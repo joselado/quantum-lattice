@@ -155,12 +155,13 @@ or **Nambu**.
   spin degree of freedom, and every spin-dependent term is available.
 - **Spinless** removes the spin degree of freedom entirely. Terms that only
   make sense with real spin — Exchange, Kane-Mele SOC, Anti-Kane-Mele,
-  Rashba, Antiferromagnetism, and the mean-field J1/J2/J3 exchange fields —
-  are hidden and have no effect while Spinless is selected, even if they
-  still hold a nonzero value from before you switched. Orbital terms
-  (hopping, Fermi level, sublattice imbalance, Haldane/Anti-Haldane,
-  crystal field, Peierls/in-plane field, strain, and the U/V1/V2 mean-field
-  terms) stay available either way.
+  Rashba, Antiferromagnetism, the mean-field Hubbard U (the interaction
+  between the up and down electrons on the same site) and the J1/J2/J3
+  exchange fields — are hidden and have no effect while Spinless is
+  selected, even if they still hold a nonzero value from before you
+  switched. Orbital terms (hopping, Fermi level, sublattice imbalance,
+  Haldane/Anti-Haldane, crystal field, Peierls/in-plane field, strain, and
+  the V1/V2 mean-field terms) stay available either way.
 - **Nambu** adds an electron-hole (Bogoliubov-de Gennes) sector on top of a
   spinful Hamiltonian, and is the only choice that shows and activates the
   s-wave/p-wave pairing fields — those are hidden under Spinless and
@@ -170,7 +171,9 @@ Switching this dropdown immediately shows/hides the affected fields, the
 same way changing **Lattice** shows/hides Haldane/Kane-Mele/valley terms —
 if a term is both lattice-restricted and Hamiltonian-type-restricted (Kane-
 Mele SOC, Anti-Kane-Mele, Antiferromagnetism), it stays hidden unless both
-the current lattice *and* the current Hamiltonian type allow it. The SCF
+the current lattice *and* the current Hamiltonian type allow it. A hidden
+term is always off: a value it still holds from before is ignored, and
+left out of the generated pyqula code too. The SCF
 tab's **Initial guess** dropdown (see below) is filtered the same way — a
 guess tied to a hidden term (e.g. **rashba**, **kanemele**, **swave**) isn't
 offered while that term itself is hidden.
@@ -283,9 +286,18 @@ Every term below appears as a form field on the modes that support it, with
 a rendered formula and this same explanation as its hover tooltip. A term
 left at its default (`0.0`) is not included in the Hamiltonian. On the
 modes with a [Hamiltonian type](#hamiltonian-type-spinless-spinful-nambu)
-dropdown, Exchange/Kane-Mele/Anti-Kane-Mele/Rashba/Antiferromagnetism/J1/
-J2/J3 are additionally hidden under Spinless, and s-wave/p-wave pairing are
-hidden unless Nambu is selected.
+dropdown, Exchange/Kane-Mele/Anti-Kane-Mele/Rashba/Antiferromagnetism/U/
+J1/J2/J3 are additionally hidden under Spinless, and s-wave/p-wave pairing
+are hidden unless Nambu is selected.
+
+Sublattice imbalance and Antiferromagnetism stagger a value between the
+lattice's sublattices, so they are only shown for lattices that have
+sublattices (honeycomb-derived lattices, Lieb, diamond). On the rare
+lattice where the field is shown but the geometry actually built has no
+sublattices to stagger (e.g. the bilayer-graphene ribbons of the
+Hofstadter mode), a nonzero value stops the calculation with an error
+saying so, rather than silently adding nothing — set it back to 0 to
+continue.
 
 | Term | What it does |
 |---|---|

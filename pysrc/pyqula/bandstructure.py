@@ -24,7 +24,9 @@ def berry_bands(h,klist=None,mode=None,operator=None):
   ks = [] # list of kpoints
   if mode is not None: # get the mode
     if mode=="sz": operator = operators.get_sz(h)
-    else: raise
+    else:
+      raise ValueError("unknown mode; berry_bands accepts 'sz', or an "
+              "explicit operator")
 
   fo = open("BANDS.OUT","w")
   for ik in range(len(klist)): # loop over kpoints
@@ -37,16 +39,20 @@ def berry_bands(h,klist=None,mode=None,operator=None):
 
 def current_bands(h,klist=None):
   """Calcualte the band structure, with the bands"""
-  if h.dimensionality != 1: raise # only 1 dimensional
+  if h.dimensionality != 1: # only 1 dimensional
+    raise ValueError("the current-resolved bands are only implemented for 1d "
+            "Hamiltonians")
   # go for the rest
   hkgen = h.get_hk_gen() # get generator of the hamiltonian
   if klist is None:  klist = np.linspace(0,1.,100) # generate k points
   fo = open("BANDS.OUT","w") # output file
   from . import current
   fj = current.current_operator(h) # function that generates the operator
-  from .htk.eigenvectors import peigh
-  hks = np.array([hkgen([k,0.,0.]) for k in klist],dtype=np.complex128) # H(k) batch
-  es_batch,ws_batch = peigh(hks) # batched numba eigh
+  from .htk.eigenvectors import peigh_bloch
+  # peigh_bloch densifies every H(k) first: stacking them with np.array
+  # instead raises "must be real number, not csc_matrix" on a sparse
+  # Hamiltonian
+  es_batch,ws_batch = peigh_bloch(hkgen,[[k,0.,0.] for k in klist]) # batched eigh
   for ik,k in enumerate(klist): # loop over kpoints
     jk = fj([k,0.,0.]) # get current operator
     evals,evecs = es_batch[ik],ws_batch[ik] # eigenvectors and eigenvalues
@@ -95,6 +101,11 @@ def get_bands_nd(h,kpath=None,operator=None,num_bands=None,
         given, the expectation value of every operator is computed for each
         eigenstate, and the returned array gains one extra row per operator
         (k, e, c1, c2, ...) instead of just (k, e, c).
+
+    ewindow: None, or a callable taking an energy and returning whether to
+        keep that band. Applied on every code path (with and without an
+        operator, batched or not); the callback, if any, still sees the
+        full unfiltered set of energies at each k-point.
     """
     if num_bands is not None:
       if num_bands>(h.intra.shape[0]-1): num_bands=None
@@ -122,6 +133,14 @@ def get_bands_nd(h,kpath=None,operator=None,num_bands=None,
     hkgen = h.get_hk_gen() # generator hamiltonian
     kpath = h.geometry.get_kpath(kpath,nk=nk) # generate kpath
     ncols = 2+num_waw if operator is not None else 2 # k, e, (operators)
+    def kes2rows(k,es):
+      """Pack a k-point's energies into output rows, dropping the bands
+      that the energy window rejects"""
+      if callable(ewindow): es = np.array([e for e in es if ewindow(e)])
+      out = np.empty((len(es),ncols))
+      out[:,0] = k
+      out[:,1] = es
+      return out
     def getek(k):
       """Compute this k-point, returning a numpy array with one row per
       band: [k_index, energy, (operator expectation values...)]"""
@@ -130,10 +149,7 @@ def get_bands_nd(h,kpath=None,operator=None,num_bands=None,
         es = diagf(hk)
         es = np.sort(es) # sort energies
         if callback is not None: callback(k,es) # call the function
-        out = np.empty((len(es),ncols))
-        out[:,0] = k
-        out[:,1] = es
-        return out
+        return kes2rows(k,es)
       else:
         es,ws = diagf(hk)
         ws = ws.transpose() # transpose eigenvectors
@@ -165,17 +181,13 @@ def get_bands_nd(h,kpath=None,operator=None,num_bands=None,
       # common case (plain diagonalization, no operator): batch every
       # k-point's H(k) into one numba eigh call instead of pcall-ing
       # algebra.eigvalsh per k-point
-      from .htk.eigenvectors import peigvalsh
-      mats = np.array([hkgen(k) for k in kpath],dtype=np.complex128)
-      es_batch = np.sort(peigvalsh(mats),axis=1) # (nk,n) sorted eigenvalues
+      from .htk.eigenvectors import peigvalsh_bloch
+      es_batch = np.sort(peigvalsh_bloch(hkgen,kpath),axis=1) # (nk,n) sorted
       esk = [] # list of per-k arrays, same shape as the old getek(k) output
       for k in range(len(kpath)):
         es = es_batch[k]
         if callback is not None: callback(k,es) # call the function
-        out = np.empty((len(es),ncols))
-        out[:,0] = k
-        out[:,1] = es
-        esk.append(out)
+        esk.append(kes2rows(k,es))
     else:
       esk = parallel.pcall(getek,range(len(kpath))) # compute all
     esk = np.concatenate(esk,axis=0) if len(esk)>0 else np.empty((0,ncols))
@@ -204,7 +216,9 @@ def lowest_bands(h,nkpoints=100,nbands=10,operator = None,
   """
   from scipy.sparse import csc_matrix
   if kpath is None: 
-    k = klist.default(h.geometry) # default path
+    # nkpoints used to be declared and never read, so the path length was
+    # klist.default's own default whatever was asked for
+    k = klist.default(h.geometry,nk=nkpoints) # default path
   else: k = kpath
   import gc # garbage collector
   fo = open("BANDS.OUT","w")
@@ -231,7 +245,9 @@ def lowest_bands(h,nkpoints=100,nbands=10,operator = None,
         for e in eig:
           fo.write(str(ik)+"     "+str(e)+"\n")
         if info:  print("Done",ik,end="\r")
-    else: raise # ups
+    else: # ups
+      raise ValueError("the Hamiltonian must have a non-negative "
+              "dimensionality")
   else:  # if there is an operator
     if h.dimensionality==1:
       hkgen = h.get_hk_gen() # get generator

@@ -10,6 +10,7 @@ from ..scftypes import directional_mean_field
 from .. import limits
 from .. import inout
 from .. import filesystem as fs
+from ..check import require_spin
 
 
 mf_file = "MF.pkl" # mean field file
@@ -25,7 +26,7 @@ def hubbardscf(h,g=1.0,nkp = 100,filling=0.5,mag=None,mix=0.9,
   #############################
   mix = 1. - mix
   U = g # redefine
-  if not h.has_spin: raise
+  require_spin(h,"the Hubbard mean field (or use hubbardscf_spinless)")
   fs.rmfile("STOP") # remove stop file
   from scipy.linalg import eigh
   nat = h.intra.shape[0]//2 # number of atoms
@@ -118,7 +119,8 @@ def selective_U_matrix(Us,m):
   """Return a mean field matrix, using a different U for each atom"""
   try: Us[0] # try to get an index
   except: return Us*m # return
-  if len(Us)!=len(m)//2: raise
+  if len(Us)!=len(m)//2:
+    raise ValueError("a site-dependent U needs one value per site")
   mout = m.copy()
   fac = np.array(np.identity(len(Us)*2),dtype=np.complex128)
   for i in range(len(Us)):
@@ -164,7 +166,8 @@ def magnetic_mean_field(wf,U,collinear=False,totkp=1):
 
 def spinless_mean_field(wf,U,collinear=False,totkp=1):
   """Return the mean field matrix"""
-  raise NotImplementedError
+  raise NotImplementedError("spinless_mean_field is not implemented; use "
+          "hubbardscf_spinless instead")
 
 
 
@@ -174,7 +177,9 @@ def hubbardscf_spinless(h,g=1.0,nkp = 100,filling=0.5,mag=None,mix=0.9,
   """ Solve a selfconsistent Hubbard mean field"""
   mix = 1. - mix
   U = g # redefine
-  if h.has_spin: raise # only for spinless systems
+  if h.has_spin: # only for spinless systems
+    raise ValueError("the spinless Hubbard mean field needs a spinless "
+            "Hamiltonian, use hubbardscf instead")
   fs.rmfile("STOP") # remove stop file
   from scipy.linalg import eigh
   nat = h.intra.shape[0] # number of atoms

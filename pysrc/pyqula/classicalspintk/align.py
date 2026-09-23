@@ -62,6 +62,8 @@ def tp2v(thetaphi):
 import jax.numpy as jnp
 from jax import jit
 from jax import grad
+from .. import gpu
+gpu.apply() # follow the package-wide CPU/GPU switch, see pyqula/gpu.py
 
 def perp_jax_master(thetaphi,vs):
     theta = thetaphi[0]

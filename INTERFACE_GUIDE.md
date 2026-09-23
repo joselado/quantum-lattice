@@ -299,8 +299,11 @@ modes call into):
   `scfterms.py` above (built as part of `scfterms.build()`, not a separate
   call a mode needs to make). `term_allowed(hamiltonian_type, name)` is the
   single source of truth for which term fields make sense under each
-  choice: `SPIN_TERMS` (exchange, kanemele, antikanemele, rashba, mAF, J1,
-  J2, J3) need `has_spin=True` (hidden for "Spinless"); `PAIRING_TERMS`
+  choice: `SPIN_TERMS` (exchange, kanemele, antikanemele, rashba, mAF, U,
+  J1, J2, J3) need `has_spin=True` (hidden for "Spinless"; U because it is
+  the up-down interaction, which pyqula refuses on a spinless
+  Hamiltonian - `common.py`'s SCF paths pass `U=0` there, so a stale
+  hidden value never reaches it); `PAIRING_TERMS`
   (swave, pwave) need Nambu (hidden unless "Nambu" is selected). Widget
   visibility is actually applied by `latticeterms.py`'s
   `apply_term_restrictions()`/`connect()` (see that bullet below) since
@@ -322,9 +325,10 @@ modes call into):
   even when swave/pwave are both left at zero) - there's no
   "spinless Nambu" option, matching the three-way choice as asked for
   rather than a 2x2 spin×Nambu matrix. `codeview.py`'s `is_active()` also
-  checks `term_allowed()` so the "pyqula code" preview (0d/1d/2d) never
-  shows a call to a term hidden by the current choice, even if its field
-  still holds a stale value from before the type was switched.
+  checks `latticeterms.term_shown()` (which includes `term_allowed()`) so
+  the "pyqula code" preview (0d/1d/2d) never shows a call to a term
+  hidden by the current choice or lattice, even if its field still holds
+  a stale value from before the type was switched.
 - **`hybridparts.py`** — grows/shrinks a `tabWidget_4`-style tab widget's
   tab count based on an `nparts` combobox (`addTab`/`removeTab`;
   `removeTab` doesn't delete the widget, so re-adding a part preserves its
@@ -492,7 +496,24 @@ modes call into):
   `hybridfilm.py`/`hybridribbon.py` to restrict a newly-built part's
   fields) must pass `hamiltoniantype.get_type(form)` as the third argument
   too, or it silently falls back to "Spinful" regardless of the page's
-  actual current selection.
+  actual current selection. `term_shown(name, lattice_name,
+  hamiltonian_type)` is the one shown/hidden rule, shared by
+  `apply_term_restrictions()`, `codeview.is_active()` and
+  `add_staggered_term()` below, so a hidden term is off everywhere.
+  **Never call pyqula's `h.add_sublattice_imbalance()` or
+  `h.add_antiferromagnetism()` directly from a mode** — use
+  `latticeterms.add_staggered_term(h, "mAB"|"mAF", value, lattice_name)`,
+  passing the same lattice name the mode gives `connect()`
+  (`getbox("lattice")`, `accessor.getbox("lattice")` in `1d/calc.py`, or
+  `"Honeycomb"` in `multilayergraphene`). pyqula raises on a geometry
+  without the sublattice structure these terms stagger (square,
+  triangular, kagome for mAB, ...) *even for a zero value*; the helper
+  skips a zero value and a hidden field, applies a shown one, and turns a
+  shown, nonzero field the built geometry can't carry (hofstader1d's
+  bilayer ribbons, whose geometry has no sublattice labels) into a
+  `ValueError` worded for the error InfoBar. `hybridfilm`/`hybridribbon`
+  pass a per-part interpolator (always callable, so never "zero"), and
+  keep their `if check("mAB"):` guard in front of the call.
 - **`termhighlight.py`** — not a widget-building module like the three
   above, but the same "one shared helper called from `common.py`,
   `scfterms.py` and `hybridparts.py`" shape: `wire_highlight(field)` bolds
@@ -580,6 +601,10 @@ checklist form.)
    the "Term key vs. field object name" gotcha below if it isn't.
 4. If the term is lattice-family-restricted, register it in
    `latticeterms.py` instead of hand-wiring show/hide logic in the mode.
+   If pyqula's method for it raises on some geometries (as
+   `add_sublattice_imbalance`/`add_antiferromagnetism` do), add it to
+   `latticeterms._STAGGERED_TERMS` and build it through
+   `add_staggered_term()` rather than calling the method directly.
 5. Wire the field into whatever builds the Hamiltonian in `<mode>.py`.
 6. Run `tools/smoke_test.py` (catches wiring/import mistakes, not physics
    correctness) and manually exercise the field in the running app.
@@ -1554,8 +1579,8 @@ duplicated, so it stays in sync with the shell's `MODES`.
 suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
 sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
-other setup is required. Currently measured at ~50s wall clock and
-~810MB peak RSS for the whole suite (324 passed, 9 skipped as of this
+other setup is required. Currently measured at ~25s wall clock and
+~950MB peak RSS for the whole suite (329 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are

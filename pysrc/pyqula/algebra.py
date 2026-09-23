@@ -84,7 +84,10 @@ def todense(m):
     if m is None: return None
     if issparse(m):
         if m.shape[0]<maxsize: return m.toarray()
-        else: raise
+        else:
+            raise MemoryError("refusing to densify a sparse matrix larger than "
+                    "algebra.maxsize; keep it sparse, or raise algebra.maxsize "
+                    "if the dense matrix really does fit in memory")
     else: return np.array(m,dtype=np.complex128)
 
 
@@ -266,12 +269,17 @@ def spectral_gap(m,numw=10,**kwargs):
     """
     Compute the spectral gap
     """
-    es = smalleig(m,numw=10,evecs=False,**kwargs)
+    es = smalleig(m,numw=numw,evecs=False,**kwargs)
     ev = es[es<0.]
     ec = es[es>0.]
     if len(ev)==0 or len(ec)==0:
-        if numw<100: return gap(m,numw=2*numw,**kwargs)
-        else: raise
+        # the window held states of a single sign, so widen it; this used
+        # to call gap(), a name that does not exist, and to ask smalleig
+        # for a hardcoded 10 eigenvalues, so neither half could work
+        if numw<100: return spectral_gap(m,numw=2*numw,**kwargs)
+        else:
+            raise ValueError("no spectral gap was found around zero after "
+                    "enlarging the number of computed eigenvalues to 100")
     g = np.min(np.abs(ev))+np.min(ec) # gap
     return g # return gap
 
@@ -325,7 +333,8 @@ def angle(v1,v2):
     v2 = v2/np.sqrt(v2.dot(v2)) # normalize
     c = v1.dot(v2) # cosine
     v3 = np.cross(v1,v2) # cross product
-    raise NotImplementedError
+    raise NotImplementedError("algebra.angle is not implemented; use "
+            "sculpt.get_angle instead")
 
 
 
@@ -359,7 +368,8 @@ def expm(M):
 def det(M):
     """Determinant of a matrix"""
     if issparse(M): 
-        raise NotImplementedError
+        raise NotImplementedError("the determinant of a sparse matrix is not "
+                "implemented; densify it first")
     else: return dlg.det(M)
 
 

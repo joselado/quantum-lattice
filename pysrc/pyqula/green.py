@@ -396,7 +396,8 @@ def supercell_selfenergy(h,e=0.0,delta=1e-3,nk=100,nsuper=[1,1],
 def green_generator(h,nk=20):
   """Returns a function capable of calculating the Green function
   at a certain energy, by explicity summing the k-dependent Green functions"""
-  if h.dimensionality != 2: raise # only for 2d
+  if h.dimensionality != 2: # only for 2d
+    raise ValueError("green_generator is only implemented for 2d Hamiltonians")
   shape = h.intra.shape # shape
   hkgen = h.get_hk_gen() # get the Hamiltonian generator
   wfs = np.zeros((nk*nk,shape[0],shape[0]),dtype=np.complex128) # allocate vector
@@ -439,19 +440,27 @@ def getgreen_jit(wfs,es,energy,delta,zero):
 
 
 
-def green_operator(h0,operator=None,e=0.0,delta=1e-3,nk=10,
+def green_operator(h0,operator=None,e=0.0,delta=1e-3,nk=100,
         gmode="adaptive"):
-    """Return the integration of an operator times the Green function"""
+    """Return the integration of an operator times the Green function
+
+    nk is the k-mesh of the Brillouin-zone sum, and it used to be declared
+    here and never forwarded to bloch_selfenergy, which then quietly used
+    its own default. Note that with the default gmode="adaptive" the
+    integration is error-controlled rather than performed on a fixed mesh,
+    so nk only bites for gmode="full" and gmode="renormalization"."""
     if operator is not None: # get the operator
         operator = h0.get_operator(operator)
     h = h0.copy()
     h = h.get_dense()
     if operator is None: # no operator
-        g = bloch_selfenergy(h,energy=e,delta=delta,mode=gmode)[0] 
+        g = bloch_selfenergy(h,energy=e,delta=delta,nk=nk,mode=gmode)[0] 
         out = -np.trace(np.array(g)).imag
     else: # finite operator
         if operator.matrix is None: # no matrix, assume a momentum dependent
-            raise NotImplementedError
+            raise NotImplementedError("green_operator needs an operator with "
+                    "a matrix representation, a momentum-dependent one is not "
+                    "implemented")
 #            hkgen = h.get_hk_gen() # get generator
 #            iden = np.identity(h.intra.shape[0],dtype=np.complex128)
 #            from . import klist
@@ -465,7 +474,7 @@ def green_operator(h0,operator=None,e=0.0,delta=1e-3,nk=10,
 #            out /= len(ks) # normalize
         else: # operator is a matrix
             op = operator.get_matrix()
-            g = bloch_selfenergy(h,energy=e,delta=delta,mode=gmode)[0] 
+            g = bloch_selfenergy(h,energy=e,delta=delta,nk=nk,mode=gmode)[0] 
             out = -np.trace(np.array(g)@op).imag
     return out
 
@@ -473,13 +482,16 @@ def green_operator(h0,operator=None,e=0.0,delta=1e-3,nk=10,
 
 def GtimesO(g,o,k=[0.,0.,0.]):
     """Green function times operator"""
-    o = algebra.todense(o) # convert to dense operator if possible
     if o is None: return g # return Green function
-    elif type(o)==type(g): return g@o # return
-    elif callable(o): return o(g,k=k) # call the operator
+    # callables first: algebra.todense would have tried to build an array out
+    # of the operator itself and raised, so this branch used to be unreachable
+    if callable(o): return o(g,k=k) # call the operator
+    o = algebra.todense(o) # convert to dense operator if possible
+    if type(o)==type(g): return g@o # return
     else:
-        print(type(g),type(o))
-        raise
+        raise TypeError("cannot multiply the Green function (a "+
+                str(type(g))+") by this operator (a "+str(type(o))+"); it "
+                "must be a matrix of the same type or a callable")
 
 
 

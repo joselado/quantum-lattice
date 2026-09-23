@@ -1,6 +1,7 @@
 from .qlinterface import execute_script, create_folder, save_state, load_state
 from . import qtwrap
 from . import hamiltoniantype
+from . import latticeterms
 import os
 import numpy as np
 from .qh_interface import *
@@ -370,7 +371,7 @@ def pyqula_code_scf_block(qtwrap,richer=False):
         lines.append("filling += %r / h.intra.shape[0]" % get("extra_electron"))
     kwargs = [
       "nk=%d" % int(get("nk_scf")), "filling=filling",
-      "U=%r" % get("U"), "V1=%r" % get("V1"), "V2=%r" % get("V2"),
+      "U=%r" % (get("U") if has_spin else 0.0), "V1=%r" % get("V1"), "V2=%r" % get("V2"),
     ]
     if has_spin:
         kwargs += ["J1=%r" % get("J1"), "J2=%r" % get("J2"), "J3=%r" % get("J3")]
@@ -399,7 +400,9 @@ def solve_scf(h,window):
   scfin = window.getbox("scf_initialization")
   mf = scftypes.guess(h,mode=scfin)
   nk = int(get("nk_scf"))
-  U = get("U")
+  # U is hidden for a spinless Hamiltonian (hamiltoniantype.SPIN_TERMS),
+  # and pyqula refuses a nonzero one there, so a stale value is dropped
+  U = get("U") if h.has_spin else 0.0
   V1 = get("V1")
   V2 = get("V2")
   filling = get("filling_scf")
@@ -455,7 +458,9 @@ def solve_scf_identify_symmetry_breaking(h,window):
   get = window.get # redefine
   mf = scftypes.guess(h,mode=scfin)
   nk = int(get("nk_scf"))
-  U = get("U")
+  # U is hidden for a spinless Hamiltonian (hamiltoniantype.SPIN_TERMS),
+  # and pyqula refuses a nonzero one there, so a stale value is dropped
+  U = get("U") if h.has_spin else 0.0
   V1 = get("V1")
   V2 = get("V2")
   filling = get("filling_scf")
@@ -582,9 +587,10 @@ def build_embedding_hamiltonian(g,window):
     get = window.get
     h = g.get_hamiltonian(has_spin=True)
     h.add_zeeman(window.get_array("exchange")) # Zeeman fields
-    h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+    lattice = window.getbox("lattice")
+    latticeterms.add_staggered_term(h,"mAB",get("mAB"),lattice)  # sublattice imbalance
     h.add_rashba(get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(get("mAF"))  # AF order
+    latticeterms.add_staggered_term(h,"mAF",get("mAF"),lattice)  # AF order
     h.shift_fermi(get("fermi")) # shift fermi energy
     h.add_kane_mele(get("kanemele")) # intrinsic SOC
     h.add_haldane(get("haldane")) # intrinsic SOC
@@ -852,10 +858,10 @@ def generate_hamiltonian(window,g=None):
         # not just called with a zero-ish value
         h.add_exchange(get_array("exchange")) # Zeeman fields
         h.add_rashba(get("rashba"))  # Rashba field
-        h.add_antiferromagnetism(get("mAF"))  # AF order
+        latticeterms.add_staggered_term(h,"mAF",get("mAF"),window.getbox("lattice"))  # AF order
         h.add_kane_mele(get("kanemele")) # intrinsic SOC
         h.add_anti_kane_mele(get("antikanemele"))
-    h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+    latticeterms.add_staggered_term(h,"mAB",get("mAB"),window.getbox("lattice"))  # sublattice imbalance
     h.shift_fermi(get("fermi")) # shift fermi energy
     h.add_haldane(get("haldane")) # intrinsic SOC
     h.add_antihaldane(get("antihaldane"))

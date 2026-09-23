@@ -64,11 +64,48 @@ def py_ang(v1, v2):
 
 
 
+def _path_through(nodes,labels,nk=400):
+  """Return a k-path visiting a list of high symmetry points, in reduced
+  coordinates, with roughly nk points in total distributed proportionally
+  to the length of each segment. Also writes KPOINTS_BANDS.OUT and
+  BANDLINES.OUT, like the other branches of default_kpath do."""
+  nodes = [np.array(n,dtype=np.float64) for n in nodes]
+  ds = [np.linalg.norm(nodes[i+1]-nodes[i]) for i in range(len(nodes)-1)]
+  dtot = sum(ds)
+  ns = [max(int(round(nk*d/dtot)),1) for d in ds] # points per segment
+  kout = [] ; marks = [] # k-points and the index of each high symmetry point
+  for i in range(len(ds)): # loop over segments
+      marks.append(len(kout)) # this node starts here
+      for j in range(ns[i]): # points of this segment, excluding the end
+          kout.append(nodes[i] + (nodes[i+1]-nodes[i])*j/ns[i])
+  marks.append(len(kout)) # the last node
+  kout.append(nodes[-1].copy()) # close the path
+  fk = open("KPOINTS_BANDS.OUT","w")
+  for k in kout: fk.write(str(k[0])+"   "+str(k[1])+"   "+str(k[2])+"\n")
+  fk.close()
+  fbl = open("BANDLINES.OUT","w")
+  for (m,l) in zip(marks,labels): fbl.write(str(m)+"   "+l+"\n")
+  fbl.close()
+  return kout
+
+
 def default_kpath(g,nk=400):
   """ Input is geometry"""
   if g.dimensionality==0: return [0.] # return gamma point
   elif g.dimensionality==1: 
     return [np.array([k,0,0]) for k in np.linspace(0,1,nk)] # normal path
+  elif g.dimensionality==3:
+    # the 2d branch below builds its path out of b1/b2 only, so it stays in
+    # the k3=0 plane; used for a 3d lattice it silently reports a planar
+    # cut instead of the band structure (a simple cubic lattice came out
+    # with a band minimum of -2t instead of -6t). Walk the standard
+    # simple-cubic path instead, in reduced coordinates:
+    # Gamma - X - M - Gamma - R
+    nodes = [np.array([0.,0.,0.]),np.array([.5,0.,0.]),
+             np.array([.5,.5,0.]),np.array([0.,0.,0.]),
+             np.array([.5,.5,.5])]
+    labels = ["\\Gamma","X","M","\\Gamma","R"]
+    return _path_through(nodes,labels,nk=nk)
   elif g.dimensionality > 1:
     b1 = np.array([1.,0.,0.])
     b2 = np.array([0.,1.,0.])
@@ -129,7 +166,8 @@ def path_GKMKG(g,nk):
   """Generate a path G-K-M-K'-G"""
   a1 = g.a1 # vector
   a2 = g.a2 # vector
-  raise
+  raise NotImplementedError("path_GKMKG is not implemented; use the labelled "
+          "k-path machinery in kpointstk instead")
 
 
 
@@ -257,7 +295,9 @@ def default_v2(g,nk=400):
     fbl.write(str(2*nk/3)+"   K'\n")
     fbl.write(str(nk)+"   \\Gamma\n")
     fbl.close()
-  else: raise NotImplementedError
+  else:
+    raise NotImplementedError("default_v2 only knows the honeycomb-like "
+            "k-path; use the labelled k-path machinery in kpointstk instead")
 
 
 
@@ -347,4 +387,5 @@ def int2dims(nsuper):
     from .checkclass import is_iterable
     if is_iterable(nsuper): return nsuper 
     elif isnumber(nsuper): return [nsuper,nsuper,nsuper]
-    else: raise
+    else:
+      raise TypeError("nsuper must be a number or an iterable of numbers")

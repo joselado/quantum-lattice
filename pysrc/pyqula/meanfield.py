@@ -110,7 +110,8 @@ def v_pairing_uu(i,j,n,g=1.0,d=[0,0,0],channel="ee"):
   elif channel=="hh":
     v.a = element(i,n,[3,0],d=4,j=j) # cc
     v.b = element(j,n,[0,3],d=4,j=i) # cdcd
-  else: raise
+  else:
+      raise ValueError("unknown channel; the accepted ones are 'ee' and 'hh'")
   v.dir = d # direction of the interaction 
   v.g = g
   v.contribution = "A"
@@ -128,7 +129,8 @@ def v_pairing_dd(i,j,n,g=1.0,d=[0,0,0],channel="ee"):
   elif channel=="hh":
     v.a = element(i,n,[2,1],d=4,j=j) # cc
     v.b = element(j,n,[1,2],d=4,j=i) # cdcd
-  else: raise
+  else:
+      raise ValueError("unknown channel; the accepted ones are 'ee' and 'hh'")
   v.dir = d # direction of the interaction 
   v.g = g
   v.contribution = "A"
@@ -197,7 +199,9 @@ def v_ij_fast_coulomb(i,jvs,n,vcut=1e-3):
   v = interaction()
   v.a = csc_matrix(([1.0],[[i],[i]]),shape=(n,n),dtype=np.complex128) # cc
   jj = range(n) # indexes
-  if len(jvs)!=n: raise # something wrong
+  if len(jvs)!=n: # something wrong
+      raise ValueError("the fast-Coulomb interaction needs one potential "
+              "value per site")
   v.b = csc_matrix((jvs,[jj,jj]),shape=(n,n),dtype=np.complex128) # cdc
   v.b.eliminate_zeros()
   v.dir = [0,0,0] # direction of the neighbor
@@ -217,7 +221,9 @@ def v_ij_fast_coulomb_spinful(i,jvs,n,channel="up"):
   elif channel=="down":
       for jj in range(n): jvs2[2*jj+1] = jvs[jj]
       ii = 2*i
-  else: raise
+  else:
+      raise ValueError("unknown channel; the accepted ones are 'up' and "
+              "'down'")
   return v_ij_fast_coulomb(ii,jvs2,2*n)
 
 
@@ -231,79 +237,169 @@ spinful_guesses = ["Fully random","dimerization"]
 spinful_guesses += symmetry_breaking
 
 
-def guess(h,mode="ferro",fun=1e-1):
-  """Return a mean field matrix guess given a certain Hamiltonian"""
-  h0 = h.copy() # copy Hamiltonian
-  h0 = h0.get_multicell() # multicell
-#  h0.intra *= 0. # initialize
-  h0.clean() # clean the Hamiltonian
-  if mode=="ferro":
-      if h.has_spin: h0.add_zeeman(fun)
-  elif mode=="magnetic":
-      if h.has_spin: h0.add_zeeman(lambda x: np.random.random(3)*fun)
-  elif mode=="ferroX":
-      if h.has_spin: h0.add_zeeman([fun,0.,0.])
-  elif mode=="ferroY":
-      if h.has_spin: h0.add_zeeman([0.,fun,0.])
-  elif mode=="ferroZ":
-      if h.has_spin: h0.add_zeeman([0.,0.,fun])
-  elif mode=="randomXY" or mode=="XY":
-      def f(r):
-          m = [np.random.random()-0.5,np.random.random()-0.5,0.]
-          m = np.array(m)
-          return m/np.sqrt(m.dot(m))
-      if h.has_spin: h0.add_zeeman(f)
-      return h0.get_hopping_dict()
-  elif mode=="random":
-      dd = h.get_dict()
-      for key in dd:
-          n = dd[key].shape[0]
-          dd[key] = np.random.random((n,n))-.5 + 1j*(np.random.random((n,n))-.5)
-      dd = MultiHopping(dd)
-      dd = dd + dd.get_dagger()
-      return dd.get_dict()
-  elif mode=="dimerization":
-      return guess(h,mode="random",fun=fun)
-  elif mode=="kekule":
-      h0.turn_multicell()
-      h0.add_kekule(fun) # Haldane coupling
-      return h0.get_hopping_dict()
-  elif mode=="Haldane":
-      h0.add_haldane(fun) # Haldane coupling
-      return h0.get_hopping_dict()
-  elif mode=="rashba":
-      if h.has_spin: h0.add_rashba(fun) # Haldane coupling
-      return h0.get_hopping_dict()
-  elif mode=="kanemele":
-      if h.has_spin: h0.add_kane_mele(fun) # Haldane coupling
-      return h0.get_hopping_dict()
-  elif mode in ["antihaldane","valley"]:
-      h = h.copy() ; h.clean() ; h.add_antihaldane(fun) # Haldane coupling
-      return h.get_hopping_dict()
-  elif mode=="Fully random": return None
-  elif mode in ["CDW","Charge density wave"]:
-      if h.geometry.has_sublattice:
-        h0.add_onsite(h.geometry.sublattice)
-      else: return 0.0 #guess(h,mode="random",fun=0.0)
-  elif mode=="potential":
-      h0.add_onsite(fun)
-  elif mode=="antiferro":
-      if h.has_spin: h0.add_antiferromagnetism(fun)
-  elif mode=="imbalance":
-      h0.add_sublattice_imbalance(fun)
-  elif mode in ["swave","s-wave superconductivity"]:
-      if h.has_eh: h0.add_swave(fun)
-  elif mode=="pwave":
+def require_nambu(h,mode):
+  """Complain if a superconducting guess is asked of a Hamiltonian without
+  the electron-hole (Nambu) degree of freedom"""
+  from .check import require_nambu as _require
+  _require(h,"mean-field guess mode '"+str(mode)+"' is a superconducting "
+    +"order parameter, so it")
+
+
+def require_spin(h,mode):
+  """Complain if a spinful guess is asked of a spinless Hamiltonian"""
+  from .check import require_spin as _require
+  _require(h,"mean-field guess mode '"+str(mode)+"'")
+
+
+def require_sublattice(h,mode):
+  """Complain if a sublattice-modulated guess is asked of a geometry
+  that carries no sublattice label"""
+  from .check import require_sublattice as _require
+  _require(h,"mean-field guess mode '"+str(mode)+"' seeds the order with "
+    +"the sublattice, so it")
+
+
+# The mean-field guesses live in a registry (mode -> builder) rather than in
+# an if/elif chain, so known_guesses below is derived from the dispatch
+# instead of being a second list kept in sync by hand, and adding a guess is
+# one entry. Every builder takes the Hamiltonian, a cleaned multicell copy of
+# it, the amplitude and the mode name, and returns the guess: either the
+# intracell matrix or a hopping dictionary, whichever the channel needs.
+
+
+def _guess_ferro(h,h0,fun,mode):
+    require_spin(h,mode) ; h0.add_zeeman(fun) ; return h0.intra
+
+def _guess_magnetic(h,h0,fun,mode):
+    require_spin(h,mode)
+    h0.add_zeeman(lambda x: np.random.random(3)*fun)
+    return h0.intra
+
+def _guess_ferro_axis(axis):
+    """Builder for a ferromagnetic guess along one Cartesian axis"""
+    def f(h,h0,fun,mode):
+        m = [0.,0.,0.] ; m[axis] = fun
+        require_spin(h,mode) ; h0.add_zeeman(m) ; return h0.intra
+    return f
+
+def _guess_randomXY(h,h0,fun,mode):
+    def f(r):
+        m = [np.random.random()-0.5,np.random.random()-0.5,0.]
+        m = np.array(m)
+        return m/np.sqrt(m.dot(m))
+    require_spin(h,mode) ; h0.add_zeeman(f)
+    return h0.get_hopping_dict()
+
+def _guess_random(h,h0,fun,mode):
+    """A fully random Hermitian guess, built from h itself rather than
+    from the cleaned copy: every hopping of the dictionary is replaced"""
+    dd = h.get_dict()
+    for key in dd:
+        n = dd[key].shape[0]
+        dd[key] = np.random.random((n,n))-.5 + 1j*(np.random.random((n,n))-.5)
+    dd = MultiHopping(dd)
+    dd = dd + dd.get_dagger()
+    return dd.get_dict()
+
+def _guess_dimerization(h,h0,fun,mode):
+    return guess(h,mode="random",fun=fun)
+
+def _guess_kekule(h,h0,fun,mode):
+    h0.turn_multicell()
+    h0.add_kekule(fun)
+    return h0.get_hopping_dict()
+
+def _guess_haldane(h,h0,fun,mode):
+    h0.add_haldane(fun) ; return h0.get_hopping_dict()
+
+def _guess_rashba(h,h0,fun,mode):
+    require_spin(h,mode) ; h0.add_rashba(fun)
+    return h0.get_hopping_dict()
+
+def _guess_kanemele(h,h0,fun,mode):
+    require_spin(h,mode) ; h0.add_kane_mele(fun)
+    return h0.get_hopping_dict()
+
+def _guess_antihaldane(h,h0,fun,mode):
+    """Built from a fresh copy of h rather than from h0, which has already
+    been turned multicell -- add_antihaldane wants the original form"""
+    h = h.copy() ; h.clean() ; h.add_antihaldane(fun)
+    return h.get_hopping_dict()
+
+def _guess_CDW(h,h0,fun,mode):
+    require_sublattice(h,mode)
+    h0.add_onsite(h.geometry.sublattice) ; return h0.intra
+
+def _guess_potential(h,h0,fun,mode):
+    h0.add_onsite(fun) ; return h0.intra
+
+def _guess_antiferro(h,h0,fun,mode):
+    require_spin(h,mode) ; h0.add_antiferromagnetism(fun) ; return h0.intra
+
+def _guess_imbalance(h,h0,fun,mode):
+    h0.add_sublattice_imbalance(fun) ; return h0.intra
+
+def _guess_swave(h,h0,fun,mode):
+    require_nambu(h,mode) ; h0.add_swave(fun) ; return h0.intra
+
+def _guess_pwave(h,h0,fun,mode):
+    require_nambu(h,mode)
     for t in h0.hopping: t.m *= 0. # clean
-    h0.add_pwave(fun)
+    h0.add_pairing(delta=fun,mode="pwave") # px+ipy pairing
     hop = dict()
     hop[(0,0,0)] = h0.intra
     for t in h0.hopping: hop[tuple(t.dir)] = t.m
     return hop
-  else:
-      print("Unrecognized initialization")
-      raise
-  return h0.intra # return matrix
+
+
+# mode -> builder(h,h0,fun,mode); several names are aliases of one builder
+_guesses = {
+  "ferro": _guess_ferro,
+  "magnetic": _guess_magnetic,
+  "ferroX": _guess_ferro_axis(0),
+  "ferroY": _guess_ferro_axis(1),
+  "ferroZ": _guess_ferro_axis(2),
+  "randomXY": _guess_randomXY,
+  "XY": _guess_randomXY,
+  "random": _guess_random,
+  "Fully random": _guess_random,
+  "dimerization": _guess_dimerization,
+  "kekule": _guess_kekule,
+  "Haldane": _guess_haldane,
+  "rashba": _guess_rashba,
+  "kanemele": _guess_kanemele,
+  "antihaldane": _guess_antihaldane,
+  "valley": _guess_antihaldane,
+  "CDW": _guess_CDW,
+  "Charge density wave": _guess_CDW,
+  "potential": _guess_potential,
+  "antiferro": _guess_antiferro,
+  "imbalance": _guess_imbalance,
+  "swave": _guess_swave,
+  "s-wave superconductivity": _guess_swave,
+  "pwave": _guess_pwave,
+  }
+
+
+# every mode understood by guess(), derived from the dispatch above
+known_guesses = list(_guesses)
+
+
+def get_guess_names():
+    """Return every mean-field initialization that guess() accepts"""
+    return list(_guesses)
+
+
+def guess(h,mode="ferro",fun=1e-1):
+  """Return a mean field matrix guess given a certain Hamiltonian"""
+  if mode not in _guesses:
+      raise ValueError("Unrecognized mean-field initialization '"+str(mode)
+        +"'. Known modes: "+str(sorted(set(known_guesses))))
+  h0 = h.copy() # copy Hamiltonian
+  h0 = h0.get_multicell() # multicell
+  h0.clean() # clean the Hamiltonian
+  return _guesses[mode](h,h0,fun,mode)
+
 
 from .algebra import braket_wAw
 #from numba import jit
@@ -444,7 +540,10 @@ def fast_coulomb_interaction(g,vc=1.0,vcut=1e-4,vfun=None,has_spin=False,**kwarg
           interactions.append(
                   v_ij_fast_coulomb_spinful(i,vjs,nat,channel="down")
                   )
-        else: raise
+        else:
+            raise NotImplementedError("the fast-Coulomb interaction is only "
+                    "implemented for spinless and spinful Hamiltonians, not "
+                    "for Nambu ones")
     return interactions
 
 
@@ -482,7 +581,9 @@ def order_parameter(self,name):
     elif name=="odd_SC":
         from .sctk.orderparameter import triplet
         return triplet(mf)
-    else: raise
+    else:
+        raise ValueError("unknown order parameter; the accepted ones are "
+                "'even_SC' and 'odd_SC'")
 
 
 

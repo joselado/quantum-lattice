@@ -31,33 +31,55 @@ class Hopping():
       return deepcopy(self)
 
 
-def turn_multicell(h):
-    """Transform a normal hamiltonian into a multicell hamiltonian"""
-    if h.is_multicell: return h # if it is already multicell
-    ho = h.copy() # copy hamiltonian
-    # directions
-    dirs = []
-    if h.dimensionality == 0: ts = []
+def unit_cell_hoppings(h):
+    """The (direction,matrix) pairs that a NON-multicell Hamiltonian's
+    dedicated attributes stand for -- `inter` in one dimension,
+    `tx/ty/txy/txmy` in two -- listing only the positive direction of each
+    pair, since the opposite one is its dagger.
+
+    This is the one place that knows which cells those attributes describe,
+    so that `turn_multicell` below (which builds a Hamiltonian around them,
+    and therefore has to copy) and a caller that only wants to *look* at
+    them (which must not) cannot drift apart. The matrices returned are the
+    Hamiltonian's own, not copies: read only."""
+    if h.is_multicell:
+        raise ValueError("unit_cell_hoppings needs a non-multicell "
+                "Hamiltonian; a multicell one stores its hoppings in "
+                "h.hopping already")
+    if h.dimensionality == 0: return []
     elif h.dimensionality == 1: # one dimensional
-      dirs.append(np.array([1,0,0]))
-      ts = [h.inter.copy()]
-      ho.inter = None
+        return [((1,0,0),h.inter)]
     elif h.dimensionality == 2: # two dimensional
-      dirs.append(np.array([1,0,0]))
-      dirs.append(np.array([0,1,0]))
-      dirs.append(np.array([1,1,0]))
-      dirs.append(np.array([1,-1,0]))
-      ts = [h.tx.copy(),h.ty.copy(),h.txy.copy(),h.txmy.copy()]
+        return [((1,0,0),h.tx),((0,1,0),h.ty),
+                ((1,1,0),h.txy),((1,-1,0),h.txmy)]
+    else:
+        raise ValueError("unit_cell_hoppings is only defined up to two "
+                "dimensions, since a 3d Hamiltonian is always multicell")
+
+
+def turn_multicell(h):
+    """Transform a normal hamiltonian into a multicell hamiltonian.
+
+    Returns h itself, not a copy, when h is already multicell, which is
+    what keeps this O(1) for read-only internal callers on hot paths (e.g.
+    htk.kchain.detect_longest_hopping, once per energy in a decimation).
+    Anything that modifies the result goes through h.get_multicell(),
+    which copies."""
+    if h.is_multicell: return h # if it is already multicell
+    if h.dimensionality > 2: return h # 3d is always multicell
+    ho = h.copy() # copy hamiltonian
+    pairs = unit_cell_hoppings(h) # cells those attributes stand for
+    # drop the attributes now superseded by the hopping list
+    if h.dimensionality == 1: ho.inter = None
+    elif h.dimensionality == 2:
       del ho.tx
       del ho.ty
       del ho.txy
       del ho.txmy
-    else: 
-        return h # 3d is always multicell
     dd = dict() # dictionary
     dd[(0,0,0)] = h.intra
-    for (d,t) in zip(dirs,ts): 
-        dd[tuple(d)] = t
+    for (d,t) in pairs: # set_dictionary copies every matrix it stores
+        dd[d] = t
         dd[tuple(-np.array(d))] = np.conjugate(t).T
     return set_dictionary(ho,dd) # return this Hamiltonian
 
@@ -133,7 +155,9 @@ def hk_gen(h,**kwargs):
               mout = mout + tk 
             return mout
           return hk  # return the function
-        else: raise
+        else:
+          raise ValueError("the Hamiltonian has an unsupported dimensionality "
+                  "for generating h(k)")
 
 
 
@@ -145,7 +169,9 @@ def turn_spinful(h,enforce_tr=False):
   """Turn a hamiltonian spinful"""
   from .increase_hilbert import spinful
   from .superconductivity import time_reversal
-  if h.has_eh: raise
+  if h.has_eh:
+    raise NotImplementedError("turn_spinful is not implemented for "
+            "Hamiltonians with the electron-hole (Nambu) degree of freedom")
   if h.has_spin: return # return if already has spin
   h.has_spin = True # put spin
   def fun(m):
@@ -163,7 +189,7 @@ from .htk.supercell import bulk2film
 
 def rotate90(h):
   """ Rotate 90 degrees the Hamiltonian"""
-  ho = turn_multicell(h) # copy Hamiltonian
+  ho = h.copy() ; ho.turn_multicell() # copy, then to multicell form
   hoppings = []
   for i in range(len(ho.hopping)):
     tdir = ho.hopping[i].dir 
@@ -202,7 +228,8 @@ def basis_change(h,R):
 def clean(h,cutoff=1e-4):
   """Remove hoppings smaller than a certain quantity"""
   ho = h.copy() # copy hamiltonian
-  raise 
+  raise NotImplementedError("multicell.clean is not implemented; use "
+          "Hamiltonian.clean instead")
 
 
 
@@ -328,7 +355,9 @@ def parametric_hopping_hamiltonian(h,cutoff=5,fc=None,rcut=5.0):
 def parametric_matrix(h,cutoff=2,fm=None):
   """ Gets a first neighbor hamiltonian"""
   from .neighbor import parametric_hopping
-  if fm is None: raise
+  if fm is None:
+    raise ValueError("parametric_matrix needs a hopping function, pass it as "
+            "fm")
   r = h.geometry.r    # x coordinate 
   g = h.geometry
   h.is_multicell = True
@@ -399,7 +428,9 @@ def read_from_file(input_file="hamiltonian.wan"):
     for j in range(-ncells[1],ncells[1]+1):
       for k in range(-ncells[2],ncells[2]+1):
         dm = get_hopping(i,j,k) - dagger(get_hopping(-i,-j,-k))
-        if np.sum(np.abs(dm))>0.0001: raise
+        if np.sum(np.abs(dm))>0.0001:
+          raise ValueError("the hopping generator read from file is not "
+                  "Hermitian")
   print("Hopping generator is Hermitian")
   return get_hopping # return the function
      
@@ -464,9 +495,14 @@ def close_enough_bruteforce(rs1,rs2,rcut=2.0):
 def turn_no_multicell(h,tol=1e-5):
   """Converts a Hamiltonian into the non multicell form"""
   from .htk.kchain import detect_longest_hopping
-  if not h.is_multicell: return h # Hamiltonian is already fine
-  if detect_longest_hopping(h)>1: raise # error
-  if h.dimensionality>2: return h # too high dimensionality
+  # the contract is a new Hamiltonian, so the two pass-through cases return
+  # a copy and never an alias of the input, which the caller would mutate
+  if not h.is_multicell: return h.copy() # Hamiltonian is already fine
+  if detect_longest_hopping(h)>1: # error
+    raise ValueError("turn_no_multicell only works for Hamiltonians with "
+            "first-neighbor-cell hoppings, this one couples cells further "
+            "apart")
+  if h.dimensionality>2: return h.copy() # too high dimensionality
   ho = h.copy() # copy Hamiltonian
   ho.is_multicell = False
   if ho.dimensionality==0: pass
@@ -478,13 +514,16 @@ def turn_no_multicell(h,tol=1e-5):
     ho.txmy = ho.intra*0.
     ho.ty = ho.intra*0.
   else: 
-      raise # just in case
+    raise ValueError("turn_no_multicell only supports dimensionalities 0, 1 "
+            "and 2")
   for t in h.hopping: # loop over hoppings
     if h.dimensionality==0: pass # one dimensional
     elif h.dimensionality==1: # one dimensional
       if t.dir[0]==1 and t.dir[1]==0 and t.dir[2]==0: # 
         ho.inter = t.m # store
-      elif np.sum(np.abs(t.m))>tol and np.max(np.abs(t.dir))>1: raise # Uppps, not possible
+      elif np.sum(np.abs(t.m))>tol and np.max(np.abs(t.dir))>1: # Uppps, not possible
+        raise ValueError("this 1d Hamiltonian couples cells further apart "
+                "than first neighbors, and has no non-multicell form")
     elif h.dimensionality==2: # two dimensional
       if t.dir[0]==1 and t.dir[1]==0 and t.dir[2]==0: # 
         ho.tx = t.m # store
@@ -494,9 +533,12 @@ def turn_no_multicell(h,tol=1e-5):
         ho.txy = t.m # store
       elif t.dir[0]==1 and t.dir[1]==-1 and t.dir[2]==0: # 
         ho.txmy = t.m # store
-      elif np.sum(np.abs(t.m))>tol and np.max(np.abs(t.dir))>1: raise # Uppps, not possible
+      elif np.sum(np.abs(t.m))>tol and np.max(np.abs(t.dir))>1: # Uppps, not possible
+        raise ValueError("this 2d Hamiltonian couples cells further apart "
+                "than first neighbors, and has no non-multicell form")
     else: 
-        raise # just in case
+      raise ValueError("turn_no_multicell only supports dimensionalities 0, "
+              "1 and 2")
   ho.hopping = [] # empty list
   return ho
 
@@ -535,7 +577,7 @@ from .htk.kchain import kchain
 
 def get_hopping_dict(h):
     """Return the hopping dictionary"""
-    h = h.get_multicell()
+    h = turn_multicell(h) # read only, the matrices are copied below
     out = dict()
     out[(0,0,0)] = h.intra.copy()
     for t in h.hopping: 

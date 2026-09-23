@@ -25,8 +25,12 @@ def ldosr_generator(h,rs=0.2,es=np.linspace(-1.,1.,100),
         for i in range(len(inds)):
             ii = inds[i] # get this index
             if h.check_mode("spinless"):
-              yi = calculate_dos(evals,es,delta,w=ds[:,ii])
-              yout = yi*ws[i] # multiply by the weight
+              # this used to assign rather than accumulate, so the LDOS at
+              # a point was only the last neighbour's contribution instead
+              # of the weighted sum over the nn closest sites -- and since
+              # sculpt.get_closest's ordering is an implementation detail,
+              # the map was not even a smooth function of position
+              yout = yout + calculate_dos(evals,es,delta,w=ds[:,ii])*ws[i]
             elif h.check_mode("spinful"):
               yout = yout + calculate_dos(evals,es,delta,w=ds[:,2*ii])*ws[i]
               yout = yout+ calculate_dos(evals,es,delta,w=ds[:,2*ii+1])*ws[i]
@@ -36,8 +40,15 @@ def ldosr_generator(h,rs=0.2,es=np.linspace(-1.,1.,100),
               if sector=="all":
                 yout = yout + calculate_dos(evals,es,delta,w=ds[:,4*ii+2])*ws[i]
                 yout = yout+ calculate_dos(evals,es,delta,w=ds[:,4*ii+3])*ws[i]
-            else: raise
-        return (es,yout)
+            else:
+              raise NotImplementedError("the real-space LDOS is not "
+                      "implemented for spinless Nambu Hamiltonians")
+        # calculate_dos returns pi times a sum of unit-normalized
+        # Lorentzians (see dostk/eigtodos.py), so the 1/pi that makes this
+        # a density of states is the caller's, exactly as in dos.dos_kmesh
+        # and ldos.multi_ldos_tb. Without it the energy integral of this
+        # LDOS came out pi instead of 1
+        return (es,yout/np.pi)
     return fun
 
 

@@ -109,9 +109,9 @@ def initialize():
     # "Spinless" rather than called with a zero-ish value
     h.add_zeeman(hybridparts.part_array_interpolator(qtwrap.get_array,"exchange",nparts,2,region_of)) # Zeeman fields
     if check("rashba"): h.add_rashba(fint("rashba"))  # Rashba field
-    h.add_antiferromagnetism(fint("mAF"))  # AF order
+    if check("mAF"): latticeterms.add_staggered_term(h,"mAF",fint("mAF"),getbox("lattice"))  # AF order
     if check("kanemele"):  h.add_kane_mele(fint("kanemele")) # intrinsic SOC
-  h.add_sublattice_imbalance(fint("mAB"))  # sublattice imbalance
+  if check("mAB"): latticeterms.add_staggered_term(h,"mAB",fint("mAB"),getbox("lattice"))  # sublattice imbalance
   h.shift_fermi(fint("fermi")) # shift fermi energy
   if check("haldane"):  h.add_haldane(fint("haldane")) # intrinsic SOC
   if check("antihaldane"):  h.add_antihaldane(fint("antihaldane"))

@@ -2,6 +2,7 @@ import numpy as np
 from . import parallel
 from . import algebra
 from . import magnetism
+from .check import require_spin
 
 def dominant_correlation(h0,filling=0.5,dm=1e-1,
         write=False,**kwargs):
@@ -9,7 +10,7 @@ def dominant_correlation(h0,filling=0.5,dm=1e-1,
     h = h0.copy() # copy hamiltonian
     h = h.get_dense()
     h.set_filling(filling) # set the desired filling
-    if not h.has_spin: raise # only for spinful
+    require_spin(h,"the magnetic correlator")
     n = len(h.geometry.r) # number of sites
     def getrow(ii): # compute a row of the susceptibility matrix
         hi = h.copy() # copy Hamiltonian

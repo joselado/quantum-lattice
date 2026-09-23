@@ -35,7 +35,8 @@ def fermi_surface_generator(h,
     if h.is_sparse: mode = "sparse"
     else: mode = "full"
     energies = np.array(energies) # convert to array
-    if h.dimensionality!=2: raise  # continue if two dimensional
+    if h.dimensionality!=2: # continue if two dimensional
+      raise ValueError("the Fermi surface is only defined for 2d Hamiltonians")
     hk_gen = h.get_hk_gen() # gets the function to generate h(k)
     if full_bz:
         kxs = np.linspace(0.,nsuper,nk,endpoint=True)  # generate kx
@@ -48,7 +49,12 @@ def fermi_surface_generator(h,
     kyout = []
     if reciprocal: fR = h.geometry.get_k2K_generator() # get matrix
     else:  fR = lambda x: x # get identity
-    # setup a reasonable value for delta
+    # setup a reasonable value for delta: refine_delta is the refinement
+    # factor of the broadening, as it is in fermisurfacetk.singlefs (which
+    # applies it only to the delta it picks automatically). It used to be
+    # declared and never read, so asking for a 50 times sharper Fermi
+    # surface returned the unrefined one
+    delta = delta/refine_delta # refine the broadening
     #### function to calculate the weight ###
     operator = h.get_operator(operator) # overwrite operator
     def get_weight(hk,k=None):
@@ -81,7 +87,17 @@ def fermi_surface_generator(h,
     kxout = rs[:,0] # x coordinate
     kyout = rs[:,1] # y coordinate
     kdos = np.zeros((len(rs),len(energies))) # initialize
-    if parallel.cores==1: # serial execution
+    if mode=='full' and operator is None:
+        # batched, numba-parallel path -- no interprocess dispatch
+        from .htk.eigenvectors import peigvalsh_bloch
+        ks = np.array([fR(r) for r in rs]) # kpoints, change of basis applied
+        batch_size = 64
+        for i0 in range(0,len(rs),batch_size): # loop over batches of kpoints
+            kbatch = ks[i0:i0+batch_size]
+            es_batch = peigvalsh_bloch(hk_gen,kbatch) # diagonalize the whole batch in parallel
+            for ii in range(len(kbatch)):
+                kdos[i0+ii,:] = fermi_weight(es_batch[ii],energies,delta=delta)
+    elif parallel.cores==1: # serial execution
         for ir in range(len(rs)): # loop
           if info: print("Doing",rs[ir])
           kdos[ir,:] = getf(rs[ir]) # store in the list

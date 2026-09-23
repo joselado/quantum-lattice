@@ -7,6 +7,7 @@ relying on module-level globals, matching pysrc/interfacetk/common.py.
 """
 from pyqula import hamiltonians, kpm, dos, ldos, sculpt
 from interfacetk.qlinterface import execute_script
+from interfacetk import latticeterms
 import numpy as np
 import os
 import time
@@ -44,7 +45,7 @@ def initialize(qtwrap):
   h.has_spin = False # spin treatment
   h.is_sparse = True
   h.first_neighbors()  # first neighbor hopping
-  h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+  latticeterms.add_staggered_term(h,"mAB",get("mAB"),qtwrap.getbox("lattice"))  # sublattice imbalance
   h.add_peierls(get("peierls")) # add magnetic field
   h.add_crystal_field(get("crystalfield")) # add magnetic field
   if get("haldane")!=0.0:

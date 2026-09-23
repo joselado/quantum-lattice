@@ -1,5 +1,6 @@
 from scipy.sparse import coo_matrix,bmat,csc_matrix
 import numpy as np
+from .check import require_spin
 
 
 # puts the matrix in spinor form
@@ -63,7 +64,9 @@ def get_spinless2full(h,time_reversal=False,is_hamiltonian=True):
   elif h.check_mode("spinless_nambu"): 
       from .sctk import spinless
       return spinless.nambu
-  else: raise
+  else:
+    raise NotImplementedError("this Hilbert space cannot be promoted from the "
+            "spinless form")
   return outf
 
   
@@ -71,14 +74,13 @@ def get_spinless2full(h,time_reversal=False,is_hamiltonian=True):
 
 def get_spinful2full(h):
   """Function to transform a matrix into its full form"""
-  if not h.has_spin: raise
+  require_spin(h,"promoting a spinful matrix")
+  if h.has_eh:
+    from .superconductivity import build_eh
+    def outf(m):
+      return build_eh(m) # add e-h
   else:
-    if h.has_eh:
-      from .superconductivity import build_eh
-      def outf(m): 
-        return build_eh(m) # add e-h
-    else:
-      def outf(m): return m # do nothing
+    def outf(m): return m # do nothing
   return outf
 
 

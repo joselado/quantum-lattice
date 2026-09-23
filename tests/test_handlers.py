@@ -208,3 +208,74 @@ def test_kdos_bands_uses_nk_kbands_field(mode, monkeypatch):
         f"{mode}: get_kdos_bands() called kdos.kdos_bands with nk={captured.get('nk')!r}, "
         f"expected 17 (the 'nk_kbands' field) - is it reading the wrong UI field again?"
     )
+
+
+# ---------------------------------------------------------------------
+# Targeted regression: pyqula refuses add_sublattice_imbalance/
+# add_antiferromagnetism on a geometry without the sublattice structure
+# they stagger - even for a zero value - so every mode goes through
+# latticeterms.add_staggered_term(). A field hidden for the selected
+# lattice is off (in the build and in the generated code alike); a shown,
+# nonzero field the geometry cannot carry is an error, not a no-op.
+# ---------------------------------------------------------------------
+
+def test_hidden_staggered_terms_are_off(monkeypatch):
+    modobj = import_mode("2d")
+    _stub_in(modobj, monkeypatch, [])
+    set_field(modobj, "mAB", "0.3") # set while shown (Honeycomb) ...
+    set_field(modobj, "mAF", "0.2")
+    set_combo(modobj, "lattice", "Square") # ... then hidden, value left stale
+    activate(modobj)
+    assert modobj.window.mAB.isHidden() and modobj.window.mAF.isHidden()
+    h = modobj.initialize() # used to raise: Square has no sublattice
+    assert not h.geometry.has_sublattice
+    code = modobj.get_pyqula_code()
+    assert "add_sublattice_imbalance" not in code
+    assert "add_antiferromagnetism" not in code
+
+
+def test_shown_staggered_term_is_applied(monkeypatch):
+    modobj = import_mode("2d")
+    _stub_in(modobj, monkeypatch, [])
+    set_combo(modobj, "lattice", "Honeycomb")
+    set_field(modobj, "mAB", "0.0")
+    activate(modobj)
+    h_off = modobj.initialize()
+    set_field(modobj, "mAB", "0.3")
+    activate(modobj)
+    h_on = modobj.initialize()
+    assert not np.allclose(h_off.intra, h_on.intra)
+    assert "add_sublattice_imbalance(0.3)" in modobj.get_pyqula_code()
+
+
+def test_shown_unsupported_staggered_term_raises(monkeypatch):
+    # hofstader1d's bilayer ribbons are honeycomb-family by name, so the
+    # field is shown, but the built geometry carries no sublattice labels
+    modobj = import_mode("hofstader1d")
+    _stub_in(modobj, monkeypatch, [])
+    set_combo(modobj, "lattice", "Bilayer graphene AB")
+    set_field(modobj, "mAB", "0.3")
+    activate(modobj)
+    with pytest.raises(ValueError, match="Sublattice imbalance needs a lattice"):
+        modobj.initialize()
+    set_field(modobj, "mAB", "0.0")
+    activate(modobj)
+    modobj.initialize() # a zero value is no term at all
+
+
+def test_hubbard_u_is_off_for_spinless(monkeypatch):
+    # U is the up-down interaction: hidden for a Spinless Hamiltonian, and
+    # pyqula refuses a nonzero one there, so a stale value must not reach it
+    modobj = import_mode("2d")
+    _stub_in(modobj, monkeypatch, [])
+    set_field(modobj, "U", "1.0")
+    set_combo(modobj, "hamiltonian_type", "Spinless")
+    activate(modobj)
+    modobj.window.do_scf.setChecked(True)
+    assert modobj.window.U.isHidden()
+    code = modobj.get_pyqula_code()
+    assert "U=0.0" in code and "U=1.0" not in code
+    set_combo(modobj, "hamiltonian_type", "Spinful")
+    activate(modobj)
+    assert not modobj.window.U.isHidden()
+    assert "U=1.0" in modobj.get_pyqula_code()

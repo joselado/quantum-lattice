@@ -15,6 +15,7 @@ from . import superconductivity
 from .algebra import braket_wAw
 
 import numbers
+from .check import require_nambu
 
 isnumber = algebra.isnumber
 
@@ -42,8 +43,9 @@ class Operator():
             self.m = lambda v,k=None: hkgen(k)@v
             self.linear = True
         else: 
-            print("Unrecognised type",type(m))
-            raise
+            raise TypeError("an Operator must be built from a matrix, another "
+                    "Operator, a number, a callable, or a Hamiltonian, and "
+                    "not from a "+str(type(m)))
     def __mul__(self,a):
         """Define the multiply method"""
         if type(a)==Operator:
@@ -51,7 +53,15 @@ class Operator():
             if self.matrix is not None and a.matrix is not None:
                 out.matrix = self.get_matrix()@a.get_matrix()
                 out.m = lambda v,k=None: out.matrix@v # create dummy function
-            else: out.m = lambda v,k=None: self.m(a.m(v,k=k),k=k)
+            else:
+                # Operator(self) copied self.matrix, which is not the matrix
+                # of the composition; one of the two factors has none at all,
+                # so neither has the product. Leaving it in place made
+                # get_matrix() return the left factor alone, and the right one
+                # was then silently dropped (h.get_vev with a matrix-less
+                # operator returned the same numbers as with no operator)
+                out.matrix = None
+                out.m = lambda v,k=None: self.m(a.m(v,k=k),k=k)
             out.linear = self.linear and a.linear
             return out
         elif algebra.ismatrix(a): # matrix type
@@ -74,7 +84,9 @@ class Operator():
     def trace(self):
         if self.matrix is not None: 
             return algebra.trace(self.matrix)
-        else: raise
+        else:
+            raise ValueError("this operator has no matrix representation, so "
+                    "its trace is not defined")
     def __rmul__(self,a):
         if algebra.isnumber(a): # single number, just multiply
             return self*a # just multiply
@@ -82,7 +94,8 @@ class Operator():
             return Operator(a)*self
     def __truediv__(self,a):
         if isnumber(a): return self*(1./a)
-        else: raise
+        else:
+            raise TypeError("an Operator can only be divided by a number")
     def __add__(self,a):
         """Define the add method"""
         if type(a)==Operator:
@@ -90,6 +103,7 @@ class Operator():
             out.m = lambda v,k=None: self.m(v,k=k) + a.m(v,k=k)
             if self.matrix is not None and a.matrix is not None:
                 out.matrix = self.matrix + a.matrix
+            else: out.matrix = None # not self's matrix, see __mul__
             out.linear = self.linear and a.linear
             return out
         else:
@@ -104,14 +118,28 @@ class Operator():
         """Define the call method"""
         return self.m(v,k=k) 
     def __matmul__(self,a): return self*a
-    def get_matrix(self,k=None):
-        """Return matrix if possible"""
-        if self.matrix is not None: 
-            if algebra.ismatrix(self.matrix): 
-                return self.matrix
-            else: 
-                print("Operator.matrix has a wrong type",type(self.matrix))
-                raise
+    def get_matrix(self,k=None,required=True):
+        """Return the matrix this operator acts with.
+
+        An Operator built from a function has none: it is defined only by
+        its action on a wavefunction, and when that action depends on the
+        kpoint (the unfolding projector, for one) no single matrix exists.
+        Asking for one raises, so that a routine needing a matrix fails
+        where the mistake is instead of silently computing an unweighted
+        quantity. Pass required=False to get None back and say in your own
+        message what your routine wanted the matrix for."""
+        if self.matrix is None:
+            if not required: return None # the caller will say what it needs
+            raise ValueError("this Operator is defined only by its action on "
+                    "a wavefunction and has no matrix representation, so the "
+                    "routine that asked for one cannot use it; build the "
+                    "operator from a matrix, or use a method that applies "
+                    "the operator to one state at a time")
+        if algebra.ismatrix(self.matrix):
+            return self.matrix
+        else:
+            raise TypeError("the stored operator is not a matrix but "
+                    "a "+str(type(self.matrix)))
     def inv(self):
         """Return the inverse operator"""
         if self.matrix is not None and self.linear: # input is a matrix
@@ -119,7 +147,9 @@ class Operator():
             def f(v,**kwargs):
                 return algebra.applyinverse(m,v)
             return Operator(f,linear=True)
-        else: raise NotImplementedError
+        else:
+            raise NotImplementedError("only a linear operator with a matrix "
+                    "representation can be inverted")
     def braket(self,w,**kwargs):
         """Compute an expectation value"""
         wi = self(w,**kwargs) # apply the operator
@@ -156,7 +186,8 @@ def rfunction2operator(h,f):
 def density2operator(h,d):
     """Given a function that takes a position, return the operator"""
     n = len(h.geometry.r)
-    if len(d)!=n: raise
+    if len(d)!=n:
+        raise ValueError("the density must have one value per site")
     inds = range(n)
     m = csc((d,(inds,inds)),shape=(n,n),dtype=np.complex128)
     return h.spinless2full(m) # return matrix
@@ -202,7 +233,10 @@ def get_interface(h,fun=None):
     cut = 2.0 # cutoff
     if h.dimensionality==1: index = 1
     elif h.dimensionality==2: index = 2
-    else: raise
+    else:
+        raise NotImplementedError("the default interface operator is only "
+                "defined for 1d and 2d Hamiltonians; pass an explicit fun "
+                "instead")
     def fun(ri): # define the function
       if np.abs(ri[index])<cut: return 1.0
       else: return 0.0
@@ -215,12 +249,23 @@ def get_interface(h,fun=None):
 def get_pairing(h,ptype="s"):
   """Return an operator that calculates the expectation value of the
   s-wave pairing"""
-  if not h.has_eh: raise # only for e-h systems
+  require_nambu(h,"a pairing operator")
+  if not h.check_mode("spinful_nambu"):
+      # these are all 4x4 (spin x electron-hole) blocks: built on a
+      # spinless Nambu Hamiltonian they came out twice the size of its
+      # Hilbert space instead of raising
+      raise NotImplementedError("the pairing operators ('spair', 'deltax',"
+        +" 'deltay', 'deltaz') are singlet/d-vector components in the "
+        +"spin x electron-hole basis, so they are only defined for a "
+        +"spinful Nambu Hamiltonian; this one is spinless Nambu. Use "
+        +"h.extract('swave') or sctk.spinless for the spinless case")
   if ptype=="s": op = superconductivity.spair
   elif ptype=="deltax": op = superconductivity.deltax
   elif ptype=="deltay": op = superconductivity.deltay
   elif ptype=="deltaz": op = superconductivity.deltaz
-  else: raise
+  else:
+      raise ValueError("unknown pairing operator '"+str(ptype)
+        +"', expected 's', 'deltax', 'deltay' or 'deltaz'")
   r = h.geometry.r
   out = [[None for ri in r] for rj in r]
   for i in range(len(r)): # loop over positions
@@ -243,12 +288,15 @@ def get_electron(h):
   elif h.check_mode("spinless_nambu"):
       from .sctk import spinless
       return spinless.proje(h.intra.shape[0])
-  else: raise
+  else:
+      raise ValueError("the electron projector needs a Nambu Hamiltonian; "
+              "call h.setup_nambu_spinor() first")
 
 
 def get_hole(h):
   """Operator to project on the hole sector"""
-  if not h.has_eh: raise # only for e-h systems
+  if not h.has_eh:
+      require_nambu(h,"the hole projector")
   elif h.check_mode("spinful_nambu"): # only for e-h systems
       op = superconductivity.projh
       r = h.geometry.r
@@ -259,7 +307,9 @@ def get_hole(h):
   elif h.check_mode("spinless_nambu"):
       from .sctk import spinless
       return spinless.projh(h.intra.shape[0])
-  else: raise
+  else:
+      raise ValueError("the hole projector needs a Nambu Hamiltonian; call "
+              "h.setup_nambu_spinor() first")
 
 
 def get_tauz(h):
@@ -290,7 +340,9 @@ def get_bulk(h,fac=0.8):
         dr = dr/np.max(dr) # to interval 0,1
         dr2 = dr - np.mean(dr) # minus the average
         out[fac/2.<np.abs(dr2)] = 0.0 # set to zero
-    else: raise # unsupported dimensionality
+    else: # unsupported dimensionality
+        raise NotImplementedError("the bulk operator is only implemented for "
+                "Hamiltonians up to 2d")
     from scipy.sparse import diags
     n = len(r) # number of sites
     out = diags([out],offsets=[0],shape=(n,n),dtype=np.complex128) # create matrix
@@ -318,12 +370,16 @@ def get_position(h,mode="z"):
   if h.has_spin:  dind *= 2 # duplicate for spin
   if h.has_eh:  dind *= 2  # duplicate for eh
   n = h.intra.shape[0] # number of elments of the hamiltonian
-  if len(h.geometry.z)!=n//dind: raise # dimensions do not match
+  if len(h.geometry.z)!=n//dind: # dimensions do not match
+      raise ValueError("the geometry and the Hamiltonian have a different "
+              "number of sites")
   data = [] # epmty list
   if mode=="x": pos = h.geometry.x
   elif mode=="y": pos = h.geometry.y
   elif mode=="z":  pos = h.geometry.z
-  else: raise
+  else:
+      raise ValueError("unknown mode; the position operator accepts 'x', 'y' "
+              "and 'z'")
   for i in range(n): # loop over elements
     z = pos[i//dind]
     data.append(z)
@@ -365,7 +421,9 @@ def get_rop(h,fun):
 
 def get_sublattice(h,mode="both"):
   """Sublattice operator"""
-  if not h.geometry.has_sublattice: raise
+  if not h.geometry.has_sublattice:
+      raise ValueError("the sublattice operator needs a geometry with a "
+              "sublattice index")
   rep = 1 # repetitions 
   if h.has_spin: rep *= 2
   if h.has_eh: rep *= 2
@@ -375,7 +433,9 @@ def get_sublattice(h,mode="both"):
       if mode=="both": data.append(s) # store
       elif mode=="A": data.append((s+1.)/2.) # store
       elif mode=="B": data.append((-s+1.)/2.) # store
-      else: raise
+      else:
+          raise ValueError("unknown mode; the sublattice operator accepts "
+                  "'both', 'A' and 'B'")
   n = h.intra.shape[0]
   row = range(n)
   col = range(n)
@@ -391,16 +451,27 @@ def get_velocity(h):
         return vk(k)@w
     return f
   elif h.dimensionality==2:
+    # the Cartesian band speed |<v>|, with v_alpha = i[H,r_alpha] built by
+    # conductivitytk.kubo (the shared, benchmarked velocity: it applies
+    # current.hk_derivative's 2*pi normalization, the reduced->Cartesian
+    # Jacobian, and the intracell-bond term that the lattice gauge drops).
+    # Building it out of raw current.derivative instead, as this used to,
+    # got all three wrong -- the x and y derivative orders were also
+    # swapped -- and the result was not even C3 invariant on a honeycomb
+    # lattice: three symmetry-equivalent k-points of the same band came
+    # out with three different speeds.
+    from .conductivitytk.kubo import _setup,_velocities
+    hm,orders,hkgen,jac,dr,cellvol,scale = _setup(h)
     def f(w,k=[0.,0.,0.]):
-      vx = current.derivative(h,k,order=[0,1])
-      vy = current.derivative(h,k,order=[1,0])
-      R = np.array(h.geometry.get_k2K())
-#      R = algebra.inv(R) # not sure if this is ok
-      v = [braket_wAw(w,vx),braket_wAw(w,vy),0]
-      v = np.array(v).real
-      return (v@R@v)*w # return the scalar product
+      hk = hkgen(k) # Bloch Hamiltonian at this k-point
+      v = _velocities(hm,orders,jac,dr,hk,k) # Cartesian velocity operators
+      vs = np.array([braket_wAw(w,v[a]).real for a in range(3)])
+      return np.sqrt(vs.dot(vs))*w # return the modulus of the velocity
     return Operator(f)
-  else: raise
+  else:
+    raise NotImplementedError("the velocity operator is only implemented "
+      +"for dimensionality 1 and 2 (current.derivative, the shared "
+      +"k-derivative, has no 3D branch)")
 
 
 
@@ -459,10 +530,22 @@ def get_envelop(h,sites=[],d=0.3):
 
 
 def get_sigma_minus(h):
+    """Bloch generator of the sublattice lowering operator: a first
+    neighbor hopping that starts only on sublattice A, so the intra-cell
+    block is sigma_minus in the sublattice pseudospin.
+
+    Note that get_hk_gen adds the Hermitian conjugate of the inter-cell
+    hoppings, so the matrix this returns at finite k is not purely
+    sigma_minus -- only its intra-cell block is."""
     def fun(r1,r2):
         i1 = h.geometry.get_index(r1,replicas=True)
+        # get_index returns None for a position that is not in the cell or
+        # any of its replicas; there is nothing to couple then. This used
+        # to be unreachable, because `fun` was silently dropped by
+        # get_hamiltonian (it is the old name of `tij`) and a plain
+        # first-neighbor Hamiltonian was built instead
+        if i1 is None: return 0.0
         if not h.geometry.sublattice[i1]==1: return 0.0
-        i2 = h.geometry.get_index(r2,replicas=True)
         dr = r1-r2 # distance
         if 0.9<dr.dot(dr)<1.1: return 1.0 # get first neighbor
         return 0.0

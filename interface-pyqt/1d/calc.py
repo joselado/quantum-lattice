@@ -35,6 +35,7 @@ from interfacetk import qtwrap
 from interfacetk.ql_interface import * # noqa: F401,F403 - geometry, ribbon, np, ...
 from interfacetk import interfacetk
 from interfacetk import hamiltoniantype
+from interfacetk import latticeterms
 from interfacetk import common
 
 
@@ -76,10 +77,10 @@ def initialize(accessor=qtwrap):
     # "Spinless" rather than called with a zero-ish value
     h.add_zeeman(accessor.get_array("exchange"))
     if abs(accessor.get("rashba")) > 0.0: h.add_rashba(accessor.get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(accessor.get("mAF"))  # AF order
+    latticeterms.add_staggered_term(h,"mAF",accessor.get("mAF"),accessor.getbox("lattice"))  # AF order
     h.add_kane_mele(accessor.get("kanemele")) # intrinsic SOC
     h.add_anti_kane_mele(accessor.get("antikanemele"))
-  h.add_sublattice_imbalance(accessor.get("mAB"))  # sublattice imbalance
+  latticeterms.add_staggered_term(h,"mAB",accessor.get("mAB"),accessor.getbox("lattice"))  # sublattice imbalance
   h.add_crystal_field(accessor.get("crystalfield"))
   h.shift_fermi(accessor.get("fermi")) # shift fermi energy
   h.add_haldane(accessor.get("haldane")) # intrinsic SOC

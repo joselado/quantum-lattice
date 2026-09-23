@@ -5,9 +5,67 @@ from ..algebra import dagger,sqrtm
 delta_smatrix = 1e-12 # delta for the smatrix
 
 
+def _lead_selfenergies(ht,energy,delta_lead,delta_max):
+    """The two lead selfenergies, at the smallest broadening that actually
+    resolves them.
 
-def get_smatrix(ht,energy=0.0,as_matrix=False,check=True):
+    The S-matrix wants the leads evaluated as close to the real axis as
+    possible: a finite broadening adds an anti-Hermitian piece to the lead
+    selfenergy that is not real coupling, so Gamma = i(Sigma - Sigma^dag)
+    stops being the true level width and the Fisher-Lee S-matrix stops
+    being unitary -- which is why `delta_smatrix` is 1e-12 and why the
+    unitarity tolerance below is tied to it.
+
+    But that broadening is not always attainable. On a lead with a state
+    essentially at the evaluated energy the surface Green's function grows
+    like 1/delta, and at delta=1e-12 on a multi-orbital lead the
+    cancellation it needs is ~1e-12 out of numbers of size 1e11, which
+    double precision cannot carry -- greentk.rg refuses it rather than
+    return a wrong Green's function (see its Dyson-residual check). A
+    one-orbital chain never hits this, because the decimation there is
+    exact, which is why the clamp went unchallenged for so long.
+
+    So the broadening is raised only as far as it has to be, and never
+    past the junction's own `delta` -- the value landauer() uses, and the
+    reason landauer works on exactly the fixtures where this used to
+    fail. The caller ties the unitarity tolerance to whatever comes back,
+    so a raised broadening loosens that check honestly instead of
+    silently. If even the junction's own delta will not resolve the lead,
+    greentk's ValueError propagates: there is no answer to give."""
+    import warnings
+    d = delta_lead
+    while True:
+        try:
+            selfl = ht.get_selfenergy(energy,delta=d,lead=0,pristine=True)
+            selfr = ht.get_selfenergy(energy,delta=d,lead=1,pristine=True)
+        except ValueError:
+            if not d<delta_max: raise # nothing left to try, report it
+            d = min(d*100.,delta_max) # escalate, bounded by the junction's
+            continue
+        if d!=delta_lead: # tell the caller the S-matrix is less unitary
+            warnings.warn("the lead selfenergies could not be resolved at "
+                "delta=%g at energy %g, so the S-matrix was evaluated at "
+                "delta=%g instead (the junction's own delta is %g). The "
+                "Fisher-Lee S-matrix is only unitary in the limit of small "
+                "lead broadening, so this result is correspondingly less "
+                "unitary; the unitarity check is loosened to match."
+                %(delta_lead,energy,d,delta_max))
+        return selfl,selfr,d
+
+
+
+def get_smatrix(ht,energy=0.0,delta=None,as_matrix=False,check=True):
     """Calculate the S-matrix of an heterostructure.
+
+    `delta` is the broadening, and defaults to the junction's own `delta`
+    attribute. Passing it explicitly is exactly equivalent to building the
+    junction with that attribute: the broadening is read in several places
+    below (the lead selfenergies, the central Green's function, and for a
+    LocalProbe also the bulk_delta of the sample Green's function), so an
+    explicit value is applied by rebinding the attribute on a copy rather
+    than threaded into each of them one by one -- threading it reached
+    only the lead selfenergies, where it is clamped to delta_smatrix
+    anyway, so the keyword had no effect on the answer at all.
 
     Two cheap perf fixes applied here (2026-07-31, no behavior change,
     verified bit-identical against the previous implementation): sqrtm(Γ_L)
@@ -27,12 +85,14 @@ def get_smatrix(ht,energy=0.0,as_matrix=False,check=True):
     exercises get_smatrix with block_diagonal=True, so that rewrite would
     need new correctness tests first."""
     # now do the Fisher Lee trick
-    delta = ht.delta
-    if delta>delta_smatrix: delta = delta_smatrix # small delta is critical!
+    if delta is not None and delta!=ht.delta: # explicit, different delta
+        ht = ht.with_delta(delta) # rebind it, see the docstring above
+    delta = ht.delta # the heterostructure's own delta
+    delta_lead = delta # delta for the leads and the unitarity check
+    if delta_lead>delta_smatrix: delta_lead = delta_smatrix # small delta is critical!
     smatrix = [[None,None],[None,None]] # smatrix in list form
     # get the selfenergies, using the same coupling as the lead
-    selfl = ht.get_selfenergy(energy,delta=delta,lead=0,pristine=True)
-    selfr = ht.get_selfenergy(energy,delta=delta,lead=1,pristine=True)
+    (selfl,selfr,delta_lead) = _lead_selfenergies(ht,energy,delta_lead,delta)
     # get the central Green's function
     gmatrix = ht.get_central_gmatrix(selfl=selfl,selfr=selfr,
                                    energy=energy)
@@ -58,7 +118,7 @@ def get_smatrix(ht,energy=0.0,as_matrix=False,check=True):
     smatrix[1][1] = -iden22 + 1j*sqgr@g22@sqgr # matrix
     if check: # check whether the matrix is unitary
         from .unitarize import check_and_fix
-        smatrix = check_and_fix(smatrix,error=100*delta)
+        smatrix = check_and_fix(smatrix,error=100*delta_lead)
     if as_matrix:
       from scipy.sparse import bmat,csc_matrix
       smatrix2 = [[csc_matrix(smatrix[i][j]) for j in range(2)] for i in range(2)]
@@ -91,7 +151,9 @@ def get_central_gmatrix(ht,selfl=None,selfr=None,energy=0.0):
 def effective_tridiagonal_hamiltonian(intra,selfl,selfr,
                                         energy = 0.0, delta=1e-5):
     """ Calculate effective Hamiltonian"""
-    if not type(intra) is list: raise # assume is list
+    if not type(intra) is list: # assume is list
+        raise TypeError("the effective tridiagonal Hamiltonian takes the "
+                "central part as a list of blocks")
     n = len(intra) # number of blocks
     iout = [[None for i in range(n)] for j in range(n)] # empty list
     ce = energy +1j*delta # complex energy
@@ -113,7 +175,9 @@ def effective_tridiagonal_hamiltonian(intra,selfl,selfr,
 def enlarge_hlist(ht):
     """Add a single cell of the leads to the central part"""
     ho = ht.copy() # copy heterostructure
-    if not ht.block_diagonal: raise # check that is in block diagonal form
+    if not ht.block_diagonal: # check that is in block diagonal form
+        raise ValueError("enlarge_hlist needs a junction with a "
+                "block-diagonal central part")
     nc = len(ht.central_intra) # number of cells in the central
     hcentral = [[None for i in range(nc+2)] for j in range(nc+2)]
     for i in range(nc): # intraterm

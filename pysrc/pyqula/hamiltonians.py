@@ -84,6 +84,9 @@ class Hamiltonian():
     def get_spin_splitting_density(self,**kwargs):
         from .fermisurfacetk.spinsplitting import spin_splitting_density
         return spin_splitting_density(self,**kwargs)
+    def get_spin_splitting_vs_energy(self,**kwargs):
+        from .fermisurfacetk.spinsplitting import spin_splitting_vs_energy
+        return spin_splitting_vs_energy(self,**kwargs)
     def get_gf(self,**kwargs):
         from .htk.green import get_gf
         return get_gf(self,**kwargs)
@@ -97,9 +100,14 @@ class Hamiltonian():
         superconductivity.remove_pairing(self)
     def remove_sites(self,store):
         from . import sculpt
-        self.geometry = sculpt.remove_sites(self.geometry,store)
+        # the guard goes first: it used to fire after the geometry had
+        # already been replaced, leaving a shrunken geometry next to the
+        # original, full-size matrices
+        if self.has_spin:
+            raise NotImplementedError("remove_sites is not implemented for "
+                    "spinful Hamiltonians")
         from .algebratk.matrixcrop import crop_matrix
-        if self.has_spin: raise
+        self.geometry = sculpt.remove_sites(self.geometry,store)
         f = lambda m: crop_matrix(m,store)
         self.modify_hamiltonian_matrices(f) # modify all the matrices
     def get_filling(self,**kwargs):
@@ -142,6 +150,24 @@ class Hamiltonian():
         conductivity.py for the formula and conventions"""
         from . import conductivity
         return conductivity.optical_conductivity(h,**kwargs)
+
+    def get_nonlinear_drude_conductivity(h,**kwargs):
+        """l-th order nonlinear Drude conductivity sigma^{x^l1 y^l2 ; b},
+        whose lowest nonvanishing order measures the X-wave index of a
+        collinear magnet, see conductivity.py for the formula"""
+        from . import conductivity
+        return conductivity.nonlinear_drude_conductivity(h,**kwargs)
+
+    def get_nonlinear_drude_components(h,l,**kwargs):
+        """Every component of the l-th order nonlinear Drude conductivity"""
+        from . import conductivity
+        return conductivity.nonlinear_drude_components(h,l,**kwargs)
+
+    def get_nonlinear_drude_orders(h,**kwargs):
+        """X-wave selection-rule sweep of the nonlinear Drude spin
+        conductivity over orders l = 0..lmax"""
+        from . import conductivity
+        return conductivity.nonlinear_drude_orders(h,**kwargs)
 
     def get_drude_weight(h,**kwargs):
         """Drude (intraband) weight tensor, the Fermi-surface average of
@@ -187,25 +213,27 @@ class Hamiltonian():
     def get_spinchi_ladder(self,**kwargs):
         """Spin-spin response function with ladder operators.
 
-        RPA=True (the default) needs an interaction the site-basis spin
-        vertex can represent: an onsite (Hubbard-like) H.V, or a
-        neighbor-shell EXCHANGE one, whose three spin channels the SCF
-        records in H.Vchannels. A neighbor-shell density-density
-        interaction raises ValueError, see
-        chitk.spinchi._require_onsite_only_V's docstring. This is the
-        transverse (S+/S-) channel, so an in-plane anisotropy (Kx != Ky)
-        also raises -- use get_spinchi_full there."""
+        With RPA=True (the default) an interaction that couples each site
+        only to itself (a Hubbard U) is dressed with the site-basis
+        vertex, which is exact there for the transverse response. An
+        interaction that couples
+        different sites, density-density or exchange, has a Fock rung on
+        the electron-hole pair index that vertex has no place for, so the
+        response is summed in the pair basis instead (chitk.pairchi), with
+        the same keyword arguments and defaults; see
+        chitk.spinchi._use_pair_basis."""
         from . import chi
         return chi.spinchi_ladder(self,**kwargs)
     def get_spinchi_full(self,**kwargs):
         """Full spin-spin response function.
 
-        RPA=True (the default) needs an interaction the site-basis spin
-        vertex can represent: an onsite (Hubbard-like) H.V, or a
-        neighbor-shell EXCHANGE one, whose three spin channels the SCF
-        records in H.Vchannels. A neighbor-shell density-density
-        interaction raises ValueError, see
-        chitk.spinchi._require_onsite_only_V's docstring."""
+        With RPA=True (the default) an interaction that couples each site
+        only to itself (a Hubbard U) is dressed with the site-basis
+        vertex, which is exact there for the transverse response. An
+        interaction that couples
+        different sites, density-density or exchange, is summed in the
+        pair basis instead (chitk.pairchi), with the same keyword
+        arguments and defaults; see chitk.spinchi._use_pair_basis."""
         from . import chi
         return chi.spinchi_full(self,**kwargs)
     def get_iets_ldos(self,**kwargs):
@@ -226,16 +254,14 @@ class Hamiltonian():
         """Return the magnon bands of a magnetic mean-field state, scanned
         along a q-path.
 
-        method="rpa" (the default) takes the poles of the site-basis spin
-        RPA kernel (the Sx,Sy,Sz channel used by
-        get_spinchi_full/get_iets_ldos) on a frequency grid. It works for
-        metals as well as insulators, and takes an onsite (Hubbard-like)
-        H.V or a neighbor-shell EXCHANGE interaction, whose three spin
-        channels the SCF records in H.Vchannels. It raises ValueError for
-        a neighbor-shell DENSITY-DENSITY one, whose contribution to the
-        spin response is a rung on the electron-hole pair index that a
-        site-separable vertex cannot represent at all (see
-        chitk.spinchi._require_onsite_only_V).
+        method="rpa" (the default) takes the poles of the spin RPA kernel
+        (the Sx,Sy,Sz channel used by get_spinchi_full/get_iets_ldos) on a
+        frequency grid, and works for metals as well as insulators. For an
+        interaction that couples each site only to itself (a Hubbard U)
+        the kernel is built with the site-basis vertex, which is exact
+        there for the transverse response; for one that couples different sites it is the pair-basis
+        ladder of method="pair", with the frequency grid, broadening and
+        k-mesh defaults of "rpa" (see chitk.spinchi._use_pair_basis).
 
         method="pair" sums the same ladder as "rpa" but in the basis of
         the interaction's pair index, where the rung of a neighbour-shell
@@ -247,9 +273,16 @@ class Hamiltonian():
         Salpeter) problem in the spin-flip electron-hole pair basis
         instead, which is where that rung belongs: it handles any
         density-density interaction, onsite or not, and has an exact
-        Goldstone mode at Q=0 (check it with get_goldstone_residual). In
-        exchange it needs the same k-mesh the mean field was converged
-        on, and by default a gapped reference -- pass metal=True for an
+        Goldstone mode at Q=0 (check it with get_goldstone_residual).
+
+        "pair" and "tdhf" both take an EXCHANGE interaction too, when the
+        SCF recorded its spin channels in H.Vchannels: the Sx Sx and Sy Sy
+        channels carry the transverse part J/2 (S+_i S-_j + h.c.), which
+        h.V alone does not have. An Ising h.V with no H.Vchannels, e.g. a
+        hand-built matrix, raises ValueError, since nothing says whether
+        that transverse part belongs to it (SzSz, SxSx and SySy record
+        theirs, as an anisotropic exchange). "tdhf" needs the same k-mesh
+        the mean field was converged on, and by default a gapped reference -- pass metal=True for an
         itinerant magnet, which decides the occupied and empty sets per
         k-point instead. See bsetk.spinflip.magnon_bands_tdhf."""
         if method=="tdhf":
@@ -267,8 +300,10 @@ class Hamiltonian():
         """Transverse (S+/S-) spin response computed in the basis of the
         interaction's PAIR index rather than of sites, which is what lets
         it carry a neighbour-shell density-density interaction -- the one
-        the site-basis RPA maps to exactly zero. Needs no gap, and returns
-        a frequency-resolved chi. See chitk.pairchi"""
+        the site-basis RPA maps to exactly zero. An exchange interaction
+        is carried as well, through the spin channels the SCF records in
+        H.Vchannels. Needs no gap, and returns a frequency-resolved chi.
+        See chitk.pairchi"""
         from . import chi
         return chi.transverse_spinchi(self,**kwargs)
     def get_magnon_energies(self,**kwargs):
@@ -483,23 +518,36 @@ class Hamiltonian():
     def get_kdos_bands(self,**kwargs):
         from .kdos import kdos_bands
         return kdos_bands(self,**kwargs)
+    def get_unfolded_kpath(self,*args,**kwargs):
+        """k-path of the primitive cell, in this supercell's coordinates"""
+        from .unfolding import get_unfolded_kpath
+        return get_unfolded_kpath(self,*args,**kwargs)
     def get_surface_kdos(self,**kwargs):
         from .kdos import surface_kdos
         return surface_kdos(self,**kwargs)
     def add_sublattice_imbalance(self,mass):
       """ Adds a sublattice imbalance """
-      if self.geometry.has_sublattice and self.geometry.sublattice_number==2:
-        add_sublattice_imbalance(self,mass)
-      else: pass
+      require_sublattice(self,"add_sublattice_imbalance","staggers the "
+        +"onsite energy between the two sublattices")
+      if self.geometry.sublattice_number!=2:
+          raise ValueError("add_sublattice_imbalance is defined for two "
+            +"sublattices, and this geometry has "
+            +str(self.geometry.sublattice_number)+", whose sublattice index "
+            +"runs 0,1,2,... rather than +-1, so a single mass has no "
+            +"staggering to apply. Use add_onsite with a per-site profile "
+            +"instead, e.g. h.add_onsite(lambda r: ...).")
+      add_sublattice_imbalance(self,mass)
     def add_antiferromagnetism(self,mass):
         """ Adds antiferromagnetic imbalanc """
-        if self.geometry.has_sublattice:
-            if self.geometry.sublattice_number==2:
-                magnetism.add_antiferromagnetism(self,mass)
-            elif self.geometry.sublattice_number>2:
-                magnetism.add_frustrated_antiferromagnetism(self,mass)
-            else: raise
-        else: return 
+        require_sublattice(self,"add_antiferromagnetism","staggers the "
+          +"magnetization between sublattices")
+        if self.geometry.sublattice_number==2:
+            magnetism.add_antiferromagnetism(self,mass)
+        elif self.geometry.sublattice_number>2:
+            magnetism.add_frustrated_antiferromagnetism(self,mass)
+        else: raise ValueError("a geometry with "
+            +str(self.geometry.sublattice_number)+" sublattices has no "
+            +"antiferromagnetic pattern to write")
     def turn_nambu(self):
         """Add electron hole degree of freedom"""
         self.get_eh_sector = get_eh_sector_odd_even # assign function
@@ -519,17 +567,23 @@ class Hamiltonian():
         return hamiltonianmode.same_hamiltonian(self,*args,**kwargs)
     def get_supercell(self,nsuper,**kwargs):
       """ Creates a supercell of a one dimensional system"""
-      if nsuper is None: return self # do nothing
-      if nsuper==1: return self
-      if self.dimensionality==0: return self
+      # the contract is a new Hamiltonian, so the no-op cases return a copy
+      # and never an alias of self, which the caller would then mutate
+      if nsuper is None: return self.copy() # do nothing
+      if self.dimensionality==0: return self.copy() # nothing to replicate
       try: 
           nsuper[0] # check if it is a tuple 
           ns = nsuper # array as input
-      except:
+      except: # a single number was given
+          if nsuper==1: return self.copy() # nothing to replicate
           if self.dimensionality==1: ns = [nsuper,1,1]
           elif self.dimensionality==2: ns = [nsuper,nsuper,1]
           elif self.dimensionality==3: ns = [nsuper,nsuper,nsuper]
           else: raise
+      # a sequence is padded to three components and checked against the
+      # dimensionality here: multicell.supercell_hamiltonian unpacks three
+      # of them, while the geometry only reads the first `dimensionality`
+      ns = normalize_nsuper(self,ns)
       return multicell.supercell_hamiltonian(self,nsuper=ns,**kwargs)
     def supercell(self,*args,**kwargs):
       return self.get_supercell(*args,**kwargs)
@@ -576,34 +630,63 @@ class Hamiltonian():
       elif self.check_mode("spinful"):
           if channel=="up": c = 0
           elif channel=="dn": c = 1
-          else: raise
+          else:
+              raise ValueError("unknown spin channel; remove_spin accepts 'up' "
+                      "and 'dn'")
           def f(m): return des_spin(m,component=c)
           self.modify_hamiltonian_matrices(f) # modify the matrices
           self.has_spin = False # set to spinless
-      else: raise
+      else:
+          raise NotImplementedError("remove_spin is not implemented for "
+                  "Hamiltonians with the electron-hole (Nambu) degree of "
+                  "freedom; call h.remove_nambu() first")
     def remove_nambu(self):
       if self.check_mode("spinful_nambu"): 
           def f(m):
               return superconductivity.get_eh_sector(m,i=0,j=0)
           self.modify_hamiltonian_matrices(f) # modify the matrices
           self.has_eh = False # set to normal
+      elif self.check_mode("spinless_nambu"): 
+          # spinless Nambu matrices interleave electrons and holes, site by
+          # site (sctk.spinless.reorder), so the electron sector is the
+          # even rows and columns
+          def f(m):
+              return m[::2,::2]
+          self.modify_hamiltonian_matrices(f) # modify the matrices
+          self.has_eh = False # set to normal
       elif self.check_mode("spinful"): pass
       elif self.check_mode("spinless"): pass
-      else: raise
+      else:
+          raise NotImplementedError("remove_nambu is not implemented for this "
+                  "Hilbert space")
     def add_onsite(self,fermi):
       """ Move the Fermi energy of the system"""
       shift_fermi(self,fermi)
     def get_topological_invariant(self,**kwargs):
-        """Return a topological invariant"""
-        if self.dimensionality==0: pass
-        elif self.dimensionality==1: pass
+        """Return a topological invariant of the occupied bands.
+
+        In one dimension this is the Berry (Zak) phase, in two the Z2
+        invariant for a time-reversal-symmetric Hamiltonian and the Chern
+        number otherwise. The 0d and 3d cases used to return None and
+        raise a bare `raise` respectively."""
+        if self.dimensionality==0:
+            raise ValueError("a 0-dimensional (finite) Hamiltonian has no "
+              +"Brillouin zone, so no topological invariant is defined for "
+              +"it; build a periodic system, or look at the spectrum of "
+              +"the finite cluster instead")
+        elif self.dimensionality==1:
+            return topology.berry_phase(self,**kwargs) # Zak phase
         elif self.dimensionality==2: 
             if self.has_time_reversal_symmetry():
                 return topology.z2_invariant(self,**kwargs)
             else:
-                print("Computing Chern")
                 return topology.chern(self,**kwargs)
-        else: raise
+        else:
+            raise NotImplementedError("no topological invariant is "
+              +"implemented for a 3-dimensional Hamiltonian; compute the "
+              +"Chern number of a 2d slice with get_chern on a fixed third "
+              +"momentum, or the Berry phase along a chosen k-path with "
+              +"topology.berry_phase(h,kpath=...)")
     def shift_fermi(self,fermi): self.add_onsite(fermi)  
     def first_neighbors(self):
       """ Create first neighbor hopping"""
@@ -612,17 +695,22 @@ class Hamiltonian():
       elif self.dimensionality == 3:
         from .multicell import first_neighbors as fnm
         fnm(self)
-      else: raise
-    def add_hopping_matrix(self,fm):
+      else:
+          raise ValueError("the first-neighbor hopping needs a dimensionality "
+                  "between 0 and 3")
+    def add_hopping_matrix(self,fm,**kwargs):
         """
-        Add a certain hopping matrix to the Hamiltonian
+        Add a certain hopping matrix to the Hamiltonian. Any extra keyword
+        (in particular nc, the neighbor cutoff) is forwarded to the
+        geometry's Hamiltonian builder -- raise it above its default when
+        fm reaches beyond the cells that default cutoff covers.
         """
         if not self.is_multicell: 
             self.turn_multicell()
             #raise # this may not work for multicell
         h = self.geometry.get_hamiltonian(has_spin=self.has_spin,
                 is_multicell=self.is_multicell,
-                mgenerator=fm) # generate a new Hamiltonian
+                mgenerator=fm,**kwargs) # generate a new Hamiltonian
         self.add_hamiltonian(h) # add this contribution
     def add_hamiltonian(self,h):
         """
@@ -630,12 +718,11 @@ class Hamiltonian():
         """
         if not self.is_multicell: # not implemented
             self.turn_multicell()
-        hd = h.get_dict() # get the dictionary
-        self.intra = self.intra + hd[(0,0,0)] # add the matrix
-        for i in range(len(self.hopping)):
-            d = tuple(self.hopping[i].dir)
-            if d in hd:
-              self.hopping[i].m = self.hopping[i].m + hd[d]
+        # this used to loop over the directions self already had, so any
+        # lattice direction present only in h was dropped in silence
+        from .multihopping import MultiHopping
+        mh = MultiHopping(self.get_dict()) + MultiHopping(h.get_dict())
+        self.set_multihopping(mh) # store the merged hoppings
     def get_dict(self):
         """
         Return the dictionary that yields the hoppings
@@ -700,7 +787,9 @@ class Hamiltonian():
         return _mean_field_scf_result(VJinteraction(self,**kwargs),return_total_energy)
     def get_tails(self,discard=None):
         """Write the tails of the wavefunctions"""
-        if self.dimensionality!=0: raise
+        if self.dimensionality!=0:
+            raise ValueError("the tails of the wavefunctions are only defined "
+                    "for 0d Hamiltonians")
         else: return tails.matrix_tails(self.intra,discard=discard)
     def copy(self):
         """
@@ -717,10 +806,11 @@ class Hamiltonian():
         check.check_hamiltonian(self,**kwargs) # check the Hamiltonian
     def enforce_eh(self):
         """Enforce electron-hole symmetry in the Hamiltonian"""
-        self.turn_multicell() # turn to multicell mode
-        from superconductivity import eh_operator
-        f = eh_operator(self.intra) # electron hole operator
-        raise NotImplementedError
+        # the routine is not written yet, so say so and change nothing: the
+        # two lines that used to run first were a Python-2 absolute import
+        # (which raised ModuleNotFoundError before this guard could fire)
+        # and a turn_multicell() that mutated the Hamiltonian on the way out
+        raise NotImplementedError("enforce_eh is not implemented")
     def turn_sparse(self):
         """
         Transforms the hamiltonian into a sparse hamiltonian
@@ -818,7 +908,10 @@ class Hamiltonian():
         add_inplane_bfield(self,**kwargs)
     def align_magnetism(self,vectors=None):
         """ Rotate the Hamiltonian to have magnetism in the z direction"""
-        if self.has_eh: raise
+        if self.has_eh:
+            raise NotImplementedError("align_magnetism is not implemented for "
+                    "Hamiltonians with the electron-hole (Nambu) degree of "
+                    "freedom")
         from .rotate_spin import align_magnetism as align
         f = lambda m: align(m,vectors) # align the matrix
         if vectors is None: # get the magnetization
@@ -833,19 +926,97 @@ class Hamiltonian():
     def generate_spin_spiral(self,**kwargs):
         """ Generate a spin spiral antsaz in the Hamiltonian """
         return rotate_spin.generate_spin_spiral(self,**kwargs)
-    def get_magnetization(self,**kwargs):
-        """ Return the magnetization """
-        mx = self.extract(name="mx")
-        my = self.extract(name="my")
-        mz = self.extract(name="mz")
+    def get_magnetization(self,mode="vev",**kwargs):
+        """Return the site-resolved magnetization, as an (nsites,3) array.
+
+        Two different quantities go by this name:
+
+        - mode="vev" (the default) returns the physical magnetization: the
+          per-site expectation value (<S_x>,<S_y>,<S_z>) over the occupied
+          states, i.e. get_vev("sx"/"sy"/"sz"). This is the moment, and it
+          is what to report as one. Being a Brillouin-zone integral it
+          needs a k-mesh: pass nk, or rely on the mesh a self-consistent
+          Hamiltonian remembers from its own loop. With the electron-hole
+          (Nambu) degree of freedom it is read off the electron sector, so
+          that a BdG description of a state gives the same moment as the
+          normal-state description of that same state.
+
+        - mode="field" reads the magnetic *term written in the
+          Hamiltonian* instead, i.e. the coefficients of sigma_x/y/z on
+          each site, via extract("mx"/"my"/"mz"). After a self-consistent
+          calculation that term is the mean-field exchange field: the
+          natural order parameter of the loop, proportional -- not equal
+          -- to the moment. On a Hamiltonian whose field was put in by
+          hand with add_zeeman/add_exchange it hands that field straight
+          back, rather than the polarization the field induces. That used
+          to be the default, which made it easy to report a field as if it
+          were a moment.
+
+        Any extra keyword is forwarded to get_vev (e.g. nk) in "vev" mode.
+        """
+        if mode=="field":
+            mx = self.extract(name="mx")
+            my = self.extract(name="my")
+            mz = self.extract(name="mz")
+        elif mode=="vev":
+            # the moment is a Brillouin-zone integral, so unlike the field
+            # readout it has a k-mesh and needs a fine enough one: a
+            # weakly polarized metal whose moment is 0.02 comes out as
+            # exactly 0 on get_vev's default 30-point mesh. A Hamiltonian
+            # produced by a self-consistent calculation remembers the mesh
+            # it was converged on, so use that unless told otherwise.
+            if "nk" not in kwargs and getattr(self,"nk",None) is not None:
+                kwargs["nk"] = self.nk
+            # one Brillouin-zone sweep for the three components, rather
+            # than one per component: spectrum.ev takes a list of
+            # operators and shares the diagonalization between them
+            nsites = len(self.geometry.r) # number of sites
+            idx = [operators.index(self,n=[i]) for i in range(nsites)]
+            # the electron-sector restriction a Nambu Hamiltonian needs
+            # lives in get_vev, whose convention this shares
+            pe = None
+            if self.has_eh:
+                pe = operators.Operator(operators.get_electron(self))
+            ops = []
+            for name in ["sx","sy","sz"]:
+                op = self.get_operator(name) # spin operator
+                if pe is not None: op = pe*op*pe # electron sector
+                ops += [(o*op).get_matrix() for o in idx]
+            out = spectrum.ev(self,operator=ops,**kwargs).real
+            mx,my,mz = out[:nsites],out[nsites:2*nsites],out[2*nsites:]
+        else:
+            raise ValueError("unknown magnetization mode '"+str(mode)
+              +"', expected 'field' (the magnetic term in the Hamiltonian) "
+              +"or 'vev' (the expectation value of the spin operator)")
         return np.array([mx,my,mz]).T # return array
     def get_vev(self,operator=None,**kwargs):
         """
-        Compute a VEV of a spatially resolved operator
+        Compute a VEV of a spatially resolved operator.
+
+        With the electron-hole (Nambu) degree of freedom the sum runs over
+        the whole particle-hole-redundant set of negative-energy BdG
+        states, so a physical one-body observable is counted twice: the
+        site occupation of a BdG Hamiltonian came out as 2 where the
+        identical normal-state Hamiltonian gives 1, and its moment twice
+        as large. The operator is therefore restricted to the electron
+        sector there, the same convention spectrum.get_filling_spinful_nambu
+        uses for the filling, so that a BdG description of a state returns
+        the same numbers as the normal-state description of that state.
         """
         n = len(self.geometry.r) # number of sites
-        ops = [operators.index(self,n=[i]) for i in range(n)]
         op = self.get_operator(operator) # get an operator
+        if self.has_eh: # restrict to the electron sector, see above
+            pe = operators.Operator(operators.get_electron(self))
+            op = pe if op is None else pe*op*pe
+        if op is not None and op.matrix is None:
+            # an operator defined only by its action, and possibly a
+            # different one at every kpoint: the Brillouin-zone sum has to
+            # be done with the operator inside it, which spectrum.ev cannot
+            # do because it contracts against an already k-summed density
+            # matrix (see vev.kresolved_orbital_vev)
+            from .vev import kresolved_orbital_vev
+            return self.full2profile(kresolved_orbital_vev(self,op,**kwargs))
+        ops = [operators.index(self,n=[i]) for i in range(n)]
         if op is not None:
           ops = [(o*op).get_matrix() for o in ops] # define operators
         else:
@@ -858,7 +1029,9 @@ class Hamiltonian():
         """Return a 1d Hamiltonian"""
         if self.is_multicell: # not implemented
             self = self.get_no_multicell() # return the no multicell Hamiltonian
-        if not self.dimensionality==2: raise NotImplementedError
+        if not self.dimensionality==2:
+            raise NotImplementedError("get_1dh takes a 2d Hamiltonian, and "
+                    "returns the 1d one at a fixed transverse momentum")
         intra,inter = kchain(self,k=k) # generate intra and inter
         hout = self.copy() # copy the Hamiltonian
         hout.intra = intra # store
@@ -867,8 +1040,13 @@ class Hamiltonian():
         hout.geometry.dimensionality = 1 # one dimensional
         return hout
     def get_multicell(self):
-        """Return a multicell Hamiltonian"""
-        return multicell.turn_multicell(self)
+        """Return a multicell copy of the Hamiltonian, a new object even
+        when this one is already multicell, so the result can be modified
+        without touching this one. Internal read-only callers that do not
+        want the copy use multicell.turn_multicell directly."""
+        h = multicell.turn_multicell(self)
+        if h is self: h = self.copy()
+        return h
     def turn_multicell(self):
         """Conver to multicell Hamiltonian"""
         h = multicell.turn_multicell(self)
@@ -886,8 +1064,9 @@ class Hamiltonian():
             for t in h0.hopping:
                 print(t.m)
                 print(t.dir)
-            print("Hamiltonian cannot be made no multicell")
-            raise
+            raise ValueError("this Hamiltonian cannot be written in the "
+                    "non-multicell form, it couples cells beyond first "
+                    "neighbors")
         else: return h1 # return the Hamiltonian
     def clean(self):
         """Clean a Hamiltonian"""
@@ -924,12 +1103,23 @@ class Hamiltonian():
         from . import ipr
         if self.dimensionality==0:
             return ipr.ipr(self.intra,**kwargs) 
-        else: raise NotImplementedError
+        else:
+            raise NotImplementedError("the IPR is only implemented for 0d "
+                    "Hamiltonians")
     @get_docstring(dvector.dvector_non_unitarity)
     def get_dvector_non_unitarity(self,**kwargs):
         return dvector.dvector_non_unitarity(self,**kwargs)
     def get_density_matrix(self,**kwargs):
-        """Return the density matrix"""
+        """Return the density matrix.
+
+        Note the index convention: this is
+        dm[i,j] = sum_occ conj(psi_i) psi_j, the transpose of the usual
+        one, so an expectation value is Tr(dm.T@A) and NOT Tr(dm@A) --
+        the two differ by a sign for any purely imaginary operator (sy,
+        valley, current). See densitymatrix.full_dm for why the convention
+        is what it is. h.get_vev(operator) does this correctly and is the
+        way to get an expectation value.
+        """
         from . import densitymatrix
         return densitymatrix.full_dm(self,**kwargs)
     @get_docstring(superconductivity.average_hamiltonian_dvector)
@@ -950,14 +1140,27 @@ class Hamiltonian():
         return get_central_heterostructure(self,i=i,j=j,left=left,
                                             right=right,**kwargs)
     def get_dm_vev(self,A,**kwargs):
-        from . import get_dm_vev
+        # this used to be `from . import get_dm_vev`, a package attribute
+        # that src/pyqula/__init__.py deliberately never populates, so the
+        # method raised ImportError for every argument
+        from .vev import get_dm_vev
         return get_dm_vev(self,A,**kwargs)
     def get_single_vev(self,A,**kwargs):
+        # a single number, as the user guide documents it: spectrum.ev
+        # returns one entry per operator and there is one operator here,
+        # so this used to hand back an array of length one
         A = self.get_operator(A) # get an operator
-        return spectrum.ev(self,operator=A.get_matrix(),**kwargs).real
+        if A.matrix is None: # applied inside the sum over kpoints, see get_vev
+            from .vev import kresolved_orbital_vev
+            return float(np.sum(kresolved_orbital_vev(self,A,**kwargs)))
+        return float(spectrum.ev(self,operator=A.get_matrix(),**kwargs).real[0])
     def get_several_vev(self,As,**kwargs):
-        As = [self.get_operator(A).get_matrix() for A in As] # get an operator
-        return spectrum.ev(self,operator=As,**kwargs).real
+        As = [self.get_operator(A) for A in As] # get an operator
+        if all(A.matrix is not None for A in As): # all of them are matrices
+            # contract them against one density matrix, built once
+            return spectrum.ev(self,operator=[A.get_matrix() for A in As],
+                    **kwargs).real
+        return np.array([self.get_single_vev(A,**kwargs) for A in As])
 
 
 hamiltonian = Hamiltonian
@@ -966,21 +1169,64 @@ hamiltonian = Hamiltonian
 
 
 
+def normalize_nsuper(h,nsuper):
+  """Turn the number of repetitions of a supercell into a (n1,n2,n3) triple
+
+  Only a single number used to be padded, so a two-component sequence --
+  which Geometry.get_supercell accepts -- raised a bare IndexError inside
+  the supercell builder, and a three-component one on a 2d Hamiltonian
+  built matrices of n1*n2*n3 cells next to a geometry of n1*n2, with
+  nothing downstream noticing."""
+  if np.array(nsuper).shape==(3,3): # a supercell matrix
+      raise NotImplementedError("a non-orthogonal (3x3 matrix) supercell is "
+              "only implemented for the geometry, g.get_supercell(m); for a "
+              "Hamiltonian give the number of repetitions along each lattice "
+              "vector instead")
+  ns = [n for n in nsuper] # as a list
+  if len(ns)>3:
+      raise ValueError("nsuper has "+str(len(ns))+" components, but a "
+              "supercell has at most three (one per lattice vector)")
+  ns = ns + [1 for i in range(3-len(ns))] # pad the missing directions
+  for i in range(h.dimensionality,3): # directions the lattice does not have
+      if ns[i]!=1:
+          raise ValueError("nsuper asks for "+str(ns[i])+" repetitions along "
+                  "direction "+str(i)+", but this Hamiltonian is "
+                  +str(h.dimensionality)+"-dimensional; only its first "
+                  +str(h.dimensionality)+" components may differ from 1")
+  return ns
+
+
 def print_hamiltonian(h):
   """ Print the hamilotnian on screen """
   from scipy.sparse import coo_matrix as coo # import sparse matrix
-  intra = coo(h.intra) # intracell
-  inter = coo(h.inter) # intracell
-  print("Intracell matrix")
-  print(intra)
-  print("Intercell matrix")
-  print(inter)
+  # the real-space hoppings, which every Hamiltonian has: this used to read
+  # h.inter, an attribute only a non-multicell 1d Hamiltonian carries, so it
+  # raised AttributeError on every 2d and 3d lattice
+  dd = h.get_multihopping().get_dict() # dictionary of hoppings
+  # the intracell block first, then the neighboring cells, in a stable order
+  keys = sorted(dd,key=lambda d: (np.max(np.abs(d)),tuple(d)))
+  for key in keys: # loop over directions
+    if np.max(np.abs(key))==0: print("Intracell matrix")
+    else: print("Hopping matrix to the cell",tuple([int(i) for i in key]))
+    print(coo(dd[key]))
   return
 
 
 from .htk.cdw import add_sublattice_imbalance
 
 
+def require_sublattice(h,name,what):
+    """Refuse a sublattice-staggered term on a geometry with no sublattice.
+
+    These used to be silent no-ops, so a caller building "a gapped
+    semiconductor" on a triangular lattice got a gapless metal and no
+    warning."""
+    if not h.geometry.has_sublattice:
+        raise ValueError(name+" "+what+", and this geometry has no "
+          +"sublattice. On a bipartite lattice, build a cell that fits the "
+          +"pattern and label it -- g = g.get_supercell(2) followed by "
+          +"g.get_sublattice(), which two-colors the lattice. Otherwise "
+          +"write the profile explicitly with add_onsite/add_exchange.")
 
 
 
@@ -995,17 +1241,25 @@ def set_finite_system(hin,n=1,periodic=False):
   h = hin.copy() # copy Hamiltonian
   h = h.get_supercell(n) # make the supercell
   h = h.get_no_multicell()
+  # the wrap-around terms have to be added while the Hamiltonian still
+  # knows its dimensionality: this used to zero it two lines before the
+  # branches below tested it, so both were false by construction and
+  # periodic=True silently built an open cluster
+  dim = h.dimensionality # the dimensionality being collapsed
   h.dimensionality = 0 # put dimensionality = 0
   h.geometry.dimensionality = 0 # put dimensionality = 0
   if periodic: # periodic boundary conditions
-    if h.dimensionality == 1:
+    if dim == 1:
       h.intra = h.intra + h.inter + dagger(h.inter)
-    if h.dimensionality == 2:
+    elif dim == 2:
       h.intra = h.intra +  h.tx + dagger(h.tx) 
       h.intra = h.intra +  h.ty + dagger(h.ty)
       h.intra = h.intra +  h.txy + dagger(h.txy)
       h.intra = h.intra +  h.txmy + dagger(h.txmy)
-  else: pass
+    else:
+      raise NotImplementedError("periodic boundary conditions are only "
+        +"implemented for one- and two-dimensional Hamiltonians, not "
+        +str(dim)+"-dimensional ones")
   return h
   
 # remove spin degree of freedom
@@ -1019,7 +1273,9 @@ def shift_fermi(h,fermi):
     if checkclass.is_iterable(fermi): # iterable
       if len(fermi)==n: # same number of sites
         h.intra = h.intra + h.spinless2full(sparse_diag([fermi],[0]))
-      else: raise
+      else:
+          raise ValueError("a site-dependent Fermi energy needs one value per "
+                  "site")
     else:
       rc = [i for i in range(n)]  # index
       datatmp = [] # data
@@ -1061,7 +1317,9 @@ def first_neighborsnd(h):
     h.ty = gett(r,r+a2)
     h.txy = gett(r,r+a1+a2)
     h.txmy = gett(r,r+a1-a2)
-  else: raise
+  else:
+      raise ValueError("the non-multicell first-neighbor hopping is only "
+              "implemented up to 2d")
 
 
 

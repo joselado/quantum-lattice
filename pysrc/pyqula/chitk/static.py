@@ -7,8 +7,9 @@ import numpy as np
 def chargechi(h,i=0,j=0):
     """Compute the charge correlator for a Hamiltonian"""
     if h.has_eh: 
-        print("Hamiltonians with eh not implemented")
-        raise NotImplementedError
+        raise NotImplementedError("the static charge correlator is not "
+                "implemented for Hamiltonians with the electron-hole (Nambu) "
+                "degree of freedom")
     if not h.has_spin:
         return single_chargechi(h,i=i,j=j)
     else:
@@ -23,8 +24,9 @@ def chargechi(h,i=0,j=0):
 def szchi(h,i=0,j=0):
     """Compute the charge correlator for a Hamiltonian"""
     if h.has_eh:
-        print("Hamiltonians with eh not implemented")
-        raise NotImplementedError
+        raise NotImplementedError("the static Sz correlator is not "
+                "implemented for Hamiltonians with the electron-hole (Nambu) "
+                "degree of freedom")
     if not h.has_spin:
         return single_chargechi(h,i=i,j=j)
     else:
@@ -62,13 +64,17 @@ def sychi(H,**kwargs):
 
 def single_chargechi(h,i=0,j=0,temp=1e-7):
     """Compute charge response function for a single orbital"""
-    if h.dimensionality!=0: raise
+    if h.dimensionality!=0:
+        raise ValueError("the static charge response is only implemented for "
+                "0d Hamiltonians")
     hk = h.get_hk_gen() # get generator
     m = hk(0) # get Hamiltonian
     esh,ws = algebra.eigh(m) # diagonalize
     ws = np.transpose(ws) # transpose wavefunctions
-    if i<0: raise # sanity check
-    if j<0: raise # sanity check
+    if i<0: # sanity check
+        raise ValueError("the site index i must not be negative")
+    if j<0: # sanity check
+        raise ValueError("the site index j must not be negative")
     return elementchi(ws,esh,ws,esh,i,j,temp)
 
 
@@ -79,9 +85,13 @@ def elementchi(ws1,es1,ws2,es2,ii,jj,T):
     out = 0j # initialize
     n = len(ws1) # number of wavefunctions
     for i in range(n): # first loop over states
-      oi = (-np.tanh(es1[i]/T) + 1.0)/2. # first occupation
+      # (1 - tanh(E/2T))/2 is Fermi-Dirac at T; without the half in the
+      # argument it is Fermi-Dirac at T/2, the same discrepancy
+      # chiAB_full_matrix_jit carried. chitk/chijax._occupations is the
+      # reference form.
+      oi = (1. - np.tanh(es1[i]/(2.*T)))/2. # first occupation
       for j in range(n): # second loop over states
-          oj = (-np.tanh(es2[j]/T) + 1.0)/2. # second occupation
+          oj = (1. - np.tanh(es2[j]/(2.*T)))/2. # second occupation
           fac = np.conjugate(ws1[i][ii])*ws2[j][ii] # add the factor
           fac *= ws1[i][jj]*np.conjugate(ws2[j][jj]) # add the factor
           # probably this should be written better

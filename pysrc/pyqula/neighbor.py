@@ -139,7 +139,14 @@ def connections(r1,r2,dr=1.0):
 
 
 def parametric_hopping(r1,r2,fc,is_sparse=False):
-  """ Generates a parametric hopping based on a function"""
+  """ Generates a parametric hopping based on a function.
+
+  The result is the hopping from the r1 sites to the r2 sites, so it has
+  len(r1) rows and len(r2) columns. Both dimensions used to be taken from
+  r2, which only happens to be right when the two lists have the same
+  length -- the rectangular case (a lead-to-central coupling, see
+  multiterminal.Device.biterminal) came back square, with the rows beyond
+  len(r1) left at zero."""
   if is_sparse: # sparse matrix
     # This should be made more efficient
 #    print("Sparse parametric hopping")
@@ -151,13 +158,12 @@ def parametric_hopping(r1,r2,fc,is_sparse=False):
             data.append(val)
             rows.append(i)
             cols.append(j)
-    n = len(r2)
-    m = csc_matrix((data,(rows,cols)),shape=(n,n),dtype=np.complex128)
+    m = csc_matrix((data,(rows,cols)),shape=(len(r1),len(r2)),
+                    dtype=np.complex128)
   #  if not is_sparse: m = m.todense() # dense matrix
     return m
   else:
-    n = len(r2)
-    m = np.array(np.zeros((n,n),dtype=np.complex128)) # complex matrix
+    m = np.array(np.zeros((len(r1),len(r2)),dtype=np.complex128)) # complex matrix
     for i in range(len(r1)):
       for j in range(len(r2)):
         m[i,j] = fc(r1[i],r2[j])
@@ -205,7 +211,9 @@ def generate_parametric_hopping(h,f=None,mgenerator=None,
     has_spin = h.has_spin # check if it has spin
     is_sparse = h.is_sparse
     if mgenerator is None: # no matrix generator given on input
-      if f is None: raise # no function given on input
+      if f is None: # no function given on input
+        raise ValueError("a parametric hopping needs either a hopping "
+                "function f or a matrix generator mgenerator")
       if spinful_generator:
         h.has_spin = True
         generator = parametric_hopping_spinful
@@ -215,7 +223,9 @@ def generate_parametric_hopping(h,f=None,mgenerator=None,
       def mgenerator(r1,r2):
         return generator(r1,r2,f,is_sparse=is_sparse)
     else:
-      if h.dimensionality==3: raise
+      if h.dimensionality==3:
+        raise NotImplementedError("a matrix generator is not supported for 3d "
+                "Hamiltonians, pass a hopping function f instead")
     h.intra = mgenerator(rs,rs)
     if h.dimensionality == 0: pass
     elif h.dimensionality == 1:
@@ -227,11 +237,15 @@ def generate_parametric_hopping(h,f=None,mgenerator=None,
       h.txy = mgenerator(rs,rs+g.a1+g.a2)
       h.txmy = mgenerator(rs,rs+g.a1-g.a2)
     elif h.dimensionality == 3:
-      if spinful_generator: raise NotImplementedError
+      if spinful_generator:
+        raise NotImplementedError("a spinful hopping generator is not "
+                "implemented for 3d Hamiltonians")
       h.is_multicell = True # multicell Hamiltonian
       from . import multicell
       multicell.parametric_hopping_hamiltonian(h,fc=f)
-    else: raise
+    else:
+      raise ValueError("the parametric hopping needs a dimensionality between "
+              "0 and 3")
     # check that the sparse mde is set ok
     if is_sparse and not algebra.issparse(h.intra):
       h.is_sparse = False
@@ -317,7 +331,9 @@ def neighbor_directions(g,cutoff=3):
         for i2 in range(-cutoff,cutoff+1):
           for i3 in range(-cutoff,cutoff+1):
             dirs.append([i1,i2,i3])
-    else: raise NotImplementedError
+    else:
+      raise ValueError("the neighbor directions need a geometry of "
+              "dimensionality between 0 and 3")
     dirs = [np.array(d) for d in dirs]
     return dirs # return directions
 

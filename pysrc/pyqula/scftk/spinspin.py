@@ -124,7 +124,34 @@ def SzSz(h, J1=0.0, J2=0.0, J3=0.0, Jr=None, constrains=[], callback_mf=None,
     v = _build_v(h, J1, J2, J3, Jr)
     constrain_cb = _callback_mf_constrains(h, constrains)
     callback_mf = _compose_callbacks(constrain_cb, callback_mf)
-    return densitydensity(h, v=v, callback_mf=callback_mf, **kwargs)
+    scf = densitydensity(h, v=v, callback_mf=callback_mf, **kwargs)
+    if getattr(scf, "hamiltonian", None) is not None:
+        _record_ising_channels(scf.hamiltonian, v, "z")
+    return scf
+
+
+def _record_ising_channels(h, v, axis):
+    """Record a single-axis exchange as h.Vchannels, the same x/y/z/d
+    layout _run_anisotropic_scf writes, with the Ising matrix v in the
+    `axis` channel and the other two at zero.
+
+    Without it an SzSz/SxSx/SySy result carries an Ising h.V and nothing
+    beside it, which is exactly what the Ising half of an isotropic
+    exchange with its transverse part lost looks like, so every spin
+    response refuses it. Recorded, it is an anisotropic exchange like
+    VJinteraction(J1z=...) and gets the kernel of that interaction.
+
+    For axis x or y the SCF ran in a rotated frame, so v is not the
+    laboratory z channel: h.V is set to that channel, zero, to keep h.V and
+    h.Vchannels in the same frame, which is what
+    bsetk.interaction.interaction_channels assumes."""
+    def zero():
+        return {d: np.zeros(np.shape(m), dtype=np.complex128)
+                for (d, m) in v.items()}
+    ch = {"x": zero(), "y": zero(), "z": zero(), "d": None}
+    ch[axis] = v
+    if axis != "z": h.V = ch["z"]
+    h.Vchannels = ch
 
 
 _AXIS_ROTATION = {
@@ -175,16 +202,25 @@ def _rotated_axis_exchange(h, axis, J1, J2, J3, Jr, constrains, **kwargs):
     bwd = dict(fwd); bwd["angle"] = -fwd["angle"]
     h0 = h.get_multicell().get_dense() # keep the original, unrotated reference
     hr = h0.copy()
+    # an interaction an earlier SCF left on the input is replaced by this
+    # one, and an anisotropic one would refuse the rotation
+    hr.V, hr.Vchannels = None, None
     hr.global_spin_rotation(**fwd) # rotate so that `axis` becomes computational z
     mf0 = kwargs.pop("mf", None)
     mf_rot = _rotate_mf_guess(h0, axis, mf0, **fwd)
     callback_mf = _rotated_constrains_callback(h0, constrains, fwd, bwd)
     scf = SzSz(hr, J1, J2, J3, Jr, mf=mf_rot, callback_mf=callback_mf, **kwargs)
     if scf.hamiltonian is not None:
+        v = scf.hamiltonian.V # the Ising matrix, in the rotated frame
+        # the z channel SzSz recorded is an anisotropic exchange, which a
+        # spin rotation refuses to carry; the channels are rewritten in the
+        # laboratory frame right after
+        scf.hamiltonian.Vchannels = None
         scf.hamiltonian.global_spin_rotation(**bwd) # rotate the result back
+        _record_ising_channels(scf.hamiltonian, v, axis)
     # scf.mf/scf.dm/scf.v are left expressed in the internally-rotated frame;
-    # scf.hamiltonian (the user-facing result) and scf.hamiltonian0 are in
-    # the original frame
+    # scf.hamiltonian (the user-facing result, with h.V and h.Vchannels) and
+    # scf.hamiltonian0 are in the original frame
     scf.hamiltonian0 = h0
     return scf
 
@@ -260,11 +296,9 @@ def Jinteraction(h0, Jx1=0.0, Jx2=0.0, Jx3=0.0, Jy1=0.0, Jy2=0.0, Jy3=0.0,
     induces anomalous/pairing mean field on top of the usual magnetic one
     -- see _run_anisotropic_scf's docstring for how the x/y
     rotate-decouple-rotate-back trick extends to the anomalous sector.
-    CAVEAT: scf.total_energy's double-counting correction is normal-sector-
-    only (see _run_anisotropic_scf's total-energy tail) -- it is
-    systematically off whenever J converges to a nonzero anomalous mean
-    field. scf.hamiltonian (the actual converged Hamiltonian/mean field)
-    does not have this limitation."""
+    scf.total_energy subtracts the double counting of both the normal and
+    the anomalous mean field (see _run_anisotropic_scf's total-energy
+    tail), so it is the mean-field energy of a paired state too."""
     if not h0.has_spin: return NotImplemented # only for spinful systems, same as SzSz/SxSx/SySy
     h1 = h0.get_multicell().get_dense()
     nd = h1.geometry.neighbor_distances() # shared by all three _build_v calls below
@@ -394,23 +428,20 @@ def VJinteraction(h0, V1=0.0, V2=0.0, V3=0.0, U=0.0, Vr=None,
     ALSO stored, separately, as h.Vchannels = {"x": vx, "y": vy, "z": vz,
     "d": vd} -- that is what the spin-channel RPA
     (chitk.spinchi._channel_spin_U) reads to build a vertex matching this
-    mean field, and it is why get_magnon_bands/get_spinchi_full/
-    get_spinchi_ladder work on an exchange-converged Hamiltonian. They
-    still raise ValueError when the non-onsite part is a DENSITY-DENSITY
-    interaction, whose Fock rung no site-separable vertex can carry at all
-    -- see chitk.spinchi._require_onsite_only_V's docstring, and
-    h.get_magnon_bands(method="tdhf") for the route that does handle it.
+    mean field, and what chitk.pairchi and bsetk.spinflip read to build the
+    transverse rung of the exchange. get_magnon_bands/get_spinchi_full/
+    get_spinchi_ladder sum the response of any interaction that couples
+    different sites in the pair basis (see chitk.spinchi._use_pair_basis),
+    since no site-separable vertex can carry the Fock rung of those bonds.
 
     For a BdG (Nambu, h0.has_eh=True) Hamiltonian, density-density and
     exchange are kept as separate contributions summed each SCF iteration
     (see _run_anisotropic_scf's docstring), but both get the same full
     normal+anomalous (pairing) treatment (identical to Vinteraction) -- J
-    induces anomalous/pairing mean field here too, not just V/U. CAVEAT:
-    scf.total_energy's double-counting correction is normal-sector-only
-    (see _run_anisotropic_scf's total-energy tail) -- it is systematically
-    off whenever any channel converges to a nonzero anomalous mean field.
-    scf.hamiltonian (the actual converged Hamiltonian/mean field) does not
-    have this limitation.
+    induces anomalous/pairing mean field here too, not just V/U.
+    scf.total_energy subtracts the double counting of both the normal and
+    the anomalous mean field of every channel (see _run_anisotropic_scf's
+    total-energy tail).
 
     See Vinteraction and Jinteraction for further background on the
     density-density and exchange conventions respectively; only the
@@ -1026,7 +1057,10 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
 
     def callback_h(hh):
         if mu is None:
-            fermi = hh.get_fermi4filling(filling, nk=hh.nk)
+            # T, because the density matrix is built with the Fermi-Dirac
+            # weight at this same T -- see the identical comment in
+            # densitydensity.densitydensity's own callback_h
+            fermi = hh.get_fermi4filling(filling, nk=hh.nk, T=T)
             hh.fermi = fermi
             hh.shift_fermi(-fermi)
         else:
@@ -1355,26 +1389,10 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
     # shared code, out of scope to fix here, but not one to reproduce for
     # vd just because it happens to match precedent)
     #
-    # KNOWN LIMITATION (pre-existing for vd/Vinteraction, and now equally
-    # true for vz/vx/vy since they can induce anomalous/pairing mean field
-    # too, see compute_mf): only the NORMAL (Hartree-Fock) double-counting
-    # term is ever subtracted here, via get_dc_energy on the electron-sector
-    # dm -- there is no matching correction for the ANOMALOUS/pairing
-    # double-counting energy get_mf_bdg's decoupling also implies. So
-    # scf.total_energy is systematically off (by an uncharacterized amount)
-    # whenever ANY channel (vd, or now vz/vx/vy) has converged to a nonzero
-    # anomalous mean field -- e.g. the AFM-isotropic-J RVB pairing case in
-    # tests/scf/test_spinspin_nambu.py. Deriving the correct anomalous
-    # double-counting formula (mirroring get_dc_energy_jit's Hartree+Fock
-    # derivation, but for get_mf_anomalous's contraction pattern) was
-    # deliberately left undone here rather than attempted without a
-    # reliable way to validate its sign/prefactor are actually right (both
-    # of this module's own validation tools -- supercell-extensivity checks
-    # and the SU(2)/gauge rotational-invariance checks above -- would stay
-    # green even under a consistent, uniform prefactor error, since neither
-    # varies the interaction strength or geometry against an independently
-    # computed reference). scf.hamiltonian (the actual converged mean
-    # field) is unaffected -- only the scf.total_energy scalar diagnostic.
+    # The anomalous (pairing) part of the interaction energy is counted
+    # twice by the band energy as well, and is subtracted once at the end
+    # from compute_mf on the lab-frame density matrix, which sums every
+    # channel's rotated decoupling (superscf.get_dc_energy_anomalous).
     h = scf.hamiltonian
     if use_kpm:
         # never diagonalize H(k), even for this final, once-per-call step:
@@ -1400,7 +1418,10 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
             # filling are both uniform.
             etot += 2.0*np.sum(np.asarray(h.fermi)*filling_arr)
         else:
-            etot += h.fermi*h.intra.shape[0]*filling
+            # electron_dimension, not h.intra.shape[0] -- see the identical
+            # comment in densitydensity.densitydensity
+            from .densitydensity import electron_dimension
+            etot += h.fermi*electron_dimension(h)*filling
     dme = electron_sector(scf.dm)
     if vz_active:
         etot += get_dc_energy(vz, dme)
@@ -1412,5 +1433,11 @@ def _run_anisotropic_scf(h1, vx, vy, vz, mf, filling, mu, mix, nk,
         etot += get_dc_energy(vy, dm_y)
     if vd_active:
         etot += get_dc_energy(vd, dme)
+    if has_eh:
+        # the pairing part of every channel at once: compute_mf is the sum
+        # of the rotated channel decouplings, so its anomalous blocks are
+        # the full anomalous mean field (see get_dc_energy_anomalous)
+        from .superscf import get_dc_energy_anomalous
+        etot += get_dc_energy_anomalous(compute_mf(scf.dm), scf.dm)
     scf.total_energy = etot.real
     return scf

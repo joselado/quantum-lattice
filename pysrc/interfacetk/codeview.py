@@ -32,6 +32,7 @@ from PySide6.QtGui import QFont
 from qfluentwidgets import PlainTextEdit, PushButton
 from . import termhighlight
 from . import hamiltoniantype
+from . import latticeterms
 
 
 def is_active(qtwrap, name):
@@ -39,13 +40,18 @@ def is_active(qtwrap, name):
     - the same test termhighlight.py uses to bold a field the moment it's
     active, reused here so a term appears in the generated code exactly
     when it's shown as active in the UI. False (line omitted) if the field
-    doesn't exist on this page, or if the current Hamiltonian type
-    (Spinless/Spinful/Nambu, see hamiltoniantype.py) hides it - a term
-    hidden in the UI must never still show up in the generated code just
-    because a stale nonzero value is sitting in its now-hidden field."""
-    field = getattr(qtwrap.form, name, None)
+    doesn't exist on this page, or if latticeterms.term_shown() hides it
+    for the current lattice or Hamiltonian type (Spinless/Spinful/Nambu,
+    see hamiltoniantype.py) - a term hidden in the UI must never still show
+    up in the generated code just because a stale nonzero value is sitting
+    in its now-hidden field, the same rule the Hamiltonian builders apply
+    (latticeterms.add_staggered_term())."""
+    form = qtwrap.form
+    field = getattr(form, name, None)
     if field is None: return False
-    if not hamiltoniantype.term_allowed(hamiltoniantype.get_type(qtwrap), name): return False
+    get_lattice_name = getattr(form, "_term_lattice_name", None) # set by latticeterms.connect()
+    lattice_name = get_lattice_name() if get_lattice_name else None
+    if not latticeterms.term_shown(name, lattice_name, hamiltoniantype.get_type(qtwrap)): return False
     return termhighlight.is_nonzero_value(field.text())
 
 

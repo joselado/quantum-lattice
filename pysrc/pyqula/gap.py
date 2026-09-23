@@ -71,7 +71,8 @@ def gap2d(h,nk=40,k0=None,rmap=1.0,recursive=False,
 
   else: # classical way
     if k0 is None: k0 = np.random.random(2) # random shift
-    if h.dimensionality != 2: raise
+    if h.dimensionality != 2:
+      raise ValueError("gap2d is only implemented for 2d Hamiltonians")
     hk_gen = h.get_hk_gen() # get hamiltonian generator
     emin = 1000. # initial values
     for ix in np.linspace(-.5,.5,nk):  
@@ -145,7 +146,10 @@ def optimize_energy(h,robust=True,mode="full",**kwargs):
     def gete(k): # return the energies
       hk = hk_gen(k) # Hamiltonian 
       if h.is_sparse: 
-          if mode in ["top","bottom"]: raise # this should be finished
+          if mode in ["top","bottom"]: # this should be finished
+            raise NotImplementedError("the 'top' and 'bottom' modes are not "
+                    "implemented for sparse Hamiltonians; call h.get_dense() "
+                    "first")
           else:
               es = algebra.smalleig(hk,numw=3) # sparse mode
       else: es = algebra.eigvalsh(hk) # get eigenvalues
@@ -175,19 +179,37 @@ def optimize_energy(h,robust=True,mode="full",**kwargs):
       es = gete(k) # get eigenvalues
       return -np.max(es) # bottom
     def opte(f):
-      """Optimize the eigenvalues"""
+      """Optimize the eigenvalues.
+
+      The optimization starts from the best point of a deterministic
+      coarse k-grid rather than from a random one, and the global search
+      is seeded. Both matter: the minimum this looks for is the band edge,
+      and a search started at an arbitrary point can settle on a nearby
+      local minimum instead. On a gapless system that shows up as a small
+      but nonzero gap -- a metallic ferromagnet whose gap is 0 returned
+      2e-4 or 1e-16 depending on nothing but the state of the global
+      random number generator when it was called. The grid also gives the
+      optimizer a good starting point, so the polish converges in fewer
+      evaluations."""
       from scipy.optimize import differential_evolution
       from scipy.optimize import minimize
       if h.dimensionality==0:
           return f([0.,0.,0.]) # return
-      else:
-          bounds = [(0.,1.) for i in range(h.dimensionality)]
+      bounds = [(0.,1.) for i in range(h.dimensionality)]
+      # deterministic coarse scan of the Brillouin zone
+      ng = {1:20,2:12,3:8}[h.dimensionality] # points per direction
+      grid = np.linspace(0.,1.,ng,endpoint=False)
+      ks = np.array(np.meshgrid(*([grid]*h.dimensionality),indexing="ij"))
+      ks = ks.reshape(h.dimensionality,-1).T # one row per k-point
+      vals = np.array([f(k) for k in ks]) # scan
+      ib = int(np.argmin(vals)) # best point of the grid
+      bx,bf = ks[ib],vals[ib]
       if robust: # use a robust optimization
-          res = differential_evolution(f,bounds=bounds,**kwargs)
-      else: # conventional optimization
-          x0 = np.random.random(h.dimensionality) # inital vector
-          res = minimize(f,x0,method="Powell",bounds=bounds,**kwargs)
-      return f(res.x)
+          res = differential_evolution(f,bounds=bounds,x0=bx,seed=0,**kwargs)
+      else: # conventional optimization, polished from the grid minimum
+          res = minimize(f,bx,method="Powell",bounds=bounds,**kwargs)
+      if res.fun<bf: bx,bf = res.x,res.fun # keep the better of the two
+      return f(bx)
     if mode=="full":
         ev = opte(funv) # optimize valence band
         if h.has_eh: ec = ev # workaround for SC
@@ -201,7 +223,9 @@ def optimize_energy(h,robust=True,mode="full",**kwargs):
         return opte(fbottom) # optimize bottom of the bands
     elif mode=="top":
         return -opte(ftop) # optimize top of the bands
-    else: raise
+    else:
+      raise ValueError("unknown mode; optimize_energy accepts 'full', "
+              "'valence', 'conduction', 'bottom' and 'top'")
 
 
 indirect_gap = optimize_energy # wrapper (for compatibility)

@@ -280,7 +280,9 @@ def _cell_volume(g,dim=None):
     if dim==1: return np.sqrt(g.a1.dot(g.a1))
     elif dim==2: return np.abs(np.cross(g.a1,g.a2)[2])
     elif dim==3: return np.abs(np.dot(g.a1,np.cross(g.a2,g.a3)))
-    else: raise NotImplementedError
+    else:
+        raise ValueError("the cell volume needs a geometry of dimensionality "
+                "1, 2 or 3")
 
 
 # ---------------------------------------------------------------------------
@@ -302,9 +304,11 @@ class TwistOperators():
     def __init__(self,h,gauge="atomic"):
         if gauge not in ("atomic","lattice"): raise ValueError(
                 "unknown gauge "+str(gauge)+" (use 'atomic' or 'lattice')")
-        hm = h.get_multicell().copy() # own copy: get_multicell may alias h
-        hm.intra = np.asarray(hm.intra)
-        for t in hm.hopping: t.m = np.asarray(t.m)
+        hm = h.get_multicell() # a copy, modified below
+        # densify with algebra.todense: np.asarray on a scipy sparse matrix
+        # returns a 0-d object array instead of the dense matrix
+        hm.intra = algebra.todense(hm.intra)
+        for t in hm.hopping: t.m = algebra.todense(t.m)
         self.h = hm
         self.geometry = hm.geometry
         self.dim = hm.dimensionality
@@ -477,7 +481,9 @@ def _superfluid_weight_at(es,ws,A,B,T,nd):
     dia = np.zeros((nd,nd))
     for (a,b) in B:
         if a>b: continue
-        v = np.sum(nf*np.einsum("ij,jk,ki->i",wsc.T,B[(a,b)],ws)).real
+        # diag(w^dag B w), as one gemm and a reduction: a three-operand
+        # einsum gets no BLAS dispatch and runs as a scalar triple loop
+        v = np.sum(nf*np.sum(wsc*(B[(a,b)]@ws),axis=0)).real
         dia[a,b] = v ; dia[b,a] = v
     return para,dia
 

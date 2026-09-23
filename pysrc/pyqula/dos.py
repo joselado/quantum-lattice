@@ -19,7 +19,8 @@ from .dostk.eigtodos import calculate_dos
 def dos_surface(h,output_file="DOS.OUT",
                  energies=np.linspace(-1.,1.,20),delta=0.001):
   """Calculates the DOS of a surface, and writes in file"""
-  if h.dimensionality!=1: raise # only for 1d
+  if h.dimensionality!=1: # only for 1d
+    raise ValueError("the surface DOS is only implemented for 1d Hamiltonians")
   fo = open(output_file,"w")
   fo.write("# energy, DOS surface, DOS bulk\n")
   for e in energies: # loop over energies
@@ -43,8 +44,11 @@ def dos0d(h,energies=np.linspace(-4,4,500),delta=0.01):
 
 def dos0d_kpm(h,use_kpm=True,scale=10,npol=100,ntries=100,fun=None):
   """ Calculate density of states of a 1d system"""
-  if h.dimensionality!=0: raise # only for 0d
-  if not use_kpm: raise # only using KPM
+  if h.dimensionality!=0: # only for 0d
+    raise ValueError("dos0d_kpm is only for 0d Hamiltonians")
+  if not use_kpm: # only using KPM
+    raise ValueError("dos0d_kpm only implements the KPM, so use_kpm cannot be "
+            "switched off")
   h.turn_sparse() # turn the hamiltonian sparse
   mus = np.array([0.0j for i in range(2*npol)]) # initialize polynomials
   mus = kpm.random_trace(h.intra/scale,ntries=ntries,n=npol,fun=fun)
@@ -55,7 +59,8 @@ def dos0d_kpm(h,use_kpm=True,scale=10,npol=100,ntries=100,fun=None):
 
 def dos0d_sites(h,sites=[0],scale=10.,npol=500,ewindow=None,refine_e=1.0):
   """ Calculate density of states of a 1d system for a certain orbitals"""
-  if h.dimensionality!=0: raise # only for 1d
+  if h.dimensionality!=0: # only for 1d
+    raise ValueError("dos0d_sites is only for 0d Hamiltonians")
   h.turn_sparse() # turn the hamiltonian sparse
   mus = np.array([0.0j for i in range(2*npol)]) # initialize polynomials
   hk = h.intra # hamiltonian
@@ -90,7 +95,8 @@ def write_dos(es,ds,output_file="DOS.OUT"):
 
 def dos1d_sites(h,sites=[0],scale=10.,nk=100,npol=100,info=False,ewindow=None):
   """ Calculate density of states of a 1d system for a certain orbitals"""
-  if h.dimensionality!=1: raise # only for 1d
+  if h.dimensionality!=1: # only for 1d
+    raise ValueError("dos1d_sites is only for 1d Hamiltonians")
   ks = np.linspace(0.,1.,nk,endpoint=False) # number of kpoints
   h.turn_sparse() # turn the hamiltonian sparse
   hkgen = h.get_hk_gen() # get generator
@@ -130,9 +136,8 @@ def calculate_dos_hkgen(hkgen,ks,ndos=100,delta=None,
         es = np.concatenate([es,o]) # concatenate
     es = np.array(es) # convert to array
   else: # dense Hamiltonian: batch all k-points into one numba eigh call
-    from .htk.eigenvectors import peigvalsh
-    mats = np.array([hkgen(k) for k in ks],dtype=np.complex128) # H(k) batch
-    es = peigvalsh(mats) # batched numba eigh, shape (len(ks),n)
+    from .htk.eigenvectors import peigvalsh_bloch
+    es = peigvalsh_bloch(hkgen,ks) # batched eigh, shape (len(ks),n)
     es = es.reshape(es.shape[0]*es.shape[1]) # 1d array
   nk = len(ks) # number of kpoints
   if energies is not None: # energies given on input
@@ -178,7 +183,8 @@ def dos_kmesh(h,nk=100,delta=None,random=False,ks=None,
 def dos3d(h,scale=10.,nk=20,delta=None,ndos=100,
         random=False,energies=None):
     """ Calculate density of states of a 2d system"""
-    if h.dimensionality!=3: raise # only for 2d
+    if h.dimensionality!=3: # only for 2d
+      raise ValueError("dos3d is only for 3d Hamiltonians")
     ks = [np.random.random(3) for i in range(nk)] # number of kpoints
     hkgen = h.get_hk_gen() # get generator
     if delta is None: delta = 10./ndos # smoothing
@@ -205,7 +211,10 @@ def dos2d_ewindow(h,energies=np.linspace(-1.,1.,30),delta=None,info=False,
     for energy in energies:
       (g,selfe) = bloch_selfenergy(h,nk=nk,energy=energy, delta=delta,
                    mode=mode)
-      ys.append(-g.trace()[0,0].imag)
+      # bloch_selfenergy returns a plain array, so np.trace already gives
+      # the scalar trace; the [0,0] that used to follow it indexed that
+      # scalar and raised IndexError before any DOS was written
+      ys.append(-np.trace(g).imag/np.pi) # DOS, same normalization as ED
       if info: print("Done",energy)
     write_dos(energies,ys) # write in file
     return
@@ -214,12 +223,12 @@ def dos2d_ewindow(h,energies=np.linspace(-1.,1.,30),delta=None,info=False,
     kys = np.linspace(0.,1.,nk)
     hkgen= h.get_hk_gen() # get hamiltonian generator
     weight = 1./(nk*nk)
-    from .htk.eigenvectors import peigvalsh
+    from .htk.eigenvectors import peigvalsh_bloch
     ks = np.array([[ix,iy,0.] for ix in kxs for iy in kys]) # all kpoints
-    mats = np.array([hkgen(k) for k in ks],dtype=np.complex128) # H(k) batch
-    es_batch = peigvalsh(mats) # batched numba eigh, shape (nk*nk,n)
+    es_batch = peigvalsh_bloch(hkgen,ks) # batched eigh, shape (nk*nk,n)
     es = es_batch.reshape(es_batch.shape[0]*es_batch.shape[1]) # flatten
     ys = weight*calculate_dos(es,energies,delta) # add all contributions
+    ys *= 1./np.pi # normalization of the Lorentzian
     if info: print("Done")
     write_dos(energies,ys) # write in file
     return
@@ -230,20 +239,30 @@ def dos2d_ewindow(h,energies=np.linspace(-1.,1.,30),delta=None,info=False,
 
 
 def dos1d_ewindow(h,energies=np.linspace(-1.,1.,30),delta=None,info=False,
-                    use_green=True,nk=300):
+                    use_green=True,nk=300,mode="adaptive"):
   """Calculate the density of states in certain energy window"""
   ys = [] # density of states
   if delta is None: # pick a good delta value
     delta = 0.1*(max(energies) - min(energies))/len(energies)
-  if True: # do not use green function
+  if use_green: # this branch used to be shadowed by an `if True:`, so
+    # use_green was declared and dead here while the 2d sibling honoured it
+    from .green import bloch_selfenergy
+    for energy in energies:
+      (g,selfe) = bloch_selfenergy(h,nk=nk,energy=energy, delta=delta,
+                   mode=mode)
+      ys.append(-np.trace(g).imag/np.pi) # DOS, same normalization as ED
+      if info: print("Done",energy)
+    write_dos(energies,ys) # write in file
+    return
+  else: # do not use green function
     kxs = np.linspace(0.,1.,nk)
     hkgen= h.get_hk_gen() # get hamiltonian generator
     weight = 1./(nk)
-    from .htk.eigenvectors import peigvalsh
-    mats = np.array([hkgen([ix,0.,0.]) for ix in kxs],dtype=np.complex128) # H(k) batch
-    es_batch = peigvalsh(mats) # batched numba eigh, shape (nk,n)
+    from .htk.eigenvectors import peigvalsh_bloch
+    es_batch = peigvalsh_bloch(hkgen,[[ix,0.,0.] for ix in kxs]) # batched eigh, (nk,n)
     es = es_batch.reshape(es_batch.shape[0]*es_batch.shape[1]) # flatten
     ys = weight*calculate_dos(es,energies,delta) # add all contributions
+    ys *= 1./np.pi # normalization of the Lorentzian
     if info: print("Done")
     write_dos(energies,ys) # write in file
     return
@@ -267,7 +286,9 @@ def dos_ewindow(h,energies=np.linspace(-1.,1.,30),delta=None,info=False,
   elif h.dimensionality==1: # one dimensional
     dos1d_ewindow(h,energies=energies,delta=delta,info=info,
                     use_green=use_green,nk=nk)
-  else: raise NotImplementedError
+  else:
+    raise NotImplementedError("the energy-window DOS is only implemented for "
+            "1d and 2d Hamiltonians")
 
 
 
@@ -318,13 +339,15 @@ def dos_kpm(h,scale=10.0,ewindow=4.0,ne=10000,
   # Operator.get_matrix), so it is resolved once, here.
   if operator is None: op = None # no operator
   else:
-      op = operator.get_matrix() # get the matrix of the operator
+      op = operator.get_matrix(required=False) # matrix of the operator
       ## the case of projector operators should be implemented explicitly
-      if op is None: raise NotImplementedError
+      if op is None:
+        raise NotImplementedError("the KPM DOS needs an operator with a "
+                "matrix representation, and only a projector at that")
       # this currently only works for projector operators
       if np.max(np.abs(op - op@op))>1e-4:
-          print("only projector operators implemented in KPM")
-          raise
+        raise NotImplementedError("the KPM DOS only accepts projector "
+                "operators, and this one is not idempotent")
   # op can be a scipy.sparse matrix (e.g. get_electron/get_hole build it
   # via sparse.bmat) as well as a dense ndarray -- .diagonal().sum() works
   # for both, unlike np.trace which chokes on sparse input
@@ -384,13 +407,19 @@ def get_dos_general(h,energies=np.linspace(-4.0,4.0,400),
       if mode=="ED": # exact diagonalization
           return dos_kmesh(h,energies=energies,**kwargs)
       elif mode in ["Green","RG"]: # Green function formalism
+          # write is this function's own argument, not green_operator's:
+          # it used to go into **kwargs and reach green_operator, which
+          # raised TypeError, while this branch wrote DOS.OUT
+          # unconditionally -- so mode="Green" was the one mode that both
+          # refused write= and ignored it
+          write = kwargs.pop("write",True)
           def fun(e):
               return green.green_operator(h,e=e,**kwargs)
           ds = parallel.pcall(fun,energies) # compute DOS with an operator
           # green_operator returns the raw -Im[Tr G], not yet a DOS value;
           # apply the same 1/pi normalization dos_kmesh (mode="ED") does
           ds = np.array(ds)/np.pi
-          np.savetxt("DOS.OUT",np.array([energies,ds]).T) # write in a file
+          if write: np.savetxt("DOS.OUT",np.array([energies,ds]).T)
           return (energies,ds)
       elif mode=="KPM": 
           return dos_kpm(h,energies=energies,**kwargs)
@@ -398,8 +427,8 @@ def get_dos_general(h,energies=np.linspace(-4.0,4.0,400),
           from .dostk.adaptivedos import adaptive_dos
           return adaptive_dos(h,energies=energies,**kwargs)
       else: 
-          print("Unrecognized option in DOS")
-          raise
+        raise ValueError("unknown mode "+str(mode)+"; the DOS accepts 'ED', "
+                "'KPM', 'adaptive', 'Green' and 'RG'")
 
 
 dos = get_dos # redefine
@@ -461,7 +490,9 @@ def surface2bulk(h,n=50,nk=3000,delta=1e-3,e=0.0,**kwargs):
         return np.array([-algebra.trace(o).imag for o in out]) # DOS
       ks = np.linspace(0.,1.,nk) # loop
       out = np.mean([f(k) for k in ks],axis=0)
-    else: raise
+    else:
+      raise NotImplementedError("surface2bulk is only implemented for 2d "
+              "Hamiltonians")
     return np.array([range(n),out]) # return array
 
 
@@ -470,24 +501,37 @@ def surface2bulk(h,n=50,nk=3000,delta=1e-3,e=0.0,**kwargs):
 
 def surface_dos(h,energies=None,klist=None,delta=0.01,
                          operator=None):
+    """Compute the surface DOS, optionally projected onto an operator"""
     bout = [] # empty list, bulk
     sout = [] # empty list, surface
     if klist is None:
         klist = [[i,0.,0.] for i in np.linspace(-.5,.5,50)]
     if energies is None: energies = np.linspace(-.5,.5,50)
     h = h.get_no_multicell()
+    # `operator` used to be declared here and never consumed, so
+    # surface_dos(h,operator="sz") gave back the plain charge DOS -- the
+    # same defect kdos's surface routines had, and the projection matrix
+    # is built with the very same helper they use
+    if operator is not None and h.get_operator(operator).matrix is None:
+        raise NotImplementedError("the surface DOS needs an operator with a "
+                "matrix representation; the momentum-dependent operator "
+                +str(operator)+" is not implemented")
+    from .kdos import get_surface_operator
+    op = get_surface_operator(h,operator) # projection matrix, once
     def sdos(energy):
         if h.dimensionality==1:
             gs,sf = green.green_renormalization(h.intra,h.inter,
                 energy=energy,delta=delta) # surface green function
-            return -np.trace(sf).imag # return result
+            return -np.trace(sf@op).imag # return result
         elif h.dimensionality==2:
             out = 0.0
             for k in klist: # loop over kpoints
                 gs,sf = green.green_kchain(h,k=k,energy=energy,delta=delta,
                          only_bulk=False) # surface green function
-                out += -np.trace(sf).imag
+                out += -np.trace(sf@op).imag
             return out/len(klist)
-        else: raise NotImplementedError
+        else:
+          raise NotImplementedError("the surface DOS is only implemented for "
+                  "1d and 2d Hamiltonians")
     return energies,np.array([sdos(e) for e in energies])          
 

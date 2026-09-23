@@ -29,8 +29,8 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
   vold = a1.dot(np.cross(a2,a3))  
   vnew = go.a1.dot(np.cross(go.a2,go.a3))  
   if abs(vnew)<0.0001: 
-    print("No volume",vnew,"\n",a1,"\n",a2,"\n",a3)
-    raise
+    raise ValueError("the supercell transformation matrix is singular, the "
+            "resulting cell has volume "+str(vnew))
   c = vnew/vold
   c = int(round(abs(c)))
   # now create replicas until there as c times as many atoms in the
@@ -89,11 +89,9 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
     go.supercell_replica = np.concatenate(replica_parts) if replica_parts else np.zeros((0,3),dtype=int)
     go.supercell_primal_index = np.concatenate(primal_parts) if primal_parts else np.array([],dtype=int)
     if len(rs)!=len(g.r)*c:
-      print("Not all the atoms have been found")
-      print("New atoms",len(rs))
-      print("Expected atoms",len(g.r)*c)
-      print("Volume of the cell increase",c)
-      raise
+      raise ValueError("not all the atoms of the supercell have been found: "
+              +str(len(rs))+" found, "+str(len(g.r)*c)+" expected for a "
+              "cell-volume increase of "+str(c)+"; increase ncheck")
   elif mode=="brute":
     if g.dimensionality==1:
       rs3 = replicate3d(g.r,g.a1,g.a2,g.a3,c,1,1) # new positions
@@ -101,7 +99,9 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
       rs3 = replicate3d(g.r,g.a1,g.a2,g.a3,c,c,1) # new positions
     elif g.dimensionality==3:
       rs3 = replicate3d(g.r,g.a1,g.a2,g.a3,c,c,c) # new positions
-    else: raise NotImplementedError
+    else:
+      raise NotImplementedError("the brute-force supercell is only "
+              "implemented for geometries of dimensionality 1, 2 and 3")
     while True: # infinite loop, stop when scf reached
       rs1 = np.array(rs3) # store the first iteration
 #      print(rs1)
@@ -121,6 +121,23 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
   go.get_fractional()
   return go # return new geometry
   
+
+
+def record_diagonal_supercell(go,nc,n1,n2,n3):
+  """Record, on a supercell built by the (n1,n2,n3) builders, which primal
+  replica and which primal atom every one of its atoms came from, and the
+  integer matrix M with A_supercell = M@A_primal. This is the same
+  bookkeeping that non_orthogonal_supercell records for a general matrix
+  supercell, and unfolding.bloch_projector consumes it directly instead of
+  re-deriving it by matching positions. The builders all fill their output
+  in the same nesting order -- n1 outermost, then n2, then n3, then the
+  atoms of the primal cell -- so it is a pure index decomposition."""
+  from .unfolding import decompose_supercell_index
+  replicas,primal = decompose_supercell_index(np.arange(nc*n1*n2*n3),nc,
+          (n1,n2,n3))
+  go.supercell_matrix = np.diag([n1,n2,n3]).astype(int)
+  go.supercell_replica = replicas
+  go.supercell_primal_index = primal
 
 
 def replicate3d(rs,a1,a2,a3,n1,n2,n3):
@@ -155,7 +172,9 @@ def return_unique(rs1,rs2):
 
 def target_angle_volume(g,angle=None,n=5,volume=None,same_length=False):
     """Return a supercell, targetting a certain new angle between vectors"""
-    if g.dimensionality!=2: raise # only for 2d
+    if g.dimensionality!=2: # only for 2d
+      raise ValueError("target_angle_volume is only implemented for 2d "
+              "geometries")
     a1 = g.a1
     a2 = g.a2
     def getm(): # get the matrix
@@ -184,11 +203,37 @@ def target_angle_volume(g,angle=None,n=5,volume=None,same_length=False):
         mask &= np.abs(v-volume)<=1e-6
       idx = np.where(mask)[0]
       if len(idx)==0: return None # nothng found
-      out = [[[I[i],J[i],0],[K[i],L[i],0],[0,0,1]] for i in idx] # candidates
-      vs = [v[i] for i in idx] # their volumes
-      return [o for (v,o) in sorted(zip(vs,out))][0]
+      # among the candidates that satisfy the constraints, keep the most
+      # compact cell: smallest volume first, then the shortest pair of
+      # lattice vectors, then the least skewed pair. Ranking by volume
+      # alone left the rest of the choice to a lexicographic accident,
+      # and for a volume target with no angle constraint (which is what
+      # g.get_supercell(np.sqrt(3)) asks for) that returned a nearly
+      # degenerate cell: the sqrt(3) x sqrt(3) supercell of a triangular
+      # lattice came out with an angle of 3.7 degrees between lattice
+      # vectors 7.8 and 5.2 times the primal one, so the first neighbors
+      # of an atom fell outside the cells the hopping generator searches
+      # and the resulting Hamiltonian had no hoppings at all. The keys
+      # are rounded so that candidates which are geometrically identical
+      # up to floating point still fall through to the same lexicographic
+      # tie-break as before, which is what keeps the angle/same_length
+      # callers returning exactly the cell they returned before.
+      l2sum = np.sum(a1n*a1n,axis=1) + np.sum(a2n*a2n,axis=1) # compactness
+      skew = np.abs(np.sum(u1*u2,axis=1)) # |cos| between the two vectors
+      def cellkey(i): # ranking of a single candidate
+        # when a volume was requested every surviving candidate already has
+        # it, so the volume carries no information and is left out of the
+        # key; comparing it anyway would rank the candidates by the 1e-16
+        # noise of norm(cross(a1n,a2n)) before compactness ever got a say
+        vi = () if volume is not None else (float(v[i]),)
+        return vi + (round(float(l2sum[i]),8),round(float(skew[i]),8),
+                int(I[i]),int(J[i]),int(K[i]),int(L[i]))
+      i0 = min(idx,key=cellkey) # the best candidate
+      return [[int(I[i0]),int(J[i0]),0],[int(K[i0]),int(L[i0]),0],[0,0,1]]
     out = getm() # get rotation matrix
-    if out is None: raise # no supercell found
+    if out is None: # no supercell found
+      raise ValueError("no supercell with the requested angle or volume was "
+              "found; increase n")
     g = g.get_supercell(out) # generate the right supercell
     g = sculpt.rotate_a2b(g,g.a1,np.array([1.,0.,0.])) # set in the x direction
     return g
@@ -201,13 +246,21 @@ def infer_supercell(g,g0):
     """Given two geometries, guess which supercell is associated"""
     # this only works for orthogonal supercells
     def norm(v): return np.sqrt(v.dot(v))
+    # round, never truncate: the ratio of two norms of an exact supercell
+    # lands one ulp below the integer often enough (about 3.6% of random
+    # 1d cells, n=3,6,12 the usual culprits) that int() would silently
+    # return n-1
     if g.dimensionality==1:
-        nx = int(norm(g.a1)/norm(g0.a1)) # out
+        nx = int(round(norm(g.a1)/norm(g0.a1))) # out
         ny = 1
     elif g.dimensionality==2: # assume is orthogonal
-        nx = int(np.round(norm(g.a1)/norm(g0.a1),1)) # out
-        ny = int(np.round(norm(g.a2)/norm(g0.a2),1)) # out
-    else: raise
+        nx = int(round(norm(g.a1)/norm(g0.a1))) # out
+        ny = int(round(norm(g.a2)/norm(g0.a2))) # out
+    else:
+      raise NotImplementedError("inferring the supercell size from the "
+              "lattice vectors is only implemented for 1d and 2d "
+              "geometries; build the supercell with get_supercell(), which "
+              "records the replica bookkeeping and needs no inference")
     # probably a check should be added here
     return (nx,ny,1)
       
@@ -235,6 +288,7 @@ def supercell2d(g,n1=1,n2=1):
   if g.atoms_have_names: # supercell sublattice
     go.atoms_names = g.atoms_names*n1*n2
   go.get_fractional() # get fractional coordinates
+  record_diagonal_supercell(go,len(g.r),n1,n2,1) # unfolding bookkeeping
   return go
 
 
@@ -283,6 +337,7 @@ def supercell3d(g,n1=1,n2=1,n3=1):
   if g.atoms_have_names: # supercell sublattice
     go.atoms_names = g.atoms_names*n1*n2*n3
   go.get_fractional() # get fractional coordinates
+  record_diagonal_supercell(go,nc,n1,n2,n3) # unfolding bookkeeping
   return go
 
 

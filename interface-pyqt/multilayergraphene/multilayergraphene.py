@@ -86,10 +86,10 @@ def initialize():
     # "Spinless" rather than called with a zero-ish value
     h.add_zeeman(qtwrap.get_array("exchange")) # Zeeman fields
     if abs(get("rashba")) > 0.0: h.add_rashba(get("rashba"))  # Rashba field
-    h.add_antiferromagnetism(get("mAF"))  # AF order
+    latticeterms.add_staggered_term(h,"mAF",get("mAF"),"Honeycomb")  # AF order
     if abs(get("kanemele"))>0.0:  h.add_kane_mele(get("kanemele")) # intrinsic SOC
     if abs(get("antikanemele"))>0.0:  h.add_anti_kane_mele(get("antikanemele"))
-  h.add_sublattice_imbalance(get("mAB"))  # sublattice imbalance
+  latticeterms.add_staggered_term(h,"mAB",get("mAB"),"Honeycomb")  # sublattice imbalance
   h.add_crystal_field(qtwrap.get("crystalfield"))
   h.shift_fermi(get("fermi")) # shift fermi energy
   h.shift_fermi(lambda r: get("interlayer_bias")*r[2]) # interlayer bias

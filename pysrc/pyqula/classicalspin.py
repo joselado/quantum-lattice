@@ -8,7 +8,8 @@ from . import neighbor
 from scipy.sparse import csr_matrix,csc_matrix,coo_matrix
 
 import jax
-jax.config.update('jax_platform_name', 'cpu')
+from . import gpu
+gpu.apply() # follow the package-wide CPU/GPU switch, see pyqula/gpu.py
 
 zero = np.array(np.zeros((3,3)))  # real matrix
 iden = np.array(np.identity(3))  # real matrix
@@ -90,12 +91,19 @@ class SpinModel(): # class for a spin Hamiltonian
     """Return a function that calculated the Jacobian"""
 #    return None
     return get_jacobian(self.b,self.j,self.pairs)
-  def load_magnetism(self,name="MAGNETIZATION.OUT"):
-    """Read the magnetization from a file"""
+  def load_magnetism(self,name="MAGNETISM.OUT"):
+    """Read the magnetization back from the file write() produced.
+
+    write_magnetization lays the file out as x,y,z,mx,my,mz -- six columns,
+    three of position. This used to default to a filename nothing writes
+    ("MAGNETIZATION.OUT") and then read columns 1,2,3 (y,z,mx) as if they
+    were the moment, so the documented write()/load_magnetism() round trip
+    could not work."""
     m = np.genfromtxt(name).transpose()
-    r = np.sqrt(m[1]**2+m[2]**2) # in-plane radius
-    self.theta = np.arctan2(r,m[3]) # theta angle
-    self.phi = np.arctan2(m[2],m[1]) # theta angle
+    (mx,my,mz) = m[3],m[4],m[5]
+    r = np.sqrt(mx**2+my**2) # in-plane radius
+    self.theta = np.arctan2(r,mz) # theta angle
+    self.phi = np.arctan2(my,mx) # phi angle
   def regroup(self):
     """Regroups the terms in the Hamiltonian"""
 #    print(len(self.pairs))
@@ -149,6 +157,11 @@ def energy_jax_master(thetaphi,bs,js,indsjs):
 
 from jax import jit
 from jax import grad
+
+# these run wherever pyqula.gpu points jax: the CPU by default, and
+# measured to gain nothing on a consumer GPU (the minimizer calls them from
+# the host once per step on a small problem, so transfers dominate), but
+# the switch is the user's to make
 energy_jax = jit(energy_jax_master) # jit jax function for energy
 jacobian_jax = jit(grad(energy_jax_master,argnums=0)) # jit jax gradient
 
@@ -313,7 +326,10 @@ def generating_functions(name="Heisenberg",J=1.0,v=np.array([0.,0.,1.]),
       dr2 = np.sqrt(dr.dot(dr))
       if np.abs(fc(dr2))<0.00000001: return zero
       if callable(v): return J*fc(dr2)*np.diag(v(dr)) # return matrix
-      else: return (J*fc(dr)*np.diag(v))@fr(r1,r2) # return matrix
+      # fc takes the distance, dr2 -- the vector dr was passed here, so the
+      # default cutoff compared an array and raised "truth value of an array
+      # is ambiguous" for every non-callable v
+      else: return (J*fc(dr2)*np.diag(v))@fr(r1,r2) # return matrix
     return fun
   elif name=="DM":
     eps = get_lc()
@@ -345,7 +361,9 @@ def generating_profiles(r,name="skyrmion",n=1.,cut=1.0):
     elif name=="spiral":
       phi = (r[:,0]/np.max(r[:,0])+1)*n*np.pi*2
       return phi*0.+np.pi/2,phi
-    else: raise
+    else:
+      raise ValueError("unknown profile name; generating_profiles accepts "
+              "'skyrmion' and 'spiral'")
 
 
 def get_lc():

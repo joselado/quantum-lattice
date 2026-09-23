@@ -24,7 +24,9 @@ def boolean_fermi_surface(h,write=True,output_file="BOOL_FERMI_MAP.OUT",
                     e=0.0,nk=50,nsuper=1,reciprocal=False,
                     delta=None):
     """Calculates the Fermi surface of a 2d system"""
-    if h.dimensionality!=2: raise  # continue if two dimensional
+    if h.dimensionality!=2: # continue if two dimensional
+        raise ValueError("the boolean Fermi surface is only defined for 2d "
+                "Hamiltonians")
     hk_gen = h.get_hk_gen() # gets the function to generate h(k)
     kxs = np.linspace(-nsuper,nsuper,nk)  # generate kx
     kys = np.linspace(-nsuper,nsuper,nk)  # generate ky
@@ -37,15 +39,14 @@ def boolean_fermi_surface(h,write=True,output_file="BOOL_FERMI_MAP.OUT",
       delta = 8./np.max(np.abs(h.intra))/nk
     rs = [] # real space vectors
     for x in kxs:
-      for y in kxs:
+      for y in kys:
         rs.append([x,y,0.])
         kxout.append(x)
         kyout.append(y)
     rs = np.array(rs) # real space vectors
     ks = np.array([R@r for r in rs]) # change of basis
-    from .htk.eigenvectors import peigvalsh
-    hks = np.array([hk_gen(k) for k in ks],dtype=np.complex128) # H(k) batch
-    es_batch = peigvalsh(hks) # batched numba eigh, shape (nk*nk,n)
+    from .htk.eigenvectors import peigvalsh_bloch
+    es_batch = peigvalsh_bloch(hk_gen,ks) # batched eigh, shape (nk*nk,n)
     for evals in es_batch: # loop over kpoints
       de = np.abs(evals - e) # difference with respect to fermi
       de = de[de<delta] # energies close to fermi
@@ -86,7 +87,8 @@ def selected_bands2d(h,output_file="BANDS2D_",nindex=[-1,1],
                nk=50,nsuper=1,reciprocal=True,
                operator=None,k0=[0.,0.]):
   """ Calculate a selected bands in a 2d Hamiltonian"""
-  if h.dimensionality!=2: raise  # continue if two dimensional
+  if h.dimensionality!=2: # continue if two dimensional
+      raise ValueError("selected_bands2d is only for 2d Hamiltonians")
   hk_gen = h.get_hk_gen() # gets the function to generate h(k)
   kxs = np.linspace(-nsuper,nsuper,nk)+k0[0]  # generate kx
   kys = np.linspace(-nsuper,nsuper,nk)+k0[1]  # generate ky
@@ -97,7 +99,7 @@ def selected_bands2d(h,output_file="BANDS2D_",nindex=[-1,1],
   operator = operator2list(operator) # convert into a list
   fs.rmglob(output_file+"*") # delete previous files
   fo = [open(output_file+"_"+str(i)+".OUT","w") for i in nindex] # files
-  xys = [(x,y) for x in kxs for y in kxs] # all kpoint pairs
+  xys = [(x,y) for x in kxs for y in kys] # all kpoint pairs
   ks = np.array([np.array(R)@np.array([x,y,0.]) for (x,y) in xys]) # change of basis
   if not h.is_sparse: # dense: batch every k-point's H(k) into one numba eigh call
     from .htk.eigenvectors import peigh
@@ -133,9 +135,12 @@ def selected_bands2d(h,output_file="BANDS2D_",nindex=[-1,1],
           fo[j].write("\n") # write in file
           
         if i<0: # negative
-          fo[j].write(str(eneg[abs(i)-1])+"\n")
+          fo[j].write(str(eneg[abs(i)-1])+"  ")
           for op in operator: # loop over operators
-            c = op.braket(wfpos[abs(i)-1]).real # expectation value
+            # wfneg, not wfpos: the energy written above is the valence
+            # one, so the expectation value has to come from the valence
+            # eigenvector (the i>0 branch above is the same code on epos)
+            c = op.braket(wfneg[abs(i)-1]).real # expectation value
             fo[j].write(str(c)+"  ") # write in file
           fo[j].write("\n") # write in file
   [f.close() for f in fo] # close file
@@ -149,7 +154,14 @@ get_bands = selected_bands2d
 def ev2d(h,nk=50,nsuper=1,reciprocal=False,
                operator=None,k0=[0.,0.],kreverse=False):
   """ Calculate the expectation value of a certain operator"""
-  if h.dimensionality!=2: raise  # continue if two dimensional
+  if h.dimensionality!=2: # continue if two dimensional
+      raise ValueError("ev2d is only for 2d Hamiltonians")
+  # this sums an operator over EVERY occupied state, which a partial
+  # (eigsh) diagonalization cannot provide -- the sparse branch that used
+  # to sit in the loop below asked for a fixed number of states around
+  # zero, and did so through a name that was never defined here, so it had
+  # never run. Densify instead, as spectrum.total_energy does
+  h = h.get_dense()
   hk_gen = h.get_hk_gen() # gets the function to generate h(k)
   kxs = np.linspace(-nsuper,nsuper,nk,endpoint=True)+k0[0]  # generate kx
   kys = np.linspace(-nsuper,nsuper,nk,endpoint=True)+k0[1]  # generate ky
@@ -159,17 +171,14 @@ def ev2d(h,nk=50,nsuper=1,reciprocal=False,
   # setup the operator
   operator = operator2list(operator) # convert into a list
   fo = open("EV2D.OUT","w") # open file
-  xys = [(x,y) for x in kxs for y in kxs] # all kpoint pairs
+  xys = [(x,y) for x in kxs for y in kys] # all kpoint pairs
   ks = np.array([R@np.array([x,y,0.]) for (x,y) in xys]) # change of basis
-  if not h.is_sparse: # dense: batch every k-point's H(k) into one numba eigh call
-    from .htk.eigenvectors import peigh
-    hks = np.array([hk_gen(k) for k in ks],dtype=np.complex128) # H(k) batch
-    es_batch,ws_batch = peigh(hks) # batched numba eigh
+  from .htk.eigenvectors import peigh
+  hks = np.array([hk_gen(k) for k in ks],dtype=np.complex128) # H(k) batch
+  es_batch,ws_batch = peigh(hks) # batched numba eigh
   for ik,(x,y) in enumerate(xys):
       print("Doing",x,y)
-      if not h.is_sparse: evals,waves = es_batch[ik],ws_batch[ik] # eigenvalues
-      else: evals,waves = slg.eigsh(hk_gen(ks[ik]),k=max(nindex)*2,sigma=0.0,
-             tol=arpack_tol,which="LM") # eigenvalues
+      evals,waves = es_batch[ik],ws_batch[ik] # eigenvalues
       waves = waves.transpose() # transpose
       eneg,wfneg = [],[] # negative
       for (e,w) in zip(evals,waves): # loop
@@ -178,7 +187,9 @@ def ev2d(h,nk=50,nsuper=1,reciprocal=False,
           wfneg.append(w)
       fo.write(str(x)+"     "+str(y)+"   ") # write k-point
       for op in operator: # loop over operators
-          c = sum([braket_wAw(w,op) for w in wfneg]).real # expectation value
+          # op.braket, as selected_bands2d does: braket_wAw takes a matrix
+          # and turns an operators.Operator into a zero-dimensional array
+          c = sum([op.braket(w) for w in wfneg]).real # expectation value
           fo.write(str(c)+"  ") # write in file
       fo.write("\n") # write in file
   fo.close() # close file
@@ -194,7 +205,16 @@ def ev(h,operator=None,nk=30,**kwargs):
     operator = [] # empty list
   elif not isinstance(operator,list): # if it is not a list
     operator = [operator] # convert to list
-  out = [np.trace(dm@op) for op in operator] 
+  # densitymatrix.full_dm builds dm[i,j] = sum_occ conj(psi_i) psi_j, the
+  # transpose of the usual rho[i,j] = sum_occ psi_i conj(psi_j), so
+  # Tr(dm@A) evaluates <A^T> = <A*> rather than <A>. The two agree for
+  # every real operator -- the density, sx, sz, a projector -- which is
+  # why this went unnoticed, but for a purely imaginary one (sy, and any
+  # current/velocity operator i[H,r]) it silently flips the sign.
+  # Cross-checked against magnetism.compute_magnetization, an independent
+  # implementation that reads the density matrix elements directly.
+  dmt = np.transpose(dm) # the standard density matrix
+  out = [np.trace(dmt@op) for op in operator]
   out = np.array(out) # return the result
   out = out.reshape(out.shape[0]) # reshape in case there are indexes
   return out # return array
@@ -204,13 +224,31 @@ def ev(h,operator=None,nk=30,**kwargs):
 def real_space_vev(h,operator=None,nk=1,nrep=3,name="REAL_SPACE_VEV.OUT",
         **kwargs):
     """Compute the expectation value in real space"""
-    if nk>1: raise # only Gamma point implemented
+    if nk>1: # only Gamma point implemented
+        raise NotImplementedError("the real-space expectation value is only "
+                "implemented at the Gamma point, so nk must be 1")
     dm = densitymatrix.full_dm(h,nk=nk,**kwargs) # Gamma point DM
-    operator = operators.Operator(operator) # convert to operator
-    rho = operator(dm,k=[0.,0.,0.]) # compute the projected DM
+    if operator is None: operator = np.identity(dm.shape[0],dtype=np.complex128)
+    operator = h.get_operator(operator) # convert to operator
+    if h.has_eh:
+        # with the electron-hole degree of freedom the sum runs over the
+        # whole particle-hole-redundant set of negative-energy BdG states,
+        # and full2profile below then adds the electron and hole entries of
+        # each site: every site came out as exactly 2.0 whatever the
+        # density was, destroying all the spatial information. Restricting
+        # the operator to the electron sector is the convention get_vev
+        # and get_filling_spinful_nambu already use.
+        pe = operators.Operator(operators.get_electron(h))
+        operator = pe*operator*pe
+    # densitymatrix.full_dm builds dm[i,j] = sum_occ conj(psi_i) psi_j, the
+    # transpose of the usual rho, so contracting it untransposed evaluates
+    # <A*> instead of <A> -- invisible for a real operator, a sign flip for
+    # a purely imaginary one such as the valley operator or sy. The same
+    # fix spectrum.ev carries a few lines above.
+    rho = operator(np.transpose(dm),k=[0.,0.,0.]) # compute the projected DM
     rho = np.diag(rho).real # extract the diagonal
     rho = h.full2profile(rho) # resum if necessary
-    h.geometry.write_profile(rho,nrep=5,name=name)
+    h.geometry.write_profile(rho,nrep=nrep,name=name)
     return rho
 
 
@@ -233,31 +271,57 @@ def total_energy(h,nk=10,nbands=None,use_kpm=False,random=False,
   f = h.get_hk_gen() # get generator
   etot = 0.0 # initialize
   iv = 0
+  # For a BdG (Nambu) Hamiltonian the sum of the occupied eigenvalues is not
+  # the electronic energy: H = (1/2) Psi^dag H_BdG Psi + (1/2) Tr h_e, with
+  # h_e the electron block, so E = (sum_{E<0} E_BdG + Tr h_e)/2 -- summing
+  # the BdG spectrum alone returns 2*E - Tr h_e instead. The correction is
+  # applied per kpoint, so every integration mode below gets it, and with no
+  # pairing it reproduces the normal-state energy exactly.
+  pediag = None # diagonal of the electron projector, only for Nambu
+  if h.has_eh:
+      if fermi!=0.0:
+          raise ValueError("a nonzero fermi is not a rigid shift of a BdG "
+            "spectrum (the electron and hole blocks shift by -mu and +mu), "
+            "got fermi="+str(fermi)+"; shift the Hamiltonian instead with "
+            "h.shift_fermi(-mu) and leave fermi=0")
+      if nbands is not None:
+          raise NotImplementedError("the total energy of a BdG/Nambu "
+            "Hamiltonian needs the full spectrum, because the constant "
+            "(1/2)Tr h_e it has to be combined with is a full trace; got "
+            "nbands="+str(nbands)+", use nbands=None")
+      pediag = np.array(algebra.todense(operators.get_electron(h))).diagonal()
+      pediag = pediag.real # the electron projector is diagonal
+  def eh_energy(esum,hk):
+    """Turn a sum of occupied BdG eigenvalues into the electronic energy"""
+    if pediag is None: return esum # normal state, nothing to do
+    tre = np.sum(pediag*np.asarray(hk.diagonal()).ravel()).real # Tr h_e(k)
+    return (esum + tre)/2.
   def enek(k):
     """Compute energy in this kpoint"""
     hk = f(k)  # kdependent hamiltonian
     if use_kpm: # Kernel polynomial method
-      return kpm.total_energy(hk,scale=10.,ntries=20,npol=100) # using KPM
+      return eh_energy(kpm.total_energy(hk,scale=10.,ntries=20,npol=100),hk) # using KPM
     else: # conventional diagonalization
       if nbands is None: vv = algebra.eigvalsh(hk) # diagonalize k hamiltonian
       else: 
           vv,aa = slg.eigsh(hk,k=4*nbands,which="LM",sigma=0.0) 
           vv = -np.sort(-(vv[vv<fermi])) # negative eigenvalues
           vv = vv[0:nbands] # get the negative eigenvlaues closest to EF
-      return np.sum(vv[vv<fermi]) # sum energies below fermi energy
+      return eh_energy(np.sum(vv[vv<fermi]),hk) # sum energies below fermi energy
   # compute energy using different modes
   if mode in ("mesh","random") and not use_kpm and nbands is None:
     # dense, plain-diagonalization case: batch all k-points into one
     # numba eigh call instead of pcall-ing algebra.eigvalsh per k-point
-    from .htk.eigenvectors import peigvalsh
+    from .htk.eigenvectors import peigvalsh, hk_matrix_batch
     if mode=="mesh":
       from .klist import kmesh
       kp = kmesh(h.dimensionality,nk=nk)
     else: # random
       kp = [np.random.random(3) for i in range(nk)] # random points
-    mats = np.array([f(k) for k in kp],dtype=np.complex128) # H(k) batch
+    mats = hk_matrix_batch(f,kp) # H(k) batch, densified
     es_batch = peigvalsh(mats) # (nk,n) eigenvalues
-    etot = np.mean([np.sum(es[es<fermi]) for es in es_batch]) # compute total energy
+    etot = np.mean([eh_energy(np.sum(es[es<fermi]),m)
+            for (es,m) in zip(es_batch,mats)]) # compute total energy
   elif mode=="mesh":
     from .klist import kmesh
     kp = kmesh(h.dimensionality,nk=nk)
@@ -272,8 +336,12 @@ def total_energy(h,nk=10,nbands=None,use_kpm=False,random=False,
     elif h.dimensionality==2: # two dimensional
         etot = integrate.dblquad(lambda x,y: enek([x,y]),-1.,1.,-1.,1.,
                 epsabs=tol,epsrel=tol)[0]
-    else: raise
-  else: raise
+    else:
+        raise NotImplementedError("the integrated total energy is only "
+                "implemented for 1d and 2d Hamiltonians")
+  else:
+      raise ValueError("unknown mode; the total energy accepts 'mesh', "
+              "'random' and 'integrate'")
   return etot
 
 
@@ -358,22 +426,90 @@ from .filling import get_fermi_energy
 
 
 
-def get_fermi4filling(h,filling,nk=8):
+def get_fermi_energy_T(es,filling,T=0.):
+    """Fermi energy of a set of eigenvalues at temperature T.
+
+    filling.get_fermi_energy answers this at T=0, by sorting the
+    eigenvalues and cutting between the last occupied and the first empty
+    one. That cut is the right answer only if the occupations are steps:
+    at finite T the states are occupied with the Fermi-Dirac weight
+    1/(1+exp((e-mu)/T)) -- the same weight the density matrix is built
+    with (dmtk.fulldm) -- and, wherever the density of states is not
+    symmetric about mu, the T=0 cut then holds a different number of
+    electrons than was asked for.
+
+    The T=0 cut is the starting point and is returned unchanged whenever
+    it already puts exactly the requested number of electrons in the
+    system at this temperature, which it does whenever T is small compared
+    with the level spacing around it (the near-zero-T regime the SCF loops
+    default to) -- so this is a refinement of that answer, not a
+    replacement for it. Otherwise the electron count is monotonic in mu,
+    and the root is bracketed around the T=0 estimate and bisected."""
+    mu0 = get_fermi_energy(es,filling) # zero temperature count
+    if T is None or T<=0.: return mu0 # zero temperature, nothing to refine
+    es = np.array(es)
+    # the number of states the T=0 cut occupies, i.e. the same rounding
+    # get_fermi_energy itself applies: `filling` is a fraction of a discrete
+    # set of states, and asking for a fractional one of them back would mean
+    # pinning mu to a partially occupied level -- a different convention
+    # from the one the rest of the library uses, not a refinement of it
+    ntarget = int(round(len(es)*filling)) # number of electrons requested
+    if ntarget<=0 or ntarget>=len(es): return mu0 # empty or full
+    from scipy.special import expit
+    def nelec(mu): # number of electrons at this chemical potential
+        return np.sum(expit(-(es-mu)/T)) # Fermi-Dirac occupations
+    if abs(nelec(mu0)-ntarget)<1e-9*ntarget: return mu0 # already exact
+    w = max(4.*T,1e-6) # bracket half width
+    emax = np.max(es)-np.min(es) # spread of the spectrum
+    wmax = 4.*emax + 40.*T + 1e-6 # well outside the spectrum at this T
+    while nelec(mu0-w)>ntarget or nelec(mu0+w)<ntarget: # not bracketed yet
+        if w>wmax: # the target is outside the whole spectrum
+            raise ValueError("no chemical potential holds "+str(ntarget)
+              +" electrons at T="+str(T)+" for this spectrum")
+        w *= 2.
+    from scipy.optimize import brentq
+    return brentq(lambda mu: nelec(mu)-ntarget,mu0-w,mu0+w,xtol=1e-12)
+
+
+def get_fermi4filling(h,filling,nk=8,T=0.):
     """Return the fermi energy for a certain filling"""
     if h.has_eh: # this is an approximation, accurate version to be written 
         h0 = h.copy()
         h0.remove_nambu()
-        return get_fermi4filling(h0,filling,nk=nk) # workaround
+        return get_fermi4filling(h0,filling,nk=nk,T=T) # workaround
     else:
         es = eigenvalues(h,nk=nk,notime=True)
-        return get_fermi_energy(es,filling)
+        return get_fermi_energy_T(es,filling,T=T)
+
+def get_filling_spinful_nambu(h,nk=10,**kwargs):
+    """Filling of a spinful Nambu (BdG) Hamiltonian.
+
+    Counting eigenvalues below zero, as the normal-state branch does, is
+    meaningless in the Nambu basis: the spectrum is particle-hole
+    symmetric, so exactly half of it always sits below zero whatever the
+    density is. What the filling actually is, is the weight the negative
+    energy BdG states put on the *electron* components,
+    n = sum_{E_nk<0} <psi_nk|P_e|psi_nk> / N_k, normalized by the number
+    of electron states per unit cell (2 per site, up and down), so that a
+    half filled system gives 0.5 like everywhere else in the library."""
+    from . import operators
+    pe = np.array(operators.get_electron(h).todense()) # electron projector
+    (es,ws) = h.get_eigenvectors(nk=nk,**kwargs) # eigenvalues and vectors
+    fac = 1./(nk**h.dimensionality) # number of kpoints
+    ne = 0.0 # number of electrons per unit cell
+    for (e,w) in zip(es,ws): # loop over states
+        if e<0.0: ne += np.conjugate(w).dot(pe@w).real # electron weight
+    nstates = h.intra.shape[0]//2 # electron states per unit cell
+    return ne*fac/nstates # return the filling
+
 
 def get_filling(h,**kwargs):
     """Get the filling of a Hamiltonian at this energy"""
     if h.check_mode("spinless_nambu"): # spinless Nambu Hamiltonian
         from .sctk import spinless
         return spinless.get_filling(h,**kwargs)
-    elif h.check_mode("spinful_nambu"): raise # spinful Nambu
+    elif h.check_mode("spinful_nambu"): # spinful Nambu
+        return get_filling_spinful_nambu(h,**kwargs)
     else:
         es = eigenvalues(h,**kwargs) # eigenvalues
         es = np.array(es)
@@ -386,15 +522,15 @@ def get_filling(h,**kwargs):
 
 def eigenvalues_kmesh(h,nk=20):
     """Get the eigenvalues in a kmesh"""
-    if h.dimensionality!=2: raise # only for 2d
+    if h.dimensionality!=2: # only for 2d
+        raise ValueError("eigenvalues_kmesh is only for 2d Hamiltonians")
     ne = h.intra.shape[0] # number of energies per k-point
     hkgen = h.get_hk_gen() # get the generator
     kx = np.linspace(0.,1.,nk,endpoint=False)
     ky = np.linspace(0.,1.,nk,endpoint=False)
-    from .htk.eigenvectors import peigvalsh
-    mats = np.array([hkgen([ik,jk]) for ik in kx for jk in ky],
-            dtype=np.complex128) # H(k) batch, ik outer, jk inner
-    es_batch = peigvalsh(mats) # batched numba eigh, shape (nk*nk,ne)
+    from .htk.eigenvectors import peigvalsh_bloch
+    # batched eigh over the mesh, ik outer and jk inner, shape (nk*nk,ne)
+    es_batch = peigvalsh_bloch(hkgen,[[ik,jk] for ik in kx for jk in ky])
     es = es_batch.reshape(nk,nk,ne) # reshape to match original layout
     return es # return all the energies
 
@@ -403,7 +539,9 @@ def eigenvalues_kmesh(h,nk=20):
 
 def lowest_energies(h,n=4,k=None,**kwargs):
     """Return the lowest energy states in a k-point"""
-    if k is None: raise
+    if k is None:
+        raise ValueError("lowest_energies needs the k-point to evaluate, pass "
+                "it as k")
     es,ws = h.get_eigenvectors(kpoints=False,k=k,numw=2*n,**kwargs)
     es = [y for (x,y) in sorted(zip(np.abs(es),es))][0:n]
     es = np.sort(es)

@@ -11,14 +11,48 @@ dm_mode = "accumulate" # default mode to compute density matrix
 # accumulate is the new mode, it may be worth checking
 # if it yields the same results as simultaneous
 
-def full_dm(h,T=delta_dm,dm_mode=dm_mode,**kwargs):
-    """Compute the full density matrix"""
+def full_dm(h,T=delta_dm,dm_mode=dm_mode,delta=None,**kwargs):
+    """Compute the full density matrix.
+
+    INDEX CONVENTION, which is not the textbook one: this returns
+
+        dm[i,j] = sum_occ conj(psi_i) psi_j
+
+    i.e. the TRANSPOSE of the usual rho[i,j] = sum_occ psi_i conj(psi_j).
+    Contracting it directly therefore gives Tr(dm@A) = <A^T> = <A*>, which
+    equals <A> for a real operator (the density, sx, sz, a projector) and
+    has the OPPOSITE SIGN for a purely imaginary one -- sy, the valley
+    operator, any current/velocity operator i[H,r]. Transpose first:
+    Tr(dm.T@A). spectrum.ev and vev.get_dm_vev do; getting this wrong is
+    invisible in every single-axis test and shows up only as a reflected
+    vector for a generic direction.
+
+    The convention is not changed here because the mean-field machinery is
+    built around it: scftk/densitydensity.py's normal-term kernels,
+    magnetism.compute_magnetization (which reads the matrix elements
+    directly and is correct as written) and restricted_dm (which swaps its
+    indices to compensate) all depend on it, as does everything the SCF
+    loops do with h.get_density_matrix(ds=...).
+    """
+    # T is forwarded below as full_dm_accumulate's `delta`, the same
+    # smearing under another name, so a caller who spelled it `delta` --
+    # the name the rest of the library uses -- collided with it and got
+    # "got multiple values for keyword argument 'delta'". Accept the
+    # alias, and refuse the ambiguity loudly if both are given.
+    if delta is not None:
+        if T!=delta_dm:
+            raise TypeError("full_dm got both T="+str(T)+" and delta="
+              +str(delta)+", which are the same energy smearing under two "
+              +"names; pass only one")
+        T = delta
     if T==0.: T = 1e-15 # just very small 
     if dm_mode=="accumulate":
         return full_dm_accumulate(h,delta=T,**kwargs)
     elif dm_mode=="simultaneous":
         return full_dm_simultaneous(h,delta=T,**kwargs)
-    else: raise NotImplementedError
+    else:
+        raise ValueError("unknown dm_mode; the density matrix accepts "
+                "'accumulate' and 'simultaneous'")
 
 # it may be worth to implement some adaptive integration with quad_vec
 
@@ -36,16 +70,37 @@ def full_dm_accumulate(h,nk=10,fermi=0.0,
     of threads instead of being dominated by IPC overhead. batch_size
     bounds how many k-points' eigenvectors are held in memory at once,
     keeping the memory footprint low regardless of how dense the k-mesh
-    is."""
-    from .htk.eigenvectors import parallel_diagonalization
+    is.
+
+    Under pyqula.gpu.set_gpu(True) this instead goes to dmtk/fulldmjax.py,
+    which keeps the whole calculation on the device: the eigenvectors are
+    the largest array here and they exist only to be summed away, so
+    sending them back to the host -- once per SCF iteration -- is the part
+    worth removing. What comes back is the finished (n,n) density matrix
+    per direction, whatever the k-mesh. batch_size does not apply there;
+    that route chunks the mesh itself, against the device's memory."""
+    from .htk.eigenvectors import peigh_bloch, bloch_on_gpu
     hk = h.get_hk_gen() # get the Hamiltonian generator
     ks = np.array(h.geometry.get_kmesh(nk=nk)) # get the mesh
     fac = 1./len(ks) # normalization
+    bloch = bloch_on_gpu(hk) # the device route, where it is worth taking
+    if bloch is not None:
+        # everything stays on the device: the eigenvectors are the biggest
+        # array here and they exist only to be summed away, so they never
+        # come back to the host (see dmtk/fulldmjax.py)
+        from .dmtk.fulldmjax import full_dm_gpu
+        dirs = [[0.,0.,0.]] if ds is None else ds # the undirected dm is d=0
+        dm = fac*full_dm_gpu(bloch[0],bloch[1],ks,dirs,fermi=fermi,delta=delta)
+        if ds is None: return dm[0] # the single array
+        return {tuple(d): dm[i] for (i,d) in enumerate(ds)}
     dm = None # accumulator, one slot per batch
     for i0 in range(0,len(ks),batch_size): # loop over batches of kpoints
         kbatch = ks[i0:i0+batch_size]
-        mats = np.array([hk(k) for k in kbatch]) # k-Hamiltonians in this batch
-        es_batch,vs_batch = parallel_diagonalization(mats) # diagonalize in parallel
+        # peigh_bloch densifies every H(k): hk(k) is sparse for an
+        # is_sparse Hamiltonian, and np.array of those gives an object
+        # array that the numba kernels below reject with an opaque
+        # TypingError (this path diagonalizes fully anyway)
+        es_batch,vs_batch = peigh_bloch(hk,kbatch) # diagonalize in parallel
         es_batch = es_batch-fermi # substract fermi energy
         if ds is None:
             contribs = full_dm_batch_vectorized(es_batch,vs_batch,delta=delta) # one per kpoint, in parallel
@@ -100,7 +155,7 @@ def full_dm_accumulate_sparse(h,pairs,nk=10,fermi=0.0,
     above it, just run the dense kernel for that direction and keep its
     full result -- strictly more information than requested, but correct
     and, past the crossover, cheaper too."""
-    from .htk.eigenvectors import parallel_diagonalization
+    from .htk.eigenvectors import peigh_bloch
     hk = h.get_hk_gen() # get the Hamiltonian generator
     ks = np.array(h.geometry.get_kmesh(nk=nk)) # get the mesh
     fac = 1./len(ks) # normalization
@@ -109,8 +164,11 @@ def full_dm_accumulate_sparse(h,pairs,nk=10,fermi=0.0,
     outd = {d: np.zeros((n,n),dtype=np.complex128) for d in pairs}
     for i0 in range(0,len(ks),batch_size): # loop over batches of kpoints
         kbatch = ks[i0:i0+batch_size]
-        mats = np.array([hk(k) for k in kbatch]) # k-Hamiltonians in this batch
-        es_batch,vs_batch = parallel_diagonalization(mats) # diagonalize in parallel
+        # peigh_bloch densifies every H(k): hk(k) is sparse for an
+        # is_sparse Hamiltonian, and np.array of those gives an object
+        # array that the numba kernels below reject with an opaque
+        # TypingError (this path diagonalizes fully anyway)
+        es_batch,vs_batch = peigh_bloch(hk,kbatch) # diagonalize in parallel
         es_batch = es_batch-fermi # substract fermi energy
         _accumulate_dm_batch(outd,pairs,threshold,es_batch,vs_batch,kbatch,delta)
     for d in outd: outd[d] *= fac # renormalize
@@ -174,12 +232,15 @@ def full_dm_accumulate_sparse_with_fermi(h,pairs,filling,nk=10,
     entirely different (de-paired) Hamiltonian, not just a shifted copy of
     the one the density matrix comes from, so this trick does not apply
     there."""
-    from .htk.eigenvectors import parallel_diagonalization
-    from .filling import get_fermi_energy
+    from .htk.eigenvectors import peigh_bloch
+    # the T-aware Fermi search, because the density matrix below weights
+    # the states with the Fermi-Dirac occupation at this same `delta`: a
+    # T=0 eigenvalue count would hold a different number of electrons
+    from .spectrum import get_fermi_energy_T
     ks = np.array(h.geometry.get_kmesh(nk=nk)) # get the mesh
     n = h.intra.shape[0]
     if len(ks)*n*n*16 > max_memory_gb*1e9: # see max_memory_gb's docstring
-        fermi = h.get_fermi4filling(filling,nk=nk)
+        fermi = h.get_fermi4filling(filling,nk=nk,T=delta)
         h_shifted = h.copy()
         h_shifted.shift_fermi(-fermi)
         dm = full_dm_accumulate_sparse(h_shifted,pairs,nk=nk,delta=delta,
@@ -192,11 +253,14 @@ def full_dm_accumulate_sparse_with_fermi(h,pairs,filling,nk=10,
     all_es = []
     for i0 in range(0,len(ks),batch_size): # loop over batches of kpoints
         kbatch = ks[i0:i0+batch_size]
-        mats = np.array([hk(k) for k in kbatch]) # k-Hamiltonians in this batch
-        es_batch,vs_batch = parallel_diagonalization(mats) # diagonalize in parallel
+        # peigh_bloch densifies every H(k): hk(k) is sparse for an
+        # is_sparse Hamiltonian, and np.array of those gives an object
+        # array that the numba kernels below reject with an opaque
+        # TypingError (this path diagonalizes fully anyway)
+        es_batch,vs_batch = peigh_bloch(hk,kbatch) # diagonalize in parallel
         batches.append((es_batch,vs_batch,kbatch))
         all_es.append(es_batch.ravel())
-    fermi = get_fermi_energy(np.concatenate(all_es),filling)
+    fermi = get_fermi_energy_T(np.concatenate(all_es),filling,T=delta)
     outd = {d: np.zeros((n,n),dtype=np.complex128) for d in pairs}
     for es_batch,vs_batch,kbatch in batches:
         _accumulate_dm_batch(outd,pairs,threshold,es_batch-fermi,vs_batch,kbatch,delta)
@@ -310,7 +374,8 @@ def full_dm_simultaneous(h,nk=10,fermi=0.0,
     elif h.dimensionality == 1: fac = 1./nk
     elif h.dimensionality == 2: fac = 1./nk**2
     elif h.dimensionality == 3: fac = 1./nk**3
-    else: raise
+    else:
+        raise ValueError("the Hamiltonian must have dimensionality 0, 1, 2 or 3")
     if ds is None: # no directions required
       es,vs = h.get_eigenvectors(nk=nk) # get eigenvectors
       es = es - fermi # shift by the Fermi energy
@@ -324,7 +389,14 @@ def full_dm_simultaneous(h,nk=10,fermi=0.0,
       ks = np.array(ks,dtype=np.float64) # to array
       ds_arr = np.array(ds,dtype=np.float64)
       n = h.intra.shape[0] # dimensionality
-      out = full_dm_d_batch_vectorized(es,vs,ks,ds_arr,delta=delta)*fac
+      from .dmtk import fulldm
+      if fulldm.mode=="vectorized": # every direction in one batched call
+          out = full_dm_d_batch_vectorized(es,vs,ks,ds_arr,delta=delta)*fac
+      else: # the reference implementation, one direction at a time --
+          # full_dm_python_d is what reads dmtk.fulldm.mode here, so an
+          # unrecognized mode is reported there instead of being ignored
+          out = np.array([full_dm_python_d(es,vs,ks,d,delta=delta)
+                  for d in ds_arr])*fac
       outd = dict() # dictionary
       for i in range(len(ds)): outd[tuple(ds[i])] = out[i] # as dictionary
       return outd
@@ -343,7 +415,8 @@ from .dmtk.fulldm import full_dm_d_batch_vectorized
 def restricted_dm(h,mode="KPM",pairs=[],
                    scale=10.0,npol=400,ne=None):
   """Calculate certain elements of the density matrix"""
-  if h.dimensionality != 0 : raise
+  if h.dimensionality != 0:
+      raise ValueError("restricted_dm is only implemented for 0d Hamiltonians")
   if mode=="full": # full inversion and then select
     dm = full_dm(h) # Full DM
     outm = np.array([dm[j,i] for (i,j) in pairs]) # get the desired ones
@@ -360,7 +433,8 @@ def restricted_dm(h,mode="KPM",pairs=[],
       out[ii] = np.trapezoid(y,x=x)/np.pi # pi is here so it normalizes to 0.5
       ii += 1
     return out
-  else: raise
+  else:
+      raise ValueError("unknown mode; restricted_dm accepts 'full' and 'KPM'")
        
 from . import algebra
 

@@ -18,7 +18,9 @@ def get_eh_sector_odd_even(m,i=0,j=0):
     elif i==1 and j==0: return m[n:2*n,0:n] 
     elif i==0 and j==1: return m[0:n,n:2*n] 
     elif i==1 and j==1: return m[n:2*n,n:2*n] 
-    else: raise
+    else:
+        raise ValueError("the electron-hole sector indexes i and j must each "
+                "be 0 or 1")
 
 
 get_eh_sector = get_eh_sector_odd_even
@@ -82,7 +84,8 @@ def eh_operator(m):
 
 def enforce_multihopping_eh_symmetry(MH):
     """Enforce electron-hole symmetry in a multihopping object"""
-    raise
+    raise NotImplementedError("enforce_multihopping_eh_symmetry is not "
+            "implemented")
     from .multihopping import MultiHopping
     dd = MH.get_dict() # get the dictionary
     out = dict() # dictionary
@@ -215,7 +218,8 @@ def build_nambu_matrix(hin,c12=None,c21=None,is_sparse=True):
 
 def add_swave(delta=0.0,is_sparse=False,rs=None):
   """ Adds swave pairing """
-  if rs is None: raise # raise error to signal that this is temporal
+  if rs is None: # raise error to signal that this is temporal
+      raise ValueError("add_swave needs the site positions, pass them as rs")
   n = len(rs) # number of sites
   if callable(delta): # delta is a function
     datar = [delta(ri) for ri in rs] # generate data for the different positions
@@ -234,6 +238,13 @@ def add_swave(delta=0.0,is_sparse=False,rs=None):
 
 def add_swave_to_hamiltonian(self,delta,**kwargs):
     """Add the swave coupling to the Hamiltonian"""
+    if len(kwargs)>0:
+        # add_swave takes only the amplitude; anything else (mode=, d=,
+        # r1=...) belongs to add_pairing and used to be dropped here
+        raise TypeError("add_swave() got unexpected keyword argument(s) "
+          +str(sorted(kwargs))+"; it only takes the pairing amplitude. "
+          +"For any other pairing symmetry use add_pairing(delta=...,"
+          +"mode=...)")
     from .operators import isnumber
 #    if isnumber(delta):
 #        if delta==0.0: return 
@@ -245,7 +256,10 @@ def add_swave_to_hamiltonian(self,delta,**kwargs):
     elif self.check_mode("spinful") or self.check_mode("spinful_nambu"): 
       self.turn_nambu() # add electron hole
       self.intra = self.intra + add_swave(delta=delta,rs=self.geometry.r,is_sparse=self.is_sparse)
-    else: raise
+    else:
+        raise ValueError("cannot add s-wave pairing to this Hamiltonian: "
+          +"it is neither spinless nor spinful (has_spin="
+          +str(self.has_spin)+", has_eh="+str(self.has_eh)+")")
 
 
 
@@ -428,6 +442,16 @@ def identify_superconductivity(h,tol=1e-5):
     if not h.has_eh: return [] # empty list
     dd = h.get_multihopping()
     if dd.norm()<tol: return [] # nothing
+    # every route below (the d-vector, dict2absdeltas, the singlet/triplet
+    # extraction) reads the pairing out of a 4x4 spin x electron-hole block
+    # per site, so name the requirement here rather than letting the
+    # d-vector complain about a Hilbert space the caller never mentioned
+    if not h.check_mode("spinful_nambu"):
+        raise NotImplementedError("identify_superconductivity classifies the "
+          +"pairing in the spin x electron-hole basis, so it needs a spinful "
+          +"Nambu Hamiltonian; this one is spinless Nambu (has_spin="
+          +str(h.has_spin)+"). Use h.extract('swave') or sctk.spinless for "
+          +"the spinless case")
     out = [] # initialize the list
 #    out.append("Superconductivity") # is superconducting
     dv = h.get_average_dvector() # get the average d-vector
@@ -496,7 +520,9 @@ def turn_nambu(self):
   elif self.check_mode("spinless_nambu"): return # do nothing, already Nambu
   elif self.check_mode("spinless"): self.turn_spinful() # error
   elif self.check_mode("spinful"): pass # error
-  else: raise
+  else:
+      raise NotImplementedError("this Hilbert space cannot be turned into a "
+              "Nambu one")
   def f(m): return nambu(m,is_sparse=self.is_sparse)
   self.modify_hamiltonian_matrices(f) # modify all the matrices
   self.has_eh = True

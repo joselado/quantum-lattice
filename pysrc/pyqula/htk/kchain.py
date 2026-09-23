@@ -24,7 +24,10 @@ def kchain(h,**kwargs):
     elif detect_longest_hopping(h)==2:
         print("WARNING, NNN in kchain")
         return kchain_NNN(h,**kwargs) # include NNN
-    else: raise
+    else:
+        raise NotImplementedError("kchain only supports hoppings up to "
+                "second-neighbor cells, and this Hamiltonian couples cells "
+                "further apart")
 
 
 
@@ -50,7 +53,9 @@ def kchain_NNN(h,k=[0.,0.,0.]):
             if t.dir[dim-1]==1: inter1 = inter1 + tk # add contribution 
             if t.dir[dim-1]==2: inter2 = inter2 + tk # add contribution 
         return intra,inter1,inter2
-    else: raise
+    else:
+        raise ValueError("kchain_NNN needs a Hamiltonian with a positive "
+                "dimensionality")
 
 
 def kchain_NN(h,k=[0.,0.,0.]):
@@ -61,7 +66,8 @@ def kchain_NN(h,k=[0.,0.,0.]):
     if dim==1: # 1D
         for t in h.hopping:
             if t.dir[0]==1: return h.intra,t.m
-        raise
+        raise ValueError("no hopping to the neighboring cell was found, so "
+                "this 1d chain is decoupled")
     elif dim>1: # 2D or 3D
       intra = np.zeros(h.intra.shape) # zero amtrix
       inter = np.zeros(h.intra.shape) # zero amtrix
@@ -71,15 +77,27 @@ def kchain_NN(h,k=[0.,0.,0.]):
         if t.dir[dim-1]==0: intra = intra + tk # add contribution 
         if t.dir[dim-1]==1: inter = inter + tk # add contribution 
       return intra,inter
-    else: raise
+    else:
+        raise ValueError("kchain_NN needs a Hamiltonian with a positive "
+                "dimensionality")
 
 
 def detect_longest_hopping(h,tol=1e-7):
-    h = h.get_multicell() # multicell Hamiltonian
+    from ..multicell import turn_multicell,unit_cell_hoppings
+    if h.is_multicell or h.dimensionality>2:
+        pairs = [(t.dir,t.m) for t in turn_multicell(h).hopping]
+    else:
+        # read only, and called once per energy in a decimation: going
+        # through turn_multicell here would deepcopy the whole Hamiltonian,
+        # geometry included, only to look at the same matrices. That
+        # deepcopy was measured at a third of a LocalProbe Keldysh dI/dV
+        # point (keldyshtk/current.py), which calls this tens of thousands
+        # of times on one unchanging lead.
+        pairs = unit_cell_hoppings(h) # the daggers have the same |dir|
     out = 0 # initialize
-    for t in h.hopping: # loop over hoppings
-        if np.max(np.abs(t.m))>tol: # if bigger than the tolerance
-            nn = np.max(np.abs(t.dir))
+    for (d,m) in pairs: # loop over hoppings
+        if np.max(np.abs(m))>tol: # if bigger than the tolerance
+            nn = np.max(np.abs(d))
             if nn>out: out = nn # overwrite
     return out
 
@@ -106,7 +124,9 @@ def kchain_LR(h,k=[0.,0.,0.]):
             if t.dir[dim-1]>=0: # positive ones and intra
                 hops[t.dir[dim-1]] += tk # add this hopping
         return hops
-    else: raise
+    else:
+        raise ValueError("kchain_LR needs a Hamiltonian with a positive "
+                "dimensionality")
 
 
 

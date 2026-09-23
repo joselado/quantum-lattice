@@ -67,12 +67,22 @@ class Heterostructure():
         return device_dos(self,mode="left",**kwargs)
     def get_coupled_right_dos(self,**kwargs):
         return device_dos(self,mode="right",**kwargs)
-    def landauer(self,energy=0.,do_leads=True,left_channel=None,
+    def landauer(self,energy=0.,left_channel=None,
                   right_channel=None,**kwargs):
       """ Return the Landauer transmission"""
-      if self.has_eh: raise # invalid if there is electorn-hole
-      return landauer(self,energy=energy,delta=self.delta,do_leads=do_leads,
-                      left_channel=left_channel,right_channel=right_channel)
+      if self.has_eh:
+          raise NotImplementedError("the Landauer formula is not valid "
+            +"with the electron-hole (Nambu) degree of freedom, since a "
+            +"Cooper pair carries charge 2e; use didv instead, which uses "
+            +"the BTK/BdG scattering formula")
+      if left_channel is not None or right_channel is not None:
+          # these were accepted and then dropped by landauer's own
+          # **kwargs, so channel resolution never happened
+          raise NotImplementedError("channel-resolved transmission "
+            +"(left_channel/right_channel) is not implemented; use "
+            +"get_smatrix and project the transmission block yourself")
+      # kwargs used to be accepted here and then dropped on the floor
+      return landauer(self,energy=energy,**kwargs)
     def write_green(self):
         """Writes the green functions in a file"""
         from .green import write_matrix
@@ -132,6 +142,20 @@ class Heterostructure():
        """Return the inverse central Green's function"""
        from .transporttk.smatrix import get_central_gmatrix
        return get_central_gmatrix(self,**kwargs) 
+    def with_delta(self,delta):
+       """Return a copy of this junction whose broadening is `delta`.
+
+       The broadening is an attribute, read independently by the lead
+       selfenergies and by the central Green's function, so this is how a
+       `delta=` keyword given to a single call (didv, get_smatrix,
+       get_tmatrix) is made to mean exactly what the attribute means.
+       The copy is shallow: nothing downstream mutates the leads, and a
+       deepcopy of them would cost more than the calculation it
+       precedes."""
+       from copy import copy
+       out = copy(self) # shallow, the matrices are shared
+       out.delta = delta # the only thing that changes
+       return out
     def set_coupling(self,c): 
        """Coupling for kappa functionality"""
        self.scale_lc = np.sqrt(c)
@@ -229,14 +253,14 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
     er = csc_matrix(h_right.intra) 
     el = csc_matrix(h_left.intra) 
     tr = csc_matrix(h_right.inter) 
-    tl = csc_matrix(h_right.inter) 
+    tl = csc_matrix(h_left.inter) # the LEFT lead's hopping, not the right's
     tc = csc_matrix(h_central.inter) 
   if block_diagonal: 
     ec = h_central.intra.copy()  
     er = h_right.intra.copy()  
     el = h_left.intra.copy()  
     tr = h_right.inter.copy()  
-    tl = h_right.inter.copy() 
+    tl = h_left.inter.copy() # the LEFT lead's hopping, not the right's
     tc = h_central.inter.copy() 
   # central part is pure central input hamilotnian
   if interpolation=="None": # without central interpolation
@@ -257,7 +281,8 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
       elif i==num_central/2:
           hc[i][i] = ec
       else:
-        raise
+        raise ValueError("the central-block index fell outside the junction "
+                "while assigning the onsite matrices")
     # interterm
     for i in range(num_central-1): # interterm of the central blocks
       if i<num_central/2:
@@ -270,7 +295,8 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
         hc[i][i+1] = tc
         hc[i+1][i] = dagger(tc)
       else:
-        raise
+        raise ValueError("the central-block index fell outside the junction "
+                "while assigning the hopping matrices")
 
 
   # central part is a linear interpolation of right and left
@@ -285,7 +311,8 @@ def create_leads_and_central(h_right,h_left,h_central,num_central=1,
 
 
   else:
-    raise
+    raise NotImplementedError("this interpolation mode between the two leads "
+            "is not implemented")
 
   for i in range(num_central):  # intra term of the central blocks
     tcr[i][0] = csc_matrix(z) 
@@ -360,8 +387,8 @@ def block2full(ht,sparse=False):
       lc[0] = csc_matrix(ht.left_coupling)
       rc[nb-1] = csc_matrix(ht.right_coupling)
   else: 
-      print("Not implemented")
-      raise # no central part
+    raise NotImplementedError("block2full is only implemented for junctions "
+            "with a block-diagonal central part")
   # convert the central to sparse form
   central = [[None for i in range(nb)] for j in range(nb)]
   for i in range(nb):
@@ -455,8 +482,8 @@ def create_leads_and_central_list(h_right,h_left,list_h_central,
 def eigenvalues(HT,numeig=10,effective=False,gf=None,full=False):
   """ Gets the lowest eigenvalues of the central part of the hamiltonian"""
   if not HT.block_diagonal:
-    print(""" HTunction in eigenvalues must be block diagonal""")
-    raise
+    raise ValueError("the eigenvalues of the central part need a junction "
+            "with a block-diagonal central Hamiltonian")
   # if effective hamiltonian, just calculate the eigenvalues
   if effective: # effective hamiltonian
     print("Calculating eigenvalues of effective hamiltonian...")
@@ -558,10 +585,15 @@ def effective_central_hamiltonian(HT,energy=0.0,delta=0.0001,write=False):
 
 
 
-def get_tmatrix(ht,energy=0.0,delta=0.0001):
-  """Calculate the S-matrix of an HTstructure"""
-  if ht.block_diagonal: raise NotImplementedError
-  smatrix = get_smatrix(ht,energy=energy)
+def get_tmatrix(ht,energy=0.0,delta=None):
+  """Calculate the S-matrix of an HTstructure.
+
+  `delta` defaults to the junction's own attribute, and used to be
+  declared here and never forwarded, so it had no effect."""
+  if ht.block_diagonal:
+    raise NotImplementedError("the transmission matrix needs a junction whose "
+            "central part is not block diagonal")
+  smatrix = get_smatrix(ht,energy=energy,delta=delta)
   return smatrix[0][1]
 
 

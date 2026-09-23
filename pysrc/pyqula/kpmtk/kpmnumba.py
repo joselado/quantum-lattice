@@ -1,5 +1,6 @@
 import numpy as np
 import numba
+from .. import gpu
 from numba import jit,prange
 
 # precision names -> numpy dtypes, for the real and complex code paths
@@ -7,16 +8,16 @@ _REAL_DTYPES = {"single": np.float32, "double": np.float64}
 _COMPLEX_DTYPES = {"single": np.complex64, "double": np.complex128}
 
 
-def kpm_moments_v(v,m,n=100,kpm_prec="double",
-        kpm_cpugpu="CPU",**kwargs):
+def kpm_moments_v(v,m,n=100,kpm_prec="double",**kwargs):
     """Return the local moments.
 
-    kpm_prec selects the floating point precision ("single" or "double"),
-    and kpm_cpugpu selects the backend: "CPU" (numba) or "GPU" (JAX, which
-    falls back to running on the CPU if no GPU is available). Real input
+    kpm_prec selects the floating point precision ("single" or "double").
+    The backend, numba on the CPU or JAX on the GPU, is the package-wide
+    switch of pyqula.gpu. Real input
     (real matrix and real starting vector) is detected automatically and
     computed with real arithmetic; otherwise complex arithmetic is used.
     Both code paths support single and double precision."""
+    gpu.check_removed_arguments(kwargs,"kpm_cpugpu")
     from scipy.sparse import coo_matrix
     mo = coo_matrix(m)
     v = np.asarray(v)
@@ -36,18 +37,16 @@ def kpm_moments_v(v,m,n=100,kpm_prec="double",
         dtype = _COMPLEX_DTYPES[kpm_prec]
         v = np.array(v,dtype=dtype)
         data = np.array(mo.data,dtype=dtype)
-    if kpm_cpugpu=="CPU": # use the CPU
-        if is_real: mus = python_kpm_moments_real(v,data,mo.row,mo.col,n=n)
-        else: mus = python_kpm_moments_complex(v,data,mo.row,mo.col,n=n)
-    elif kpm_cpugpu=="GPU": # use the GPU (or CPU, if no GPU is available)
+    if gpu.get_gpu(): # use the GPU
         from .kpmjax import kpm_moments_gpu
         mus = kpm_moments_gpu(v,data,mo.row,mo.col,n=n)
-    else: raise ValueError("kpm_cpugpu must be 'CPU' or 'GPU', got "+str(kpm_cpugpu))
+    else: # use the CPU
+        if is_real: mus = python_kpm_moments_real(v,data,mo.row,mo.col,n=n)
+        else: mus = python_kpm_moments_complex(v,data,mo.row,mo.col,n=n)
     return np.array(mus,dtype=np.complex128)
 
 
-def kpm_moments_batch(vs,m,n=100,kpm_prec="double",
-        kpm_cpugpu="CPU",**kwargs):
+def kpm_moments_batch(vs,m,n=100,kpm_prec="double",**kwargs):
     """Return the moments for a batch of starting vectors against the same
     matrix, one vector per numba thread (see python_kpm_moments_batch_complex).
     vs has shape (nvec,nsites); returns an (nvec,2n) array of moments. This
@@ -55,6 +54,7 @@ def kpm_moments_batch(vs,m,n=100,kpm_prec="double",
     many independent vectors (random-trace tries, or one vector per site)
     sharing the same matrix -- see that function for the precision/realness
     handling this mirrors."""
+    gpu.check_removed_arguments(kwargs,"kpm_cpugpu")
     from scipy.sparse import coo_matrix
     mo = coo_matrix(m)
     vs = np.asarray(vs)
@@ -70,13 +70,12 @@ def kpm_moments_batch(vs,m,n=100,kpm_prec="double",
         dtype = _COMPLEX_DTYPES[kpm_prec]
         vs = np.array(vs,dtype=dtype)
         data = np.array(mo.data,dtype=dtype)
-    if kpm_cpugpu=="CPU": # use the CPU, one vector per thread
-        if is_real: mus = python_kpm_moments_batch_real(vs,data,mo.row,mo.col,n=n)
-        else: mus = python_kpm_moments_batch_complex(vs,data,mo.row,mo.col,n=n)
-    elif kpm_cpugpu=="GPU": # batched, dispatched to the device in fixed-size chunks
+    if gpu.get_gpu(): # batched, dispatched to the device in fixed-size chunks
         from .kpmjax import kpm_moments_batch_gpu
         mus = kpm_moments_batch_gpu(vs,data,mo.row,mo.col,n=n,**kwargs)
-    else: raise ValueError("kpm_cpugpu must be 'CPU' or 'GPU', got "+str(kpm_cpugpu))
+    else: # use the CPU, one vector per thread
+        if is_real: mus = python_kpm_moments_batch_real(vs,data,mo.row,mo.col,n=n)
+        else: mus = python_kpm_moments_batch_complex(vs,data,mo.row,mo.col,n=n)
     return np.array(mus,dtype=np.complex128)
 
 
@@ -95,6 +94,8 @@ def python_kpm_moments_complex(v,data,row,col,n=100):
     fixed buffers rotated between iterations (no copy, no reallocation)."""
     nsites = len(v)
     nnz = len(data)
+    data2 = data + data # 2*data in data's own dtype: a 2. literal in the
+    # loop would promote single precision to double on every term
     mus = np.zeros(2*n,dtype=v.dtype) # empty array for the moments
     am = v.copy() # zero vector
     a = Mtimesv(data,row,col,v) #m@v  # vector number 1
@@ -106,7 +107,7 @@ def python_kpm_moments_complex(v,data,row,col,n=100):
     ap = np.empty_like(v)
     for i in range(1,n):
         for s in range(nsites): ap[s] = -am[s]
-        for k in range(nnz): ap[row[k]] += 2.*data[k]*a[col[k]]
+        for k in range(nnz): ap[row[k]] += data2[k]*a[col[k]]
         bk = a[0]-a[0]   # zero of a's dtype
         bk1 = a[0]-a[0]
         for s in range(nsites):
@@ -136,6 +137,8 @@ def python_kpm_moments_batch_complex(vs,data,row,col,n=100):
     nvec = vs.shape[0]
     nsites = vs.shape[1]
     nnz = len(data)
+    data2 = data + data # 2*data in data's own dtype: a 2. literal in the
+    # loop would promote single precision to double on every term
     mus = np.zeros((nvec,2*n),dtype=vs.dtype)
     for iv in prange(nvec):
         v = vs[iv]
@@ -148,7 +151,7 @@ def python_kpm_moments_batch_complex(vs,data,row,col,n=100):
         ap = np.empty_like(v)
         for i in range(1,n):
             for s in range(nsites): ap[s] = -am[s]
-            for k in range(nnz): ap[row[k]] += 2.*data[k]*a[col[k]]
+            for k in range(nnz): ap[row[k]] += data2[k]*a[col[k]]
             bk = a[0]-a[0]   # zero of a's dtype
             bk1 = a[0]-a[0]
             for s in range(nsites):
@@ -188,6 +191,8 @@ def python_kpm_moments_real(v,data,row,col,n=100):
     instead of a chain of separate numpy temporaries."""
     nsites = len(v)
     nnz = len(data)
+    data2 = data + data # 2*data in data's own dtype: a 2. literal in the
+    # loop would promote single precision to double on every term
     mus = np.zeros(2*n,dtype=v.dtype) # empty array for the moments
     am = v.copy() # zero vector
     a = Mtimesv(data,row,col,v) #m@v  # vector number 1
@@ -199,7 +204,7 @@ def python_kpm_moments_real(v,data,row,col,n=100):
     ap = np.empty_like(v)
     for i in range(1,n):
         for s in range(nsites): ap[s] = -am[s]
-        for k in range(nnz): ap[row[k]] += 2.*data[k]*a[col[k]]
+        for k in range(nnz): ap[row[k]] += data2[k]*a[col[k]]
         bk = a[0]-a[0]   # zero of a's dtype
         bk1 = a[0]-a[0]
         for s in range(nsites):
@@ -224,6 +229,8 @@ def python_kpm_moments_batch_real(vs,data,row,col,n=100):
     nvec = vs.shape[0]
     nsites = vs.shape[1]
     nnz = len(data)
+    data2 = data + data # 2*data in data's own dtype: a 2. literal in the
+    # loop would promote single precision to double on every term
     mus = np.zeros((nvec,2*n),dtype=vs.dtype)
     for iv in prange(nvec):
         v = vs[iv]
@@ -236,7 +243,7 @@ def python_kpm_moments_batch_real(vs,data,row,col,n=100):
         ap = np.empty_like(v)
         for i in range(1,n):
             for s in range(nsites): ap[s] = -am[s]
-            for k in range(nnz): ap[row[k]] += 2.*data[k]*a[col[k]]
+            for k in range(nnz): ap[row[k]] += data2[k]*a[col[k]]
             bk = a[0]-a[0]   # zero of a's dtype
             bk1 = a[0]-a[0]
             for s in range(nsites):
@@ -255,8 +262,7 @@ def python_kpm_moments_batch_real(vs,data,row,col,n=100):
 
 
 
-def kpm_moments_A_batch(vs,m,A,n=100,kpm_prec="double",
-        kpm_cpugpu="CPU",**kwargs):
+def kpm_moments_A_batch(vs,m,A,n=100,kpm_prec="double",**kwargs):
     """Return the operator-weighted moments mus[k,i] = <T_i(m) v_k|A|v_k>
     for a batch of starting vectors sharing the same matrix m and operator
     A, one vector per numba thread. vs has shape (nvec,nsites); returns an
@@ -265,6 +271,7 @@ def kpm_moments_A_batch(vs,m,A,n=100,kpm_prec="double",
     single sparse-dense matmul up front instead of being recomputed inside
     the O(n) recursion loop (the prior per-vector implementation in
     kpm.get_momentsA_jit recomputed A@v on every iteration)."""
+    gpu.check_removed_arguments(kwargs,"kpm_cpugpu")
     from scipy.sparse import coo_matrix, csc_matrix
     mo = coo_matrix(m)
     vs = np.asarray(vs)
@@ -285,13 +292,12 @@ def kpm_moments_A_batch(vs,m,A,n=100,kpm_prec="double",
         vs = np.array(vs,dtype=dtype)
         Avs = np.array(Avs,dtype=dtype)
         data = np.array(mo.data,dtype=dtype)
-    if kpm_cpugpu=="CPU":
-        if is_real: mus = python_kpm_momentsA_batch_real(vs,Avs,data,mo.row,mo.col,n=n)
-        else: mus = python_kpm_momentsA_batch_complex(vs,Avs,data,mo.row,mo.col,n=n)
-    elif kpm_cpugpu=="GPU": # batched, dispatched to the device in fixed-size chunks
+    if gpu.get_gpu(): # batched, dispatched to the device in fixed-size chunks
         from .kpmjax import kpm_momentsA_batch_gpu
         mus = kpm_momentsA_batch_gpu(vs,Avs,data,mo.row,mo.col,n=n,**kwargs)
-    else: raise ValueError("kpm_cpugpu must be 'CPU' or 'GPU', got "+str(kpm_cpugpu))
+    else:
+        if is_real: mus = python_kpm_momentsA_batch_real(vs,Avs,data,mo.row,mo.col,n=n)
+        else: mus = python_kpm_momentsA_batch_complex(vs,Avs,data,mo.row,mo.col,n=n)
     return np.array(mus,dtype=np.complex128)
 
 
@@ -302,6 +308,8 @@ def python_kpm_momentsA_batch_complex(vs,Avs,data,row,col,n=100):
     nvec = vs.shape[0]
     nsites = vs.shape[1]
     nnz = len(data)
+    data2 = data + data # 2*data in data's own dtype: a 2. literal in the
+    # loop would promote single precision to double on every term
     mus = np.zeros((nvec,n),dtype=vs.dtype)
     for iv in prange(nvec):
         v = vs[iv]
@@ -315,7 +323,7 @@ def python_kpm_momentsA_batch_complex(vs,Avs,data,row,col,n=100):
         ap = np.empty_like(v)
         for i in range(2,n):
             for s in range(nsites): ap[s] = -am[s]
-            for k in range(nnz): ap[row[k]] += 2.*data[k]*a[col[k]]
+            for k in range(nnz): ap[row[k]] += data2[k]*a[col[k]]
             bk = a[0]-a[0] # zero of a's dtype
             for s in range(nsites):
                 bk += np.conjugate(ap[s])*Av[s]
@@ -330,6 +338,8 @@ def python_kpm_momentsA_batch_real(vs,Avs,data,row,col,n=100):
     nvec = vs.shape[0]
     nsites = vs.shape[1]
     nnz = len(data)
+    data2 = data + data # 2*data in data's own dtype: a 2. literal in the
+    # loop would promote single precision to double on every term
     mus = np.zeros((nvec,n),dtype=vs.dtype)
     for iv in prange(nvec):
         v = vs[iv]
@@ -343,7 +353,7 @@ def python_kpm_momentsA_batch_real(vs,Avs,data,row,col,n=100):
         ap = np.empty_like(v)
         for i in range(2,n):
             for s in range(nsites): ap[s] = -am[s]
-            for k in range(nnz): ap[row[k]] += 2.*data[k]*a[col[k]]
+            for k in range(nnz): ap[row[k]] += data2[k]*a[col[k]]
             bk = a[0]-a[0]
             for s in range(nsites):
                 bk += ap[s]*Av[s]

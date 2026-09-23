@@ -5,6 +5,7 @@ from . import algebra
 
 from scipy.sparse import csc_matrix,bmat
 from .spin import sx,sy,sz
+from .check import require_spin
 
 
 def rotation_matrix(m,vectors):
@@ -12,7 +13,9 @@ def rotation_matrix(m,vectors):
     of the magnetism """
     if not len(m)==2*len(vectors): # stop if they don't have
                                     # compatible dimensions
-       raise
+       raise ValueError("the matrix and the list of directions are "
+               "incompatible, the matrix must have two spin components per "
+               "direction")
     # pauli matrices
     n = len(m)//2 # number of sites
     R = [[None for i in range(n)] for j in range(n)] # rotation matrix
@@ -71,7 +74,9 @@ def global_spin_rotation(m,vector = np.array([0.,0.,1.]),angle = 0.0,
                              spiral = False,atoms = None):
   """ Rotates a matrix along a certain qvector """
   n = m.shape[0]//2 # number of sites
-  if atoms is not None: raise # per-atom rotation not implemented
+  if atoms is not None: # per-atom rotation not implemented
+    raise NotImplementedError("a rotation of a selected set of atoms is not "
+            "implemented, the rotation is global")
   R = build_rotation_matrix(n,vector=vector,angle=angle)
   if spiral:  # for spin spiral
     mout = R @ m  # rotate matrix
@@ -112,6 +117,55 @@ def spiralhopping(m,ri,rj,svector = np.array([0.,0.,1.]),
   return Rotj @ m @ algebra.dagger(Roti) # return the rotated matrix
 
 
+def _require_rotatable_channels(h,vector,angle,tol=1e-10):
+    """Raise ValueError if a global spin rotation would leave the exchange
+    interaction recorded in h.Vchannels in the wrong frame.
+
+    The channels hold J_x Sx_i Sx_j + J_y Sy_i Sy_j + J_z Sz_i Sz_j, a
+    diagonal exchange tensor per bond, and the spin responses read them in
+    the frame of the Hamiltonian. A rotation O of the Hamiltonian turns the
+    tensor into O diag(J_x,J_y,J_z) O^T, which is the same tensor for an
+    isotropic exchange, or for a rotation about the axis of a uniaxial one,
+    and has Sx_i Sy_j-like cross terms otherwise, which the x/y/z channel
+    form cannot hold. The first case needs nothing; the second is refused
+    rather than leaving a kernel that silently belongs to the unrotated
+    problem."""
+    ch = getattr(h,"Vchannels",None)
+    if ch is None: return
+    from .bsetk.interaction import V2dict
+    mats = [V2dict(ch[a]) if ch.get(a,None) is not None else dict()
+            for a in ("x","y","z")]
+    keys = set().union(*[set(m.keys()) for m in mats])
+    if len(keys)==0: return
+    R = algebra.todense(build_rotation_matrix(1,vector=vector,angle=angle))
+    paulis = [np.array([[0.,1.],[1.,0.]]),np.array([[0.,-1j],[1j,0.]]),
+              np.array([[1.,0.],[0.,-1.]])]
+    Rd = np.conj(R).T
+    O = np.array([[0.5*np.trace(pa@R@pb@Rd).real for pb in paulis]
+                  for pa in paulis]) # the SO(3) matrix of R
+    worst,where = 0.,None
+    for d in keys:
+        shape = [np.shape(m[d]) for m in mats if d in m][0]
+        J = np.array([np.array(m[d],dtype=np.complex128) if d in m
+                      else np.zeros(shape,dtype=np.complex128)
+                      for m in mats])
+        Jr = np.einsum("ac,bc,cij->abij",O,O,J)
+        dev = np.max(np.abs(Jr - np.einsum("ab,bij->abij",np.eye(3),J)))
+        if dev>worst: worst,where = dev,d
+    if worst>tol:
+        raise ValueError("this Hamiltonian records an anisotropic exchange "
+            "interaction in h.Vchannels (at lattice vector %s the rotation "
+            "changes it by %g), and a global spin rotation turns it into "
+            "one with Sx_i Sy_j-like cross terms that the x/y/z channels "
+            "cannot hold, so the spin responses would use the interaction "
+            "of the unrotated problem. Rotate the Hamiltonian before the "
+            "mean-field calculation instead, or, if only the one-body "
+            "Hamiltonian is needed, drop the interaction first with "
+            "h.V = None and h.Vchannels = None. An isotropic exchange, or a "
+            "rotation about the axis of a uniaxial one, is not "
+            "affected"%(str(where),worst))
+
+
 def hamiltonian_spin_rotation(self,vector=np.array([0.,0.,1.]),angle=0.):
     """ Perform a global spin rotation.
 
@@ -124,7 +178,8 @@ def hamiltonian_spin_rotation(self,vector=np.array([0.,0.,1.]),angle=0.):
     numerically (eigenvalue-preserving, and matches rotating the physical
     exchange/pairing directly) against Hamiltonians with both an exchange
     field and s-wave pairing present. """
-    if not self.has_spin: raise # no spin in the Hamiltonian
+    require_spin(self,"a spin rotation")
+    _require_rotatable_channels(self,vector=vector,angle=angle)
     gsr = global_spin_rotation # rename method
     self.intra = gsr(self.intra,vector=vector,angle=angle)
     if self.is_multicell: # multicell hamiltonian
@@ -139,17 +194,18 @@ def hamiltonian_spin_rotation(self,vector=np.array([0.,0.,1.]),angle=0.):
         self.ty = gsr(self.ty,vector=vector,angle=angle)
         self.txy = gsr(self.txy,vector=vector,angle=angle)
         self.txmy = gsr(self.txmy,vector=vector,angle=angle)
-      else: raise
+      else:
+        raise NotImplementedError("the spin rotation is only implemented up "
+                "to 2d for non-multicell Hamiltonians")
 
 
 
 def generate_spin_spiral(self,vector=np.array([0.,0.,1.]),
-                            qspiral=[1.,0.,0.],fractional=True,
-                            **kwargs):
+                            qspiral=[1.,0.,0.],fractional=True):
     """
     Generate a spin spiral antsaz in the Hamiltonian
     """
-    if not self.has_spin: raise # no spin
+    require_spin(self,"a spin spiral")
     qspiral = np.array(qspiral) # to array
     if qspiral.dot(qspiral)<1e-7: qspiral = np.array([0.,0.,0.])
     self.geometry.get_fractional()
@@ -184,4 +240,6 @@ def generate_spin_spiral(self,vector=np.array([0.,0.,1.]),
         self.ty = tmprot(self.ty,[0.,1.,0.])
         self.txy = tmprot(self.txy,[1.,1.,0.])
         self.txmy = tmprot(self.txmy,[1.,-1.,0.])
-      else: raise
+      else:
+        raise NotImplementedError("the spin spiral is only implemented up to "
+                "2d for non-multicell Hamiltonians")

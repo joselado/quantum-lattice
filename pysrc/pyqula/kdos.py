@@ -31,7 +31,8 @@ def kdos1d_sites(h,sites=[0],scale=10.,nk=100,npol=100,kshift=0.,
                   ewindow=None,info=False):
   """ Calculate kresolved density of states of
   a 1d system for a certain orbitals"""
-  if h.dimensionality!=1: raise # only for 1d
+  if h.dimensionality!=1: # only for 1d
+    raise ValueError("kdos1d_sites is only implemented for 1d Hamiltonians")
   ks = np.linspace(0.,1.,nk) # number of kpoints
   h.turn_sparse() # turn the hamiltonian sparse
   hkgen = h.get_hk_gen() # get generator
@@ -80,9 +81,36 @@ def write_surface(h,energies=np.linspace(-.5,.5,300),
                          operator=operator,hs=hs,**kwargs)
   elif h.dimensionality==3:
     write_surface_3d(h,energies=energies,klist=klist,delta=delta)
-  else: raise
+  else:
+    raise ValueError("write_surface needs a Hamiltonian of dimensionality 1, "
+            "2 or 3")
 
 
+
+def get_surface_operator(h,operator):
+  """Return the matrix a surface/bulk DOS is projected onto.
+
+  This used to be inlined in write_surface_1d/2d as
+
+      if operator is None: op = np.identity(...)
+      elif callable(operator): op = callable(op)
+      else: op = operator
+
+  whose middle branch referenced an unbound `op` -- and an Operator, which
+  is what h.get_operator("sz") returns, is callable, so every named
+  operator raised UnboundLocalError before any physics happened."""
+  if operator is None: return np.identity(h.intra.shape[0],dtype=np.complex128)
+  op = h.get_operator(operator) # resolve names, matrices and Operators alike
+  m = op.get_matrix(required=False) # the matrix it acts with
+  if m is None:
+      raise NotImplementedError("the surface spectral function applies the "
+              "operator as a single matrix, the same at every kpoint, so it "
+              "cannot take an operator that is defined only by its action on "
+              "a wavefunction (a k-dependent one such as \"unfold\", for "
+              "instance); use h.get_kdos_bands(mode=\"ED\") instead")
+  from scipy.sparse import issparse
+  if issparse(m): m = m.todense()
+  return np.array(m)
 
 
 def write_surface_1d(h,energies=None,delta=None,
@@ -90,15 +118,16 @@ def write_surface_1d(h,energies=None,delta=None,
   if energies is None: energies = np.linspace(-.5,.5,200)
   if delta is None: delta = (max(energies)-min(energies))/len(energies)
   h = h.get_no_multicell()
+  op = get_surface_operator(h,operator) # projection matrix, once
   fo  = open("SURFACE_DOS.OUT","w") # open file
   for energy in energies:
       gs,sf = green.green_renormalization(h.intra,h.inter,
               energy=energy,delta=delta) # surface green function 
-      if operator is None: op = np.identity(h.intra.shape[0]) # identity matrix
-      elif callable(operator): op = callable(op)
-      else: op = operator # assume a matrix
-      db = -algebra.trace(gs*op).imag # bulk
-      ds = -algebra.trace(sf*op).imag # surface
+      # gs and sf are plain ndarrays, so `*` here was an elementwise
+      # product: the trace picked up only sum_i g[i,i]*op[i,i] and any
+      # off-diagonal operator (sx, sy, a current) came out identically zero
+      db = -algebra.trace(gs@op).imag # bulk
+      ds = -algebra.trace(sf@op).imag # surface
       fo.write(str(energy)+"   "+str(ds)+"   "+str(db)+"\n")
       fo.flush()
   fo.close()
@@ -114,30 +143,32 @@ def write_surface_2d(h,energies=None,klist=None,delta=0.01,
   if klist is None: 
       klist = [[i,0.,0.] for i in np.linspace(-.5,.5,nk)]
   if energies is None: energies = np.linspace(-.5,.5,50)
+  op = get_surface_operator(h,operator) # projection matrix, once
   fo  = open("KDOS.OUT","w") # open file
   for k in klist:
     print("Doing k-point",k)
     for energy in energies:
       gs,sf = green.green_kchain(h,k=k,energy=energy,delta=delta,
                        only_bulk=False,hs=hs) # surface green function 
-      if operator is None: op = np.identity(h.intra.shape[0]) # identity matrix
-      elif callable(operator): op = callable(op)
-      else: op = operator # assume a matrix
-      db = -algebra.trace(gs*op).imag # bulk
-      ds = -algebra.trace(sf*op).imag # surface
+      # see write_surface_1d: `*` was an elementwise product here too
+      db = -algebra.trace(gs@op).imag # bulk
+      ds = -algebra.trace(sf@op).imag # surface
       fo.write(str(k[0])+"   "+str(energy)+"   "+str(ds)+"   "+str(db)+"\n")
       fo.flush()
   fo.close()
 
 
 def write_surface_3d(h,energies=None,klist=None,delta=0.01):
-  raise NotImplementedError
-  if h.dimensionality != 3: raise # only for 3d
+  raise NotImplementedError("write_surface_3d is not implemented")
+  if h.dimensionality != 3: # only for 3d
+    raise ValueError("write_surface_3d is only for 3d Hamiltonians")
   ho = h.copy() # copy Hamiltonian
   ho = ho.turn_multicell() # multicell Hamiltonian
   bout = [] # empty list, bulk
   sout = [] # empty list, surface
-  if klist is None: raise
+  if klist is None:
+    raise ValueError("write_surface_3d needs an explicit k-path, pass it as "
+            "klist")
   if energies is None: energies = np.linspace(-.5,.5,50)
   fo  = open("KDOS.OUT","w") # open file
   for k in klist:
@@ -154,14 +185,48 @@ def kdos_bands(h,use_kpm=False,kpath=None,scale=10.0,frand=None,
                  ewindow=4.0,delta=0.01,ntries=10,nk=100,
                  operator=None,energies=np.linspace(-3.0,3.0,200),
                  mode="ED",**kwargs):
-    """Calculate the KDOS bands using the KPM"""
+    """Calculate the KDOS bands using the KPM.
+
+    frand is the KPM random-vector generator (the one kpm.pdos and
+    kpm.tdos take): it is what makes the KDOS a projected one, by drawing
+    the random vectors from a subspace instead of the whole Hilbert
+    space. It used to be accepted here and never forwarded, so the output
+    was the unprojected one and was byte-identical with and without it."""
     if use_kpm: mode ="KPM" # conventional method
+    if frand is not None and mode!="KPM": # nothing to do with it here
+        raise ValueError("frand is the KPM random-vector generator, and is "
+                "only used by mode='KPM'; pass use_kpm=True or mode='KPM' "
+                "to have it honoured (this call asked for mode='"+str(mode)
+                +"', which diagonalizes instead of sampling)")
+    # normalize the kpath up front: the ED branch below needs the actual
+    # kpoints (it indexes get_bands's output by k-index), and get_kpath
+    # also expands a list of high-symmetry-point labels into vectors
+    kpath = h.geometry.get_kpath(kpath,nk=nk) # generate kpath
+    # resolve names ("unfold", "sz", ...) into an Operator once, for every
+    # mode: only the ED branch used to do it, by way of get_bands, so a
+    # string reached green.GtimesO and operators.Operator unresolved and
+    # died inside them. Resolving an Operator again is a no-op.
+    operator = h.get_operator(operator)
     if mode=="ED":
-        from . import dos
-        def pfun(k):
-          (es,ds) = h.get_dos(ks=[k],operator=operator,energies=energies,
-                  delta=delta,**kwargs)
-          return energies,ds
+        # batched path: diagonalize the whole kpath at once via get_bands
+        # (already numba-parallel, see bandstructure.get_bands_nd) instead
+        # of dispatching one h.get_dos call per kpoint through an outer
+        # process pool -- that wrapped many cheap single-kpoint
+        # diagonalizations in pcall, exactly the overhead-dominates-work
+        # failure mode the rest of this codebase's pcall->prange migration
+        # was built to avoid.
+        from .dostk.eigtodos import calculate_dos
+        bout = h.get_bands(kpath=kpath,operator=operator,write=False,**kwargs)
+        kidx = bout[0].astype(int) # k-index per row
+        es_col = bout[1] # energy per row
+        w_col = bout[2] if len(bout)>2 else None # operator weight per row, if any
+        out = [] # (energies,dos) pair per kpoint, matching the old pfun contract
+        for ik in range(len(kpath)):
+            mask = kidx==ik
+            w_k = w_col[mask] if w_col is not None else None
+            ys = calculate_dos(es_col[mask],energies,delta,w=w_k)
+            ys *= 1./np.pi # normalization of the Lorentzian, as in dos.dos_kmesh
+            out.append((energies,ys))
     elif mode=="green":
       f = h.get_gk_gen(delta=delta) # Green generator
       def pfun(k): # do it for this k-point
@@ -170,10 +235,20 @@ def kdos_bands(h,use_kpm=False,kpath=None,scale=10.0,frand=None,
               m = green.GtimesO(m,operator,k=k)
               return -algebra.trace(m).imag/np.pi # return DOS, same normalization as mode="ED"
           return energies,np.array([gfun(e) for e in energies])
+      out = parallel.pcall(pfun,kpath) # compute all
     elif mode=="KPM": # KPM method
       if operator is not None: 
-          from .operators import Operator
-          operator = Operator(operator).get_matrix() # convert to matrix
+          # a matrix is the only form kpm.pdos takes; asking for one raises
+          # rather than returning None, which used to leave operator=None
+          # here and quietly produce an unweighted KDOS
+          m = operator.get_matrix(required=False)
+          if m is None:
+              raise NotImplementedError("the KPM kdos samples the operator "
+                      "as a matrix, so it cannot take an operator that is "
+                      "defined only by its action on a wavefunction (a "
+                      "k-dependent one such as \"unfold\", for instance); "
+                      "use mode=\"ED\" instead")
+          operator = m
       h = h.copy()
       h.turn_sparse()
       hkgen = h.get_hk_gen() # get generator
@@ -182,15 +257,13 @@ def kdos_bands(h,use_kpm=False,kpath=None,scale=10.0,frand=None,
         hk = hkgen(k) # get Hamiltonian
         npol = 3*int(scale/delta) # number of polynomials
         (x,y) = kpm.pdos(hk,scale=scale,npol=npol,ne=npol*4,P=P,
-                     operator=operator,
+                     operator=operator,frand=frand,
                      ewindow=ewindow,ntries=ntries,x=energies,
                      **kwargs) # compute
         return (x,y)
-    if kpath is None:
-        kpath = h.geometry.get_kpath(kpath,nk=nk) # generate kpath
+      out = parallel.pcall(pfun,kpath) # compute all
     ### Now compute and write in a file
     ik = 0
-    out = parallel.pcall(pfun,kpath) # compute all
     fo = open("KDOS_BANDS.OUT","w") # open file
     for k in kpath: # loop over kpoints
       (x,y) = out[ik] # get this one
@@ -242,7 +315,8 @@ def write_surface_kpm(h,ne=400,klist=None,scale=4.,npol=200,w=20,ntries=20):
       # calculate the edge
       mus = kpm.random_trace(h0/scale,ntries=ntries,n=npol,fun=gedge)
       ds = kpm.generate_profile(mus,xs) # generate the profile
-    else: raise
+    else:
+      raise ValueError("write_surface_kpm needs a 1d or 2d Hamiltonian")
     for (e,d1,d2) in zip(es,ds,dsb):
       fo.write(str(k)+"   "+str(e)+"   "+str(d1)+"    "+str(d2)+"\n")
   fo.close()
@@ -266,7 +340,9 @@ def interface(h1,h2,energies=np.linspace(-1.,1.,100),operator=None,
         kpath = klist.default(g2d,nk=nk)
       elif h1.dimensionality==2:
         kpath = [[k,0.,0.] for k in np.linspace(0.,1.,nk)]
-      else: raise
+      else:
+        raise ValueError("the interface k-path is only defined for "
+                "Hamiltonians of dimensionality 2 or 3")
   #  tr = timing.Testimator("KDOS") # generate object
   #  tr.remaining(ik,len(kpath)) # generate object
     ik = 0
@@ -326,7 +402,9 @@ def surface_kdos(h1,energies=np.linspace(-1.,1.,100),operator=None,
         elif h1.dimensionality==2:
           kpath = [[k,0.,0.] for k in np.linspace(0.,1.,nk)]
         elif h1.dimensionality==1: kpath = [[0.,0.,0.0]] # one dummy point
-        else: raise
+        else:
+          raise ValueError("the surface k-path is only defined for "
+                  "Hamiltonians of dimensionality 1, 2 or 3")
     if write: fo = open("KDOS.OUT","w")
     if write: fo.write("# k, E, Surface, Bulk\n")
     if info: tr = timing.Testimator("KDOS") # generate object

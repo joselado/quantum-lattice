@@ -2,7 +2,11 @@ import numpy as np
 from numba import jit,njit,prange
 
 
-# vectorized mode seems to be faster, explicit kept as a reference
+# vectorized mode seems to be faster, explicit kept as a reference.
+# This switch is read by full_dm_python/full_dm_python_d, i.e. by the
+# densitymatrix.full_dm_simultaneous path; the (default) accumulate path
+# always uses the batched kernels below, which have no explicit
+# counterpart.
 mode = "explicit"
 mode = "vectorized"
 
@@ -13,7 +17,9 @@ def full_dm_python(es,vs,delta=1e-7):
       return full_dm_explicit(n,np.array(es),np.array(vs),delta=delta)
   elif mode=="vectorized":
       return full_dm_vectorized(np.array(es),np.array(vs),delta=delta)
-  else: raise
+  else:
+      raise ValueError("unknown mode; the density matrix accepts 'explicit' "
+              "and 'vectorized'")
 
 
 def full_dm_python_d(es,vs,ks,d,delta=1e-7):
@@ -31,7 +37,9 @@ def full_dm_python_d(es,vs,ks,d,delta=1e-7):
                                   np.array(ks),
                                   np.array(d),
                                   delta=delta)
-  else: raise
+  else:
+      raise ValueError("unknown mode; the density matrix accepts 'explicit' "
+              "and 'vectorized'")
 
 
 

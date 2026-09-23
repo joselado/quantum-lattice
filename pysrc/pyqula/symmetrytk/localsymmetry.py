@@ -2,10 +2,11 @@ import numpy as np
 
 
 import jax
-jax.config.update('jax_platform_name', 'cpu')
 import jax.numpy as jnp
 from jax import jit
 from jax import grad
+from .. import gpu
+gpu.apply() # follow the package-wide CPU/GPU switch, see pyqula/gpu.py
 
 
 def generate_permutation(H,nk=20,error=1e-5,only_permutation=True):

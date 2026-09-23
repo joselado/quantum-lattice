@@ -6,6 +6,7 @@ from numba import jit
 from . import parallel
 
 from .algebra import isnumber
+from .check import require_spin
 
 # dense 2x2 Pauli matrices, converted once at import time: building each
 # bond's 2x2 spin block via scipy-sparse sx/sy/sz arithmetic (as this used
@@ -32,7 +33,9 @@ def generalized_kane_mele(r1,r2,rm,fun=0.0,tol=1e-5):
     if fun==0.0: return 0
     if isnumber(fun): kmfun = lambda r: fun # function that always returns fun
     elif callable(fun): kmfun = fun # callable function
-    else: raise # no idea
+    else: # no idea
+      raise TypeError("the Kane-Mele coupling must be a number or a callable "
+              "of the position")
     nsites = len(r1) # number of sites
     rm = np.array(rm)
     r1 = np.array(r1)
@@ -191,7 +194,7 @@ def add_kane_mele(self,t,**kwargs):
   if not self.has_spin: self.turn_spinful() # spilful Hamiltonian
   from .multicell import close_enough # check if two rs are close
   g = self.geometry
-  if not self.has_spin: raise  # only for spinfull
+  require_spin(self,"the Kane-Mele coupling")
   if self.is_multicell:   # multicell Hamiltonian
     ncells = 2 # number of neighboring cells to check
     if self.dimensionality==0: rs = g.r # fix for zero dimensional
@@ -216,7 +219,9 @@ def add_kane_mele(self,t,**kwargs):
             rtmp = [ri + i*g.a1 +j*g.a2 + k*g.a3 for ri in g.r] # new positions
             if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
               rs += rtmp
-    else: raise
+    else:
+      raise NotImplementedError("the Kane-Mele coupling is only implemented "
+              "up to 3d for multicell Hamiltonians")
 
     m = generalized_kane_mele(g.r,g.r,rs,fun=t,**kwargs) # kane mele coupling
     m = self.spinful2full(m) # convert the matrix
@@ -244,7 +249,10 @@ def add_kane_mele(self,t,**kwargs):
         for j in (-1,0,1):
           for ri in g.r:
             rs.append(ri + i*g.a1 + j*g.a2)
-    else: raise
+    else:
+      raise NotImplementedError("the Kane-Mele coupling is only implemented "
+              "up to 2d for non-multicell Hamiltonians; call "
+              "h.turn_multicell() first")
     # now create the hamiltonian
     m = generalized_kane_mele(g.r,g.r,rs,fun=t,**kwargs) # kane mele coupling
     m = self.spinful2full(m) # convert the matrix
@@ -275,7 +283,10 @@ def add_kane_mele(self,t,**kwargs):
       m = generalized_kane_mele(g.r,r2,rs,fun=t)
       m = self.spinful2full(m) # convert the matrix
       self.txmy = self.txmy + m
-    else: raise
+    else:
+      raise NotImplementedError("the Kane-Mele coupling is only implemented "
+              "up to 2d for non-multicell Hamiltonians; call "
+              "h.turn_multicell() first")
 
 
 
@@ -325,7 +336,9 @@ def add_haldane_like(self,t,spinless_generator,
               if close_enough(g.r,rtmp,rcut=2.1): # if not too far
                 rtmp = [ri for ri in rtmp]
                 rs += rtmp
-      else: raise
+      else:
+        raise NotImplementedError("the Haldane-like coupling is only "
+                "implemented up to 3d for multicell Hamiltonians")
 
 #    self.intra += generator(g.r,g.r,rs,fun=t,sublattice=sublattice) # coupling
     dirs = [[0,0,0]] + [t.dir for t in self.hopping] # directions
@@ -354,7 +367,10 @@ def add_haldane_like(self,t,spinless_generator,
         for j in (-1,0,1):
           for ri in g.r:
             rs.append(ri + i*g.a1 + j*g.a2)
-    else: raise
+    else:
+      raise NotImplementedError("the Haldane-like coupling is only "
+              "implemented up to 2d for non-multicell Hamiltonians; call "
+              "h.turn_multicell() first")
     # now create the hamiltonian
     self.intra = self.intra + generator(g.r,g.r,rs,fun=t,sublattice=sublattice) # kane mele coupling
     if self.dimensionality==0: pass  # zero dimensional
@@ -370,7 +386,10 @@ def add_haldane_like(self,t,spinless_generator,
       self.txy = self.txy + generator(g.r,r2,rs,fun=t,sublattice=sublattice)
       r2 = [ri + 1*g.a1  -1*g.a2 for ri in g.r] # second vectors
       self.txmy = self.txmy + generator(g.r,r2,rs,fun=t,sublattice=sublattice)
-    else: raise
+    else:
+      raise NotImplementedError("the Haldane-like coupling is only "
+              "implemented up to 2d for non-multicell Hamiltonians; call "
+              "h.turn_multicell() first")
 
 
 
@@ -381,7 +400,7 @@ def add_kane_mele_old(self,t):
   if not self.has_spin: self.turn_spinful() # spilful Hamiltonian
   from .multicell import close_enough # check if two rs are close
   g = self.geometry
-  if not self.has_spin: raise  # only for spinfull
+  require_spin(self,"the Kane-Mele coupling")
   if self.is_multicell:   # multicell Hamiltonians
     ncells = 4 # number of neighboring cells to check
     if self.dimensionality==1:  # three dimensional
@@ -405,7 +424,9 @@ def add_kane_mele_old(self,t):
             rtmp = [ri + i*g.a1 +j*g.a2 + k*g.a3 for ri in g.r] # new positions
             if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
               rs += rtmp
-    else: raise
+    else:
+      raise NotImplementedError("the Kane-Mele coupling is only implemented "
+              "up to 3d for multicell Hamiltonians")
 
     self.intra += generalized_kane_mele(g.r,g.r,rs,fun=t) # kane mele coupling
     for i in range(len(self.hopping)): # loop over hoppings
@@ -429,7 +450,10 @@ def add_kane_mele_old(self,t):
         for j in (-1,0,1):
           for ri in g.r:
             rs.append(ri + i*g.a1 + j*g.a2)
-    else: raise
+    else:
+      raise NotImplementedError("the Kane-Mele coupling is only implemented "
+              "up to 2d for non-multicell Hamiltonians; call "
+              "h.turn_multicell() first")
     # now create the hamiltonian
     self.intra = self.intra + generalized_kane_mele(g.r,g.r,rs,fun=t) # kane mele coupling
     if self.dimensionality==0: pass  # zero dimensional
@@ -445,4 +469,7 @@ def add_kane_mele_old(self,t):
       self.txy = self.txy + generalized_kane_mele(g.r,r2,rs,fun=t)
       r2 = [ri + 1*g.a1  -1*g.a2 for ri in g.r] # second vectors
       self.txmy = self.txmy + generalized_kane_mele(g.r,r2,rs,fun=t)
-    else: raise
+    else:
+      raise NotImplementedError("the Kane-Mele coupling is only implemented "
+              "up to 2d for non-multicell Hamiltonians; call "
+              "h.turn_multicell() first")
