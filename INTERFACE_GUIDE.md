@@ -485,6 +485,21 @@ modes call into):
   widgets and combobox items on every lattice-combobox change (and, on the
   same page, every `hamiltonian_type` combobox change too - see below).
   Adding a new geometry-restricted term is a one-line registry addition.
+  Dropdown items go through `ITEM_RULES` instead: `{item, lower-cased:
+  rule(lattice_name, hamiltonian_type)}`, usually `_follows("<term>")` (the
+  item is offered exactly where that term's field is shown - Sx/Sy/Sz
+  follow `exchange`, the hole projector `swave`, the SCF guess `antiferro`
+  `mAF`) or `_on_lattice(is_..._family)`. It applies to the dropdowns in
+  `RESTRICTED_COMBOS`, each rebuilt from its full list - what
+  `qtwrap.set_combobox()` last filled it with (recorded as
+  `combo._all_items`; `set_combobox()` also re-applies the restrictions
+  when a mode fills a dropdown after `connect()`, as `hybridribbon` does),
+  else its Designer items as first seen, and for `scf_initialization` the
+  list `_scf_guess_items()` builds. `_restrict_combo_items()` keeps the
+  original order (an item that comes back returns to its place, not the
+  end) and remembers the last pick made by anything but itself, restoring
+  it as soon as it is offered again. Matching is case-insensitive, so a
+  Designer "Valley" and pyqula's "valley" are one item.
   `apply_term_restrictions(form, lattice_name, hamiltonian_type)` also
   folds in `hamiltoniantype.py`'s own restrictions, combining both via AND
   per widget base name before calling `setVisible()` once - see that
@@ -1754,7 +1769,12 @@ before widening any layer. It's layered, cheapest/most-general first:
    their page defaults, and what broke in them was the call contract
    (keyword names handed to pyqula, accessor methods a helper reads), which
    a tiny system exercises just as well - a few seconds for the file.
-8. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+8. **`test_term_restrictions.py`** — what `latticeterms.connect()` does to a
+   built page's dropdowns (`ITEM_RULES`): items filtered per Hamiltonian
+   type and lattice, the original order kept, no duplicates, and the
+   user's pick restored after a round trip or a session load. Cheap: page
+   builds only, no calculation.
+9. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
    tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
    Automated version of the "skim `git diff --stat pysrc/pyqula`" step
    `tools/update_pyqula.sh`'s own instructions already ask for by hand —

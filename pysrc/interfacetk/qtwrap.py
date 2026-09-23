@@ -768,6 +768,12 @@ def set_combobox(page,name,cs=[]):
         return
     cb.clear() # clear the items
     cb.addItems(cs)
+    # the full list latticeterms.py filters per lattice/Hamiltonian type -
+    # re-filter now if this page's restrictions are already wired, as they
+    # are when a mode fills a dropdown after latticeterms.connect()
+    cb._all_items = list(cs)
+    reapply = getattr(page,"_reapply_term_restrictions",None)
+    if reapply is not None: reapply()
 
 
 
@@ -1004,7 +1010,13 @@ def load_interface(self,inputfile):
                 # whatever highlight state it had before this load
                 if getattr(obj,"_term_highlight",False):
                     termhighlight.apply_highlight(obj,termhighlight.is_nonzero_value(entry["value"]))
-            elif entry["type"]=="combo": obj.setCurrentText(entry["value"])
+            elif entry["type"]=="combo":
+                obj.setCurrentText(entry["value"])
+                # a restricted dropdown (latticeterms.RESTRICTED_COMBOS) may
+                # not offer the saved item until a widget restored after it
+                # (lattice, hamiltonian_type) brings it back; remembering it
+                # as the user's pick selects it as soon as it is offered
+                if hasattr(obj,"_wanted"): obj._wanted = entry["value"]
             elif entry["type"]=="check": obj.setChecked(entry["value"])
         except Exception: pass # widget type changed since the save
 

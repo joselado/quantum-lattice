@@ -34,19 +34,19 @@ connect() applies the current classification once immediately and again
 on every change of the mode's own "lattice" combobox, if it has one.
 
 To restrict a new term to an existing rule in the future: add one entry
-to RESTRICTED_TERMS below - no other code needs to change, every mode
-that already calls connect() picks it up for free. To add a new rule
+to RESTRICTED_TERMS below (a dropdown item: to ITEM_RULES) - no other code
+needs to change, every mode that already calls connect() picks it up for
+free. To add a new rule
 (a different geometry family entirely): write a new `is_..._family`
 predicate next to is_honeycomb_family and reference it from new entries.
 
-connect() also owns the SCF tab's "Initial guess" (scf_initialization)
-dropdown - not a lattice restriction itself, but built from the same
-per-term/per-lattice information this module already tracks, so it's
-kept here rather than duplicating that logic elsewhere. Every call to
-apply_term_restrictions() rebuilds it down to exactly {a
-meanfield.guess() mode per Hamiltonian term this mode/lattice
-combination actually has} + "random" - see
-_rebuild_scf_initialization_baseline() and _UNRESTRICTED_GUESS_TERMS.
+connect() also filters the items of the operator, parameter-sweep and
+SCF "Initial guess" dropdowns (RESTRICTED_COMBOS) by ITEM_RULES: each item
+follows a lattice rule or a term field's shown/hidden rule, so e.g. the
+spin operators disappear for a Spinless Hamiltonian and the "antiferro"
+guess wherever the Antiferromagnetism field does. Every call rebuilds each
+dropdown from its full list in its original order and keeps the user's
+last pick selected whenever it is offered (_restrict_combo_items()).
 
 apply_term_restrictions()/connect() also fold in hamiltoniantype.py's own
 Spinless/Spinful/Nambu-based restrictions (SPIN_TERMS/PAIRING_TERMS), so a
@@ -107,35 +107,15 @@ def is_sublattice_family(lattice_name):
             or "lieb" in name or "diamond" in name)
 
 
-# Each entry restricts one term/operator to lattices for which
-# `rule(lattice_name)` is True.
-#
-#   "widget"     - base widget names (LineEdit fields, their *_image
-#                  formula labels, ...), shown only when the rule holds.
-#                  Matched against every attribute on the page whose name
-#                  is the base name itself, base+"_image", or base+"_N"
-#                  for any digits N - the latter covers hybridfilm/
-#                  hybridribbon's per-part fields ("haldane_2", and
-#                  "haldane_3"/"haldane_4"/... built at runtime by
-#                  hybridparts.py once the user picks more than 2 parts),
-#                  without this list needing to enumerate a widget per part.
-#   "combo_item" - one specific item text kept in/out of each listed
-#                  QComboBox's item list depending on the rule. Item text
-#                  is given per combobox since the same term shows up
-#                  with different casing depending on where it comes
-#                  from: "topology_operator"/"operator_chern" are static
-#                  Designer items ("Valley"), while "bands_color"/
-#                  "operator_kdos"/"dos_operator" (and 2d.py's own
-#                  "fs_operator") are populated at runtime from pyqula's
-#                  operators.operator_list, which uses lowercase "valley" -
-#                  "fs_operator" is NOT populated generically by any shared
-#                  code (common.py:initialize() deliberately leaves it
-#                  alone): heavyfermion's own "fs_operator" keeps a
-#                  hand-authored, mode-specific item list
-#                  (dispersive_electrons/kondo_sites/None) that a generic
-#                  operators.operator_list population would silently
-#                  clobber, so only 2d.py (the one other mode with this
-#                  field) populates it itself.
+# Each entry restricts term fields to lattices for which
+# `rule(lattice_name)` is True: base widget names (LineEdit fields, their
+# *_image formula labels, ...), shown only when the rule holds. Matched
+# against every attribute on the page whose name is the base name itself,
+# base+"_image", or base+"_N" for any digits N - the latter covers
+# hybridfilm/hybridribbon's per-part fields ("haldane_2", and
+# "haldane_3"/"haldane_4"/... built at runtime by hybridparts.py once the
+# user picks more than 2 parts), without this list needing to enumerate a
+# widget per part. Dropdown items are restricted through ITEM_RULES below.
 RESTRICTED_TERMS = [
     {"kind": "widget", "names": ["haldane"], "rule": is_honeycomb_family},
     {"kind": "widget", "names": ["antihaldane"], "rule": is_honeycomb_family},
@@ -143,88 +123,107 @@ RESTRICTED_TERMS = [
     {"kind": "widget", "names": ["antikanemele"], "rule": is_honeycomb_family},
     {"kind": "widget", "names": ["mAB"], "rule": is_sublattice_family},
     {"kind": "widget", "names": ["mAF"], "rule": is_sublattice_family},
-    {"kind": "combo_item",
-     "items": {"topology_operator": "Valley", "operator_chern": "Valley",
-               "bands_color": "valley", "fs_operator": "valley",
-               "operator_kdos": "valley", "dos_operator": "valley"},
-     "rule": is_honeycomb_family},
-    {"kind": "combo_item",
-     "items": {"sweep_parameter": "Sublattice imbalance"},
-     "rule": is_sublattice_family},
-    {"kind": "combo_item",
-     "items": {"sweep_parameter": "Antiferromagnetism"},
-     "rule": is_sublattice_family},
-    # scf_initialization ("Initial guess") items for the same three
-    # honeycomb-restricted terms and the two sublattice-restricted mass
-    # terms above - same rule, same combobox, added/removed the same way.
-    # meanfield.guess()'s mode strings, not the term field names
-    # themselves (see _rebuild_scf_initialization_baseline()'s docstring).
-    {"kind": "combo_item", "items": {"scf_initialization": "Haldane"},
-     "rule": is_honeycomb_family},
-    {"kind": "combo_item", "items": {"scf_initialization": "kanemele"},
-     "rule": is_honeycomb_family},
-    {"kind": "combo_item", "items": {"scf_initialization": "antihaldane"},
-     "rule": is_honeycomb_family},
-    {"kind": "combo_item", "items": {"scf_initialization": "antiferro"},
-     "rule": is_sublattice_family},
-    {"kind": "combo_item", "items": {"scf_initialization": "imbalance"},
-     "rule": is_sublattice_family},
 ]
 
 
-# scf_initialization ("Initial guess") items tied 1:1 to a Hamiltonian
-# term this mode has, whose availability never changes once the page is
-# built (unlike the honeycomb-/sublattice-restricted terms above, which
-# can turn on/off after a lattice change): {term field name: the matching
-# pyqula meanfield.guess() mode string}. "random" is offered unconditionally
-# alongside these, since meanfield.guess(mode="random") is valid for any
-# Hamiltonian regardless of which terms exist.
-_UNRESTRICTED_GUESS_TERMS = {
-    "exchange": "ferro",
-    "rashba": "rashba",
-    "swave": "swave",
-    "pwave": "pwave",
+def _follows(term):
+    """An item offered exactly where the term field `term` is shown."""
+    return lambda lattice_name, hamiltonian_type: term_shown(term, lattice_name, hamiltonian_type)
+
+
+def _on_lattice(rule):
+    """An item offered on lattices for which `rule(lattice_name)` holds."""
+    return lambda lattice_name, hamiltonian_type: lattice_name is None or rule(lattice_name)
+
+
+# Dropdown items that only apply to some lattices or Hamiltonian types:
+# {item text, lower-cased: rule(lattice_name, hamiltonian_type)}. Matched
+# case-insensitively, since the same operator is "Valley" in some Designer
+# lists and "valley" in pyqula's operators.operator_list (common.
+# get_operator() accepts both). Operators pyqula refuses on the wrong
+# Hilbert space follow a term with the same requirement: the spin
+# operators follow the (spin-only) exchange field, and the hole projector
+# the (Nambu-only) s-wave pairing. The SCF initial guesses are pyqula
+# meanfield.guess() modes, each following the term it seeds.
+ITEM_RULES = {
+    "valley": _on_lattice(is_honeycomb_family),
+    "sublattice": _on_lattice(is_sublattice_family),
+    "sx": _follows("exchange"),
+    "sy": _follows("exchange"),
+    "sz": _follows("exchange"),
+    "hole": _follows("swave"),
+    "sublattice imbalance": _follows("mAB"),
+    "antiferromagnetism": _follows("mAF"),
+    "ferro": _follows("exchange"),
+    "rashba": _follows("rashba"),
+    "swave": _follows("swave"),
+    "pwave": _follows("pwave"),
+    "haldane": _follows("haldane"),
+    "kanemele": _follows("kanemele"),
+    "antihaldane": _follows("antihaldane"),
+    "antiferro": _follows("mAF"),
+    "imbalance": _follows("mAB"),
 }
 
 
-# scf_initialization combo_item entries in RESTRICTED_TERMS above whose
-# item text names a term that hamiltoniantype.py also restricts by spin
-# (kanemele, mAF) - so apply_term_restrictions() can additionally require
-# hamiltoniantype.term_allowed() for exactly these two, on top of the
-# lattice-family rule already attached to them. "Haldane"/"antihaldane"
-# (haldane/antihaldane) and "imbalance" (mAB) are orbital-only and need no
-# such extra check.
-_GUESS_ITEM_TO_HAMTYPE_TERM = {"kanemele": "kanemele", "antiferro": "mAF"}
+# The dropdowns ITEM_RULES filters. Each is rebuilt from its full item
+# list - whatever qtwrap.set_combobox() last filled it with, else its
+# Designer items as first seen - so an item that comes back returns to its
+# own place rather than the end. heavyfermion's own bands_color/fs_operator
+# lists (dispersive_electrons/kondo_sites/None) contain no ITEM_RULES item,
+# so they pass through unchanged.
+RESTRICTED_COMBOS = ["bands_color", "dos_operator", "operator_kdos",
+                     "fs_operator", "topology_operator", "operator_chern",
+                     "sweep_parameter", "scf_initialization"]
 
 
-def _rebuild_scf_initialization_baseline(form, hamiltonian_type):
-    """Fully rebuild the "Initial guess" (scf_initialization) dropdown
-    down to exactly {a meanfield.guess() mode per Hamiltonian term this
-    mode's page has *and* hamiltoniantype.term_allowed() currently allows,
-    from _UNRESTRICTED_GUESS_TERMS} + "random" - discarding any
-    Designer-authored placeholder items or a previous rebuild's leftovers.
-    Called first, at the top of apply_term_restrictions() below, so its
-    own combo_item entries for scf_initialization
-    (Haldane/kanemele/antihaldane/antiferro/imbalance) then add back
-    exactly the ones the *current* lattice choice allows, on top of this
-    always-present baseline. Returns the pre-rebuild selection's text so
-    the caller can restore it once the *full* item list (this baseline
-    plus the conditional combo_item entries added afterwards) is
-    assembled - restoring here would be premature, since e.g. "antiferro"
-    (a combo_item entry, not part of this baseline) hasn't been re-added
-    yet at this point."""
-    combo = getattr(form, "scf_initialization", None)
-    if combo is None: return ""
+# scf_initialization's full list is built here rather than taken from
+# Designer: a guess mode per term field this page has ({term: mode}, in
+# this order), "random" (valid for any Hamiltonian), then the guesses for
+# the lattice-restricted terms, which are offered whether or not the page
+# has the field itself.
+_GUESS_FOR_TERM = {"exchange": "ferro", "rashba": "rashba", "swave": "swave",
+                   "pwave": "pwave"}
+_LATTICE_GUESSES = ["Haldane", "kanemele", "antihaldane", "antiferro", "imbalance"]
+
+
+def _scf_guess_items(form):
+    items = [mode for term, mode in _GUESS_FOR_TERM.items()
+             if getattr(form, term, None) is not None]
+    return items + ["random"] + _LATTICE_GUESSES
+
+
+def _item_allowed(item, lattice_name, hamiltonian_type):
+    rule = ITEM_RULES.get(item.lower())
+    return rule is None or rule(lattice_name, hamiltonian_type)
+
+
+def _restrict_combo_items(combo, all_items, allowed):
+    """Rebuild `combo` as `all_items` filtered by allowed(item), keeping the
+    user's choice: the item last selected by anything but this rebuild (a
+    click, or a saved session being loaded) is selected again as soon as it
+    is offered again - Sz after a Spinless -> Spinful round trip, say - and
+    until then the current item if still offered, else the first."""
+    if not hasattr(combo, "_wanted"):
+        combo._wanted = combo.currentText()
+        combo._restricting = False
+        combo.currentTextChanged.connect(
+            lambda text, c=combo: None if c._restricting else setattr(c, "_wanted", text))
+    items = [t for t in all_items if allowed(t)]
     current = combo.currentText()
-    combo.blockSignals(True)
-    combo.clear()
-    for term, mode in _UNRESTRICTED_GUESS_TERMS.items():
-        if getattr(form, term, None) is None: continue
-        if not hamiltoniantype.term_allowed(hamiltonian_type, term): continue
-        combo.addItem(mode)
-    combo.addItem("random")
-    combo.blockSignals(False)
-    return current
+    target = (combo._wanted if combo._wanted in items
+              else current if current in items else (items[0] if items else ""))
+    if items == [combo.itemText(i) for i in range(combo.count())] and target == current:
+        return
+    combo._restricting = True
+    try:
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(items)
+        combo.blockSignals(False)
+        if target: combo.setCurrentIndex(items.index(target))
+    finally:
+        combo._restricting = False
 
 
 def _matches_base(base, attr_name):
@@ -295,15 +294,6 @@ def _apply_widget_restriction(form, base_names, allowed):
                         label.setVisible(allowed)
 
 
-def _apply_combo_item_restriction(form, items, allowed):
-    for combo_name, item_text in items.items():
-        combo = getattr(form, combo_name, None)
-        if combo is None: continue
-        idx = combo.findText(item_text)
-        if allowed and idx < 0: combo.addItem(item_text)
-        elif not allowed and idx >= 0: combo.removeItem(idx)
-
-
 def term_shown(name, lattice_name, hamiltonian_type=hamiltoniantype.DEFAULT_TYPE):
     """Whether the term field `name` is shown for `lattice_name` and
     `hamiltonian_type`: the AND of every RESTRICTED_TERMS widget rule
@@ -329,11 +319,9 @@ def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype
     (hamiltoniantype.SPIN_TERMS/PAIRING_TERMS) allow it, AND-ed together
     per widget base name (see this module's docstring for why a term named
     by both, e.g. kanemele/mAF, needs a combined boolean rather than two
-    independent setVisible() passes). Safe to call on any page: entries
-    whose widgets/comboboxes don't exist on this particular mode are
-    silently skipped."""
-    scf_current = _rebuild_scf_initialization_baseline(form, hamiltonian_type)
-
+    independent setVisible() passes) - and filter every RESTRICTED_COMBOS
+    dropdown's items by ITEM_RULES the same way. Safe to call on any page:
+    widgets/comboboxes this particular mode doesn't have are skipped."""
     names = set(hamiltoniantype.SPIN_TERMS + hamiltoniantype.PAIRING_TERMS)
     for entry in RESTRICTED_TERMS:
         if entry["kind"] == "widget": names.update(entry["names"])
@@ -341,29 +329,18 @@ def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype
         _apply_widget_restriction(form, [name],
                                   term_shown(name, lattice_name, hamiltonian_type))
 
-    for entry in RESTRICTED_TERMS:
-        if entry["kind"] != "combo_item": continue
-        ok = entry["rule"](lattice_name)
-        if entry["items"].get("scf_initialization") in _GUESS_ITEM_TO_HAMTYPE_TERM:
-            term = _GUESS_ITEM_TO_HAMTYPE_TERM[entry["items"]["scf_initialization"]]
-            ok = ok and hamiltoniantype.term_allowed(hamiltonian_type, term)
-        _apply_combo_item_restriction(form, entry["items"], ok)
-
-    # Restore the pre-rebuild selection now that the full item list (the
-    # unrestricted baseline plus whichever combo_item entries this lattice/
-    # Hamiltonian-type combination allows) is assembled - doing this earlier,
-    # inside _rebuild_scf_initialization_baseline(), would miss "antiferro"
-    # itself, since that's a combo_item entry added by the loop just above,
-    # not part of the baseline. On a fresh page this restores the
-    # Designer-authored first item in every mode's .ui - "antiferro", the
-    # intended default guess; falls back to whatever Qt's combobox
-    # defaults to (normally index 0) if the previous selection is no
-    # longer offered (e.g. switching away from a sublattice-family
-    # lattice while "antiferro" was selected).
-    combo = getattr(form, "scf_initialization", None)
-    if combo is not None:
-        idx = combo.findText(scf_current)
-        if idx >= 0: combo.setCurrentIndex(idx)
+    def allowed(item):
+        return _item_allowed(item, lattice_name, hamiltonian_type)
+    for combo_name in RESTRICTED_COMBOS:
+        combo = getattr(form, combo_name, None)
+        if combo is None: continue
+        if combo_name == "scf_initialization":
+            all_items = _scf_guess_items(form)
+        else:
+            if not hasattr(combo, "_all_items"): # Designer items, as first seen
+                combo._all_items = [combo.itemText(i) for i in range(combo.count())]
+            all_items = combo._all_items
+        _restrict_combo_items(combo, all_items, allowed)
 
 
 def connect(qtwrap, get_lattice_name):
@@ -381,6 +358,9 @@ def connect(qtwrap, get_lattice_name):
     form._term_lattice_name = get_lattice_name
     def _update(*_args):
         apply_term_restrictions(form, get_lattice_name(), hamiltoniantype.get_type(qtwrap))
+    # qtwrap.set_combobox() re-applies through this after refilling a
+    # dropdown, for a mode that fills one only after calling connect()
+    form._reapply_term_restrictions = _update
     lattice_widget = getattr(form, "lattice", None)
     if lattice_widget is not None:
         lattice_widget.currentTextChanged.connect(_update)

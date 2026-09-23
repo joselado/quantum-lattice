@@ -1284,8 +1284,7 @@ def initialize(window):
     set_colormaps(window.form,"bands_colormap",cs=cs) # set the bands
     # scf_initialization is populated by latticeterms.py instead (exactly
     # the guess modes matching a term this mode/lattice combination
-    # actually has, plus "random" - see
-    # latticeterms._rebuild_scf_initialization_baseline())
+    # actually has, plus "random" - see latticeterms._scf_guess_items())
     window.set_combobox("bands_color",operators.operator_list)
     # fs_operator is deliberately NOT populated here: heavyfermion (which
     # calls this initialize()) keeps its own hand-authored fs_operator item

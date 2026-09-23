@@ -176,7 +176,13 @@ term is always off: a value it still holds from before is ignored, and
 left out of the generated pyqula code too. The SCF
 tab's **Initial guess** dropdown (see below) is filtered the same way — a
 guess tied to a hidden term (e.g. **rashba**, **kanemele**, **swave**) isn't
-offered while that term itself is hidden.
+offered while that term itself is hidden. So are the operator dropdowns
+used to color bands or project a DOS: the spin operators (Sx, Sy, Sz) need
+a spinful Hamiltonian, the hole projector needs Nambu, the valley operator
+a honeycomb lattice and the sublattice operator a lattice with sublattices,
+and each is offered only when those hold. A choice you made comes back
+selected as soon as it is offered again, e.g. after switching to Spinless
+and back.
 
 ## Self-consistent mean-field (SCF) calculations
 
