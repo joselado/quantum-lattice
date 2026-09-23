@@ -118,7 +118,7 @@ def initialize():
     h.add_haldane(get("haldane")) # intrinsic SOC
     h.add_antihaldane(get("antihaldane"))
     h.add_peierls(get("peierls")) # magnetic field
-    common.add_strain(h,window) # add strain
+    common.add_strain(h,qtwrap) # add strain
     if hamiltoniantype.wants_nambu(qtwrap):
         h.setup_nambu_spinor() # establish the BdG structure even if
                                 # swave/pwave are both left at zero

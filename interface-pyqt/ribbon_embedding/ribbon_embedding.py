@@ -80,15 +80,15 @@ def show_structure_3d():
 
 
 def show_embedding_ldos():
-    common.get_embedding_ldos(pickup_hamiltonian(),window)
+    common.get_embedding_ldos(pickup_hamiltonian(),qtwrap)
 
 
 def show_embedding_ldos_sweep():
-    common.get_embedding_ldos_sweep(pickup_hamiltonian(),window)
+    common.get_embedding_ldos_sweep(pickup_hamiltonian(),qtwrap)
 
 
 def select_impurity_sites():
-    common.select_impurity_sites(get_geometry(),window)
+    common.select_impurity_sites(get_geometry(),qtwrap)
 
 
 

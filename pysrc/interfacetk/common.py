@@ -90,6 +90,27 @@ def show_exchange(h,window):
         execute_script("ql-moments")
 
 
+# The most k-points a per-direction count may expand to (nk**d in d
+# dimensions) - 1000 per direction in 2d, 100 in 3d.
+MAX_KMESH_POINTS = 10**6
+
+
+def check_kmesh(nk,dimensionality,what):
+    """Refuse a per-direction k-point count whose full mesh is too large to
+    compute. pyqula's k-meshes (klist.kmesh) have nk**d points, so a 3d
+    DOS at 1000 per direction is 10**9 k-points, which exhausts memory and
+    takes the whole app down, every page with it - a clear error on this
+    page instead. `what` names the calculation for the message."""
+    if dimensionality<1: return
+    total = nk**dimensionality
+    if total<=MAX_KMESH_POINTS: return
+    suggest = int(round(MAX_KMESH_POINTS**(1./dimensionality)))
+    raise ValueError("The number of k-points for the %s is per direction, so "
+        "%d gives a mesh of %d^%d = %.0e k-points in this %dD system, too many "
+        "to compute. Use %d or less."
+        % (what,nk,nk,dimensionality,float(total),dimensionality,suggest))
+
+
 def get_dos(h,window,silent=False):
     nk = max([int(window.get("dos_nk")),1])
     delta = window.get("dos_delta") or 1e-3 # avoid a division by zero below
@@ -99,6 +120,9 @@ def get_dos(h,window,silent=False):
     opname = window.getbox("dos_operator") # operator to project the DOS onto
     op = get_operator(h,opname) if opname else None
     mode = window.getbox("dos_mode")
+    # the Green-function DOS integrates adaptively and ignores nk; the
+    # other two sum over a kmesh of nk**d points
+    if mode!="Green": check_kmesh(nk,h.dimensionality,"density of states")
     if mode=="Green":
       h.get_dos(delta=delta,nk=nk,energies=energies,mode="Green",operator=op) # compute DOS
     elif mode=="KPM":
@@ -132,6 +156,7 @@ def get_site_dos(h,window,use_kpm=False):
     ewindow = abs(window.get("site_dos_ewindow"))
     delta = window.get("site_dos_delta") or 1e-3 # avoid a division by zero below
     nk = max([int(window.get("site_dos_nk")),1])
+    check_kmesh(nk,h.dimensionality,"site-resolved density of states")
     command = "ql-site-dos --hamiltonian "+hfile+" --ewindow "+str(ewindow)+" --delta "+str(delta)+" --nk "+str(nk)
     if use_kpm: command += " --kpm True"
     execute_script(command)
@@ -394,6 +419,33 @@ def pyqula_code_scf_block(qtwrap,richer=False):
     return lines
 
 
+def warn(window,title,content):
+  """Show a warning on the page a handler belongs to, for a calculation that
+  finished but whose result needs a caveat. Inside run_calculation.py's
+  child process `window` is a DictForm with no page, so the warning goes to
+  qtwrap.WARNINGS_FILE in the scratch dir, which the parent shows once the
+  child exits (qtwrap.run_calculation_subprocess())."""
+  page = window._current_page()
+  if isinstance(page,QtWidgets.QWidget):
+      qtwrap.notify_warning(page,title,content)
+  else:
+      with open(qtwrap.WARNINGS_FILE,"a") as f: f.write(title+"\t"+content+"\n")
+
+
+def warn_if_scf_unconverged(scf,window):
+  """Keep an SCF that stopped at its Max iterations cap, as the user guide
+  promises, but say so in the window. Before, the solve behind most modes
+  died on it ("'NoneType' object has no attribute 'save'", since
+  h.get_mean_field_hamiltonian() returns None then), and 2d/3d's saved the
+  unconverged result with a warning only printed to stdout."""
+  if scf.converged: return
+  warn(window,"SCF not converged",
+      "The self-consistent loop stopped after %d iterations without "
+      "converging, so the results use its last iteration. Raise Max "
+      "iterations, lower Mixing, or try a different Initialization."
+      % int(window.get("scf_maxite",default=100)))
+
+
 def solve_scf(h,window):
   """Perform a selfconsistent calculation"""
   get = window.get # redefine
@@ -411,10 +463,10 @@ def solve_scf(h,window):
   filling += extrae/h.intra.shape[0] # extra electron
   mix = get("mix_scf")
   T = get("smearing_scf") # thermal smearing of the SCF loop's occupations
-  # h.get_mean_field_hamiltonian() dispatches on h.has_spin itself
-  # (VJinteraction for a spinful Hamiltonian, Vinteraction for a spinless
-  # one) and returns the converged Hamiltonian directly, so the branch here
-  # is only about which kwargs are meaningful in each case
+  # the same dispatch h.get_mean_field_hamiltonian() makes (VJinteraction
+  # for a spinful Hamiltonian, Vinteraction for a spinless one), called
+  # directly because the bound method hands back None instead of the last
+  # iterate when the loop hits its iteration cap
   if h.has_spin: # J1/J2/J3 exchange has no meaning without a spin degree
                  # of freedom - the spin-spin solver itself refuses a
                  # spinless h (returns NotImplemented), so route those to
@@ -422,18 +474,20 @@ def solve_scf(h,window):
     J1 = get("J1")
     J2 = get("J2")
     J3 = get("J3")
-    hscf = h.get_mean_field_hamiltonian(nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   J1=J1,J2=J2,J3=J3,
                   mf=mf,mix=mix,T=T,verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=True)
                   )
   else:
-    hscf = h.get_mean_field_hamiltonian(nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   mf=mf,load_mf=False,T=T,
                   mix=mix,
                   verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=False)
                   )
+  warn_if_scf_unconverged(scf,window)
+  hscf = scf.hamiltonian
   # write atomically (temp name + os.replace): pickup_hamiltonian() treats
   # os.path.exists("hamiltonian.pkl") as "a valid cached solve exists", so a
   # solve killed mid-write (e.g. a cancelled subprocess-based calculation -
@@ -450,10 +504,9 @@ def solve_scf_identify_symmetry_breaking(h,window):
   threshold (the "SCF error" field) rather than solve_scf()'s thermal
   smearing, then identify and report the broken symmetry - used by 2d.py
   and 3d.py, which need this richer variant instead of plain solve_scf().
-  Unlike solve_scf(), this one calls meanfield.VJinteraction/Vinteraction
-  directly rather than h.get_mean_field_hamiltonian(): the bound method
-  returns only the converged Hamiltonian, and this variant also needs the
-  SCF object itself for scf.identify_symmetry_breaking()."""
+  Like solve_scf(), it calls meanfield.VJinteraction/Vinteraction directly,
+  here also because it needs the SCF object itself for
+  scf.identify_symmetry_breaking()."""
   scfin = window.getbox("scf_initialization")
   get = window.get # redefine
   mf = scftypes.guess(h,mode=scfin)
@@ -483,6 +536,7 @@ def solve_scf_identify_symmetry_breaking(h,window):
                   mix=mix,maxerror=error,verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=False)
                   )
+  warn_if_scf_unconverged(scf,window)
   mfname = scf.identify_symmetry_breaking(as_string=True)
   window.modify("identified_mean_field",mfname) # window is the qtwrap
                  # module here (not a page object), so this must go
@@ -526,7 +580,17 @@ def add_strain(h,window):
 
 def get_z2(h,window):
     nk = int(np.sqrt(window.get("topology_nk")))
-    topology.z2_vanderbilt(h,nk=nk,nt=nk//2) # calculate z2 invariant
+    try:
+        topology.z2_vanderbilt(h,nk=nk,nt=nk//2) # calculate z2 invariant
+    except np.linalg.LinAlgError as e:
+        # the Wilson loop of the occupied bands dies in an SVD when their
+        # number changes across the zone, i.e. on a metal (tmdc's default
+        # NbSe2, for one) - say that instead of numpy's array-shape error
+        raise ValueError("The Z2 invariant needs a gap at the Fermi level: "
+            "the number of occupied bands has to be the same at every k-point, "
+            "and here it changes, so the system is a metal at this Fermi "
+            "energy. Move the Fermi energy into a gap, or open one first."
+            ) from e
     execute_script("ql-wannier-center  ") # plot the result
 
 
@@ -543,9 +607,13 @@ def get_multildos(h,window):
     if proj=="Real space atomic orbitals":  projection = "atomic"
     else: projection = "TB" # default one
     h = h.reduce() # reduce dimensionality if possible
-    h.get_multildos(es=np.linspace(-ewin,ewin,ne),
-            nk=nk,delta=delta,nrep=nrep,numw=numw,
-            projection=projection,ratomic=window.get("ratomic_ldos"))
+    # energies=/num_bands= are pyqula's names: this used to pass es=/numw=,
+    # which the old multi_ldos_tb swallowed in a **kwargs it never read, so
+    # the energy window and number of states were silently the defaults
+    kwargs = dict(energies=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,
+                  nrep=nrep,num_bands=numw,projection=projection)
+    if projection=="atomic": kwargs["ratomic"] = window.get("ratomic_ldos")
+    h.get_multildos(**kwargs)
     if projection=="TB": execute_script("ql-multildos ")
     else: execute_script("ql-multildos --grid True")
 
@@ -563,7 +631,7 @@ def get_interactive_ldos(h,window):
     nk = int(window.get("nk_ldos"))
     ne = int(window.get("ne_ldos"))
     delta = window.get("delta_ldos")
-    h.get_multildos(es=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
+    h.get_multildos(energies=np.linspace(-ewin,ewin,ne),nk=nk,delta=delta,nrep=nrep)
     execute_script("ql-multildos ")
 
 

@@ -231,9 +231,10 @@ means physically.
   system, Solve SCF silently uses its previous fixed-mixing behavior
   regardless of what's selected here.
 - **Max iterations** caps how many SCF steps are attempted before giving up
-  (default `100`); a run that hits this limit without converging prints a
-  warning instead of raising an error, and you'll see the (unconverged)
-  result of whatever iteration it stopped at.
+  (default `100`); a run that hits this limit without converging keeps the
+  result of the iteration it stopped at, and says so in a warning in the
+  window that stays until you close it - raise Max iterations, lower
+  Mixing, or try another Initialization for a converged answer.
 
 ## Saving and loading your work
 
@@ -352,11 +353,11 @@ Save results, ...) don't.
 | Show IETS LDOS | Real-space inelastic tunneling spectroscopy across a sweep of energies: opens an interactive viewer (energy slider) showing the spatial map at that energy next to the total (site-summed) IETS vs energy - the same style of viewer as Show multi-energy LDOS. Needs SCF solved first (mean field with an onsite interaction). Islands (0D) only. |
 | Show Berry curvature (1D) | Berry curvature along a 1D Brillouin-zone path — the same quantity as the 2D map below, evaluated along a path instead of over a mesh; used to diagnose 1D topological invariants such as edge polarization. |
 | Show Berry curvature (2D) | Berry curvature over a 2D Brillouin-zone mesh, plotted as a map. |
-| Show Z2 | The Z2 topological invariant via the Wannier charge center (Vanderbilt) method — trivial vs. quantum-spin-Hall insulator. |
+| Show Z2 | The Z2 topological invariant via the Wannier charge center (Vanderbilt) method — trivial vs. quantum-spin-Hall insulator. Only defined with a gap at the Fermi level; on a metal it stops with an error saying so. |
 | Show Chern number | Integrates the Berry curvature over the Brillouin zone to give the (quantized anomalous Hall) Chern number. |
 | Show Fermi surface | Diagonalizes on a k-mesh near chosen energies and plots the resulting constant-energy contours. |
 | Show QPI | The quasiparticle interference pattern (Fourier transform of the joint DOS) — mimics STM scattering interference. |
-| Show multi-energy LDOS | Local density of states at several energies, plotted spatially. |
+| Show multi-energy LDOS | Local density of states at several energies across the energy window set next to it, plotted spatially. |
 | Show site DOS | Interactive: click a site in the geometry to compute and plot the LDOS at that site, or drag a lasso around an area to select several sites at once and plot their combined DOS. |
 | Show structure (2D) | Writes the geometry and plots the lattice (atomic positions, optionally bonds). |
 | Show structure (3D) | Writes the geometry and opens an interactive 3D view (atomic positions and bonds). |
@@ -657,6 +658,10 @@ current session — save any results you want to keep first.
   Common causes are parameter combinations pyqula itself rejects (e.g. an
   empty geometry after removing too many atoms) — check the values you just
   changed.
+- **A calculation says it has too many k-points.** k-point counts are per
+  direction: the calculation uses that number to the power of the
+  dimension, so 100 is 10,000 k-points in 2D but a million in 3D. The
+  error suggests a value that fits; 20-30 is usually plenty in 3D.
 - **I want to compare two parameter sets.** Use **Save results** before
   changing parameters, giving it a distinct name each time — **Load
   results** lets you pick which saved folder to bring back later.

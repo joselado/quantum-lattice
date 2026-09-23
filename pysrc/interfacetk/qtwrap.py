@@ -380,7 +380,9 @@ def run_calculation_subprocess(mode_dir,handler_key,scratch_dir):
             ret = proc.wait()
         finally:
             current_child_process = None
-    if ret==0: return
+    if ret==0:
+        _relay_child_warnings(os.path.join(scratch_dir,WARNINGS_FILE))
+        return
     if _cancel_requested:
         raise CalculationCancelled()
     try:
@@ -388,6 +390,17 @@ def run_calculation_subprocess(mode_dir,handler_key,scratch_dir):
     except OSError: log = ""
     last = log.splitlines()[-1] if log else ("run_calculation.py exited with code %d"%ret)
     raise RuntimeError(last)
+
+
+def _relay_child_warnings(path):
+    """Show, on the page the calculation belongs to, every warning a
+    successful child process left in `path` (see WARNINGS_FILE)."""
+    if not os.path.exists(path): return
+    with open(path) as f: lines = f.read().splitlines()
+    os.remove(path)
+    for line in lines:
+        title,_,content = line.partition("\t")
+        notify_warning(_current_page(),title,content)
 
 
 def cancel_current_calculation():
@@ -499,6 +512,10 @@ class _AppBase:
         return is_checked(*args,**kwargs)
     def getbox(self,*args,**kwargs):
         return getbox(*args,**kwargs)
+    def get_array(self,*args,**kwargs):
+        # the same accessor surface as this module and dictform.DictForm, so
+        # a common.py helper handed the page instead of qtwrap still works
+        return get_array(*args,**kwargs)
     def connect_clicks(self,ds,robust=True):
       """Connect the different functions. Each one now runs on its own
       worker thread (_HandlerRunner) instead of blocking the GUI, so the
@@ -1094,6 +1111,24 @@ def notify_success(parent,title,content):
     before, so it was easy to miss whether a click did anything."""
     InfoBar.success(title=title,content=content,parent=parent,
         duration=4000,position=InfoBarPosition.TOP)
+
+
+@_gui_thread_only
+def notify_warning(parent,title,content):
+    """A calculation finished, but with a caveat the user has to see (e.g.
+    an SCF that stopped at its iteration cap) - common.warn() is the entry
+    point handlers use, since it also covers a subprocess calculation.
+    Stays up until closed, like nothing else here, so it can't be missed
+    while the plot it qualifies is opening."""
+    InfoBar.warning(title=title,content=content,parent=parent,
+        duration=-1,position=InfoBarPosition.TOP)
+
+
+# common.warn() inside run_calculation.py's child process has no page to
+# show a warning on, so it appends "title<TAB>content" lines here, in the
+# scratch dir, and run_calculation_subprocess() shows them once the child
+# exits successfully.
+WARNINGS_FILE = "WARNINGS.TXT"
 
 
 @_gui_thread_only

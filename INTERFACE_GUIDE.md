@@ -737,6 +737,25 @@ resolves `VJinteraction`/`Vinteraction` from names bound at
 intercept it. Check the method body before writing a test that patches
 through a bound method.
 
+
+### Per-direction k-point counts, and the accessor a helper reads
+
+pyqula's k-meshes (`klist.kmesh(dim,nk)`) have `nk**dim` points, so a
+k-point field is a count *per direction*: 3d's DOS used to default to
+1000, i.e. 10^9 k-points, which ran the machine out of memory and took the
+whole shell down with it. A handler that turns a field into such a mesh
+calls `common.check_kmesh(nk,h.dimensionality,"<what>")` first (today:
+`get_dos`'s ED/KPM branches and `get_site_dos`); it raises a `ValueError`
+naming the mesh size and a usable value once `nk**dim` passes
+`MAX_KMESH_POINTS` (10^6), before any work is done. Keep a new page's
+default well under that, the way 3d's `dos_nk`/`site_dos_nk` are 20.
+
+A `common.py` helper's `window` argument may be the `qtwrap` module (the
+convention), the page itself (`qtwrap._AppBase`) or a `DictForm`; all
+three expose `get`/`getbox`/`get_array`/`is_checked`/`_current_page()`.
+Pass `qtwrap` from a `<mode>.py` - the embedding modes handed their page to
+`get_embedding_ldos()`, whose `get_array()` call then failed on every click,
+because the page used to lack that one method.
 ## Tooltip conventions
 
 Every interactive form field should carry a hover tooltip. There are three
@@ -1182,6 +1201,14 @@ plan this was built from).
   `__getattr__` returning a small `_FieldStub` (so
   `hamiltoniantype.get_type()`'s `getattr(form,"hamiltonian_type",
   None).currentText()` works against it the same as a real combobox).
+- **Warnings from a child process** - a calculation that finishes with a
+  caveat (today: an SCF that stopped at its Max iterations cap) reports it
+  through `common.warn(window,title,content)`, never `print()`. In-process
+  that is `qtwrap.notify_warning()`, a persistent `InfoBar.warning` on the
+  handler's page; under a `DictForm` there is no page, so it appends
+  `title<TAB>content` to `qtwrap.WARNINGS_FILE` in the scratch dir, and
+  `run_calculation_subprocess()` shows (and deletes) those lines once the
+  child exits successfully. A migrated handler gets this for free.
 - **`qtwrap.run_calculation_subprocess(mode_dir,handler_key,scratch_dir)`** -
   called from inside a migrated handler (see `1d.py`'s `solve_scf()`) in
   place of doing the work directly. Snapshots the page via
@@ -1580,7 +1607,7 @@ suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
 sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
 other setup is required. Currently measured at ~25s wall clock and
-~950MB peak RSS for the whole suite (329 passed, 9 skipped as of this
+~1GB peak RSS for the whole suite (341 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are
@@ -1719,7 +1746,15 @@ before widening any layer. It's layered, cheapest/most-general first:
    to have the broken combination — it fabricates the platform, prefix and
    filesystem instead and asserts the resulting `LD_PRELOAD`. No rendering,
    no subprocess, ~1s.
-7. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+7. **`test_common_helpers.py`** — `common.py`'s calculation helpers
+   (`get_multildos`, `get_interactive_ldos`, `get_embedding_ldos`,
+   `get_dos`'s k-mesh guard, `solve_scf`'s unconverged path, `get_z2`)
+   called directly on 2-site Hamiltonians through a `DictForm`, instead of
+   clicking the button on a built page. The buttons take tens of seconds at
+   their page defaults, and what broke in them was the call contract
+   (keyword names handed to pyqula, accessor methods a helper reads), which
+   a tiny system exercises just as well - a few seconds for the file.
+8. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
    tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
    Automated version of the "skim `git diff --stat pysrc/pyqula`" step
    `tools/update_pyqula.sh`'s own instructions already ask for by hand —
