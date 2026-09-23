@@ -455,7 +455,7 @@
           <item row="1" column="0">
            <widget class="BodyLabel" name="label_12">
             <property name="text">
-             <string># of polynomials</string>
+             <string>Number of polynomials</string>
             </property>
            </widget>
           </item>
@@ -509,7 +509,7 @@
            <string>Show the density of states avergaed over the whole sample</string>
           </property>
           <property name="text">
-           <string>Compute total DOS </string>
+           <string>Density of states</string>
           </property>
          </widget>
         </item>
@@ -518,7 +518,7 @@
           <item row="3" column="0">
            <widget class="BodyLabel" name="label_16">
             <property name="text">
-             <string># of energies</string>
+             <string>Number of energies</string>
             </property>
            </widget>
           </item>
@@ -532,7 +532,7 @@
           <item row="0" column="0">
            <widget class="BodyLabel" name="label_19">
             <property name="text">
-             <string># of polynomials</string>
+             <string>Number of polynomials</string>
             </property>
            </widget>
           </item>
@@ -609,7 +609,7 @@
           <item row="0" column="0">
            <widget class="BodyLabel" name="label_27">
             <property name="text">
-             <string>Mode ofr spatial DOS</string>
+             <string>Mode for spatial DOS</string>
             </property>
            </widget>
           </item>
@@ -651,7 +651,7 @@
              <item row="2" column="0">
               <widget class="BodyLabel" name="label_22">
                <property name="text">
-                <string># of waves</string>
+                <string>Number of waves</string>
                </property>
               </widget>
              </item>
@@ -748,7 +748,7 @@
              <item row="2" column="0">
               <widget class="BodyLabel" name="label_26">
                <property name="text">
-                <string># of energies</string>
+                <string>Number of energies</string>
                </property>
               </widget>
              </item>
@@ -800,7 +800,7 @@
           <item row="2" column="0">
            <widget class="BodyLabel" name="label_33">
             <property name="text">
-             <string># of energies</string>
+             <string>Number of energies</string>
             </property>
            </widget>
           </item>
@@ -814,7 +814,7 @@
           <item row="0" column="0">
            <widget class="BodyLabel" name="label_31">
             <property name="text">
-             <string># of polynomials</string>
+             <string>Number of polynomials</string>
             </property>
            </widget>
           </item>
@@ -930,7 +930,7 @@
           <item row="0" column="0">
            <widget class="BodyLabel" name="label_37">
             <property name="text">
-             <string># of eigenvalues</string>
+             <string>Number of eigenvalues</string>
             </property>
            </widget>
           </item>

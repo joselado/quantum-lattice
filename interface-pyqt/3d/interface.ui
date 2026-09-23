@@ -205,7 +205,7 @@
         <item row="1" column="1">
          <widget class="PushButton" name="show_structure_3d">
           <property name="text">
-           <string>Show 3D structure</string>
+           <string>Show structure 3D</string>
           </property>
          </widget>
         </item>
@@ -276,7 +276,7 @@
           <item row="2" column="0">
            <widget class="BodyLabel" name="label_9">
             <property name="text">
-             <string># kpoints</string>
+             <string>Number of k-points</string>
             </property>
            </widget>
           </item>
@@ -325,7 +325,7 @@
           <item row="0" column="0">
            <widget class="BodyLabel" name="label_50">
             <property name="text">
-             <string>Number of kpoints</string>
+             <string>Number of k-points</string>
             </property>
            </widget>
           </item>
@@ -435,7 +435,7 @@
           <item row="1" column="0">
            <widget class="BodyLabel" name="label_iets_2">
             <property name="text">
-             <string># of energies</string>
+             <string>Number of energies</string>
             </property>
            </widget>
           </item>
@@ -463,7 +463,7 @@
           <item row="3" column="0">
            <widget class="BodyLabel" name="label_iets_4">
             <property name="text">
-             <string># q-points</string>
+             <string>Number of q-points</string>
             </property>
            </widget>
           </item>
@@ -477,7 +477,7 @@
           <item row="4" column="0">
            <widget class="BodyLabel" name="label_iets_5">
             <property name="text">
-             <string># k-points (BZ mesh)</string>
+             <string>Number of k-points (BZ mesh)</string>
             </property>
            </widget>
           </item>
@@ -530,7 +530,7 @@
           <item row="1" column="0">
            <widget class="BodyLabel" name="label_21">
             <property name="text">
-             <string># of points</string>
+             <string>Number of points</string>
             </property>
            </widget>
           </item>
@@ -640,7 +640,7 @@
               <item row="1" column="0">
                <widget class="BodyLabel" name="label_14">
                 <property name="text">
-                 <string># of kpoints</string>
+                 <string>Number of k-points</string>
                 </property>
                </widget>
               </item>
@@ -799,7 +799,7 @@
           <item row="2" column="0">
            <widget class="BodyLabel" name="label_site_dos_nk">
             <property name="text">
-             <string>Number of kpoints</string>
+             <string>Number of k-points</string>
             </property>
            </widget>
           </item>

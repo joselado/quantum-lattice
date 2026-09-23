@@ -771,6 +771,21 @@ three expose `get`/`getbox`/`get_array`/`is_checked`/`_current_page()`.
 Pass `qtwrap` from a `<mode>.py` - the embedding modes handed their page to
 `get_embedding_ldos()`, whose `get_array()` call then failed on every click,
 because the page used to lack that one method.
+## Wording conventions
+
+The same thing is worded the same way on every page, and
+`tests/test_wording.py` checks it from the `.ui` files and formbuilder
+specs directly: a count is "Number of ..." (never "# ..."), k-points are
+"k-points", and a button shared across modes reads the same everywhere -
+"Save results", "Load results", "Show structure 3D", "Band structure",
+"Density of states". A button that really does something different on one
+page keeps its own text through `BUTTON_EXCEPTIONS` in that test (0d's
+"Eigenvalues", for instance). When a label has to change, change it in the
+`.ui` and regenerate just that mode's `interface.py` with `pyside6-uic`
+(`tools/convert_ui.sh` also reformats a couple of untouched modes'
+imports), then diff `tools/dump_ui.py --no-png` before and after to see
+that only text moved.
+
 ## Tooltip conventions
 
 Every interactive form field should carry a hover tooltip. There are three
@@ -871,7 +886,7 @@ nothing changed just reuses the existing results instead of
 re-annealing.
 
 `_ensure_annealed()` has one more layer beyond `_needs_live_anneal()`,
-for **Load Results**: `save_state()`/`load_state()` (`qlinterface.py`)
+for **Load results**: `save_state()`/`load_state()` (`qlinterface.py`)
 copy this mode's flat result files (`PROFILE.OUT`, `ENERGY.OUT`, ...) in
 and out of a named folder, and `load_state()` ends
 with `window.reset_dirty()` - which bumps `params_dirty_time()` forward
@@ -1622,7 +1637,7 @@ suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
 sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
 other setup is required. Currently measured at ~25s wall clock and
-~1GB peak RSS for the whole suite (341 passed, 9 skipped as of this
+~1.1GB peak RSS for the whole suite (351 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are
@@ -1774,7 +1789,9 @@ before widening any layer. It's layered, cheapest/most-general first:
    type and lattice, the original order kept, no duplicates, and the
    user's pick restored after a round trip or a session load. Cheap: page
    builds only, no calculation.
-9. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+9. **`test_wording.py`** — the "Wording conventions" above, read straight
+   from every `interface.ui` and the two formbuilder specs; no page build.
+10. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
    tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
    Automated version of the "skim `git diff --stat pysrc/pyqula`" step
    `tools/update_pyqula.sh`'s own instructions already ask for by hand —

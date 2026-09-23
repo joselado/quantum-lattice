@@ -251,7 +251,7 @@
           <item row="12" column="2">
            <widget class="LineEdit" name="pwave">
             <property name="text">
-             <string>0.0,0.0,0.0</string>
+             <string>0.0, 0.0, 0.0</string>
             </property>
            </widget>
           </item>
@@ -933,7 +933,7 @@
                 <item row="0" column="0">
                  <widget class="BodyLabel" name="label_28">
                   <property name="text">
-                   <string>FIlling</string>
+                   <string>Filling</string>
                   </property>
                  </widget>
                 </item>
@@ -981,7 +981,7 @@
               <item row="1" column="0">
                <widget class="BodyLabel" name="label_27">
                 <property name="text">
-                 <string># of kpoints</string>
+                 <string>Number of k-points</string>
                 </property>
                </widget>
               </item>

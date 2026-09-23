@@ -603,7 +603,7 @@ variation on one of them.
   shown next to the energy trace) is only computed when you click that
   specific button, not as part of the anneal itself, so expect a short
   extra wait the first time you click it for a given anneal — later
-  clicks replot the same computed frames instantly. **Load Results**
+  clicks replot the same computed frames instantly. **Load results**
   restores a saved anneal's parameters and results without triggering a
   fresh (and differently random) anneal on your next click — as long as
   you don't change a parameter first, the restored result is what **Show
@@ -643,7 +643,7 @@ variation on one of them.
   neighbor-shell spin correlator (or, for a 2D lattice, the
   reciprocal-space structure factor S(q)) is only computed the first time
   you click it for a given anneal, so expect a short extra wait then, not
-  on later clicks. **Load Results** and the same anneal-freshness/Load
+  on later clicks. **Load results** and the same anneal-freshness/Load
   interaction described above for Lattice gas apply here too. No SCF, no
   bands/DOS.
 

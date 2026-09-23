@@ -255,7 +255,7 @@ class Ui_MainWindow(object):
         self.show_relaxation.setText(QCoreApplication.translate("MainWindow", u"Show relaxation", None))
         self.show_correlator_relaxation.setText(QCoreApplication.translate("MainWindow", u"Show correlator relaxation", None))
         self.tabWidget_2.setTabText(self.tabWidget_2.indexOf(self.tab_anneal_results), QCoreApplication.translate("MainWindow", u"Results", None))
-        self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save Results", None))
-        self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load Results", None))
+        self.save_results.setText(QCoreApplication.translate("MainWindow", u"Save results", None))
+        self.load_results.setText(QCoreApplication.translate("MainWindow", u"Load results", None))
     # retranslateUi
 
