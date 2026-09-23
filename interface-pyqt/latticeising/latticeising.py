@@ -144,7 +144,7 @@ def _needs_live_anneal():
 def _ensure_annealed():
   """Run the anneal automatically if this process doesn't already have a
   result matching the current parameters, or a fresh-enough SPIN.OUT was
-  just restored by Load Results - mirrors latticegas._ensure_annealed(),
+  just restored by Load results - mirrors latticegas._ensure_annealed(),
   see its docstring for the two-layer freshness check."""
   if not _needs_live_anneal(): return
   if os.path.isfile("SPIN.OUT") and os.path.getmtime("SPIN.OUT")>=window.params_dirty_time():

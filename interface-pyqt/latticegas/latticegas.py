@@ -134,7 +134,7 @@ def _needs_live_anneal():
   Python objects (g, lg, frames) can be trusted. Unlike
   _ensure_annealed()'s file-freshness check below, this ignores disk
   state entirely: _anneal_state only ever comes from an actual
-  run_anneal() call in this process, never from a Load Results file
+  run_anneal() call in this process, never from a Load results file
   restore, so params_dirty_time() alone (not PROFILE.OUT's mtime) is
   what tells us whether it's still current."""
   return _anneal_dirty_time is None or window.params_dirty_time()>_anneal_dirty_time
@@ -146,7 +146,7 @@ def _ensure_annealed():
   works standalone, with no separate explicit Run step. Two things
   count as "already matching": this process's own last live anneal, if
   no parameter has changed since (_needs_live_anneal() False); or - since
-  Load Results' reset_dirty() bumps params_dirty_time() forward exactly
+  Load results' reset_dirty() bumps params_dirty_time() forward exactly
   the way a live field edit would - a PROFILE.OUT already on disk that's
   at least as new as the current parameters, covering "the user just
   loaded a saved anneal and hasn't touched anything since" without this
@@ -262,9 +262,9 @@ def show_correlator_relaxation():
 
   Unlike the other Show buttons, this doesn't go through
   _ensure_annealed(): that function's file-freshness bypass (letting a
-  freshly Load Results-restored PROFILE.OUT count as "up to date") isn't
+  freshly Load results-restored PROFILE.OUT count as "up to date") isn't
   enough here, since this button needs the actual LatticeGas object
-  (_anneal_state), not just flat files - Load Results doesn't restore
+  (_anneal_state), not just flat files - Load results doesn't restore
   that (or the LATTICEGAS_*_FRAMES/ folders this button reads/writes),
   so a live anneal is required whenever _needs_live_anneal() is True."""
   if _needs_live_anneal():

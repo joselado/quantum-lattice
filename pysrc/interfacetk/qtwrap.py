@@ -372,6 +372,10 @@ def run_calculation_subprocess(mode_dir,handler_key,scratch_dir):
     python = pycommand.get_python()
     cmd = [python,script_path,mode_dir,handler_key,inputs_path,scratch_dir]
     logpath = os.path.join(scratch_dir,"run_calculation.log")
+    # a child that warned and then failed leaves its warnings behind; clear
+    # them so they aren't shown after the next, unrelated, successful run
+    warnings_path = os.path.join(scratch_dir,WARNINGS_FILE)
+    if os.path.exists(warnings_path): os.remove(warnings_path)
     _cancel_requested = False
     with open(logpath,"w") as logfile:
         proc = subprocess.Popen(cmd,cwd=scratch_dir,stdout=logfile,stderr=subprocess.STDOUT)
@@ -381,7 +385,7 @@ def run_calculation_subprocess(mode_dir,handler_key,scratch_dir):
         finally:
             current_child_process = None
     if ret==0:
-        _relay_child_warnings(os.path.join(scratch_dir,WARNINGS_FILE))
+        _relay_child_warnings(warnings_path)
         return
     if _cancel_requested:
         raise CalculationCancelled()

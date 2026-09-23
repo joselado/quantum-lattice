@@ -1637,7 +1637,7 @@ suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
 sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
 other setup is required. Currently measured at ~25s wall clock and
-~1.1GB peak RSS for the whole suite (351 passed, 9 skipped as of this
+~1.1GB peak RSS for the whole suite (352 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are

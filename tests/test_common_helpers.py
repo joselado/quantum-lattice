@@ -124,3 +124,32 @@ def test_z2_of_a_metal_says_so():
     h = geometry.square_lattice().get_hamiltonian(has_spin=True)
     with pytest.raises(ValueError, match="needs a gap at the Fermi level"):
         common.get_z2(h, Form(topology_nk="16"))
+
+
+def test_subprocess_warnings_are_shown_once(tmp_path, monkeypatch):
+    # run_calculation_subprocess() shows the warnings its child left in the
+    # scratch dir - only that child's: a file left by an earlier child that
+    # warned and then failed is cleared before launching the next one
+    import subprocess
+    from _handler_harness import import_mode, activate
+    m = import_mode("1d")
+    activate(m)
+    shown = []
+    monkeypatch.setattr(qtwrap, "notify_warning", lambda p, t, c: shown.append(t))
+    scratch = str(tmp_path)
+    def child(warns):
+        class Proc:
+            def __init__(self, cmd, cwd, **kw):
+                if warns:
+                    with open(os.path.join(cwd, qtwrap.WARNINGS_FILE), "a") as f:
+                        f.write("Fresh\tfrom this run\n")
+            def wait(self): return 0
+        return Proc
+    open(os.path.join(scratch, qtwrap.WARNINGS_FILE), "w").write("Stale\tfrom a failed run\n")
+    monkeypatch.setattr(subprocess, "Popen", child(warns=False))
+    qtwrap.run_calculation_subprocess("unused", "solve_scf", scratch)
+    assert shown == []
+    monkeypatch.setattr(subprocess, "Popen", child(warns=True))
+    qtwrap.run_calculation_subprocess("unused", "solve_scf", scratch)
+    assert shown == ["Fresh"]
+    assert not os.path.exists(os.path.join(scratch, qtwrap.WARNINGS_FILE))
