@@ -238,11 +238,7 @@ def solve_scf():
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
-  h.write_magnetization() # write the magnetism
-  if getbox("magnetization_plot_mode")=="2D":
-      execute_script("ql-magnetism2d")
-  else: # 3D mode
-      execute_script("ql-moments")
+  common.show_exchange(h,qtwrap) # same writer and 2D/3D choice as the other modes
 
 
 def show_hoppings():

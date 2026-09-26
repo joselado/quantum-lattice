@@ -74,6 +74,12 @@ PAIRING_TERMS = ["swave", "pwave"]
 # passes none of them (U=0) for a spinless Hamiltonian.
 SPIN_FORCING_TERMS = ["exchange", "kanemele", "antikanemele", "rashba", "mAF"]
 
+# Calculation buttons whose result is a spin quantity, so they can only
+# fail on a spinless Hamiltonian: latticeterms.apply_term_restrictions()
+# disables them while "Spinless" is selected (common.require_spinful() is
+# the handler-side guard).
+SPIN_BUTTONS = ["show_magnetism", "show_iets_qdos", "show_iets_ldos"]
+
 
 def get_type(qtwrap):
     """The currently selected Hamiltonian type, or DEFAULT_TYPE if this

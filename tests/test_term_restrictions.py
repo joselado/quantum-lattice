@@ -119,3 +119,12 @@ def test_pages_without_a_hamiltonian_type_selector():
     spiral = import_mode("spinspiral")
     assert "sublattice" not in _offered(spiral, "bands_color")
     assert not spiral.window.kanemele.isHidden() # fields left alone
+
+
+def test_spin_buttons_follow_the_hamiltonian_type():
+    m = import_mode("2d")
+    set_combo(m, "hamiltonian_type", "Spinless")
+    assert not m.window.show_magnetism.isEnabled()
+    assert not m.window.show_iets_qdos.isEnabled()
+    set_combo(m, "hamiltonian_type", "Nambu")
+    assert m.window.show_magnetism.isEnabled()

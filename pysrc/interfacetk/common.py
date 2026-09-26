@@ -2,6 +2,7 @@ from .qlinterface import execute_script, create_folder, save_state, load_state
 from . import qtwrap
 from . import hamiltoniantype
 from . import latticeterms
+import contextlib
 import os
 import numpy as np
 from .qh_interface import *
@@ -92,8 +93,20 @@ def get_surface_dos(h,window):
 
 
 
+def require_spinful(h,what):
+    """Stop with an explanation a user can act on when `what` needs spin and
+    h has none (a Spinless Hamiltonian type) - pyqula's own message asks for
+    h.turn_spinful(). latticeterms also disables these buttons for Spinless
+    (hamiltoniantype.SPIN_BUTTONS); this covers a Hamiltonian that arrives
+    spinless another way."""
+    if not h.has_spin:
+        raise ValueError(what+" needs the electron spin, and this Hamiltonian "
+            "is spinless. Choose Spinful or Nambu as the Hamiltonian type.")
+
+
 def show_exchange(h,window):
     """Show the exchange field"""
+    require_spinful(h,"The magnetization")
     # default=5 matches hamiltonians.write_magnetization()'s own default
     # (htk/write.py) - modes with no magnetization_nrep field of their own
     # (2dslab/hybridfilm/hybridribbon/multilayergraphene) must fall back to
@@ -228,6 +241,7 @@ def get_iets_qdos(h,window):
     get_kdos_bands. Needs a mean-field Hamiltonian with an onsite H.V
     (converged via "Solve SCF" with do_scf checked) - pyqula raises if H.V
     is missing or has non-onsite (V1/V2/J-neighbor) support."""
+    require_spinful(h,"Inelastic (spin-flip) tunneling")
     get = window.get
     energies = np.linspace(0.,get("window_iets"),int(get("ne_iets")))
     nq = int(get("nq_iets"))
@@ -261,6 +275,7 @@ def get_iets_ldos(h,window):
     helper to call, and pysrc/pyqula/ is vendored/black-box so one isn't
     added there. Needs a mean-field Hamiltonian with an onsite H.V, same
     requirement as get_iets_qdos above."""
+    require_spinful(h,"Inelastic (spin-flip) tunneling")
     get = window.get
     ewin = get("window_iets")
     delta = get("delta_iets")
@@ -601,10 +616,13 @@ def get_z2(h,window):
     nk = int(np.sqrt(window.get("topology_nk")))
     try:
         topology.z2_vanderbilt(h,nk=nk,nt=nk//2) # calculate z2 invariant
-    except np.linalg.LinAlgError as e:
-        # the Wilson loop of the occupied bands dies in an SVD when their
-        # number changes across the zone, i.e. on a metal (tmdc's default
-        # NbSe2, for one) - say that instead of numpy's array-shape error
+    except (np.linalg.LinAlgError,ValueError) as e:
+        # the Wilson loop of the occupied bands dies in an SVD or a matmul
+        # when their number changes across the zone, i.e. on a metal (tmdc's
+        # default NbSe2, a kagome lattice at half filling) - say that
+        # instead of numpy's array-shape error
+        # (LinAlgError is itself a ValueError; any other one is not this)
+        if not isinstance(e,np.linalg.LinAlgError) and "mismatch" not in str(e): raise
         raise ValueError("The Z2 invariant needs a gap at the Fermi level: "
             "the number of occupied bands has to be the same at every k-point, "
             "and here it changes, so the system is a metal at this Fermi "
@@ -654,16 +672,26 @@ def get_interactive_ldos(h,window):
     execute_script("ql-multildos ")
 
 
+# The fewest k-points get_nk() hands the embedding: coarser meshes land on
+# k-points where pyqula's Dyson solve is singular (1 point on every lattice
+# tried, 2 on Lieb/square; 3 worked on all of them).
+MIN_EMBEDDING_NK = 3
+
+
 def get_nk(h,delta=1e-2,fac=1.0):
-    """Return the number of k-points to be used"""
+    """Return the number of k-points to be used (by the embedding helpers
+    below, the only callers)"""
     delta = delta or 1e-3 # avoid a division by zero below
     n = h.intra.shape[0] # dimension of the Hamiltonian
     d = h.dimensionality # dimensionality
     nk = 1./(delta*n) # number of kpoints
     if d==0: return 0
-    elif d==1: return int(nk*fac)
-    elif d==2: return int(np.sqrt(nk)*fac)
-    elif d==3: return int(nk**(1./3.)*fac)
+    # never below MIN_EMBEDDING_NK: a zero-point mesh (a k-mesh scaling
+    # below 1 went through int()) reached pyqula's Dyson solver as a
+    # ZeroDivisionError, and a one-point mesh as a singular matrix
+    elif d==1: return max(MIN_EMBEDDING_NK,int(nk*fac))
+    elif d==2: return max(MIN_EMBEDDING_NK,int(np.sqrt(nk)*fac))
+    elif d==3: return max(MIN_EMBEDDING_NK,int(nk**(1./3.)*fac))
 
 
 def build_embedding_hamiltonian(g,window):
@@ -718,6 +746,18 @@ def get_impurity_matrix(h0,window):
     return h+h0 # return the defective Hamiltonian
 
 
+@contextlib.contextmanager
+def _explain_singular_embedding():
+    """pyqula's Dyson solve fails with a bare "Singular matrix" when the
+    k-mesh is too coarse for the host (see MIN_EMBEDDING_NK); say which
+    fields to raise instead."""
+    try:
+        yield
+    except np.linalg.LinAlgError as e:
+        raise ValueError("The embedding's Green's function is singular with "
+            "this k-mesh. Raise the k-mesh accuracy or the smearing.") from e
+
+
 def get_embedding_ldos(h,window):
     """Embed the impurity matrix and compute/plot the LDOS - shared by
     impurity_embedding/ribbon_embedding"""
@@ -730,7 +770,8 @@ def get_embedding_ldos(h,window):
     ns = int(get("ncells_embedding_ldos"))
     nks = get("nk_scaling_embedding_ldos")
     nk = get_nk(h,delta=delta,fac=20*nks) # number of kpoints
-    (x,y,d) = eb.ldos(nsuper=ns,energy=e,delta=delta,nk=nk)
+    with _explain_singular_embedding():
+        (x,y,d) = eb.ldos(nsuper=ns,energy=e,delta=delta,nk=nk)
     np.savetxt("LDOS.OUT",np.array([x,y,d]).T)
     execute_script("ql-ldos --input LDOS.OUT")
 
@@ -747,9 +788,11 @@ def get_embedding_ldos_sweep(h,window):
     es = np.linspace(-ewin,ewin,ne,endpoint=True) # number of energies
     delta = get("delta_embedding_ldos_sweep") # energy
     ns = int(get("ncells_embedding_ldos_sweep"))
-    nks = int(get("nk_scaling_embedding_ldos_sweep"))
+    nks = get("nk_scaling_embedding_ldos_sweep") # a factor: 0.5 is a valid
+                        # value, which int() used to truncate to a 0-point mesh
     nk = get_nk(h,delta=delta,fac=20*nks) # number of kpoints
-    eb.multildos(es=es,delta=delta,nk=nk,nsuper=ns) # compute
+    with _explain_singular_embedding():
+        eb.multildos(es=es,delta=delta,nk=nk,nsuper=ns) # compute
     execute_script("ql-multildos ")
 
 

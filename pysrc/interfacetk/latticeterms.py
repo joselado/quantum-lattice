@@ -364,6 +364,10 @@ def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype
         for name in names:
             _apply_widget_restriction(form, [name],
                                       term_shown(name, lattice_name, hamiltonian_type))
+        for name in hamiltoniantype.SPIN_BUTTONS:
+            button = getattr(form, name, None)
+            if button is not None:
+                button.setEnabled(hamiltonian_type != "Spinless")
 
     dimensionality = config.get("dimensionality")
     if callable(dimensionality): dimensionality = dimensionality()

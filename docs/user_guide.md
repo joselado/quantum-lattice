@@ -153,7 +153,9 @@ or **Nambu**.
 
 - **Spinful** is the ordinary case: the Hamiltonian carries a real electron
   spin degree of freedom, and every spin-dependent term is available.
-- **Spinless** removes the spin degree of freedom entirely. Terms that only
+- **Spinless** removes the spin degree of freedom entirely, and disables
+  the buttons whose result is a spin quantity (Show magnetism and the
+  inelastic-tunneling ones). Terms that only
   make sense with real spin — Exchange, Kane-Mele SOC, Anti-Kane-Mele,
   Rashba, Antiferromagnetism, the mean-field Hubbard U (the interaction
   between the up and down electrons on the same site) and the J1/J2/J3

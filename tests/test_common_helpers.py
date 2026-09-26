@@ -173,3 +173,30 @@ def test_spin_operator_on_a_reduced_hamiltonian():
     assert h2.has_spin and not h.has_spin
     common.get_operator(h2, "Sz")
     assert common.hamiltonian_for_operator(h, "IPR") is h
+
+
+def test_spin_only_calculations_explain_a_spinless_hamiltonian():
+    h = _honeycomb(has_spin=False)
+    with pytest.raises(ValueError, match="Choose Spinful or Nambu"):
+        common.show_exchange(h, Form(magnetization_plot_mode="2D"))
+
+
+def test_embedding_sweep_with_a_fractional_k_scaling():
+    # the sweep's k-mesh scaling used to go through int(), so 0.5 gave a
+    # zero-point mesh and a ZeroDivisionError inside pyqula
+    g = geometry.honeycomb_lattice()
+    h = common.build_embedding_hamiltonian(g, Form(exchange="0.0,0.0,0.0",
+        lattice="Honeycomb"))
+    common.get_embedding_ldos_sweep(h, Form(nsuper_impurity="1",
+        impurity_potential="1.0", impurity_exchange="0.0,0.0,0.0",
+        energy_window_embedding_ldos_sweep="0.5", num_energies_embedding_ldos_sweep="2",
+        delta_embedding_ldos_sweep="0.5", ncells_embedding_ldos_sweep="1",
+        nk_scaling_embedding_ldos_sweep="0.5"))
+    assert common.get_nk(h, delta=1.0, fac=0.01) == common.MIN_EMBEDDING_NK
+
+
+def test_z2_of_a_kagome_metal_says_so():
+    # here the Wilson loop dies in a matmul rather than an SVD
+    h = geometry.kagome_lattice().get_hamiltonian(has_spin=True)
+    with pytest.raises(ValueError, match="needs a gap at the Fermi level"):
+        common.get_z2(h, Form(topology_nk="16"))

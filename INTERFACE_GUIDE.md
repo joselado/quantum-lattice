@@ -309,7 +309,13 @@ modes call into):
   the up-down interaction, which pyqula refuses on a spinless
   Hamiltonian - `common.py`'s SCF paths pass `U=0` there, so a stale
   hidden value never reaches it); `PAIRING_TERMS`
-  (swave, pwave) need Nambu (hidden unless "Nambu" is selected). Widget
+  (swave, pwave) need Nambu (hidden unless "Nambu" is selected).
+  `SPIN_BUTTONS` (show_magnetism, show_iets_qdos, show_iets_ldos) are
+  calculation buttons whose result is a spin quantity: they are disabled
+  while "Spinless" is selected, and their handlers call
+  `common.require_spinful(h, "<what>")` as well, which raises an error
+  naming the Hamiltonian-type fix instead of pyqula's "call
+  h.turn_spinful()". Widget
   visibility is actually applied by `latticeterms.py`'s
   `apply_term_restrictions()`/`connect()` (see that bullet below) since
   three terms - kanemele, antikanemele, mAF - are restricted by *both*
@@ -774,6 +780,13 @@ through a bound method.
 
 
 ### Per-direction k-point counts, and the accessor a helper reads
+
+(The embedding helpers size their own mesh through `common.get_nk()`, from
+the smearing and a "k-mesh accuracy" factor - a float, and never fewer
+than `MIN_EMBEDDING_NK` = 3 points: 0 points reached pyqula's Dyson solver
+as a ZeroDivisionError, 1 or 2 as a singular matrix on some lattices. A
+singular matrix that still gets through is reported as "raise the k-mesh
+accuracy or the smearing".)
 
 pyqula's k-meshes (`klist.kmesh(dim,nk)`) have `nk**dim` points, so a
 k-point field is a count *per direction*: 3d's DOS used to default to
@@ -1658,7 +1671,7 @@ sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
 other setup is required. Currently measured at ~70s wall clock (with
 BLAS/numba pinned to one thread) and ~1.1GB peak RSS for the whole suite
-(365 passed, 9 skipped as of this
+(369 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are

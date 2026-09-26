@@ -100,6 +100,7 @@ def initialize():
 def show_magnetism():
   """Show the magnetism of the system"""
   h = pickup_hamiltonian() # get the Hamiltonian
+  common.require_spinful(h,"The magnetization")
   h.write_magnetization(nrep=int(get("magnetization_nrep")))
   execute_script("ql-quiver")
 
