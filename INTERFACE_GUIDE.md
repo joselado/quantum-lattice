@@ -109,21 +109,26 @@ see "Adding a mode" below). For everyone else, only buttons whose behavior diffe
 | tmdc | show_structure, show_dos, show_structure_3d |
 | spinspiral | show_structure, show_structure_3d, show_magnetism, show_spiral_ldos |
 
-**`latticeterms.connect()` (honeycomb-only term hiding) + lattice family.**
-Every mode with a user-selectable `lattice` combobox calls this; three
-don't, because there's nothing to restrict — `tbg`/`tmdc` have no
-`lattice` combobox at all (fixed geometry: `specialgeometry.
-twisted_multilayer`/`specialhamiltonian.NbSe2`), and `multilayergraphene`
-calls it with a constant `lambda: "Honeycomb"` instead of `getbox
-("lattice")`, since its own `lattice` combobox is a stacking code
-(`"ABA"`, ...) rather than a lattice-family name. `impurity_embedding`/
-`ribbon_embedding` do call it (0d island / ribbon host, both
-user-selectable). `latticegas`/`latticeising` don't (classical models, no
-Hamiltonian-restricted terms to hide). `spinspiral` deliberately doesn't
-either, even though it *has* a `lattice` combobox: its intrinsic-SOC field
-is named `kanemele` (to reuse that term's formula image and tooltip), and
-`RESTRICTED_TERMS` would hide it on any non-honeycomb lattice — i.e. on
-both lattices that mode offers.
+**`latticeterms.connect()` (term hiding + operator-menu filtering) +
+lattice family.** Every Hamiltonian mode calls it, each passing the
+`dimensionality` of the Hamiltonian it builds (Berry operators are 2d-only,
+bulk/surface projectors up to 2d). Most pass `lambda: getbox("lattice")`;
+`multilayergraphene` passes a constant `lambda: "Honeycomb"`, since its own
+`lattice` combobox is a stacking code (`"ABA"`, ...) rather than a
+lattice-family name. `impurity_embedding`/`ribbon_embedding` call it for
+their 0d island / ribbon host. Four modes call it only to filter their
+operator menus (`restrict_widgets=False`, so no term field is hidden):
+`tbg` (constant "Honeycomb", `hamiltonian_type=lambda: "Spinless"` - its
+Hamiltonian always is - and `exclude_items=["valleyberry"]`, which pyqula
+can't compute on its sparse matrix); `tmdc` (no lattice, Nambu exactly when
+s-wave pairing is nonzero - `watch=["swave"]` re-filters on each edit -
+and no "sublattice", since NbSe2 has one site per cell); `heavyfermion`
+(its `dos_operator`; its other menus are its own Kondo-lattice lists); and
+`spinspiral`, whose intrinsic-SOC field is named `kanemele` (to reuse that
+term's formula image and tooltip), which `RESTRICTED_TERMS` would hide on
+both of its non-honeycomb lattices, and whose dimensionality depends on the
+lattice (a callable). `latticegas`/`latticeising` don't call it (classical
+models, no Hamiltonian terms).
 
 **SCF.** `0d`/`2dslab`/`hybridfilm`/`hybridribbon`/`multilayergraphene`
 call the shared `common.solve_scf(h,qtwrap)`. `2d`/`3d` call the richer
@@ -499,7 +504,19 @@ modes call into):
   original order (an item that comes back returns to its place, not the
   end) and remembers the last pick made by anything but itself, restoring
   it as soon as it is offered again. Matching is case-insensitive, so a
-  Designer "Valley" and pyqula's "valley" are one item.
+  Designer "Valley" and pyqula's "valley" are one item. Rules take a
+  `Context(lattice_name, hamiltonian_type, dimensionality)`; `connect()`'s
+  optional arguments (`dimensionality`, `hamiltonian_type`,
+  `restrict_widgets`, `exclude_items`, `watch`) are documented in its
+  docstring and used per mode as the "Per-mode organization map" lists.
+  `tests/test_operator_menus.py` resolves every offered operator on each
+  cheap page's built Hamiltonian, per Hamiltonian type - add a new operator
+  rule when it fails, not an exception in the test. A mode that reduce()s
+  the Hamiltonian it builds (hofstader1d) resolves an operator through
+  `common.hamiltonian_for_operator()` first, which hands back a spinful copy
+  for a spin operator; `get_dos()`/`get_fermi_surface()` only reduce() when
+  no operator is chosen, since reduce() drops the spin of a Hamiltonian
+  with no spin term set.
   `apply_term_restrictions(form, lattice_name, hamiltonian_type)` also
   folds in `hamiltoniantype.py`'s own restrictions, combining both via AND
   per widget base name before calling `setVisible()` once - see that
@@ -1636,8 +1653,9 @@ duplicated, so it stays in sync with the shell's `MODES`.
 suite. Run it headlessly with `python -m pytest tests/` — `tests/conftest.py`
 sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
-other setup is required. Currently measured at ~25s wall clock and
-~1.1GB peak RSS for the whole suite (352 passed, 9 skipped as of this
+other setup is required. Currently measured at ~70s wall clock (with
+BLAS/numba pinned to one thread) and ~1.1GB peak RSS for the whole suite
+(364 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are
@@ -1789,9 +1807,12 @@ before widening any layer. It's layered, cheapest/most-general first:
    type and lattice, the original order kept, no duplicates, and the
    user's pick restored after a round trip or a session load. Cheap: page
    builds only, no calculation.
-9. **`test_wording.py`** — the "Wording conventions" above, read straight
+9. **`test_operator_menus.py`** — every item a cheap page's operator menus
+   offer resolves through `common.get_operator()` on that page's built
+   Hamiltonian, per Hamiltonian type.
+10. **`test_wording.py`** — the "Wording conventions" above, read straight
    from every `interface.ui` and the two formbuilder specs; no page build.
-10. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
+11. **`test_pyqula_floor.py`** — a couple of direct-`pyqula` textbook
    tight-binding checks (graphene's Dirac point, etc.), no GUI at all.
    Automated version of the "skim `git diff --stat pysrc/pyqula`" step
    `tools/update_pyqula.sh`'s own instructions already ask for by hand —

@@ -32,7 +32,7 @@ select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="
 
 from interfacetk import latticeterms
 from interfacetk import hamiltoniantype
-latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+latticeterms.connect(qtwrap,lambda: getbox("lattice"),dimensionality=1) # hide honeycomb-only
                                                          # terms (Haldane,
                                                          # Kane-Mele, valley)
                                                          # for other lattices

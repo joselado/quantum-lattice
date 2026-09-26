@@ -29,6 +29,14 @@ pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
 qtwrap.set_combobox("dos_operator",operators.operator_list)
 
+# filters dos_operator only (restrict_widgets=False: the rules were not
+# written with this page's Kondo-lattice fields in mind); its other operator
+# menus are its own dispersive_electrons/kondo_sites lists, which no rule
+# touches. The Hamiltonian is always spinful and never Nambu.
+from interfacetk import latticeterms
+latticeterms.connect(qtwrap,lambda: getbox("lattice"),dimensionality=2,
+    restrict_widgets=False)
+
 
 LATTICES = {
   "Honeycomb": geometry.honeycomb_lattice,

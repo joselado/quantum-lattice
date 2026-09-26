@@ -39,7 +39,7 @@ LATTICES = {
 
 from interfacetk import hamiltoniantype
 from interfacetk import latticeterms
-latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+latticeterms.connect(qtwrap,lambda: getbox("lattice"),dimensionality=3) # hide honeycomb-only
                                                          # terms (Haldane,
                                                          # Kane-Mele, valley)
                                                          # for other lattices

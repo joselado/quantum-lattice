@@ -40,7 +40,7 @@ LATTICES = {
 }
 
 from interfacetk import latticeterms
-latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+latticeterms.connect(qtwrap,lambda: getbox("lattice"),dimensionality=2) # hide honeycomb-only
                                                          # terms (Haldane,
                                                          # Kane-Mele, valley)
                                                          # for other lattices

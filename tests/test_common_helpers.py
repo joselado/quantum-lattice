@@ -153,3 +153,23 @@ def test_subprocess_warnings_are_shown_once(tmp_path, monkeypatch):
     qtwrap.run_calculation_subprocess("unused", "solve_scf", scratch)
     assert shown == ["Fresh"]
     assert not os.path.exists(os.path.join(scratch, qtwrap.WARNINGS_FILE))
+
+
+def test_spin_projected_dos_without_spin_terms():
+    # get_dos() used to reduce() before building the operator, which drops
+    # the spin of a Hamiltonian with no spin term set - so Sz failed
+    h = _honeycomb(has_spin=True)
+    common.get_dos(h, Form(dos_nk="4", dos_delta="0.2", dos_ewindow="1.0",
+        dos_operator="Sz", dos_mode="ED"))
+    assert os.path.exists("DOS.OUT")
+
+
+def test_spin_operator_on_a_reduced_hamiltonian():
+    # hofstader1d reduce()s the Hamiltonian it builds; a spin operator then
+    # needs a spinful copy, and the cached original must stay untouched
+    h = _honeycomb(has_spin=True).reduce()
+    assert not h.has_spin
+    h2 = common.hamiltonian_for_operator(h, "Sz")
+    assert h2.has_spin and not h.has_spin
+    common.get_operator(h2, "Sz")
+    assert common.hamiltonian_for_operator(h, "IPR") is h

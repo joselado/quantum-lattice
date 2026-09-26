@@ -24,6 +24,14 @@ modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
 select_atoms_removal = lambda: common.select_atoms_removal(get_geometry,script="ql-remove-atoms-geometry-3d")
 pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 
+# filters the operator menu only (this page has no restricted term field):
+# initialize() always builds a spinless, honeycomb-derived Hamiltonian, and
+# pyqula can't compute valleyberry on its sparse matrix
+from interfacetk import latticeterms
+latticeterms.connect(qtwrap,lambda: "Honeycomb",dimensionality=2,
+    hamiltonian_type=lambda: "Spinless",restrict_widgets=False,
+    exclude_items=["valleyberry"])
+
 qtwrap.set_combobox("multilayer_type",
         cs=["Twisted bilayer",
             "Aligned bilayer AA",

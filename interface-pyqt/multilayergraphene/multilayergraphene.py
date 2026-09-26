@@ -42,7 +42,7 @@ qtwrap.set_combobox("lattice",cs=cs)
 # classifier below is a constant rather than reading that combobox.
 from interfacetk import hamiltoniantype
 from interfacetk import latticeterms
-latticeterms.connect(qtwrap,lambda: "Honeycomb")
+latticeterms.connect(qtwrap,lambda: "Honeycomb",dimensionality=2)
 
 
 STACKING_OFFSETS = {"A": -1, "B": 0, "C": 1}

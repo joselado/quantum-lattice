@@ -23,7 +23,7 @@ from interfacetk import interfacetk
 modify_geometry = lambda x: interfacetk.modify_geometry(x,qtwrap)
 
 from interfacetk import latticeterms
-latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+latticeterms.connect(qtwrap,lambda: getbox("lattice"),dimensionality=1) # hide honeycomb-only
                                                          # terms (Haldane,
                                                          # Kane-Mele, valley)
                                                          # for other lattices
@@ -86,13 +86,10 @@ def initialize():
 def show_bands():
   h = pickup_hamiltonian() # get hamiltonian
   opname = getbox("bands_color")
-  if opname=="None": op = None # no operators
-  elif opname=="Sx": op = h.get_operator("sx") # off plane case
-  elif opname=="Sy": op = h.get_operator("sy")# off plane case
-  elif opname=="Sz": op = h.get_operator("sz")# off plane case
-  elif opname=="Valley": op = h.get_operator("valley")
-  elif opname=="y-position": op = h.get_operator("yposition")
-  else: op =None
+  # initialize() reduce()s the Hamiltonian, which drops its spin when no
+  # spin term is set - a spin operator needs it back
+  h = common.hamiltonian_for_operator(h,opname)
+  op = common.get_operator(h,opname)
   kpath = h.geometry.get_default_kpath(nk=int(get("nk_bands")))
   h.get_bands(operator=op,kpath=kpath)
   execute_script("ql-bands1d  ")

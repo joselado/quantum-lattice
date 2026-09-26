@@ -69,6 +69,8 @@ refuses add_sublattice_imbalance/add_antiferromagnetism on a geometry
 without the sublattice structure they stagger, even for a zero value."""
 
 
+from collections import namedtuple
+
 import numpy as np
 
 from . import hamiltoniantype
@@ -126,25 +128,38 @@ RESTRICTED_TERMS = [
 ]
 
 
+# What the dropdown rules below are evaluated against: the page's lattice
+# name (None: the page doesn't restrict by lattice), its Hamiltonian type
+# (hamiltoniantype.HAMILTONIAN_TYPES) and the dimensionality of the
+# Hamiltonian it builds (None: not stated). connect() builds one per call.
+Context = namedtuple("Context", ["lattice_name", "hamiltonian_type", "dimensionality"])
+
+
 def _follows(term):
     """An item offered exactly where the term field `term` is shown."""
-    return lambda lattice_name, hamiltonian_type: term_shown(term, lattice_name, hamiltonian_type)
+    return lambda c: term_shown(term, c.lattice_name, c.hamiltonian_type)
 
 
 def _on_lattice(rule):
     """An item offered on lattices for which `rule(lattice_name)` holds."""
-    return lambda lattice_name, hamiltonian_type: lattice_name is None or rule(lattice_name)
+    return lambda c: c.lattice_name is None or rule(c.lattice_name)
 
 
-# Dropdown items that only apply to some lattices or Hamiltonian types:
-# {item text, lower-cased: rule(lattice_name, hamiltonian_type)}. Matched
-# case-insensitively, since the same operator is "Valley" in some Designer
-# lists and "valley" in pyqula's operators.operator_list (common.
-# get_operator() accepts both). Operators pyqula refuses on the wrong
-# Hilbert space follow a term with the same requirement: the spin
-# operators follow the (spin-only) exchange field, and the hole projector
-# the (Nambu-only) s-wave pairing. The SCF initial guesses are pyqula
-# meanfield.guess() modes, each following the term it seeds.
+def _in_dimensions(*dims):
+    """An item offered only for a Hamiltonian of one of these dimensionalities."""
+    return lambda c: c.dimensionality is None or c.dimensionality in dims
+
+
+# Dropdown items that only apply to some pages: {item text, lower-cased:
+# rule(Context)}. Matched case-insensitively, since the same operator is
+# "Valley" in some Designer lists and "valley" in pyqula's
+# operators.operator_list (common.get_operator() accepts both). Operators
+# pyqula refuses on the wrong Hilbert space follow a term with the same
+# requirement: the spin operators follow the (spin-only) exchange field,
+# and the hole projector the (Nambu-only) s-wave pairing. pyqula defines
+# the Berry-curvature operators only in 2d, and the bulk/surface projectors
+# up to 2d. The SCF initial guesses are pyqula meanfield.guess() modes,
+# each following the term it seeds.
 ITEM_RULES = {
     "valley": _on_lattice(is_honeycomb_family),
     "sublattice": _on_lattice(is_sublattice_family),
@@ -152,6 +167,10 @@ ITEM_RULES = {
     "sy": _follows("exchange"),
     "sz": _follows("exchange"),
     "hole": _follows("swave"),
+    "berry": _in_dimensions(2),
+    "valleyberry": _in_dimensions(2),
+    "bulk": _in_dimensions(0, 1, 2),
+    "surface": _in_dimensions(0, 1, 2),
     "sublattice imbalance": _follows("mAB"),
     "antiferromagnetism": _follows("mAF"),
     "ferro": _follows("exchange"),
@@ -193,9 +212,10 @@ def _scf_guess_items(form):
     return items + ["random"] + _LATTICE_GUESSES
 
 
-def _item_allowed(item, lattice_name, hamiltonian_type):
+def _item_allowed(item, context, exclude=()):
+    if item.lower() in exclude: return False
     rule = ITEM_RULES.get(item.lower())
-    return rule is None or rule(lattice_name, hamiltonian_type)
+    return rule is None or rule(context)
 
 
 def _restrict_combo_items(combo, all_items, allowed):
@@ -320,17 +340,25 @@ def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype
     per widget base name (see this module's docstring for why a term named
     by both, e.g. kanemele/mAF, needs a combined boolean rather than two
     independent setVisible() passes) - and filter every RESTRICTED_COMBOS
-    dropdown's items by ITEM_RULES the same way. Safe to call on any page:
-    widgets/comboboxes this particular mode doesn't have are skipped."""
-    names = set(hamiltoniantype.SPIN_TERMS + hamiltoniantype.PAIRING_TERMS)
-    for entry in RESTRICTED_TERMS:
-        if entry["kind"] == "widget": names.update(entry["names"])
-    for name in names:
-        _apply_widget_restriction(form, [name],
-                                  term_shown(name, lattice_name, hamiltonian_type))
+    dropdown's items by ITEM_RULES the same way. The rest of the page's
+    setup (dimensionality, restrict_widgets, exclude_items) is what
+    connect() recorded on it. Safe to call on any page: widgets/comboboxes
+    this particular mode doesn't have are skipped."""
+    config = getattr(form, "_term_config", {})
+    if config.get("restrict_widgets", True):
+        names = set(hamiltoniantype.SPIN_TERMS + hamiltoniantype.PAIRING_TERMS)
+        for entry in RESTRICTED_TERMS:
+            if entry["kind"] == "widget": names.update(entry["names"])
+        for name in names:
+            _apply_widget_restriction(form, [name],
+                                      term_shown(name, lattice_name, hamiltonian_type))
 
+    dimensionality = config.get("dimensionality")
+    if callable(dimensionality): dimensionality = dimensionality()
+    context = Context(lattice_name, hamiltonian_type, dimensionality)
+    exclude = {item.lower() for item in config.get("exclude_items", ())}
     def allowed(item):
-        return _item_allowed(item, lattice_name, hamiltonian_type)
+        return _item_allowed(item, context, exclude)
     for combo_name in RESTRICTED_COMBOS:
         combo = getattr(form, combo_name, None)
         if combo is None: continue
@@ -343,7 +371,8 @@ def apply_term_restrictions(form, lattice_name, hamiltonian_type=hamiltoniantype
         _restrict_combo_items(combo, all_items, allowed)
 
 
-def connect(qtwrap, get_lattice_name):
+def connect(qtwrap, get_lattice_name, dimensionality=None, hamiltonian_type=None,
+            restrict_widgets=True, exclude_items=(), watch=()):
     """Wire term restrictions to `get_lattice_name()` (a callable
     returning the mode's current lattice-family name, e.g.
     lambda: getbox("lattice"), or a constant for an always-honeycomb
@@ -351,13 +380,37 @@ def connect(qtwrap, get_lattice_name):
     (built by scfterms.py, see hamiltoniantype.py). Applies once
     immediately, and again whenever either combobox changes (covers both
     direct user interaction and a saved session being reloaded into it -
-    see qtwrap.py's load_interface())."""
+    see qtwrap.py's load_interface()).
+
+      dimensionality   - of the Hamiltonian the page builds (an int, or a
+                         callable for a page where it depends on the
+                         lattice), for the dimension-limited dropdown items
+                         (ITEM_RULES' _in_dimensions()).
+      hamiltonian_type - a callable returning the page's Hamiltonian type,
+                         for a page without the hamiltonian_type combobox
+                         whose Hamiltonian isn't simply spinful (tbg is
+                         always spinless, tmdc becomes Nambu with pairing).
+      restrict_widgets - False for a page whose term fields must not be
+                         hidden by these rules, which then only filter its
+                         dropdowns (spinspiral names its intrinsic SOC field
+                         kanemele, which RESTRICTED_TERMS would hide on
+                         both of its non-honeycomb lattices).
+      exclude_items    - dropdown items this page never offers, for what
+                         no general rule captures (tbg's valleyberry, which
+                         pyqula can't compute on a sparse Hamiltonian).
+      watch            - more field names whose edits re-apply the rules
+                         (tmdc's swave, which decides its Hamiltonian type)."""
     form = qtwrap.form
+    form._term_config = dict(dimensionality=dimensionality,
+                             restrict_widgets=restrict_widgets,
+                             exclude_items=tuple(exclude_items))
     # kept on the page so codeview.is_active() can ask term_shown() the
-    # same question for the generated code preview
-    form._term_lattice_name = get_lattice_name
+    # same question for the generated code preview - only where the rules
+    # also decide which term fields the page shows
+    if restrict_widgets: form._term_lattice_name = get_lattice_name
+    get_type = hamiltonian_type or (lambda: hamiltoniantype.get_type(qtwrap))
     def _update(*_args):
-        apply_term_restrictions(form, get_lattice_name(), hamiltoniantype.get_type(qtwrap))
+        apply_term_restrictions(form, get_lattice_name(), get_type())
     # qtwrap.set_combobox() re-applies through this after refilling a
     # dropdown, for a mode that fills one only after calling connect()
     form._reapply_term_restrictions = _update
@@ -367,6 +420,9 @@ def connect(qtwrap, get_lattice_name):
     hamtype_widget = getattr(form, "hamiltonian_type", None)
     if hamtype_widget is not None:
         hamtype_widget.currentTextChanged.connect(_update)
+    for name in watch:
+        widget = getattr(form, name, None)
+        if widget is not None: widget.textChanged.connect(_update)
     _update()
 
 

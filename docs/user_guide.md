@@ -182,10 +182,12 @@ a spinful Hamiltonian, the hole projector needs Nambu, the valley operator
 a honeycomb lattice and the sublattice operator a lattice with
 sublattices, and each is offered only when those hold. A choice you made
 comes back selected as soon as it is offered again, e.g. after switching
-to Spinless and back. (The Twisted multilayer graphene, Transition metal
-dichalcogenides, Heavy fermion Kondo lattice and Spin spirals modes still
-list every operator; picking one that doesn't apply there stops the
-calculation with an error saying why.)
+to Spinless and back. The Berry-curvature operators are only offered for
+two-dimensional systems, and the bulk/surface projectors up to two
+dimensions. Modes without the Hamiltonian type dropdown filter their menus
+by what their Hamiltonian always is: twisted multilayer graphene is
+spinless, and transition metal dichalcogenides offer the hole projector
+once s-wave pairing is set.
 
 ## Self-consistent mean-field (SCF) calculations
 

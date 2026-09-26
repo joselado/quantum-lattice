@@ -37,10 +37,13 @@ LATTICES = {
   "Triangular": geometry.triangular_lattice,
 }
 
-# latticeterms.connect() is deliberately NOT called here: this mode's
-# "kanemele" field is a generic intrinsic-SOC term, and latticeterms'
-# RESTRICTED_TERMS would hide it outright on any non-honeycomb lattice,
-# i.e. on both lattices this mode offers.
+# latticeterms.connect() only filters this mode's operator menus here
+# (restrict_widgets=False): its "kanemele" field is a generic intrinsic-SOC
+# term, and latticeterms' RESTRICTED_TERMS would hide it outright on any
+# non-honeycomb lattice, i.e. on both lattices this mode offers
+from interfacetk import latticeterms
+latticeterms.connect(qtwrap,lambda: getbox("lattice"),restrict_widgets=False,
+    dimensionality=lambda: LATTICES[getbox("lattice")]().dimensionality)
 
 
 def get_qvector():

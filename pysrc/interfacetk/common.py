@@ -30,6 +30,22 @@ def get_operator(h,opname,projector=False):
 
 
 
+SPIN_OPERATORS = ("Sx","Sy","Sz")
+
+
+def hamiltonian_for_operator(h,opname):
+    """h, or a spinful copy of it when `opname` is a spin operator and h
+    is spinless - which a mode that reduce()s the Hamiltonian it builds
+    (hofstader1d) leaves it whenever no spin term is set. pyqula refuses a
+    spin operator on a spinless Hamiltonian, and the spinful copy is the
+    same, spin-degenerate, physics. A copy, since h may be the cached SCF
+    result pickup_hamiltonian() handed out."""
+    if opname in SPIN_OPERATORS and not h.has_spin:
+        h = h.copy()
+        h.turn_spinful()
+    return h
+
+
 def get_bands(h,window):
     """Compute the bandstructure of the system"""
     opname = window.getbox("bands_color")
@@ -116,9 +132,11 @@ def get_dos(h,window,silent=False):
     delta = window.get("dos_delta") or 1e-3 # avoid a division by zero below
     ewindow = abs(window.get("dos_ewindow"))
     energies = np.linspace(-ewindow,ewindow,int(ewindow/delta*5)) # get the energies
-    h = h.reduce() # reduce dimensionality of possible
     opname = window.getbox("dos_operator") # operator to project the DOS onto
     op = get_operator(h,opname) if opname else None
+    # only without an operator: reduce() drops the spin of a Hamiltonian
+    # with no spin term set, and pyqula refuses a spin operator on that
+    if op is None: h = h.reduce()
     mode = window.getbox("dos_mode")
     # the Green-function DOS integrates adaptively and ignores nk; the
     # other two sum over a kmesh of nk**d points
@@ -281,7 +299,8 @@ def get_fermi_surface(h,window):
     numw = int(window.get("fs_numw")) # number of waves for sparse
     delta = window.get("fs_delta")
     operator = window.getbox("fs_operator")
-    h = h.reduce() # reduce dimensionality if possible
+    # only without an operator - see get_dos()
+    if operator in (None,"","None"): h = h.reduce()
     h.get_multi_fermi_surface(nk=nk,energies=energies,
         delta=delta,nsuper=1,numw=numw,operator=operator)
     execute_script("ql-multifermisurface")

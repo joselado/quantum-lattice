@@ -92,3 +92,30 @@ def test_saved_choice_restored_whatever_the_widget_order(tmp_path):
     qtwrap.load_interface(m.window, str(path))
     assert m.window.hamiltonian_type.currentText() == "Nambu"
     assert m.window.bands_color.currentText() == "hole"
+
+
+def _offered(m, name):
+    return {t.lower() for t in items(getattr(m.window, name))}
+
+
+def test_operators_follow_the_dimensionality():
+    # pyqula defines the Berry operators only in 2d, bulk/surface up to 2d
+    assert {"berry", "valleyberry"} <= _offered(import_mode("2d"), "bands_color")
+    assert not {"berry", "valleyberry"} & _offered(import_mode("1d"), "bands_color")
+    three = _offered(import_mode("3d"), "bands_color")
+    assert not {"berry", "valleyberry", "bulk", "surface"} & three
+
+
+def test_pages_without_a_hamiltonian_type_selector():
+    # tbg is always spinless, and pyqula can't do valleyberry on its sparse
+    # Hamiltonian; tmdc offers the hole projector only with s-wave pairing
+    tbg = _offered(import_mode("tbg"), "bands_color")
+    assert not {"sx", "sy", "sz", "hole", "valleyberry"} & tbg
+    m = import_mode("tmdc")
+    assert "hole" not in _offered(m, "dos_operator")
+    assert "sublattice" not in _offered(m, "dos_operator")
+    m.window.swave.setText("0.1")
+    assert "hole" in _offered(m, "dos_operator")
+    spiral = import_mode("spinspiral")
+    assert "sublattice" not in _offered(spiral, "bands_color")
+    assert not spiral.window.kanemele.isHidden() # fields left alone

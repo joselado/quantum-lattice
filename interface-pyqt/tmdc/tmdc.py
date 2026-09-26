@@ -24,6 +24,15 @@ pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize)
 qtwrap.set_combobox("bands_color",operators.operator_list)
 qtwrap.set_combobox("dos_operator",operators.operator_list)
 
+# filters the operator menus only (restrict_widgets=False): NbSe2 is
+# spinful, becomes Nambu once initialize() adds s-wave pairing, and has one
+# site per cell, so no sublattice for the sublattice operator to project on
+from interfacetk import latticeterms, termhighlight
+latticeterms.connect(qtwrap,lambda: None,dimensionality=2,
+    hamiltonian_type=lambda: ("Nambu" if termhighlight.is_nonzero_value(window.swave.text())
+                              else "Spinful"),
+    restrict_widgets=False,exclude_items=["sublattice"],watch=["swave"])
+
 
 def get_geometry():
     """Return the geometry"""

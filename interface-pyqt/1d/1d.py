@@ -41,7 +41,7 @@ pickup_hamiltonian = lambda: common.pickup_hamiltonian(qtwrap,initialize,do_scf=
 
 from interfacetk import hamiltoniantype
 from interfacetk import latticeterms
-latticeterms.connect(qtwrap,lambda: getbox("lattice")) # hide honeycomb-only
+latticeterms.connect(qtwrap,lambda: getbox("lattice"),dimensionality=1) # hide honeycomb-only
                                                          # terms (Haldane,
                                                          # Kane-Mele, valley)
                                                          # for other lattices
