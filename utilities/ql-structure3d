@@ -14,7 +14,7 @@ lattice_color = tuple(np.random.random(3))
 
 def read_positions():
   """Reads the positions of the system"""
-  return np.genfromtxt("POSITIONS.OUT")
+  return np.genfromtxt("POSITIONS.OUT",ndmin=2) # one atom is still one row
 
 
 xyz = read_positions().transpose() # (3,n)

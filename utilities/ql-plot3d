@@ -12,7 +12,7 @@ names = sys.argv[1:] # names of the files
 
 pl = _pv3d.new_plotter()
 for name in names:
-  m = np.genfromtxt(name).transpose()
+  m = np.genfromtxt(name,ndmin=2).transpose()
   x,y,z = m[0],m[1],m[2]
   _pv3d.add_trisurf(pl,x,y,z,cmap="viridis")
 

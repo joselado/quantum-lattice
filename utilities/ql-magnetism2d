@@ -37,7 +37,7 @@ args = parser.parse_args() # get the arguments
 
 from os import system as sh
 
-m = np.genfromtxt(args.input).transpose()
+m = np.genfromtxt(args.input,ndmin=2).transpose()
 (x,y) = m[0],m[1]
 (mx,my,mz) = m[3],m[4],m[5]
 

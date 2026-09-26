@@ -22,7 +22,7 @@ parser.add_argument("--initially_selected",default="")
 args = parser.parse_args() # get the arguments
 
 
-m = np.genfromtxt(args.input).transpose()
+m = np.genfromtxt(args.input,ndmin=2).transpose()
 x = m[0]
 y = m[1]
 z = m[2]

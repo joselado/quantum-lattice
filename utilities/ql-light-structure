@@ -11,7 +11,7 @@ import _pv3d
 
 def read_positions():
   """Reads the positions of the system"""
-  return np.genfromtxt("POSITIONS.OUT").transpose()
+  return np.genfromtxt("POSITIONS.OUT",ndmin=2).transpose()
 
 
 (x,y,z) = read_positions()

@@ -137,7 +137,7 @@ def show_band_ldos():
   in response to the pick_event in that subprocess."""
   h = pickup_hamiltonian() # get the Hamiltonian
   hfile = "BAND_LDOS_HAMILTONIAN.pkl" # not hamiltonian.pkl - see get_site_dos
-  h.save(hfile)
+  common.save_for_script(h,hfile)
   nk = max([int(qtwrap.get("band_ldos_nk")),1])
   execute_script("ql-band-ldos --hamiltonian "+hfile+" --nk "+str(nk))
 

@@ -19,8 +19,8 @@ import plotstyle
 plotstyle.apply()
 import _cell
 
-m0 = np.genfromtxt(args.before).transpose() # positions before relaxation
-m1 = np.genfromtxt(args.after).transpose() # positions after relaxation
+m0 = np.genfromtxt(args.before,ndmin=2).transpose() # positions before relaxation
+m1 = np.genfromtxt(args.after,ndmin=2).transpose() # positions after relaxation
 x0,y0 = m0[0],m0[1]
 x1,y1 = m1[0],m1[1]
 

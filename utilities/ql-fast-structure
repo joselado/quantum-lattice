@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import plotstyle
 plotstyle.apply()
 
-m = np.genfromtxt(args.input).transpose()
+m = np.genfromtxt(args.input,ndmin=2).transpose()
 x = m[0]
 y = m[1]
 z = m[2]

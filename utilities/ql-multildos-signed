@@ -73,7 +73,7 @@ def update(val):
   name = names[val] # get this file
   energy = energies[val] # get this energy
   print("Name",name)
-  m = np.genfromtxt(folder+name).transpose() # read file
+  m = np.genfromtxt(folder+name,ndmin=2).transpose() # read file
   x = m[0] # x position
   y = m[1] # y position
   z = m[2] # z position
@@ -81,7 +81,7 @@ def update(val):
   print("Maximum value is ",np.max(np.abs(z)))
   
   if "layer" in sys.argv: # to color by layer
-    zpos = np.genfromtxt("POSITIONS.OUT").transpose()[2] # position z
+    zpos = np.genfromtxt("POSITIONS.OUT",ndmin=2).transpose()[2] # position z
     nrep = len(z)/len(zpos)
     zpos = np.array(zpos.tolist()*nrep) # workround
     z = z*np.sign(zpos)

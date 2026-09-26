@@ -38,12 +38,12 @@ class crystal:
 
 def get_mag():
   """ Get the magnetization """
-  return np.genfromtxt(args.input).T[3:6]
+  return np.genfromtxt(args.input,ndmin=2).T[3:6]
 
 
 def read_positions():
   """Reads the positions of the system"""
-  return np.genfromtxt(args.input).T[0:3]
+  return np.genfromtxt(args.input,ndmin=2).T[0:3]
 
 
 def get_lattice(crys):

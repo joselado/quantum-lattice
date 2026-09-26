@@ -34,7 +34,7 @@ fig.set_facecolor(plotstyle.BACKGROUND) # white
 
 name = args.input
 
-m = np.genfromtxt(name).transpose() # read file
+m = np.genfromtxt(name,ndmin=2).transpose() # read file (ndmin: one atom is one row, not a 1-D array)
 x = m[0] # x position
 y = m[1] # y position
 z = m[2] # z position

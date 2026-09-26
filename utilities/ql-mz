@@ -17,7 +17,7 @@ fig.set_facecolor(plotstyle.BACKGROUND) # white
 
 name = sys.argv[1] # name of the file
 
-m = np.genfromtxt(name).transpose() # read file
+m = np.genfromtxt(name,ndmin=2).transpose() # read file
 x = m[0] # x position
 y = m[1] # y position
 z = m[3] # z position

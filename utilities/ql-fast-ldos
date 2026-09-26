@@ -36,7 +36,7 @@ def plot(main):
   axcolor = 'lightgoldenrodyellow'
   smax = 100
   ####################################################
-  m = np.genfromtxt(sys.argv[1]).transpose() # read file
+  m = np.genfromtxt(sys.argv[1],ndmin=2).transpose() # read file
   x = m[0] # x position
   y = m[1] # y position
   z = m[2] # z position

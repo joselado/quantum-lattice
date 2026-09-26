@@ -74,7 +74,7 @@ parser.add_argument("--size",default="0.8",help='Initial zoom')
 parser.add_argument("--col",default="2",help='Column')
 args = parser.parse_args() # get the arguments
 
-minput = np.genfromtxt(args.input).transpose() # read file
+minput = np.genfromtxt(args.input,ndmin=2).transpose() # read file
 
 app,main = plotpyqt.get_interface(getfig)
 main.add_slider(label="Size",vs=np.linspace(0.,2,100),

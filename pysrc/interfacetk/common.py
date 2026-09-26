@@ -164,6 +164,21 @@ def get_dos(h,window,silent=False):
 
 
 
+def save_for_script(h,path):
+    """Pickle h for a ql-* script to load and compute with. pyqula's
+    heavy-fermion builder attaches add_kondo to the Hamiltonian instance as
+    a bound method, and a pickle holding a bound method of the object being
+    pickled can't be loaded back ("'Hamiltonian' object has no attribute
+    'add_kondo'") - so such attributes are dropped from a copy first; the
+    script never calls them."""
+    import types
+    if any(isinstance(v,types.MethodType) for v in vars(h).values()):
+        h = h.copy()
+        for name,value in list(vars(h).items()):
+            if isinstance(value,types.MethodType): delattr(h,name)
+    h.save(path)
+
+
 def get_site_dos(h,window,use_kpm=False):
     """Open the interactive Site DOS view: a geometry subplot on the
     left (click a site, or drag a lasso to select several at once - the
@@ -183,7 +198,7 @@ def get_site_dos(h,window,use_kpm=False):
     # whether "do_scf" is checked - saving over the default here would
     # silently clobber the converged SCF Hamiltonian with a fresh one
     hfile = "SITE_DOS_HAMILTONIAN.pkl"
-    h.save(hfile) # loaded back by ql-site-dos
+    save_for_script(h,hfile) # loaded back by ql-site-dos
     ewindow = abs(window.get("site_dos_ewindow"))
     delta = window.get("site_dos_delta") or 1e-3 # avoid a division by zero below
     nk = max([int(window.get("site_dos_nk")),1])

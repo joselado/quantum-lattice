@@ -74,7 +74,7 @@ def plot(main):
   name = names[val] # get this file
   energy = energies[val] # get this energy
 #  print("Name",name)
-  m = np.genfromtxt(folder+name).transpose() # read file
+  m = np.genfromtxt(folder+name,ndmin=2).transpose() # read file (ndmin: a one-site map is one row)
   x = m[0] # x position
   y = m[1] # y position
   z = m[2] # z position

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 
-m = np.genfromtxt("DENSITY.OUT").transpose()
+m = np.genfromtxt("DENSITY.OUT",ndmin=2).transpose()
 
 print("Average density",sum(m[1])/len(m[1]))
 

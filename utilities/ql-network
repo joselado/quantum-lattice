@@ -29,7 +29,7 @@ args = parser.parse_args() # get the arguments
 
 name = args.input # name of the file
 
-m = np.genfromtxt(name).transpose() # read file
+m = np.genfromtxt(name,ndmin=2).transpose() # read file
 
 def getplot(obj):
     fig = plt.figure(obj.figure.number)
@@ -49,7 +49,7 @@ def getplot(obj):
     
     
     cmap = obj.get_combobox("cmap") 
-    cmap = matplotlib.cm.get_cmap(cmap)
+    cmap = matplotlib.colormaps[cmap] # matplotlib.cm.get_cmap was removed in matplotlib 3.9
     #cmap = matplotlib.cm.get_cmap('jet')
     size = obj.get_slider("size")
     for i in range(len(x1)): # loop over pairs

@@ -42,7 +42,7 @@ def getfig(main):
   print(max(ls)) 
   print(min(ls)) 
   
-  cmap = matplotlib.cm.get_cmap('Spectral')
+  cmap = matplotlib.colormaps['Spectral'] # matplotlib.cm.get_cmap was removed in matplotlib 3.9
   #cmap = matplotlib.cm.get_cmap('jet')
   
   

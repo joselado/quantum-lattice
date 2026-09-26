@@ -124,7 +124,7 @@ def solve_scf():
 
 def show_structure():
   """Show the lattice of the system"""
-  common.show_structure(qtwrap,get_geometry,script="ql-structure-bond POSITIONS.OUT")
+  common.show_structure(qtwrap,get_geometry,script="ql-structure-bond --input POSITIONS.OUT")
 
 
 def show_structure_3d():

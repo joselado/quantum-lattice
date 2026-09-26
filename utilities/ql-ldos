@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
 
-m = np.genfromtxt(args.input).transpose() # read file
+m = np.genfromtxt(args.input,ndmin=2).transpose() # read file
 x = m[0] # x position
 y = m[1] # y position
 z = m[int(args.col)] # z position

@@ -35,7 +35,7 @@ plt.title("Different atoms")
 for fname in dosf: # loop over files  
   index = fname.split("_")[1] 
   index = index.split(".")[0] # number
-  m = np.genfromtxt(fname).transpose()
+  m = np.genfromtxt(fname,ndmin=2).transpose()
   num_dos = len(m) - 1
   print("Plotting",fname)
   e = m[0]

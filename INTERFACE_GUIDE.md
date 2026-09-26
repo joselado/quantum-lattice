@@ -1461,6 +1461,24 @@ add/extend a script to read and plot it (`utilities/_pv3d.py` if it's a
 3D/PyVista view — import it via `sys.path.insert(0, dirname)`, same as
 every other `ql-*` script finds its own directory).
 
+Read a per-site table (positions, an LDOS or potential map,
+magnetization, hoppings) with `np.genfromtxt(name, ndmin=2)` before
+transposing it: a one-atom structure writes a one-row file, which plain
+`genfromtxt` returns as a 1-D array, so `m[0]` is a number and the script
+dies (`ql-structure-bond`, `ql-structure3d` and `ql-multildos` did on tmdc's
+one-site cell). Leave one-column files alone - `ndmin=2` changes what
+`.T[0]` means there. A script that loads a pickled Hamiltonian gets it from
+`common.save_for_script(h, path)`, not `h.save()`: pyqula's heavy-fermion
+builder attaches a bound method to the instance, and that pickle can't be
+loaded back.
+
+To check the plot side after a change, run the command a click issues
+yourself, in that page's scratch folder, with `QT_QPA_PLATFORM=offscreen`:
+a script that reaches its window stays in the event loop (kill it after a
+while); one that crashes exits with a traceback. Don't force
+`MPLBACKEND=Agg` for this: many scripts call Qt window methods on the
+canvas, which only the Qt backend they run under in the app has.
+
 ### Unit-cell outline on structure plots
 
 Every `show_structure`/`show_structure_3d` handler follows the same
@@ -1671,7 +1689,7 @@ sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
 other setup is required. Currently measured at ~70s wall clock (with
 BLAS/numba pinned to one thread) and ~1.1GB peak RSS for the whole suite
-(369 passed, 9 skipped as of this
+(370 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are

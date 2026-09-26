@@ -200,3 +200,16 @@ def test_z2_of_a_kagome_metal_says_so():
     h = geometry.kagome_lattice().get_hamiltonian(has_spin=True)
     with pytest.raises(ValueError, match="needs a gap at the Fermi level"):
         common.get_z2(h, Form(topology_nk="16"))
+
+
+def test_hamiltonian_with_an_attached_method_is_saved_for_a_script():
+    # pyqula's heavy-fermion builder attaches add_kondo as a bound method,
+    # and such a pickle couldn't be loaded by ql-site-dos
+    import pickle, types
+    h = _honeycomb()
+    h.add_kondo = types.MethodType(lambda self, JK: None, h)
+    common.save_for_script(h, "H.pkl")
+    with open("H.pkl", "rb") as f:
+        loaded = pickle.load(f)
+    assert np.allclose(loaded.intra, h.intra)
+    assert hasattr(h, "add_kondo") # the original keeps it
