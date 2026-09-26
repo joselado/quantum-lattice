@@ -248,19 +248,39 @@ def test_shown_staggered_term_is_applied(monkeypatch):
     assert "add_sublattice_imbalance(0.3)" in modobj.get_pyqula_code()
 
 
-def test_shown_unsupported_staggered_term_raises(monkeypatch):
-    # hofstader1d's bilayer ribbons are honeycomb-family by name, so the
-    # field is shown, but the built geometry carries no sublattice labels
-    modobj = import_mode("hofstader1d")
-    _stub_in(modobj, monkeypatch, [])
-    set_combo(modobj, "lattice", "Bilayer graphene AB")
+def test_shown_unsupported_staggered_term_raises():
+    # no lattice option hits this any more, so call the helper directly: a
+    # field the rules show (Honeycomb) on a geometry without sublattices
+    from pyqula import geometry
+    from interfacetk import latticeterms
+    h = geometry.square_lattice().get_hamiltonian(has_spin=False)
+    with pytest.raises(ValueError, match="Sublattice imbalance needs a lattice"):
+        latticeterms.add_staggered_term(h, "mAB", 0.3, "Honeycomb")
+    latticeterms.add_staggered_term(h, "mAB", 0.0, "Honeycomb") # zero: no term
+
+
+def test_lattice_rules_follow_the_built_geometry(monkeypatch):
+    # Bichain has two sublattices; hofstader1d's bilayers have none, so the
+    # honeycomb and sublattice terms are hidden there, not silently inert
+    modobj = import_mode("1d")
+    set_combo(modobj, "lattice", "Bichain")
     set_field(modobj, "mAB", "0.3")
     activate(modobj)
-    with pytest.raises(ValueError, match="Sublattice imbalance needs a lattice"):
-        modobj.initialize()
+    assert not modobj.window.mAB.isHidden()
+    assert "imbalance" in [modobj.window.scf_initialization.itemText(i)
+                           for i in range(modobj.window.scf_initialization.count())]
+    h_on = modobj.initialize()
     set_field(modobj, "mAB", "0.0")
     activate(modobj)
-    modobj.initialize() # a zero value is no term at all
+    assert not np.allclose(h_on.intra, modobj.initialize().intra)
+    hof = import_mode("hofstader1d")
+    _stub_in(hof, monkeypatch, [])
+    set_combo(hof, "lattice", "Bilayer graphene AB")
+    for name in ["mAB", "mAF", "haldane", "kanemele"]:
+        if hasattr(hof.window, name): assert getattr(hof.window, name).isHidden(), name
+    set_field(hof, "mAB", "0.3") # hidden, so off rather than an error
+    activate(hof)
+    hof.initialize()
 
 
 def test_hubbard_u_is_off_for_spinless(monkeypatch):

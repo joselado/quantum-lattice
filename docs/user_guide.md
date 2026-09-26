@@ -304,12 +304,13 @@ are hidden unless Nambu is selected.
 
 Sublattice imbalance and Antiferromagnetism stagger a value between the
 lattice's sublattices, so they are only shown for lattices that have
-sublattices (honeycomb-derived lattices, Lieb, diamond). On the rare
-lattice where the field is shown but the geometry actually built has no
-sublattices to stagger (e.g. the bilayer-graphene ribbons of the
-Hofstadter mode), a nonzero value stops the calculation with an error
-saying so, rather than silently adding nothing — set it back to 0 to
-continue.
+sublattices (honeycomb-derived lattices, Lieb, diamond, the two-site
+chain). The bilayer-graphene ribbons of the Hofstadter mode are built
+without sublattice labels, so there the sublattice terms, the
+Haldane/Kane-Mele terms and the valley operator are not offered: none of
+them would do anything on that geometry. Should a shown sublattice field
+ever meet a geometry without sublattices, a nonzero value stops the
+calculation with an error saying so, rather than silently adding nothing.
 
 | Term | What it does |
 |---|---|

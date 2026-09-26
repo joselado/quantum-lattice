@@ -76,6 +76,15 @@ import numpy as np
 from . import hamiltoniantype
 
 
+# Lattice options named like a honeycomb lattice whose geometry pyqula
+# builds without sublattice labels (multilayers.get_geometry() sets
+# has_sublattice=False), so Haldane/Kane-Mele add nothing there, the valley
+# operator reads zero and mAB/mAF have nothing to stagger. Exact names, from
+# hofstader1d, the only mode offering them; a mode that builds a lattice of
+# the same name *with* labels should name it differently.
+UNLABELLED_LATTICES = {"Bilayer graphene AB", "Bilayer graphene AA"}
+
+
 def is_honeycomb_family(lattice_name):
     """True for any lattice whose name marks it as honeycomb-derived:
     plain honeycomb (any cell/supercell choice), multilayer/bilayer/
@@ -85,6 +94,7 @@ def is_honeycomb_family(lattice_name):
     as it's named the usual way ("... Honeycomb ...","... Graphene..."),
     the convention every mode already follows - no extra wiring needed
     here when a mode grows a new honeycomb-like lattice option."""
+    if lattice_name in UNLABELLED_LATTICES: return False
     name = (lattice_name or "").lower()
     return "honeycomb" in name or "graphene" in name
 
@@ -92,7 +102,8 @@ def is_honeycomb_family(lattice_name):
 def is_sublattice_family(lattice_name):
     """True for any lattice whose geometry has more than one sublattice
     (pyqula's `has_sublattice=True`): honeycomb-family (see
-    is_honeycomb_family) plus Lieb and Diamond.
+    is_honeycomb_family) plus Lieb, Diamond and the two-site chain
+    ("Bichain"), and never an UNLABELLED_LATTICES entry.
     Substring-based for the same reasons as is_honeycomb_family - a new
     LATTICES entry for one of these families is classified automatically
     as long as it's named the usual way ("... Lieb ...","... Diamond...").
@@ -104,9 +115,10 @@ def is_sublattice_family(lattice_name):
     a real sublattice basis but isn't named Honeycomb/Graphene/Lieb/
     Diamond will be silently classified as False here and need adding to
     this list by hand)."""
+    if lattice_name in UNLABELLED_LATTICES: return False
     name = (lattice_name or "").lower()
     return (is_honeycomb_family(lattice_name)
-            or "lieb" in name or "diamond" in name)
+            or "lieb" in name or "diamond" in name or "bichain" in name)
 
 
 # Each entry restricts term fields to lattices for which
@@ -461,10 +473,12 @@ def add_staggered_term(h, name, value, lattice_name=None):
         off, as it is in the generated code (codeview.is_active());
       - a shown, nonzero field on a geometry that supports the term is
         added;
-      - a shown, nonzero field on a geometry that does not (e.g.
-        hofstader1d's bilayer ribbons, which carry no sublattice labels)
-        raises a ValueError worded for the error InfoBar, instead of the
-        term silently doing nothing.
+      - a shown, nonzero field on a geometry that does not raises a
+        ValueError worded for the error InfoBar, instead of the term
+        silently doing nothing. No lattice option does that today (the
+        lattice rules follow the built geometries, UNLABELLED_LATTICES
+        included), so this is the guard for a new lattice whose name the
+        rules misclassify, e.g. after atoms are removed.
 
     `lattice_name` is the same name the mode passes to connect() -
     getbox("lattice"), or a constant for an always-honeycomb mode - passed

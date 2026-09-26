@@ -541,9 +541,12 @@ modes call into):
   without the sublattice structure these terms stagger (square,
   triangular, kagome for mAB, ...) *even for a zero value*; the helper
   skips a zero value and a hidden field, applies a shown one, and turns a
-  shown, nonzero field the built geometry can't carry (hofstader1d's
-  bilayer ribbons, whose geometry has no sublattice labels) into a
-  `ValueError` worded for the error InfoBar. `hybridfilm`/`hybridribbon`
+  shown, nonzero field the built geometry can't carry into a `ValueError`
+  worded for the error InfoBar (a guard: the lattice rules follow every
+  built geometry today - hofstader1d's bilayers, which pyqula builds
+  without sublattice labels, are listed in `UNLABELLED_LATTICES` and count
+  as neither honeycomb nor sublattice family, and "Bichain" counts as
+  sublattice family). `hybridfilm`/`hybridribbon`
   pass a per-part interpolator (always callable, so never "zero"), and
   keep their `if check("mAB"):` guard in front of the call.
 - **`termhighlight.py`** — not a widget-building module like the three
@@ -1655,7 +1658,7 @@ sets `QT_QPA_PLATFORM=offscreen` and the same `pysrc`/`tools` `sys.path`
 bootstrap every mode script relies on, so no display is needed and no
 other setup is required. Currently measured at ~70s wall clock (with
 BLAS/numba pinned to one thread) and ~1.1GB peak RSS for the whole suite
-(364 passed, 9 skipped as of this
+(365 passed, 9 skipped as of this
 writing - most of that count is `test_pyqula_api_surface.py`'s cheap
 per-call parametrization) — comfortably inside a self-imposed budget of **under 3 minutes
 and under 2GB**, which exists because pyqula's numba-jitted kernels are
