@@ -1280,7 +1280,7 @@
               <item row="0" column="1">
                <widget class="LineEdit" name="mix_scf">
                 <property name="text">
-                 <string>0.1</string>
+                 <string>0.9</string>
                 </property>
                </widget>
               </item>

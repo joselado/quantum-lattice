@@ -246,6 +246,10 @@ means physically.
   result of the iteration it stopped at, and says so in a warning in the
   window that stays until you close it - raise Max iterations, lower
   Mixing, or try another Initialization for a converged answer.
+- **Mixing** is the fraction of each newly computed mean field that
+  replaces the previous one (default `0.9` in every mode). Lower it if the
+  loop oscillates instead of settling; very low values converge slowly and
+  can run out of iterations.
 
 ## Saving and loading your work
 

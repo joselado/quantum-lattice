@@ -1043,7 +1043,7 @@ class Ui_MainWindow(object):
         self.label_32.setText(QCoreApplication.translate("MainWindow", u"Mixing", None))
         self.label_27.setText(QCoreApplication.translate("MainWindow", u"Number of k-points", None))
         self.nk_scf.setText(QCoreApplication.translate("MainWindow", u"10", None))
-        self.mix_scf.setText(QCoreApplication.translate("MainWindow", u"0.1", None))
+        self.mix_scf.setText(QCoreApplication.translate("MainWindow", u"0.9", None))
         self.label_33.setText(QCoreApplication.translate("MainWindow", u"Smearing", None))
         self.smearing_scf.setText(QCoreApplication.translate("MainWindow", u"0.01", None))
         self.label_scf_solver.setText(QCoreApplication.translate("MainWindow", u"Solver", None))
