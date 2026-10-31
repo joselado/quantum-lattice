@@ -94,6 +94,7 @@ MODES = [
     ("heavyfermion",        "Heavy fermion Kondo lattice",        "Kondo",  "Misc"),
     ("2dslab",              "Films",                              "Film",   "Misc"),
     ("spinspiral",          "Spin spirals",                       "Spiral", "Misc"),
+    ("hopftilings",         "Hopf insulator and tilings",         "Hopf",   "Misc"),
     ("latticegas",          "Lattice gas",                        "Gas",    "Classical models"),
     ("latticeising",        "Ising model",                        "Ising",  "Classical models"),
 ]

@@ -367,6 +367,12 @@ Save results, ...) don't.
 | Show KDOS | Computes the k-resolved density of states along a path — useful for visualizing surface/edge states. |
 | Show DOS-bands | Computes the DOS resolved along the band-structure path (a smeared version of the bands). |
 | Show LDOS along the spiral | Computes the local density of states as a function of position along the spiral and of energy, and plots it as a colormap with dashed lines wherever the spiral completes a full turn. Sites related by the spiral's own symmetry are averaged together, so one row of the map is one point of the spiral period; the spin projection selects which component of the local spin density is resolved, and "Subtract the average" (on by default) shows each energy's spatial variation rather than the LDOS itself. Spin spirals mode only. |
+| Hopf invariant | Plots the Hopf invariant of the Hopf insulator against the mass parameter *h*, marking the current value. Hopf insulator mode only. |
+| Bulk gap | Plots the bulk gap of the Hopf insulator against *h*; it closes where the invariant changes. Hopf insulator mode only. |
+| Slab spectrum | Bands of a slab of the Hopf insulator along Gamma-X-M-Gamma, coloured by the weight on the outer two layers of each side. Hopf insulator mode only. |
+| Show tiling | Draws the vertices and bonds of the chosen Hat, Spectre or Turtle patch. Hopf insulator and tilings mode only. |
+| Spectrum and IPR | Density of states and inverse participation ratio of the tight-binding model on the chosen tiling. Hopf insulator and tilings mode only. |
+| Localisation of the chain | Compares chains with onsite energy read along a Chair44 line against the same line shuffled: IPR, Lyapunov exponent, largest partial sum. Hopf insulator and tilings mode only. |
 | Show IETS QDOS | Momentum-resolved inelastic tunneling spectroscopy: the RPA spin-excitation response along a q-path, showing the magnon/spin-wave-like dispersion of the converged magnetic state. Needs SCF solved first (mean field with an onsite interaction). 1D/2D/3D modes only. |
 | Show IETS LDOS | Real-space inelastic tunneling spectroscopy across a sweep of energies: opens an interactive viewer (energy slider) showing the spatial map at that energy next to the total (site-summed) IETS vs energy - the same style of viewer as Show multi-energy LDOS. Needs SCF solved first (mean field with an onsite interaction). Islands (0D) only. |
 | Show Berry curvature (1D) | Berry curvature along a 1D Brillouin-zone path — the same quantity as the 2D map below, evaluated along a path instead of over a mesh; used to diagnose 1D topological invariants such as edge polarization. |
@@ -585,6 +591,27 @@ variation on one of them.
   window. **Show spin texture** on the Structure tab draws the moments
   themselves as arrows, which is the quickest way to confirm the spiral you
   described is the one you got.
+
+- **Hopf insulator and tilings** — three small studies from the `extras/`
+  scripts rather than a Hamiltonian you build field by field; each tab pair
+  (parameters on the left, buttons on the right) is independent.
+  **Hopf insulator**: a 3D two-band insulator whose topology is a Hopf
+  invariant (0, −1 or +2 depending on the mass parameter *h*, with the gap
+  closing at |h| = 1 and 3). *Hopf invariant* plots it against *h*, *Bulk
+  gap* the gap against *h*, and *Slab spectrum* the bands of a slab with two
+  surfaces, coloured by the weight on the outermost layers. Whether the
+  surface states form protected gapless bands is not claimed.
+  **Tiling**: tight-binding models on the Hat, Spectre and Turtle aperiodic
+  tilings (substitution level 1 to 3). With unit hopping the three give
+  identical spectra because they share one vertex graph; with a
+  length-dependent hopping they differ. *Show tiling* draws the patch;
+  *Spectrum and IPR* plots the density of states and the inverse
+  participation ratio of each state. **Chair44 chain**: one-dimensional
+  chains whose onsite energy follows the Chair44 tiling along an axis or the
+  body diagonal, compared with the same line shuffled. The tiling tabs need
+  a clone of the Spectre repository (set its folder in the Tiling tab, or
+  leave it blank if it sits next to this one). See `HOPF_INSULATOR.md` and
+  `TILINGS.md` for the physics and the measured results.
 
 ### Classical models
 

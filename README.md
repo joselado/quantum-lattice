@@ -114,6 +114,13 @@ Hamiltonian term and calculation button.
 
 Quantum Lattice uses [pyqula](https://github.com/joselado/pyqula).
 
+# Extras #
+The `extras/` folder has standalone scripts (Hopf insulator, Berry-bundle cross-check, aperiodic tilings as geometries): see [HOPF_INSULATOR.md](HOPF_INSULATOR.md) and [TILINGS.md](TILINGS.md); run `python3 extras/ql_tests.py`.
+
+![Alt text](screenshots/hopf_insulator.png?raw=true "Hopf insulator: Hopf invariant, gap and slab spectrum")
+
+![Alt text](screenshots/tiling_spectra.png?raw=true "Spectra, density of states and IPR of the Hat, Spectre and Turtle tilings")
+
 # Screenshot examples #
 
 ## Unconventional superconductivity ##

@@ -35,7 +35,7 @@ def _ui_texts():
             for prop in w.findall("property"):
                 if prop.get("name") == "text" and prop.find("string") is not None:
                     out.append((mode, w.get("class"), w.get("name"), prop.find("string").text or ""))
-    for mode in ["tmdc", "spinspiral"]: # formbuilder specs: field("name", "Label", ...)
+    for mode in ["tmdc", "spinspiral", "hopftilings"]: # formbuilder specs: field("name", "Label", ...)
         src = open(os.path.join(QLROOT, "interface-pyqt", mode, "interface.py")).read()
         for name, label in re.findall(r'field\("([^"]+)", "([^"]*)"', src):
             out.append((mode, "BodyLabel", name, label))

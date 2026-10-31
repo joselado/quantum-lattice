@@ -108,6 +108,7 @@ see "Adding a mode" below). For everyone else, only buttons whose behavior diffe
 | multilayergraphene | solve_scf, show_structure, show_dos, show_magnetism, compute_sweep→sweep_parameter, show_structure_3d, select_atoms_removal, show_interactive_ldos |
 | tmdc | show_structure, show_dos, show_structure_3d |
 | spinspiral | show_structure, show_structure_3d, show_magnetism, show_spiral_ldos |
+| hopftilings | show_hopf_invariant, show_hopf_gap, show_hopf_slab, show_tiling, show_tiling_spectrum, show_chair44_chain (all launch `ql-extras.py`; no `pickup_hamiltonian`) |
 
 **`latticeterms.connect()` (term hiding + operator-menu filtering) +
 lattice family.** Every Hamiltonian mode calls it, each passing the
@@ -166,6 +167,7 @@ misleading there rather than merely absent.
 | latticegas | classical occupation model, no Hamiltonian — see "Adding a mode" below |
 | latticeising | classical Ising spin model, no Hamiltonian — mirrors latticegas, see "Adding a mode" below |
 | spinspiral | conical spin spiral imposed as a site-dependent exchange field on an automatically-chosen commensurate supercell; its own site-resolved spin-projected LDOS (see "Site-resolved vs. global LDOS projection" below). Second mode with **no `interface.ui`** |
+| hopftilings | no Hamiltonian from `pickup_hamiltonian`/`STANDARD_HANDLERS`: every button launches `utilities/ql-extras.py <task>`, which itself imports `extras/ql_*.py`, computes and plots (deviating from the "handler writes .OUT, ql-script plots" pattern, because the quantities are cheap and have no `.OUT` form); `--png PATH` saves the figure instead, for tests. Tiling/Chair44 buttons call `_need_spectre()` first: the `spectre_dir` field sets `SPECTRE_DIR` and `ql_tilings.refresh()` re-searches. Third mode with **no `interface.ui`**; no SCF, no `latticeterms`, no save/load footer |
 
 "pyqula code" tab (`codeview.build`): only `0d`/`1d`/`2d` have it.
 
