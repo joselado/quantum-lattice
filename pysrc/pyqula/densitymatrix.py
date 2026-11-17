@@ -6,12 +6,38 @@ from . import parallel
 delta_dm = 1e-6 # default energy smearing for density matrix
 # ds not None does not use it yet
 
+def nonzero_smearing(delta):
+    """delta, or 1e-15 when it is zero: the occupation 1/(1+exp(e/delta))
+    of a level exactly at the Fermi energy is 0/0 at delta=0, a NaN in
+    every entry it reaches, so a zero smearing stands for a very small
+    one, the T=0 limit. Every route that builds the occupations from a
+    smearing applies it at its entry."""
+    return 1e-15 if delta==0. else delta
+
 dm_mode = "accumulate" # default mode to compute density matrix
 
 # accumulate is the new mode, it may be worth checking
 # if it yields the same results as simultaneous
 
-def full_dm(h,T=delta_dm,dm_mode=dm_mode,delta=None,**kwargs):
+def default_smearing(h):
+    """The energy smearing a density matrix of h is built with when the
+    caller does not give one: the temperature of the self-consistent loop
+    that produced h (stored as h.temperature next to h.nk), or delta_dm
+    for any other Hamiltonian.
+
+    A converged Hamiltonian has its zero of energy at the chemical
+    potential the loop found at its own T, and that zero is only exact at
+    that T: two states degenerate with the Fermi level (the +k_F and -k_F
+    states of a chain whose electron count is even on the mesh) sit
+    roughly T*exp(-spacing/T) below it, not at it. Read at a smearing much
+    smaller than that offset, both are counted as fully occupied, one
+    electron too many on the mesh, while at the loop's own T they share
+    the electron as the loop did."""
+    T = getattr(h,"temperature",0.) # absent on pickles that predate it
+    if T is not None and T>0.: return T
+    return delta_dm
+
+def full_dm(h,T=None,dm_mode=dm_mode,delta=None,**kwargs):
     """Compute the full density matrix.
 
     INDEX CONVENTION, which is not the textbook one: this returns
@@ -40,15 +66,29 @@ def full_dm(h,T=delta_dm,dm_mode=dm_mode,delta=None,**kwargs):
     # "got multiple values for keyword argument 'delta'". Accept the
     # alias, and refuse the ambiguity loudly if both are given.
     if delta is not None:
-        if T!=delta_dm:
+        if T is not None:
             raise TypeError("full_dm got both T="+str(T)+" and delta="
               +str(delta)+", which are the same energy smearing under two "
               +"names; pass only one")
         T = delta
-    if T==0.: T = 1e-15 # just very small 
+    # no smearing given: the T a self-consistent h was converged at, so the
+    # observables read the occupations the loop converged, else delta_dm
+    if T is None: T = default_smearing(h)
+    T = nonzero_smearing(T) # just very small
     if dm_mode=="accumulate":
         return full_dm_accumulate(h,delta=T,**kwargs)
     elif dm_mode=="simultaneous":
+        # the accumulate-only keywords (batch_size, dense_fraction, ...)
+        # would otherwise fail inside full_dm_simultaneous, with a message
+        # that names neither full_dm nor the dm_mode that rules them out
+        import inspect
+        accepted = [p for p in inspect.signature(full_dm_simultaneous).parameters
+                    if p not in ("h","delta")]
+        extra = [k for k in kwargs if k not in accepted]
+        if extra:
+            raise TypeError("full_dm(dm_mode='simultaneous') does not take "
+                +", ".join(extra)+"; it accepts "+", ".join(accepted)
+                +", and the other keywords belong to dm_mode='accumulate'")
         return full_dm_simultaneous(h,delta=T,**kwargs)
     else:
         raise ValueError("unknown dm_mode; the density matrix accepts "
@@ -58,7 +98,7 @@ def full_dm(h,T=delta_dm,dm_mode=dm_mode,delta=None,**kwargs):
 
 def full_dm_accumulate(h,nk=10,fermi=0.0,
         delta=delta_dm,
-        ds=None,batch_size=16):
+        ds=None,batch_size=16,shell=None):
     """Compute the full density matrix by adding the
     contributions to the matrix kpoint by kpoint. K-points are processed
     in batches: each batch is diagonalized in parallel across numba
@@ -78,12 +118,30 @@ def full_dm_accumulate(h,nk=10,fermi=0.0,
     sending them back to the host -- once per SCF iteration -- is the part
     worth removing. What comes back is the finished (n,n) density matrix
     per direction, whatever the k-mesh. batch_size does not apply there;
-    that route chunks the mesh itself, against the device's memory."""
+    that route chunks the mesh itself, against the device's memory.
+
+    A non-Hermitian Hamiltonian (h.non_hermitian) gets its biorthogonal
+    density matrix instead, see biorthogonal_dm, always on the CPU.
+
+    shell: None, or a scftk.superscf.ShellFilling for a Bogoliubov-de
+    Gennes h at a filling, which fills the shell of levels at zero energy
+    in part when the charge misses the requested one. While
+    the pairing lives, shell.start says so and the density matrix is the
+    one without shell. Once it has died, the shell takes the eigenpairs
+    of the k-points with levels in it. On the device route the density
+    matrix stays on the device, and when it misses the charge the shell
+    finds its k-points from one more pass of eigenvalues there and
+    diagonalizes again only those, on the host."""
+    delta = nonzero_smearing(delta) # a level at the Fermi energy, see there
+    if h.non_hermitian: # left and right eigenvectors, see biorthogonal_dm
+        return biorthogonal_dm(h,ds=ds,nk=nk,fermi=fermi,delta=delta)
     from .htk.eigenvectors import peigh_bloch, bloch_on_gpu
     hk = h.get_hk_gen() # get the Hamiltonian generator
     ks = np.array(h.geometry.get_kmesh(nk=nk)) # get the mesh
     fac = 1./len(ks) # normalization
     bloch = bloch_on_gpu(hk) # the device route, where it is worth taking
+    if shell is not None and not shell.start(h,delta,len(ks)): shell = None
+    if shell is not None: from scipy.special import expit
     if bloch is not None:
         # everything stays on the device: the eigenvectors are the biggest
         # array here and they exist only to be summed away, so they never
@@ -91,8 +149,20 @@ def full_dm_accumulate(h,nk=10,fermi=0.0,
         from .dmtk.fulldmjax import full_dm_gpu
         dirs = [[0.,0.,0.]] if ds is None else ds # the undirected dm is d=0
         dm = fac*full_dm_gpu(bloch[0],bloch[1],ks,dirs,fermi=fermi,delta=delta)
-        if ds is None: return dm[0] # the single array
-        return {tuple(d): dm[i] for (i,d) in enumerate(ds)}
+        outd = {tuple(d): dm[i] for (i,d) in enumerate(dirs)}
+        if shell is not None and not shell.held_already(outd):
+            # the k-points of the shell, and their eigenpairs on the host
+            from .htk.eigenvectors import (peigvalsh_bloch, hk_matrix_batch,
+                    parallel_diagonalization)
+            es = np.asarray(peigvalsh_bloch(hk,ks))-fermi
+            sel = np.nonzero(np.any(np.abs(es)<shell.tol,axis=1))[0]
+            if len(sel)>0:
+                e2,v2 = parallel_diagonalization(hk_matrix_batch(hk,ks[sel]))
+                e2 = np.asarray(e2)-fermi
+                shell.collect(ks[sel],e2,np.asarray(v2),expit(-e2/delta))
+            shell.fill(outd)
+        if ds is None: return outd[(0.,0.,0.)] # the single array
+        return outd
     dm = None # accumulator, one slot per batch
     for i0 in range(0,len(ks),batch_size): # loop over batches of kpoints
         kbatch = ks[i0:i0+batch_size]
@@ -112,12 +182,18 @@ def full_dm_accumulate(h,nk=10,fermi=0.0,
                 contribs = full_dm_batch_d_vectorized(es_batch,vs_batch,kbatch,
                         np.array(d,dtype=np.float64),delta=delta) # one per kpoint, in parallel
                 batch_total[idir] = np.sum(contribs,axis=0) # pool the batch's contributions
+        if shell is not None: # the occupations of the kernels above
+            occ = expit(-es_batch/delta)
+            shell.collect(kbatch,es_batch,vs_batch,occ)
         dm = batch_total if dm is None else dm+batch_total # pool across batches
     dm = dm*fac # renormalize
-    if ds is None: return dm # return the single array
+    if ds is None:
+        if shell is not None: dm = shell.fill({(0,0,0): dm})[(0,0,0)]
+        return dm # return the single array
     else: # if ds were given
         outd = dict() # dictionary
         for i in range(len(ds)): outd[tuple(ds[i])] = dm[i,:,:] # as dictionary
+        if shell is not None: shell.fill(outd) # the shell at zero energy
         return outd
     
 
@@ -154,7 +230,14 @@ def full_dm_accumulate_sparse(h,pairs,nk=10,fermi=0.0,
     kernel and scatter its output into the (initially zero) container;
     above it, just run the dense kernel for that direction and keep its
     full result -- strictly more information than requested, but correct
-    and, past the crossover, cheaper too."""
+    and, past the crossover, cheaper too.
+
+    A non-Hermitian Hamiltonian gets the full biorthogonal density matrix
+    of every direction in pairs, see biorthogonal_dm."""
+    delta = nonzero_smearing(delta) # a level at the Fermi energy, see there
+    if h.non_hermitian: # every entry, which is more than was asked for
+        return biorthogonal_dm(h,ds=list(pairs),nk=nk,fermi=fermi,
+                delta=delta)
     from .htk.eigenvectors import peigh_bloch
     hk = h.get_hk_gen() # get the Hamiltonian generator
     ks = np.array(h.geometry.get_kmesh(nk=nk)) # get the mesh
@@ -231,12 +314,24 @@ def full_dm_accumulate_sparse_with_fermi(h,pairs,filling,nk=10,
     case is out of scope: BdG's own get_fermi4filling diagonalizes an
     entirely different (de-paired) Hamiltonian, not just a shifted copy of
     the one the density matrix comes from, so this trick does not apply
-    there."""
+    there.
+
+    A non-Hermitian Hamiltonian takes the same route with its complex
+    eigenvalues and left and right eigenvectors: the Fermi energy cuts the
+    real parts of the eigenvalues, and the density matrix is the
+    biorthogonal one (see biorthogonal_dm)."""
+    delta = nonzero_smearing(delta) # a level at the Fermi energy, see there
     from .htk.eigenvectors import peigh_bloch
     # the T-aware Fermi search, because the density matrix below weights
     # the states with the Fermi-Dirac occupation at this same `delta`: a
     # T=0 eigenvalue count would hold a different number of electrons
     from .spectrum import get_fermi_energy_T
+    if h.non_hermitian: # one diagonalization for both, as below
+        eigs = biorthogonal_eigenstates(h,nk=nk)
+        fermi = get_fermi_energy_T(eigs[0].real.ravel(),filling,T=delta)
+        dm = biorthogonal_dm(h,ds=list(pairs),nk=nk,fermi=fermi,delta=delta,
+                eigs=eigs)
+        return dm,fermi
     ks = np.array(h.geometry.get_kmesh(nk=nk)) # get the mesh
     n = h.intra.shape[0]
     if len(ks)*n*n*16 > max_memory_gb*1e9: # see max_memory_gb's docstring
@@ -342,12 +437,25 @@ def full_dm_accumulate_sparse_local_fermi(h,pairs,filling,lam,nk=10,
     forwards delta=; independent of this work, not fixed here, see
     scftk.spinspin's per-site-filling design notes).
 
-    Returns (dm, occ): `dm` is full_dm_accumulate_sparse's usual
-    {direction: (n,n)} dict, computed at the given (UN-updated) `lam` -- the
-    caller is responsible for shifting whatever Hamiltonian this dm is
-    associated with by this same lam before using it downstream, exactly
-    paralleling how full_dm_accumulate_sparse_with_fermi's caller shifts by
-    the fermi it returns. `occ` is the per-site occupation FRACTION, shape
+    TOTAL CHARGE vs SITE-RESOLVED PART: only the site-resolved part of the
+    constraint is left to that proportional step. The uniform part, the
+    total electron count mean(filling), is fixed exactly at every call by a
+    scalar Fermi search (full_dm_accumulate_sparse_with_fermi, i.e.
+    spectrum.get_fermi_energy_T) on the lam-shifted spectrum, which returns
+    the extra uniform shift `mu`. A fixed-gain step cannot do that job: on
+    a finite k-mesh near T=0 the count is a staircase in the uniform shift
+    (the step overshoots a partially filled k-shell forever), and inside a
+    gap at finite T it is nearly flat (the step crawls). The Fermi search
+    sorts and counts instead, so it handles both, and it rounds the target
+    to a whole number of k-states exactly as the scalar path does.
+
+    Returns (dm, occ, mu): `dm` is full_dm_accumulate_sparse's usual
+    {direction: (n,n)} dict, computed at the given (UN-updated) `lam` plus
+    the uniform shift `mu` -- the caller is responsible for shifting
+    whatever Hamiltonian this dm is associated with by lam+mu before using
+    it downstream, exactly paralleling how
+    full_dm_accumulate_sparse_with_fermi's caller shifts by the fermi it
+    returns. `occ` is the per-site occupation FRACTION, shape
     (n_sites,), read off dm[(0,0,0)]'s diagonal as (dm_uu+dm_dd)/2 for each
     site -- valid only because scftk.spinspin._build_sparse_pairs
     always includes the full onsite (0,0,0) 2x2 spin block for every site
@@ -356,11 +464,16 @@ def full_dm_accumulate_sparse_local_fermi(h,pairs,filling,lam,nk=10,
     are actually active."""
     h_shifted = h.copy()
     h_shifted.shift_fermi(-np.asarray(lam))
-    dm = full_dm_accumulate_sparse(h_shifted,pairs,nk=nk,delta=delta,
+    # the uniform part of the constraint (the total electron count) is
+    # solved exactly here, by the same T-aware Fermi search the scalar path
+    # uses, on the lam-shifted spectrum: a uniform shift does not change
+    # the eigenvectors, so this costs no extra diagonalization
+    dm,mu = full_dm_accumulate_sparse_with_fermi(h_shifted,pairs,
+            float(np.mean(filling)),nk=nk,delta=delta,
             batch_size=batch_size,dense_fraction=dense_fraction)
     diag = np.real(np.diag(dm[(0,0,0)]))
     occ = (diag[0::2] + diag[1::2])/2.0 # (n_up+n_down)/2 per site, a fraction in [0,1]
-    return dm,occ
+    return dm,occ,mu
 
 
 def full_dm_simultaneous(h,nk=10,fermi=0.0,
@@ -369,13 +482,15 @@ def full_dm_simultaneous(h,nk=10,fermi=0.0,
     """Compute the full density matrix by first computing all the
     eigenvectors, and after adding all the contributions together.
     This can become memore expesive for large kmesh and moderate
-    matrices"""
-    if h.dimensionality == 0: fac = 1.
-    elif h.dimensionality == 1: fac = 1./nk
-    elif h.dimensionality == 2: fac = 1./nk**2
-    elif h.dimensionality == 3: fac = 1./nk**3
-    else:
-        raise ValueError("the Hamiltonian must have dimensionality 0, 1, 2 or 3")
+    matrices. A non-Hermitian Hamiltonian gets its biorthogonal density
+    matrix, see biorthogonal_dm, which already works this way"""
+    delta = nonzero_smearing(delta) # a level at the Fermi energy, see there
+    if h.non_hermitian:
+        return biorthogonal_dm(h,ds=ds,nk=nk,fermi=fermi,delta=delta)
+    from .klist import kmesh
+    # the same mesh get_eigenvectors diagonalizes, so a list-valued nk
+    # works as it does in full_dm_accumulate
+    fac = 1./len(kmesh(h.dimensionality,nk=nk)) # normalization
     if ds is None: # no directions required
       es,vs = h.get_eigenvectors(nk=nk) # get eigenvectors
       es = es - fermi # shift by the Fermi energy
@@ -400,6 +515,93 @@ def full_dm_simultaneous(h,nk=10,fermi=0.0,
       outd = dict() # dictionary
       for i in range(len(ds)): outd[tuple(ds[i])] = out[i] # as dictionary
       return outd
+
+
+def biorthogonal_eigenstates(h,nk=10):
+    """Complex eigenvalues and biorthonormal eigenvectors of a
+    non-Hermitian Bloch Hamiltonian on the k-mesh of biorthogonal_dm.
+
+    Returns (es,lc,r), one row per k-point: es the eigenvalues, shape
+    (nks,n); r the right eigenvectors, shape (nks,n,n), as columns; and
+    lc = (R^-1)^T, whose column m is the complex conjugate of the left
+    eigenvector <L_m| normalized so that <L_m|R_m> = 1. The left
+    eigenvectors are taken as the rows of R^-1, as the biorthogonal
+    weights of nonhermitiantk/bandstructure.py are, which keeps them
+    biorthonormal to the right ones inside a degenerate level too. Close
+    to an exceptional point R is ill conditioned, and exactly at one it is
+    singular and there is no such basis."""
+    from .htk.eigenvectors import hk_matrix_batch
+    import scipy.linalg as lg
+    ks = np.array(h.geometry.get_kmesh(nk=nk)) # the mesh
+    mats = hk_matrix_batch(h.get_hk_gen(),ks) # H(k) at every k-point
+    n = mats.shape[1]
+    es = np.zeros((len(ks),n),dtype=np.complex128)
+    r = np.zeros((len(ks),n,n),dtype=np.complex128)
+    lc = np.zeros((len(ks),n,n),dtype=np.complex128)
+    for ik,m in enumerate(mats):
+        (es[ik],r[ik]) = lg.eig(m) # right eigenvectors as columns
+        try: lc[ik] = lg.inv(r[ik]).T # the rows of R^-1 are the <L_m|
+        except lg.LinAlgError:
+            raise ValueError("the non-Hermitian Hamiltonian is at an "
+                "exceptional point at k="+str(ks[ik])+": its eigenvectors "
+                "do not span the space, so there is no biorthogonal basis "
+                "to build the density matrix from") from None
+    return es,lc,r
+
+
+def biorthogonal_dm(h,ds=None,nk=10,fermi=0.0,delta=delta_dm,eigs=None):
+    """Density matrix of a non-Hermitian Hamiltonian, in the biorthogonal
+    sense: rho = sum_m f(Re E_m - fermi) |R_m><L_m| with <L_m|R_m> = 1, so
+    that Tr(rho A) is the sum of the biorthogonal expectation values
+    <L_m|A|R_m> of the occupied states (D. C. Brody, Biorthogonal quantum
+    mechanics, J. Phys. A 47, 035305 (2014), arXiv:1308.2609, Eqs. (10)
+    and (27)). The states are occupied by the real parts of their
+    energies, with the Fermi-Dirac weight of width delta, and rho is not
+    Hermitian: a density comes out complex when the Hamiltonian breaks
+    the symmetries that make it real.
+
+    What is returned has the index convention of full_dm, the transpose
+    of rho, dm[i,j] = sum_m f_m conj(L_m(i)) R_m(j), which is the
+    Hermitian dm[i,j] = sum_m f_m conj(psi_m(i)) psi_m(j) with the left
+    eigenvector in place of the first conj(psi): the mean-field kernels of
+    scftk/densitydensity.py read it exactly as they read a Hermitian one,
+    and for a Hermitian matrix the two coincide. Like full_dm_accumulate
+    it is a single array for ds=None, and a dictionary {direction: array}
+    otherwise, with the Bloch phase exp(2 pi i k.d) of each direction.
+
+    Every eigenvector of the mesh is held at once, which is fine for the
+    small cells a non-Hermitian calculation is usually done on. eigs
+    passes (es,lc,r) from biorthogonal_eigenstates, when the caller
+    already has them."""
+    from scipy.special import expit
+    if h.has_eh:
+        raise NotImplementedError("the biorthogonal density matrix is only "
+                "implemented for a normal-state (non-Nambu) Hamiltonian")
+    if delta==0.: delta = 1e-15 # just very small, as in full_dm
+    ks = np.array(h.geometry.get_kmesh(nk=nk)) # the mesh
+    if eigs is None: eigs = biorthogonal_eigenstates(h,nk=nk)
+    (es,lc,r) = eigs
+    occ = expit(-(es.real-fermi)/delta) # Fermi-Dirac weight of Re E
+    dirs = [(0,0,0)] if ds is None else ds
+    out = dict()
+    for d in dirs:
+        phase = np.exp(2j*np.pi*ks@np.array(d,dtype=np.float64)) # per k
+        w = lc*(occ*phase[:,None])[:,None,:] # weight every left column
+        out[tuple(d)] = np.einsum("kim,kjm->ij",w,r)/len(ks)
+    if ds is None: return out[(0,0,0)] # the single array
+    return out
+
+
+def nonhermitian_eigenvalues(h,nk=10):
+    """Complex eigenvalues of a non-Hermitian Hamiltonian on the k-mesh
+    of biorthogonal_dm, as a flat array. Its real parts are what the
+    Fermi energy of a mean-field calculation cuts, see
+    spectrum.get_fermi4filling"""
+    import scipy.linalg as lg
+    from .htk.eigenvectors import hk_matrix_batch
+    ks = np.array(h.geometry.get_kmesh(nk=nk)) # the mesh
+    mats = hk_matrix_batch(h.get_hk_gen(),ks) # H(k) at every k-point
+    return np.concatenate([lg.eigvals(m) for m in mats])
 
 
 from .dmtk.fulldm import full_dm_python
@@ -438,9 +640,19 @@ def restricted_dm(h,mode="KPM",pairs=[],
        
 from . import algebra
 
-def occupied_projector(m,delta=0.0):
-    """Return a projector onto the occupied states"""
+def occupied_projector(m,delta=None):
+    """Return a projector onto the states of m below zero energy.
+
+    What is returned is the TRANSPOSE of the projector, the same index
+    convention as full_dm (see its docstring), so take .T before using it
+    as P, as topologytk/realspace.py does.
+
+    delta is the width of the Fermi-Dirac occupation; None keeps
+    full_dm_python's own default smearing, and 0 is taken as a hard
+    cutoff at zero energy"""
     (es,vs) = algebra.eigh(m) # diagonalize
     vs = vs.T # transpose
-    return np.array(full_dm_python(es,np.array(vs)))
+    if delta is None: return np.array(full_dm_python(es,np.array(vs)))
+    if delta==0.: delta = 1e-15 # just very small, as in full_dm
+    return np.array(full_dm_python(es,np.array(vs),delta=delta))
 

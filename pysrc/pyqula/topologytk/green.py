@@ -122,10 +122,22 @@ def berry_green_generator_sparse(f,k=[0.,0.,0.],
 
 
 
-def dOmega_dE_generator(h,operator=None,delta=0.02,dk=0.02):
+def default_dk(delta):
+  """Finite-difference step in k for a Green's function broadened by delta"""
+  return delta/25.
+
+
+def dOmega_dE_generator(h,operator=None,delta=0.02,dk=None):
   """Return a function that generates
   dOmega/dE (k,E), the derivative of the Berry curvature
-  with respect to the chamical potential"""
+  with respect to the chamical potential.
+
+  dk is the finite-difference step in k, in reduced coordinates. It must
+  be small against delta, since near a band edge the bands move by a few
+  times dk in units of t, so the default is delta/25; a fixed step of 0.02
+  underestimated the plateau of chern_density by 0.07 at delta=0.05
+  (future_development/guide_figures_followups.md)"""
+  if dk is None: dk = default_dk(delta)
   gf = h.get_gk_gen(delta=delta,canonical_phase=True) # green function generator
   def gI(e=0.,k=[0.,0.,0.]): # exact inverse Green's function, no extra inversion
       return gf(e=e,k=k,inv=True)
@@ -145,9 +157,68 @@ def dOmega_dE_generator(h,operator=None,delta=0.02,dk=0.02):
   return f
 
 
+def dOmega_dE_vertical(h,x,ks,operator=None,delta=0.02,dk=None,nodes=8):
+  """Sum over the k-points ks of the integral of the analytic continuation
+  of dOmega/dE along the vertical segment from x to x+i*delta, with a
+  Gauss-Legendre rule of nodes points in the imaginary part y (no node at
+  y=0). The cumulative integral of chern_density runs along the line
+  Im z = delta; adding this segment at its two ends moves the path down to
+  the real axis, which removes the broadening exactly, as long as x is
+  below the spectrum or inside a gap, where the integrand is smooth down
+  to y=0. Returns the complex sum, with the normalization of
+  berry_green_generator (not yet divided by the number of k-points)"""
+  if dk is None: dk = default_dk(delta)
+  ys,ws = np.polynomial.legendre.leggauss(nodes)
+  ys = (ys+1.)*delta/2. ; ws = ws*delta/2. # from [-1,1] to [0,delta]
+  out = 0.
+  for (y,w) in zip(ys,ws): # loop over the imaginary parts
+      gf = h.get_gk_gen(delta=y,canonical_phase=True) # G(x+iy)
+      def gI(e=0.,k=[0.,0.,0.]): return gf(e=e,k=k,inv=True)
+      for k in ks:
+          f = berry_green_generator(gf,k=k,dk=dk,operator=operator,
+                  full=False,gI=gI)
+          out += w*f(x)
+  return out
+
+
 def dOmega_dE(h,k=[0.,0.,0.],e=0.,**kwargs):
   """Compute dOmega/dE (k,E), the derivative of the Berry curvature
   with respect to the chamical potential"""
   return dOmega_dE_generator(h,**kwargs)(k=k,e=e)
 
 
+
+
+
+def berry_green_rmap_kpoint(h,emin=None,k=[0.,0.,0.],
+        ne=100,dk=0.0001,operator=None,integral_mode="complex",
+                  delta=0.002,integral=True,eps=1e-3,
+                  energy=0.0,emax=0.0):
+    """Return the spatially resolved Berry curvature at a certain kpoint,
+    one value per orbital, either integrated up to the Fermi energy
+    (integral=True) or at a single energy (integral=False)"""
+    from ..integration import integrate_matrix
+    f = h.get_gk_gen(delta=delta,canonical_phase=True) # green function generator
+    fgreen = berry_green_generator(f,k=k,dk=dk,operator=operator,full=True)
+    # No minimum energy provided
+    if emin is None and integral:
+        emin = algebra.eigvalsh(h.get_hk_gen()(k))[0] - 1.0
+        print("Minimum energy",emin)
+    def fint(x):
+      return np.diag(fgreen(x)) # return diagonal
+    ### The original function is defined in the complex plane,
+    # we will do a change of variables of the form z = re^(iphi) - r0
+    # so that dz = re^(iphi) i dphi
+    if integral: # integrate up to the fermi energy
+      def fint2(x):
+        """Function to integrate using a complex contour, from 0 to 1"""
+        de = emax-emin # energy window of the integration
+        ce = de/2. # center of the circle
+        z0 = -ce*np.exp(-1j*x*np.pi) # parametrize the circle
+        z = z0 + (emin+emax)/2. # shift the circle
+        print("Evaluating",x)
+        return 1j*(fint(z)*z0)*np.pi # integral after the change of variables
+      out = integrate_matrix(fint2,xlim=[0.,1.],eps=eps)
+      return (1j*out).imag # Berry curvature
+    else: # evaluate at the fermi energy
+      return (1j*fint(energy)).imag # Berry curvature

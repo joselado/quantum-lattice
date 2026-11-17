@@ -45,7 +45,8 @@ one (36 for a 4-orbital cell with U+V1+V2). A tabulated, RPA-screened
 interaction is the exception -- inverse Fourier transforming it over the
 mesh gives nk real-space vectors, so R = nk*norb^2 and the rank
 independence is lost. Truncate it in real space first; see
-screening.ScreenedInteraction.get_dict and the note in solve.py.
+screening.ScreenedInteraction.get_dict and the note in solve.py. The
+convolution apply of bsetk/convolution.py takes it as it is, at Q=0.
 
 The factorization is exact, not an approximation: tests/bse/
 test_bse_factorize.py reconstructs kernel.build_blocks' own dense blocks
@@ -57,7 +58,8 @@ Khoromskaia and Khoromskij, arXiv:1602.02646.
 """
 import numpy as np
 
-from .interaction import interaction_at_q
+from .interaction import interaction_at_q,bloch_phases
+from .kernel import kernel_terms
 
 
 class KernelFactorization():
@@ -72,14 +74,14 @@ class KernelFactorization():
       diag    (npair,) real diagonal, zero for the coupling block
       coefs   (nterm,) complex coefficients c_t
       left    (nterm,npair) complex, the L_t
-      right   (nterm,npair) complex, the R_t (the same array object as
-              left for the Hermitian blocks, so no extra memory)
+      right   (nterm,npair) complex, the R_t. For the diagonal blocks the
+              direct factors have R_t = L_t, so with kernel="direct" it
+              is the same array object as left and costs no memory; the
+              exchange factors pair different orbitals and need their own
     """
     def __init__(self,pb,W,Wx=None,kernel="full",block="A"):
         if Wx is None: Wx = W # exchange defaults to the direct interaction
-        if kernel not in ("full","direct","exchange","none"):
-            raise ValueError("kernel must be one of 'full', 'direct', "
-                    "'exchange', 'none', got %r"%(kernel,))
+        direct,exchange = kernel_terms(kernel)
         if block not in ("A","Abar","B"):
             raise ValueError("block must be 'A', 'Abar' or 'B', got %r"
                     %(block,))
@@ -89,10 +91,10 @@ class KernelFactorization():
         self.npair = pb.npair
         self.diag = _block_diagonal(pb,block)
         coefs,left,right = [],[],[]
-        if kernel in ("full","exchange"):
+        if exchange:
             c,l,r = _exchange_factors(pb,Wx,block)
             coefs.append(c) ; left.append(l) ; right.append(r)
-        if kernel in ("full","direct"):
+        if direct:
             c,l,r = _direct_factors(pb,W,block)
             # the direct term enters the Casida form with a minus sign,
             # A = dE + X - D, exactly as kernel.build_blocks writes it
@@ -103,8 +105,12 @@ class KernelFactorization():
             self.left,self.right = z,z
         else:
             self.coefs = np.concatenate(coefs)
-            self.left = np.concatenate(left,axis=0)
-            self.right = np.concatenate(right,axis=0)
+            if len(left)==1: # one term only, kept as it came, so that
+                # a shared left/right stays shared
+                self.left,self.right = left[0],right[0]
+            else:
+                self.left = np.concatenate(left,axis=0)
+                self.right = np.concatenate(right,axis=0)
         self.nterm = len(self.coefs)
     def matvec(self,x):
         """Apply the block to a vector (or to a set of column vectors),
@@ -115,17 +121,16 @@ class KernelFactorization():
         out = self.diag[:,None]*X
         if self.nterm>0:
             # sum_t c_t L_t (R_t^dag X); the inner product first, so the
-            # npair x npair matrix is never formed
-            proj = self.right.conj()@X # (nterm,ncol)
+            # npair x npair matrix is never formed; conj(R)@X is taken as
+            # conj(R@conj(X)), so the (nterm,npair) factor is not copied
+            proj = np.conj(self.right@np.conj(X)) # (nterm,ncol)
             out = out + self.left.T@(self.coefs[:,None]*proj)
         return out[:,0] if vec else out
     def to_dense(self):
         """Reconstruct the dense block. For tests and small meshes only --
         this is exactly the allocation the factorization exists to avoid."""
-        out = np.diag(self.diag).astype(np.complex128)
-        for t in range(self.nterm):
-            out = out + self.coefs[t]*np.outer(self.left[t],
-                                               self.right[t].conj())
+        out = (self.left.T*self.coefs)@np.conj(self.right) # one product
+        out[np.diag_indices(self.npair)] += self.diag
         return out
     def diagonal(self):
         """The diagonal of the block, again without forming it. Useful as
@@ -135,6 +140,24 @@ class KernelFactorization():
             out = out + np.einsum("t,tm,tm->m",self.coefs,self.left,
                     self.right.conj())
         return out
+
+
+def number_of_terms(pb,W,Wx=None,kernel="full"):
+    """The nterm of the resonant block's factorization, counted on the
+    interaction without building the factors, with the same thresholds
+    as _direct_factors and _exchange_factors, or None for a tabulated
+    interaction in the direct term, which has no factorization"""
+    if Wx is None: Wx = W
+    direct,exchange = kernel_terms(kernel)
+    n = 0
+    if exchange:
+        WQ = interaction_at_q(Wx,pb.geometry,pb.Q)
+        n += int(np.count_nonzero(np.abs(WQ)>1e-10))
+    if direct:
+        if hasattr(W,"at"): return None
+        n += sum(int(np.count_nonzero(np.abs(np.array(m,
+            dtype=np.complex128))>1e-10)) for m in W.values())
+    return n
 
 
 def _block_diagonal(pb,block):
@@ -173,30 +196,35 @@ def _direct_factors(pb,W,block):
             "does not factorize into a fixed number of lattice terms -- "
             "inverse transforming it over the mesh gives nk real-space "
             "vectors, so the factorization rank would grow with the mesh "
-            "and the whole point would be lost. Call .get_dict(cutoff=...) "
+            "and the whole point would be lost. Call .get_dict(tol=...) "
             "on it first to truncate it in real space, and read that "
             "method's note on the truncation error")
     g = pb.geometry
     u1,u2,w1,w2 = _block_coefficients(pb,block)
+    # for the diagonal blocks left and right are the same numbers, and
+    # are kept as one array
+    hermitian = (u1 is u2) and (w1 is w2)
     norm = 1.0/len(pb.kpoints) # 1/N, N the number of unit cells
     # the Bloch phase of every mesh point, per lattice vector of W; the
     # pair index inherits it through the k-point of its pair
+    ds = list(W.keys())
+    phases = bloch_phases(g,pb.kpoints,ds)[pb.kindex] # (npair,nd)
     coefs,left,right = [],[],[]
-    for d,m in W.items():
-        m = np.array(m,dtype=np.complex128)
-        phase = np.array([g.bloch_phase(d,k) for k in pb.kpoints])
-        ph = phase[pb.kindex] # (npair,)
+    for i,d in enumerate(ds):
+        m = np.array(W[d],dtype=np.complex128)
         rows,cols = np.nonzero(np.abs(m)>1e-10)
-        for a,b in zip(rows,cols):
-            coefs.append(norm*m[a,b])
-            left.append(np.conj(u1[:,a])*w2[:,b]*ph)
-            right.append(np.conj(u2[:,a])*w1[:,b]*ph)
+        if len(rows)==0: continue
+        ph = phases[:,i,None]
+        coefs.append(norm*m[rows,cols])
+        left.append((np.conj(u1[:,rows])*w2[:,cols]*ph).T)
+        if not hermitian:
+            right.append((np.conj(u2[:,rows])*w1[:,cols]*ph).T)
     if len(coefs)==0: # an interaction that is identically zero
         z = np.zeros((0,pb.npair),dtype=np.complex128)
         return np.zeros(0,dtype=np.complex128),z,z
-    return (np.array(coefs,dtype=np.complex128),
-            np.array(left,dtype=np.complex128),
-            np.array(right,dtype=np.complex128))
+    left = np.concatenate(left,axis=0)
+    right = left if hermitian else np.concatenate(right,axis=0)
+    return np.concatenate(coefs),left,right
 
 
 def _exchange_factors(pb,Wx,block):
@@ -221,15 +249,10 @@ def _exchange_factors(pb,Wx,block):
     if block=="A": F1,F2,M = Fr,Fr,WQ
     elif block=="Abar": F1,F2,M = Fa,Fa,np.conj(WQ) # W(-Q)
     else: F1,F2,M = Fr,np.conj(Fa),WQ # coupling: F2 enters unconjugated
-    coefs,left,right = [],[],[]
     rows,cols = np.nonzero(np.abs(M)>1e-10)
-    for a,b in zip(rows,cols):
-        coefs.append(norm*M[a,b])
-        left.append(F1[:,a])
-        right.append(F2[:,b])
-    if len(coefs)==0:
+    if len(rows)==0:
         z = np.zeros((0,pb.npair),dtype=np.complex128)
         return np.zeros(0,dtype=np.complex128),z,z
-    return (np.array(coefs,dtype=np.complex128),
-            np.array(left,dtype=np.complex128),
-            np.array(right,dtype=np.complex128))
+    return (np.array(norm*M[rows,cols],dtype=np.complex128),
+            np.ascontiguousarray(F1[:,rows].T),
+            np.ascontiguousarray(F2[:,cols].T))

@@ -3,7 +3,15 @@ from scipy.sparse import csc_matrix
 
 
 def hartree(h,v=0.0,**kwargs):
-    """Add a crystal field to a Hamiltonian"""
+    """Add a crystal field to a Hamiltonian. v is its strength, a number:
+    the profile over the sites comes from the geometry itself, from the
+    neighbours each site has within rcut"""
+    if callable(v) or np.ndim(v)!=0:
+        raise TypeError("add_crystal_field takes the strength v of the "
+                "crystal field, a number, and got "+type(v).__name__+"; the "
+                "profile over the sites is computed from the geometry. For "
+                "an onsite energy that is a function of position, use "
+                "h.add_onsite(f)")
     if v==0.0: return
     m = cf_potential(h.geometry,vc=v,**kwargs) # get array
     m = m - np.min(m) # shift to zero
@@ -36,11 +44,16 @@ def cf_potential(g,rcut=6.0,vc=0.0,mode="full"):
     interactions = [] # empty list
     nat = len(g.r) # number of atoms
     mout = np.zeros(nat) # initialize array
-    if g.dimensionality>0:
-      lat = np.sqrt(g.a1.dot(g.a1)) # size of the unit cell
-      g.ncells = int(2*rcut/lat)+2 # number of unit cells to consider
+    # every cell holding a site within rcut, with a range per direction.
+    # The box of int(2*rcut/|a1|)+2 cells used before only looked at a1,
+    # so a cell long along a1 and short along a2 lost the sites along a2.
+    # In the stacking mode the cut is on dx^2+dy^2+0.1*dz^2, which keeps
+    # pairs up to a distance sqrt(10*rcut)
+    if mode=="stacking": rmax = max(rcut,np.sqrt(10.*rcut))
+    else: rmax = rcut
+    from .specialhopping import cells_within
     ri = g.r # positions
-    for d in g.neighbor_directions(): # loop
+    for d in cells_within(g,rmax): # loop
         rj = np.array(g.replicas(d=d)) # positions
         for i in range(nat):
             dx = rj[:,0] - ri[i,0]

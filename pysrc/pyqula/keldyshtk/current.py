@@ -113,7 +113,9 @@ def _prepare_system_localprobe(lp):
     being probed (`lp.i` of `lp.H`), and the AC-carrying bond is the
     probe-sample tunneling link scaled by the transparency `lp.T` -- the
     same raw Hamiltonian block structure `localprobe.get_central_gmatrix`
-    dresses with self-energies and (energy+i*delta) for the smatrix method."""
+    dresses with self-energies for the smatrix method, at the bare energy:
+    that block carries no i*delta of its own, the only broadenings being
+    the probe lead's delta and the sample's bulk_delta in the selfenergies."""
     from ..htk.extract import local_hamiltonian
     from ..transporttk.localprobe import get_intra
     oi = algebra.todense(local_hamiltonian(lp.H, get_intra(lp.H), i=lp.i))
@@ -1424,6 +1426,16 @@ def dc_current(ht, voltage, nmax=6, nmax_max=40, tol=1e-3, temperature=0.,
     21.293s->6.063s (3.51x) worst-accuracy, 0.752s->0.111s (6.80x)
     normal-normal. Unlike `"fixed"` (below), this wins on every case shape
     benchmarked, which is why it is the default rather than opt-in.
+
+    Those node counts and timings predate the confirmation level of
+    `adaptive_quad_batch` (a panel is accepted only once its parent's
+    estimate agrees with it, see its docstring), added after a gap-edge
+    panel of a LocalProbe between two superconductors was accepted on a
+    coincidental Gauss-Kronrod estimate and halved one point of a dI/dV
+    curve. With it the same calls take 1428 nodes on the deep-subgap case
+    (from 630), 5418 on the worst-accuracy case (from 3906) and 252 on the
+    normal-normal junction (from 84), the currents moving by 7e-4, 5e-8
+    and 2e-6 relative.
 
     As with `"fixed"`, the `prange` parallelism inside the batched chain
     solver only delivers multi-threaded scaling in a single-process call:

@@ -1,9 +1,10 @@
-# Shared helpers for "qtci" (Gauss-Kronrod quadrature folded into a tensor
-# cross interpolation, via the vendored qutecipy port at qutecipytk/) BZ
-# integration, used by both topology.chern_qtci and this package's own
-# densitymatrix_qtci.get_dm_qtci -- factored out so the two features can't
-# silently drift apart on the nk-to-quadrature-order mapping or on how a
-# zero-valued integrand at the default pivot is handled.
+# Helpers for "qtci" BZ integration by Gauss-Kronrod quadrature folded into a
+# tensor cross interpolation (the vendored qutecipy port at qutecipytk/),
+# used by topology.chern_qtci: the nk-to-quadrature-order mapping and the
+# handling of a zero-valued (or underflowing) integrand at the default pivot.
+# The qtci mean-field density matrix no longer uses this rule, since it
+# cannot integrate a metallic Fermi step; it interpolates the band fields on
+# a uniform mesh and applies the triangle weights (densitymatrix_qtci.py).
 import numpy as np
 
 
@@ -59,13 +60,26 @@ def integrate_robust(dtype,f,GKorder,tolerance,**kwargs):
     quadrature rule being requested, obtained without ever building a
     tensor train. That full scan only runs for a genuinely
     zero-everywhere integrand (a true symmetry-protected zero); anything
-    nonzero exits at its first nonzero node."""
+    nonzero exits at its first nonzero node.
+
+    "Nonzero" is tested on the value the cross interpolation itself sees,
+    w_i*w_j*f*GKorder**2 (qutecipytk.integration.integrate), not on f. A
+    field that is zero up to rounding (a spin-off-diagonal entry of a
+    collinear state, at most 2e-16 on the honeycomb ferromagnet) can hold
+    a subnormal value such as 1e-322 at a node. That f is nonzero, but
+    times an edge weight it underflows to exactly zero, and TensorCI2 then
+    stopped with "maxsamplevalue is zero!". Such a node is skipped like a
+    zero, and a field that is zero in this sense at every node integrates
+    to zero, which is again the exact value of the rule."""
     from ..qutecipytk import integrate
     from ..qutecipytk.gausskronrod import kronrod
-    nodes1d,_,_ = kronrod(GKorder//2,-1,1)
+    nodes1d,weights1d,_ = kronrod(GKorder//2,-1,1)
     knode = (nodes1d+1)/2 # map nodes from [-1,1] to the [0,1] domain
+    w1 = weights1d/2 # the weights integrate() folds into its samples
+    normalization = GKorder**2 # and its normalization, in 2D
     for (i,j) in _pivot_candidates(len(nodes1d)):
-        if f([knode[i],knode[j]]) != 0:
+        # the same product, in the same order, as integrate()'s F
+        if (w1[i]*w1[j])*f([knode[i],knode[j]])*normalization != 0:
             return integrate(dtype,f,[0.,0.],[1.,1.],GKorder=GKorder,
                     tolerance=tolerance,initialpivots=[(i,j)],**kwargs)
     return dtype(0.0)

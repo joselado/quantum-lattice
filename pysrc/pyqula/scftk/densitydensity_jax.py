@@ -13,10 +13,11 @@
 #  - no callback_h/callback_dm/callback_mf hooks
 #  - a target filling IS supported by solver="newton": rather than resolving
 #    mu(filling) with a numpy sort/root-find outside the trace (which would
-#    break jax.jacfwd), mu is computed *inside* the trace each step as the
-#    midpoint between the n_occ_total-th and (n_occ_total+1)-th eigenvalue
-#    of the full (sorted, via jnp.sort) spectrum - jnp.sort's gradient is
-#    well defined away from ties, so this stays differentiable
+#    break jax.jacfwd), mu is computed *inside* the trace each step by
+#    mu_for_filling: the midpoint between the n_occ_total-th and
+#    (n_occ_total+1)-th eigenvalue when that already holds n_occ_total
+#    electrons at T (a gap), otherwise the root of the smeared count (the
+#    cut falls inside a degenerate multiplet) - differentiable either way
 #  - occupations always use a finite smearing temperature T (default 1e-4),
 #    because the step must be differentiable and a step-function occupation
 #    is not; T=0/None silently falls back to the default rather than
@@ -70,10 +71,10 @@
 # WARNING: for solver in {"newton","fsolve","newton_krylov"}, an unbiased
 # spinful Hamiltonian with an unbroken continuous spin-rotation symmetry
 # leaves the Jacobian singular along that marginal direction, and the
-# outer Newton loop can give up after zero completed iterations (the
-# backtracking line search finds no improving step even on the very first
-# try - see newton_solve's/newton_krylov_solve's "no backtracked step
-# improved the residual" branch). scf.converged is False in that case, but
+# outer Newton loop can give up (the backtracking line search, the
+# Levenberg-Marquardt fallback and the linear-mixing kicks all fail to find
+# an improving step - see newton_solve's/newton_krylov_solve's "stuck"
+# branch). scf.converged is False in that case, but
 # scf.total_energy is still populated with whatever the unconverged state
 # evaluates to (essentially the untouched initial guess) - this is easy to
 # miss since no exception is raised. See the WARNING in
@@ -89,8 +90,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-jax.config.update("jax_enable_x64", True)
-from .. import gpu
+from .. import gpu # also switches jax to double precision
 gpu.apply() # follow the package-wide CPU/GPU switch, see pyqula/gpu.py
 
 from .densitydensity import (SCF, set_hoppings, hamiltonian2dict,
@@ -159,6 +159,72 @@ def fermi_projector_jvp(primals, tangents):
     dP = jnp.einsum('kie,kef,kjf->kij', vs, GM, jnp.conj(vs))
     des = jnp.real(jnp.diagonal(M, axis1=-2, axis2=-1))
     return (P, es), (dP, des)
+
+
+# bisection steps for mu_for_filling: each halves a bracket a few bandwidths
+# wide, so this reaches adjacent float64 values with room to spare
+_MU_BISECTION_STEPS = 100
+
+
+def mu_for_filling(es, n_occ, T):
+    """Chemical potential holding n_occ electrons at temperature T in the
+    spectrum es (any shape), traceable and differentiable.
+
+    Mirrors spectrum.get_fermi_energy_T, which the numpy engine uses: the
+    T=0 cut, midway between the n_occ-th and (n_occ+1)-th level, is kept
+    whenever it already holds n_occ electrons at this T. That is the case
+    in a gap and fails when the cut falls inside a degenerate multiplet
+    (a star of k-points on a symmetric mesh), where the midpoint sits on
+    the level and sigmoid(0)=1/2 half-fills every member. There the count
+    sum_i sigmoid(-(e_i-mu)/T) = n_occ is solved for mu instead: bisection
+    on the stopped-gradient spectrum, then one Newton step on the live one.
+    At the root that step contributes exactly the implicit-function
+    derivative dmu = sum_i w_i de_i / sum_i w_i, w = f(1-f), which is what
+    jax.jacfwd of the SCF step needs. n_occ equal to every level, or zero,
+    puts mu 40 T beyond the last level (at least 1e-5), where no count can
+    be solved, as spectrum.get_fermi_energy_T does."""
+    es = es.reshape(-1)
+    es_sorted = jnp.sort(es)
+    ntarget = jnp.asarray(n_occ, dtype=es.dtype)
+
+    def count(mu, e):
+        return jnp.sum(jax.nn.sigmoid(-(e - mu) / T))
+
+    nlev = es_sorted.shape[0]
+    # the two levels either side of the cut, inside the spectrum at either
+    # end; the ends themselves are handled below
+    mu_mid = 0.5 * (es_sorted[jnp.clip(n_occ - 1, 0, nlev - 1)]
+            + es_sorted[jnp.clip(n_occ, 0, nlev - 1)])
+    exact = jnp.abs(count(mu_mid, es) - ntarget) < 1e-9 * ntarget
+    # bisection, outside the derivative
+    es_c = jax.lax.stop_gradient(es)
+    T_c = jax.lax.stop_gradient(T)
+    width = es_sorted[-1] - es_sorted[0]
+    lo = jax.lax.stop_gradient(es_sorted[0] - width - 40. * T - 1.)
+    hi = jax.lax.stop_gradient(es_sorted[-1] + width + 40. * T + 1.)
+
+    def bisect(_, bracket):
+        lo, hi = bracket
+        mid = 0.5 * (lo + hi)
+        below = jnp.sum(jax.nn.sigmoid(-(es_c - mid) / T_c)) < ntarget
+        return (jnp.where(below, mid, lo), jnp.where(below, hi, mid))
+    lo, hi = jax.lax.fori_loop(0, _MU_BISECTION_STEPS, bisect, (lo, hi))
+    mu_b = jax.lax.stop_gradient(0.5 * (lo + hi))
+    # one Newton step on the live spectrum carries the derivative
+    f = jax.nn.sigmoid(-(es - mu_b) / T)
+    dcount = jnp.sum(f * (1. - f)) / T
+    # the guard only matters in the branch jnp.where discards below (a
+    # gapped spectrum, where dcount underflows), and keeps its tangent finite
+    safe = jnp.where(dcount > 1e-300, dcount, 1.)
+    mu_count = mu_b - (jnp.sum(f) - ntarget) / safe
+    mu = jnp.where(exact, mu_mid, mu_count)
+    # full or empty: no finite mu holds every state (or none) at T>0, so mu
+    # goes 40 T beyond the last level, at least the 1e-5 of the T=0 cut, as
+    # in spectrum.get_fermi_energy_T; each level then misses exp(-40) of an
+    # electron, and mu follows that level
+    beyond = jnp.maximum(40. * T, 1e-5)
+    mu = jnp.where(n_occ >= nlev, es_sorted[nlev - 1] + beyond, mu)
+    return jnp.where(n_occ <= 0, es_sorted[0] - beyond, mu)
 
 
 def normal_term_ii_jax(v, dm):
@@ -255,8 +321,7 @@ def _get_step_core(dirs, dirs_all, n, compute_dd, compute_cross, add_dagger,
         nk = ks.shape[0]
         if has_filling_target:
             es = jnp.linalg.eigvalsh(hks)            # (nk,n)
-            es_sorted = jnp.sort(es.reshape(-1))
-            mu_eff = 0.5 * (es_sorted[n_occ_total - 1] + es_sorted[n_occ_total])
+            mu_eff = mu_for_filling(es, n_occ_total, T)
         else:
             mu_eff = mu
         # P[k] = V f(E) V^dagger, differentiable at degeneracies
@@ -279,12 +344,11 @@ def build_step_function(hop0, v, ks, dirs, dirs_all, T,
     """Return step(x,mu) -> (xnew, dm, es, occ, mu_eff), the pure-JAX one
     SCF step. If n_occ_total is given (a fixed number of occupied states
     out of the nk*norb total, i.e. a filling target), mu is IGNORED and
-    instead computed inside the trace as the midpoint between the
-    n_occ_total-th and (n_occ_total+1)-th eigenvalue in the whole (sorted)
-    spectrum, via jnp.sort - unlike resolving mu(filling) with a numpy
-    sort/root-find outside the trace, this stays fully differentiable
-    (jnp.sort has a well-defined gradient away from ties) so solver="newton"
-    can handle a fixed filling directly, not just a fixed mu.
+    instead computed inside the trace by mu_for_filling, which holds
+    n_occ_total electrons at T - unlike resolving mu(filling) with a numpy
+    root-find outside the trace, this stays fully differentiable, so
+    solver="newton" can handle a fixed filling directly, not just a fixed
+    mu.
 
     The heavy computation itself lives in a cached, once-jitted core (see
     _get_step_core) shared across every call with the same structural shape
@@ -310,11 +374,16 @@ def build_step_function(hop0, v, ks, dirs, dirs_all, T,
 
 
 def diff_mf_vec(x0, x1):
-    return float(jnp.mean(jnp.abs(x0 - x1)))
+    """Largest entry of |x0-x1|: the SCF residual max|step(x)-x| every
+    solver in solve_scf compares with maxerror. It used to be the mean,
+    which let fixed_point report converged=True with a residual ~8x
+    maxerror. (The numpy engine's diff_mf is a sum over directions of
+    per-direction means, a different measure again)"""
+    return float(jnp.max(jnp.abs(x0 - x1)))
 
 
 def newton_solve(step_vec, x0, maxite=50, tol=1e-10, damping=1.0, verbose=0,
-        max_backtrack=30):
+        max_backtrack=30, max_kicks=5, kick_steps=60, kick_mix=0.1):
     """Solve x = step_vec(x) with Newton's method on r(x) = step_vec(x) - x,
     using the exact JAX Jacobian (jax.jacfwd). A full undamped step can
     overshoot into a region where jnp.linalg.eigh's gradient is numerically
@@ -326,7 +395,17 @@ def newton_solve(step_vec, x0, maxite=50, tol=1e-10, damping=1.0, verbose=0,
     (its argmax component can switch between vector entries between
     iterations), which was observed to stall the line search - accepting a
     step even though a smaller one would keep decreasing it, because the max
-    stops going down while the overall residual is still shrinking."""
+    stops going down while the overall residual is still shrinking.
+
+    When max_backtrack halvings of the Newton step never lower the merit (a
+    nearly singular J-I gives a huge step along a soft mode), a
+    Levenberg-Marquardt step is tried instead, with growing damping. When
+    that fails too, x is a stationary point of the merit with a nonzero
+    residual, and up to max_kicks times kick_steps linear-mixing steps
+    (x -> x + kick_mix*r) move it off before Newton resumes. On a biased
+    antiferromagnetic chain at half filling from random guesses this took
+    Newton from 3/6 converged seeds to 12/12; at a fixed mu, where plain
+    Newton already converged in ~5 iterations, none of it is reached."""
     def merit(r):
         return float(jnp.sum(jnp.abs(r) ** 2))
     jac_fn = jax.jacfwd(step_vec)
@@ -337,38 +416,101 @@ def newton_solve(step_vec, x0, maxite=50, tol=1e-10, damping=1.0, verbose=0,
     r = fx - x
     err = float(jnp.max(jnp.abs(r)))
     m = merit(r)
+    kicks = 0
     for ite in range(maxite):
         if verbose > 0:
             print("Newton iteration", ite, "error", err)
         if err < tol:
             return x, ite, True
         J = jac_fn(x) - eye
-        # least-squares (pseudo-inverse) rather than a plain solve: a weak
-        # symmetry-breaking bias leaves J close to singular along the
-        # near-marginal direction, and lstsq degrades gracefully there
-        # instead of returning a huge, numerically meaningless step
+        # least-squares (pseudo-inverse) rather than a plain solve, so an
+        # exactly singular J (an unbroken continuous symmetry) still gives a
+        # step. A NEARLY singular one is not truncated at this rcond: a soft
+        # mode with singular value ~3e-6 (a staggered-Sz direction of a
+        # biased AF chain at fixed filling) gave |dx|~1e4, along which the
+        # merit first decreases only at a step of ~2^-35
         dx = jnp.linalg.lstsq(J, -r, rcond=1e-8)[0]
-        step = damping
-        x_try, err_try, m_try = x, err, m
-        for _ in range(max_backtrack):
-            x_try = x + step * dx
-            fx_try = step_vec(x_try)
-            r_try = fx_try - x_try
-            m_try = merit(r_try)
-            if m_try < m:
-                err_try = float(jnp.max(jnp.abs(r_try)))
-                break
-            step *= 0.5
-        else:
-            # no backtracked step improved the residual: stuck, stop early
+        accepted = _backtrack(step_vec, x, dx, m, damping, max_backtrack,
+                merit)
+        if accepted is None:
+            # the Newton direction is useless here: fall back to
+            # Levenberg-Marquardt steps, which turn toward steepest descent
+            # of the merit as lam grows (levenberg_marquardt_solve's
+            # accept/reject ladder, with the dense J already in hand)
+            accepted = _levenberg_marquardt_step(step_vec, x, J, r, m,
+                    merit)
+        if accepted is None and kicks < max_kicks:
+            # x is a stationary point of the merit with r != 0 (J^T r = 0
+            # along a soft mode), which no descent step can leave. Plain
+            # linear-mixing steps x -> x + mix*r ignore the merit and move
+            # off it; Newton then resumes from wherever they end up
+            kicks += 1
+            accepted = _mixing_kick(step_vec, x, r, merit, kick_steps,
+                    kick_mix)
+        if accepted is None:
+            # no damping level improved the residual either: stuck
             return x, ite, err < tol
-        x, fx, r, err, m = x_try, fx_try, r_try, err_try, m_try
+        x, fx, r, m = accepted
+        err = float(jnp.max(jnp.abs(r)))
     return x, maxite, err < tol
+
+
+def _backtrack(step_vec, x, dx, m, damping, max_backtrack, merit):
+    """Halve the step along dx until the merit drops below m. Returns
+    (x, step_vec(x), residual, merit) at the accepted point, or None. Any
+    comparison against NaN is False, so a NaN'd trial step is rejected"""
+    step = damping
+    for _ in range(max_backtrack):
+        x_try = x + step * dx
+        fx_try = step_vec(x_try)
+        r_try = fx_try - x_try
+        m_try = merit(r_try)
+        if m_try < m:
+            return x_try, fx_try, r_try, m_try
+        step *= 0.5
+    return None
+
+
+def _mixing_kick(step_vec, x, r, merit, nsteps, mix):
+    """nsteps of linear mixing from x, whose residual is r. Returns
+    (x, step_vec(x), residual, merit) at the end, or None if it went NaN"""
+    for _ in range(nsteps):
+        x = x + mix * r
+        fx = step_vec(x)
+        r = fx - x
+    m = merit(r)
+    if not np.isfinite(m):
+        return None
+    return x, fx, r, m
+
+
+def _levenberg_marquardt_step(step_vec, x, J, r, m, merit, lam_factor=10.,
+        max_tries=30):
+    """One accepted Levenberg-Marquardt step for newton_solve, or None:
+    dx = argmin |J dx + r|^2 + lam |dx|^2 with lam growing from a small
+    fraction of |J|^2 until the merit drops. Large lam gives
+    dx ~ -J^T r / lam, a short steepest-descent step, which lowers the merit
+    at any point that is not a stationary point of it"""
+    n = x.shape[0]
+    JtJ = J.T @ J
+    Jtr = J.T @ r
+    lam = 1e-6 * float(jnp.max(jnp.abs(jnp.diagonal(JtJ)))) + 1e-300
+    eye = jnp.eye(n, dtype=J.dtype)
+    for _ in range(max_tries):
+        dx = -jnp.linalg.solve(JtJ + lam * eye, Jtr)
+        x_try = x + dx
+        fx_try = step_vec(x_try)
+        r_try = fx_try - x_try
+        m_try = merit(r_try)
+        if m_try < m:
+            return x_try, fx_try, r_try, m_try
+        lam *= lam_factor
+    return None
 
 
 def newton_krylov_solve(step_vec, x0, maxite=50, tol=1e-10, damping=1.0,
         verbose=0, max_backtrack=30, gmres_tol=1e-6, gmres_restart=20,
-        gmres_maxiter=None):
+        gmres_maxiter=None, max_kicks=5, kick_steps=60, kick_mix=0.1):
     """Matrix-free (Jacobian-free) Newton-Krylov: same damped-Newton outer
     loop and backtracking as newton_solve, but the linear system
     (J_step(x) - I) dx = -r(x) at each step is solved with GMRES using only
@@ -410,27 +552,69 @@ def newton_krylov_solve(step_vec, x0, maxite=50, tol=1e-10, damping=1.0,
     r = fx - x
     err = float(jnp.max(jnp.abs(r)))
     m = merit(r)
+    kicks = 0
     for ite in range(maxite):
         if verbose > 0:
             print("Newton-Krylov iteration", ite, "error", err)
         if err < tol:
             return x, ite, True
         dx = gmres_solve(x, -np.asarray(r))
-        step = damping
-        x_try, err_try, m_try = x, err, m
-        for _ in range(max_backtrack):
-            x_try = x + step * dx
+        accepted = _backtrack(step_vec, x, dx, m, damping, max_backtrack,
+                merit)
+        # the same two fallbacks as newton_solve, matrix-free
+        if accepted is None:
+            accepted = _levenberg_marquardt_step_matrix_free(step_vec, x, r,
+                    m, merit)
+        if accepted is None and kicks < max_kicks:
+            kicks += 1
+            accepted = _mixing_kick(step_vec, x, r, merit, kick_steps,
+                    kick_mix)
+        if accepted is None:
+            return x, ite, err < tol
+        x, fx, r, m = accepted
+        err = float(jnp.max(jnp.abs(r)))
+    return x, maxite, err < tol
+
+
+def _levenberg_marquardt_step_matrix_free(step_vec, x, r, m, merit,
+        lam_factor=10., max_tries=30, lsqr_iter_lim=20):
+    """_levenberg_marquardt_step with Jacobian-vector and
+    Jacobian-transpose-vector products (jax.jvp/jax.vjp) and scipy's damped
+    lsqr in place of the dense J, as levenberg_marquardt_solve does"""
+    from scipy.sparse.linalg import lsqr, LinearOperator
+    n = x.shape[0]
+    r_fn = lambda y: step_vec(y) - y
+    _, vjp = jax.vjp(r_fn, x)
+
+    def matvec(v_np):
+        return np.array(jax.jvp(r_fn, (x,), (jnp.asarray(v_np),))[1],
+                copy=True)
+
+    def rmatvec(u_np):
+        return np.array(vjp(jnp.asarray(u_np))[0], copy=True)
+    Jop = LinearOperator((n, n), matvec=matvec, rmatvec=rmatvec,
+            dtype=np.float64)
+    r_np = np.array(r, copy=True)
+    # scale the first damping to J: |J^T r|/|r| is a cheap lower estimate
+    # of its largest singular value
+    g = rmatvec(r_np)
+    lam = 1e-6 * (np.linalg.norm(g) / max(np.linalg.norm(r_np), 1e-300))**2
+    lam = max(lam, 1e-300)
+    # see levenberg_marquardt_solve for this benign warning from jax.vjp
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore",
+                message=".*Casting complex values to real.*")
+        for _ in range(max_tries):
+            dx = jnp.asarray(lsqr(Jop, -r_np, damp=np.sqrt(lam),
+                    iter_lim=lsqr_iter_lim)[0])
+            x_try = x + dx
             fx_try = step_vec(x_try)
             r_try = fx_try - x_try
             m_try = merit(r_try)
             if m_try < m:
-                err_try = float(jnp.max(jnp.abs(r_try)))
-                break
-            step *= 0.5
-        else:
-            return x, ite, err < tol
-        x, fx, r, err, m = x_try, fx_try, r_try, err_try, m_try
-    return x, maxite, err < tol
+                return x_try, fx_try, r_try, m_try
+            lam *= lam_factor
+    return None
 
 
 def levenberg_marquardt_solve(step_vec, x0, maxite=200, tol=1e-8, verbose=0,
@@ -545,7 +729,8 @@ def levenberg_marquardt_solve(step_vec, x0, maxite=200, tol=1e-8, verbose=0,
         return x, maxite, err < tol
 
 
-def fsolve_solve(step_vec, x0, maxite=2000, tol=1e-8, verbose=0):
+def fsolve_solve(step_vec, x0, maxite=2000, tol=1e-8, verbose=0,
+        kick_steps=60):
     """Solve x = step_vec(x) with scipy.optimize.fsolve (MINPACK hybrj),
     using the exact JAX Jacobian (jax.jacfwd) as fprime. Unlike
     newton_solve's hand-rolled backtracking, MINPACK's Powell hybrid dogleg
@@ -553,7 +738,22 @@ def fsolve_solve(step_vec, x0, maxite=2000, tol=1e-8, verbose=0):
     rank-1 updates of the Jacobian between full recomputations instead of
     rebuilding the O(norb^2) x O(norb^2) Jacobian every iteration - compare
     infodict['njev'] to infodict['nfev'] to see whether that is actually
-    happening for a given problem size (njev << nfev means yes)."""
+    happening for a given problem size (njev << nfev means yes).
+
+    Being a trust region does not save it from the soft mode newton_solve
+    meets: on a biased antiferromagnetic chain at half filling it stopped
+    with ier=5 ("not making good progress") from 4 of 12 random seeds, at a
+    point with |r|~4e-2 where |J^T r|~3e-4 and J-I has a singular value
+    ~5e-4, a near-stationary point of the merit. Linear-mixing kicks of the
+    length newton_solve uses did not move it off (it came back to the same
+    point after each), so when it stalls the rest of the budget goes to
+    newton_solve from where it stopped, whose Levenberg-Marquardt steps and
+    kicks leave that point: 4/4 of those seeds then converge.
+
+    MINPACK counts function evaluations, not iterations: maxite is passed
+    as maxfev, and the count returned (scf.iterations) is nfev, plus the
+    outer iterations of newton_solve when it took over. kick_steps is the
+    length of newton_solve's kicks there."""
     from scipy.optimize import fsolve
     jac_fn = jax.jacfwd(step_vec)
     n = x0.shape[0]
@@ -567,13 +767,23 @@ def fsolve_solve(step_vec, x0, maxite=2000, tol=1e-8, verbose=0):
 
     x_sol, infodict, ier, mesg = fsolve(func, np.asarray(x0), fprime=jac,
             full_output=True, maxfev=maxite, xtol=tol)
+    nfev = infodict["nfev"]
     if verbose > 0:
-        print("fsolve: nfev", infodict["nfev"], "njev",
-                infodict.get("njev"), "ier", ier, mesg)
-    return jnp.asarray(x_sol), infodict["nfev"], ier == 1
+        print("fsolve: nfev", nfev, "njev", infodict.get("njev"), "ier",
+                ier, mesg)
+    # ier 4 and 5 are the two "not making good progress" stops; any other
+    # means converged (1), out of budget (2) or at xtol (3)
+    if ier in (4, 5) and nfev < maxite:
+        if verbose > 0:
+            print("fsolve stalled, continuing with newton_solve")
+        x, ite, converged = newton_solve(step_vec, jnp.asarray(x_sol),
+                maxite=maxite - nfev, tol=tol, verbose=verbose,
+                kick_steps=kick_steps)
+        return x, nfev + ite, converged
+    return jnp.asarray(x_sol), nfev, ier == 1
 
 
-def fixed_point_solve(step_fn, x0, mu, dirs, n, mix=0.1, maxite=2000, tol=1e-5,
+def fixed_point_solve(step_fn, x0, mu, dirs, n, mix=0.3, maxite=2000, tol=1e-5,
         verbose=0, callback_mf=None):
     """Linear-mixing fixed point, mirrors densitydensity.generic_densitydensity
     with solver="plain". mu is ignored by step_fn (in favor of an internally
@@ -593,11 +803,12 @@ def fixed_point_solve(step_fn, x0, mu, dirs, n, mix=0.1, maxite=2000, tol=1e-5,
             xnew = flatten_mf({d: jnp.asarray(mfnew_np[d], dtype=jnp.complex128)
                 for d in dirs}, dirs)
         diff = diff_mf_vec(xnew, x)
-        x = (1 - mix) * x + mix * xnew
         if verbose > 0:
             print("ERROR in the SCF cycle", ite, diff)
         if diff < tol:
+            # x itself, whose residual was just measured, not the mixed one
             return x, cur_mu, ite, True
+        x = (1 - mix) * x + mix * xnew
     return x, cur_mu, maxite, False
 
 
@@ -690,108 +901,194 @@ def lbfgs_solve(loss_fn, x0, maxite=2000, tol=1e-5, verbose=0, gtol=None):
     return jnp.asarray(res.x), int(res.nit)
 
 
+# Each use_jax=True solver is one entry here. A runner takes the jitted step,
+# its mu-bound vector form step_vec, the starting x0 and the SolverOptions,
+# and returns (x, iterations, converged). converged=None means the solver has
+# no residual-based notion of its own and solve_scf decides from the
+# residual at the returned x (lbfgs, whose L-BFGS-B stops on a gradient norm).
+
+def _run_newton(step_jit, step_vec, x0, mu, o):
+    return newton_solve(step_vec, x0, maxite=o.maxite, tol=o.maxerror,
+            verbose=o.verbose, kick_steps=o.kick_steps)
+
+
+def _run_fsolve(step_jit, step_vec, x0, mu, o):
+    return fsolve_solve(step_vec, x0, maxite=o.maxite, tol=o.maxerror,
+            verbose=o.verbose, kick_steps=o.kick_steps)
+
+
+def _run_newton_krylov(step_jit, step_vec, x0, mu, o):
+    return newton_krylov_solve(step_vec, x0, maxite=o.maxite, tol=o.maxerror,
+            verbose=o.verbose, gmres_tol=o.gmres_tol,
+            gmres_restart=o.gmres_restart, kick_steps=o.kick_steps)
+
+
+def _run_fixed_point(step_jit, step_vec, x0, mu, o):
+    # the mu fixed_point_solve tracks is superseded by the fresh
+    # step_jit(x, mu) call in solve_scf, so it is dropped here
+    mix = 0.3 if o.mix is None else o.mix # mix=None means not given
+    x, _, ite, converged = fixed_point_solve(step_jit, x0, mu, o.dirs, o.n,
+            mix=mix, maxite=o.maxite, tol=o.maxerror, verbose=o.verbose,
+            callback_mf=o.callback_mf)
+    return x, ite, converged
+
+
+def _run_lbfgs(step_jit, step_vec, x0, mu, o):
+    residual_loss = jax.jit(lambda x: jnp.sum((step_vec(x) - x) ** 2))
+    x, ite = lbfgs_solve(residual_loss, x0, maxite=o.maxite, tol=o.maxerror,
+            verbose=o.verbose)
+    return x, ite, None
+
+
+def _run_levenberg_marquardt(step_jit, step_vec, x0, mu, o):
+    return levenberg_marquardt_solve(step_vec, x0, maxite=o.maxite,
+            tol=o.maxerror, verbose=o.verbose)
+
+
+def _run_broyden_mixing(step_jit, step_vec, x0, mu, o):
+    # only ever calls step_vec as a black box, which accepts numpy input
+    from .broydenmixing import broyden_mixing_solve
+    # mix is the mixing factor of the linear warm-up, as in the numpy
+    # engine; when not given, broyden_mixing_solve's own lam applies
+    bm_kwargs = dict() if o.mix is None else dict(lam=o.mix)
+    x, ite, converged = broyden_mixing_solve(step_vec, x0, maxite=o.maxite,
+            tol=o.maxerror, verbose=o.verbose, **bm_kwargs)
+    return jnp.asarray(x), ite, converged
+
+
+# The use_jax=True solvers, shared by both routes into this engine
+# (Vinteraction through generic_densitydensity_jax, VJinteraction through
+# vjinteraction_jax). Only "fixed_point" works on concrete numpy arrays
+# between iterations, so it is the only one that can apply callback_mf
+_JAX_SOLVERS = {
+        "newton": _run_newton,
+        "fsolve": _run_fsolve,
+        "newton_krylov": _run_newton_krylov,
+        "fixed_point": _run_fixed_point,
+        "lbfgs": _run_lbfgs,
+        "levenberg_marquardt": _run_levenberg_marquardt,
+        "broyden_mixing": _run_broyden_mixing,
+        }
+
+# Names that describe what a solver does rather than the algorithm behind
+# it, documented by spinspin.VJinteraction: "error_gradient" minimizes the
+# SCF residual (currently by Levenberg-Marquardt, previously by L-BFGS-B)
+# and "linear_mixing" is plain linear mixing
+_JAX_SOLVER_ALIASES = {
+        "linear_mixing": "fixed_point",
+        "error_gradient": "levenberg_marquardt",
+        }
+
+_SOLVERS_WITH_CALLBACK_MF = ("fixed_point",)
+
+# The solvers that read mix: fixed_point mixes with it, and broyden_mixing
+# uses it for its linear warm-up. The others step on their own damping
+_SOLVERS_WITH_MIX = ("fixed_point", "broyden_mixing")
+
+
+def warn_if_mix_unused(solver, mix):
+    """Warn when mix is given to a solver that never reads it, rather than
+    dropping it in silence. mix=None means it was not given. The solver is
+    resolved first either way, so a misspelled name raises here"""
+    name = resolve_jax_solver(solver)
+    if mix is not None and name not in _SOLVERS_WITH_MIX:
+        warnings.warn("mix=%r has no effect for solver=%r (only "
+                "solver=\"fixed_point\"/\"linear_mixing\" and "
+                "\"broyden_mixing\" use linear mixing)" % (mix, solver),
+                stacklevel=3)
+
+
+def get_jax_solver_names():
+    """Every solver= name the use_jax=True engine accepts, aliases included"""
+    return sorted(set(_JAX_SOLVERS) | set(_JAX_SOLVER_ALIASES))
+
+
+def resolve_jax_solver(solver):
+    """The registry name behind a solver= value, or ValueError listing the
+    accepted ones"""
+    name = _JAX_SOLVER_ALIASES.get(solver, solver) \
+            if isinstance(solver, str) else solver
+    if name not in _JAX_SOLVERS:
+        raise ValueError("unknown solver %r for use_jax=True; the accepted "
+                "ones are %s" % (solver, ", ".join(repr(s) for s in
+                get_jax_solver_names())))
+    return name
+
+
+class SolverOptions:
+    """The tuning knobs solve_scf passes on to the solver runners"""
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
 def solve_scf(step_jit, x0, mu, dirs, n, solver, maxite, maxerror, mix,
-        verbose, gmres_tol, gmres_restart, callback_mf=None):
+        verbose, gmres_tol, gmres_restart, callback_mf=None, kick_steps=60):
     """Shared solver dispatch for generic_densitydensity_jax's and
     vjinteraction_jax.generic_vjinteraction_jax's use_jax=True paths --
-    drives x0 to a fixed point of step_jit via whichever solver= was
-    requested ("newton"/"fsolve"/"newton_krylov"/"fixed_point"/"lbfgs"/
-    "levenberg_marquardt"/"broyden_mixing"),
-    then evaluates step_jit exactly ONCE more at the converged x to get
-    everything callers need: final_mu, xfinal/dm/es/occ, and (solver=
-    "lbfgs" only, which has no residual-based convergence notion of its
-    own) the SCF-residual convergence check. Previously each of those was
-    computed via its own separate step_jit call in each of the two
-    call sites (up to 3 redundant full Bloch-build+batched-eigh passes for
-    solver="lbfgs" alone) -- see this function's git history for the
-    per-branch version this replaced.
+    drives x0 to a fixed point of step_jit with whichever solver= was
+    requested (any name in get_jax_solver_names(), aliases resolved through
+    resolve_jax_solver), then evaluates step_jit exactly ONCE more at the
+    converged x to get everything callers need: final_mu, xfinal/dm/es/occ,
+    and (solver="lbfgs" only, which has no residual-based convergence
+    notion of its own) the SCF-residual convergence check.
 
     Passing the ORIGINAL mu (not each solver's own possibly-different
     "final" mu) into that single trailing step_jit call is exactly correct:
     when a filling target is active (step_jit was built with n_occ_total
     set) step()'s mu_eff ignores its mu argument entirely and resolves it
     from n_occ_total instead, and for a fixed mu every solver's converged x
-    already has mu_eff == mu by construction (fixed_point_solve's own
-    tracked mu never drifts from the constant mu it started with in that
-    case either).
+    already has mu_eff == mu by construction.
 
-    Returns (x, final_mu, ite, converged, dm, es, occ). callback_mf (only
-    meaningful for solver="fixed_point"; applied on concrete numpy arrays
-    each iteration) raises NotImplementedError for every other solver, which
-    need x to stay a pure jax-traced value throughout."""
-    if solver in ("newton", "fsolve", "newton_krylov", "lbfgs",
-            "levenberg_marquardt", "broyden_mixing"):
-        if callback_mf is not None:
-            raise NotImplementedError("solver=%r cannot apply "
-                    "callback_mf/constrains (they need concrete numpy "
-                    "arrays each iteration, incompatible with jax tracing); "
-                    "use solver=\"fixed_point\" instead" % (solver,))
-        # not wrapped in jax.jit here: step_jit already dispatches into the
-        # cached, once-jitted core built by build_step_function/
-        # _get_step_core (see there) -- an extra jax.jit around this thin
-        # closure would just add its own fresh-per-call compile for no
-        # benefit, since the actual physics computation is already
-        # compiled and shared. jax.jacfwd/jax.jvp/jax.vjp/jax.grad (used
-        # by the solvers below) all work fine tracing through a plain
-        # Python function that calls an already-jitted one.
-        step_vec = lambda x: step_jit(x, mu)[0]
-    if solver == "newton":
-        x, ite, converged = newton_solve(step_vec, x0, maxite=maxite,
-                tol=maxerror, verbose=verbose)
-    elif solver == "fsolve":
-        x, ite, converged = fsolve_solve(step_vec, x0, maxite=maxite,
-                tol=maxerror, verbose=verbose)
-    elif solver == "newton_krylov":
-        x, ite, converged = newton_krylov_solve(step_vec, x0, maxite=maxite,
-                tol=maxerror, verbose=verbose, gmres_tol=gmres_tol,
-                gmres_restart=gmres_restart)
-    elif solver == "fixed_point":
-        # the mu fixed_point_solve itself tracks/returns is superseded by
-        # the fresh step_jit(x, mu) call below (see this function's
-        # docstring), so it is not needed here
-        x, _, ite, converged = fixed_point_solve(step_jit, x0, mu, dirs, n,
-                mix=mix, maxite=maxite, tol=maxerror, verbose=verbose,
-                callback_mf=callback_mf)
-    elif solver == "lbfgs":
-        residual_loss = jax.jit(lambda x: jnp.sum((step_vec(x) - x) ** 2))
-        x, ite = lbfgs_solve(residual_loss, x0, maxite=maxite, tol=maxerror,
-                verbose=verbose)
-        converged = None  # resolved below, once xfinal is available
-    elif solver == "levenberg_marquardt":
-        x, ite, converged = levenberg_marquardt_solve(step_vec, x0,
-                maxite=maxite, tol=maxerror, verbose=verbose)
-    elif solver == "broyden_mixing":
-        # unlike newton/fsolve/newton_krylov/lbfgs, this solver never needs
-        # x to stay a traced jax value between iterations (no jacfwd/jvp/grad
-        # of step_vec involved -- it only ever calls step_vec(x) as a black
-        # box), so grouping it with those above (for the callback_mf check)
-        # is a simplicity choice, not a technical requirement the way it is
-        # for them; step_vec still works fine here since a jax.jit function
-        # accepts plain numpy input and converts internally
-        from .broydenmixing import broyden_mixing_solve
-        x, ite, converged = broyden_mixing_solve(step_vec, x0, maxite=maxite,
-                tol=maxerror, verbose=verbose)
-        x = jnp.asarray(x)
-    else:
-        raise ValueError("unrecognised solver for use_jax=True: %r" % (solver,))
+    Returns (x, final_mu, ite, converged, dm, es, occ, residual), residual
+    being max|F(x)-x| at the returned x. callback_mf (applied
+    on concrete numpy arrays each iteration) is only possible for
+    solver="fixed_point"; every other solver needs x to stay a jax value
+    throughout, and raises NotImplementedError when given one. kick_steps
+    is the number of linear-mixing steps in each kick that moves the Newton
+    solvers (newton, newton_krylov, and newton after a stalled fsolve) off a
+    stationary point of the merit; 60 was tuned on one system, a biased
+    antiferromagnetic chain, so a case that stalls may want another."""
+    name = resolve_jax_solver(solver)
+    if isinstance(kick_steps, bool) or not isinstance(kick_steps,
+            (int, np.integer)) or kick_steps < 1:
+        raise ValueError("kick_steps must be a positive integer, the "
+                "number of linear-mixing steps in each kick, got %r"
+                % (kick_steps,))
+    if callback_mf is not None and name not in _SOLVERS_WITH_CALLBACK_MF:
+        raise NotImplementedError("solver=%r cannot apply "
+                "callback_mf/constrains (they need concrete numpy "
+                "arrays each iteration, incompatible with jax tracing); "
+                "use solver=\"fixed_point\" instead" % (solver,))
+    # not wrapped in jax.jit here: step_jit already dispatches into the
+    # cached, once-jitted core built by build_step_function/_get_step_core
+    # (see there), and jax.jacfwd/jvp/vjp/grad trace through a plain Python
+    # function calling an already-jitted one without trouble
+    step_vec = lambda x: step_jit(x, mu)[0]
+    options = SolverOptions(dirs=dirs, n=n, maxite=maxite, maxerror=maxerror,
+            mix=mix, verbose=verbose, gmres_tol=gmres_tol,
+            gmres_restart=gmres_restart, callback_mf=callback_mf,
+            kick_steps=kick_steps)
+    x, ite, converged = _JAX_SOLVERS[name](step_jit, step_vec, x0, mu,
+            options)
 
     xfinal, dm, es, occ, final_mu = step_jit(x, mu)
     final_mu = float(final_mu)
-    if solver == "lbfgs":
+    residual = float(jnp.max(jnp.abs(xfinal - x))) # reached SCF error
+    if converged is None:
         # scf.converged still means the same thing here as for every other
         # solver -- the actual SCF residual, not L-BFGS-B's own gradient-norm
         # stopping criterion (see lbfgs_solve's docstring)
-        converged = bool(jnp.max(jnp.abs(xfinal - x)) < maxerror)
-    return x, final_mu, ite, bool(converged), dm, es, occ
+        converged = bool(residual < maxerror)
+    return x, final_mu, ite, bool(converged), dm, es, occ, residual
 
 
 def generic_densitydensity_jax(h0, mf=None, v=None, nk=8, mu=0.0,
-        filling=None, T=None, mix=0.1, maxerror=1e-5, maxite=2000,
+        filling=None, T=None, mix=None, maxerror=1e-5, maxite=2000,
         solver="newton", compute_dd=True, compute_cross=True,
         add_dagger=True, verbose=0, callback_mf=None,
-        gmres_tol=1e-6, gmres_restart=20, **kwargs):
+        gmres_tol=1e-6, gmres_restart=20, kick_steps=60, **kwargs):
     """JAX-differentiable analogue of densitydensity.generic_densitydensity.
-    maxite defaults to 2000 (vs. the numpy engine's unbounded default) since
+    maxite defaults to 2000 (the numpy engine's is 1000) since
     plain linear mixing from a cold/random start can need many hundreds of
     iterations at tight tolerance - see the "fixed_point" cases in the
     benchmark. solver="newton" converges in a handful of iterations when it
@@ -804,15 +1101,22 @@ def generic_densitydensity_jax(h0, mf=None, v=None, nk=8, mu=0.0,
     mixing scheme (regularized, limited-memory multisecant Broyden mixing,
     arXiv:0801.3098) rather than a root-finder/gradient method -- see
     broydenmixing.py's module docstring."""
+    # the end of the use_jax=True call chain: a keyword nothing consumed
+    # used to be dropped here in silence, so a misspelled kick_steps ran
+    # with the default. integration="ed" is what the spinless
+    # get_mean_field_hamiltonian always passes, and the only backend
+    integration = kwargs.pop("integration", "ed")
+    if integration != "ed":
+        raise NotImplementedError("use_jax=True computes the density "
+                "matrix by exact diagonalization only, integration=\"ed\"; "
+                "integration=%r has no jax counterpart" % (integration,))
+    from .densitydensity import reject_leftover_kwargs
+    reject_leftover_kwargs(kwargs)
     if h0.has_eh:
         raise NotImplementedError("use_jax=True does not support the "
                 "anomalous/BdG mean field yet; use the default (numpy) engine")
-    if solver != "fixed_point" and mix != 0.1:
-        # mix only controls solver="fixed_point"'s linear-mixing step -- see
-        # vjinteraction_jax.generic_vjinteraction_jax's identical check
-        warnings.warn("mix=%r has no effect for solver=%r (only "
-                "solver=\"fixed_point\" uses linear mixing)"
-                % (mix, solver), stacklevel=2)
+    # resolved up front, so a misspelled solver fails before any work
+    warn_if_mix_unused(solver, mix)
     if T is None:
         T = default_T_jax
     elif T <= 0:
@@ -825,6 +1129,7 @@ def generic_densitydensity_jax(h0, mf=None, v=None, nk=8, mu=0.0,
     h1 = h0.copy()
     h1 = h1.get_dense()
     h1.nk = nk
+    h1.temperature = T # the smearing observables read it at
     hop0 = hamiltonian2dict(h1)  # numpy dict, bare hoppings
     n = hop0[(0, 0, 0)].shape[0]
     dirs = sorted(v.keys())
@@ -855,16 +1160,16 @@ def generic_densitydensity_jax(h0, mf=None, v=None, nk=8, mu=0.0,
     if filling is not None:
         n_tot = n * ks.shape[0]
         n_occ_total = int(round(filling * n_tot))
-        n_occ_total = min(max(n_occ_total, 1), n_tot - 1)
+        n_occ_total = min(max(n_occ_total, 0), n_tot) # every state, or none
     # not wrapped in an extra jax.jit: build_step_function's returned
     # closure already dispatches into a cached, once-jitted core shared
     # across every call with this same structural shape -- see
     # build_step_function/_get_step_core's docstrings
     step_jit = build_step_function(hop0, v, ks, dirs, dirs_all, T,
             compute_dd, compute_cross, add_dagger, n_occ_total=n_occ_total)
-    x, final_mu, ite, converged, dm, es, occ = solve_scf(step_jit, x0, mu,
+    x, final_mu, ite, converged, dm, es, occ, residual = solve_scf(step_jit, x0, mu,
             dirs, n, solver, maxite, maxerror, mix, verbose, gmres_tol,
-            gmres_restart, callback_mf=callback_mf)
+            gmres_restart, callback_mf=callback_mf, kick_steps=kick_steps)
     mf_final = unflatten_mf(x, dirs, n)
     dm_np = {d: np.asarray(dm[d]) for d in dirs}
     mf_np = {d: np.asarray(mf_final[d]) for d in dirs}
@@ -877,8 +1182,21 @@ def generic_densitydensity_jax(h0, mf=None, v=None, nk=8, mu=0.0,
         hop_final[d] = m
     h_final = h1.copy()
     set_hoppings(h_final, hop_final)
-    etot_band = float(jnp.sum(occ * es) / ks.shape[0])
-    etot = etot_band + get_dc_energy(v_np, dm_np)
+    # Measure the returned Hamiltonian from the Fermi level, as the numpy
+    # engine's callback_h (densitydensity.densitydensity) does: a filling
+    # target sets h.fermi and shifts by it, a fixed mu only shifts by mu and
+    # leaves .fermi unset. The total energy then comes from the same
+    # h.get_total_energy call on the shifted h, plus the fermi*N add-back for
+    # a filling target, rather than from sum(occ*es) on the unshifted
+    # spectrum, which is off by mu*N at a fixed nonzero mu.
+    # vjinteraction_jax.generic_vjinteraction_jax does the same
+    if n_occ_total is not None:
+        h_final.fermi = final_mu
+    h_final.shift_fermi(-final_mu)
+    etot = h_final.get_total_energy(nk=nk)
+    if n_occ_total is not None:
+        etot += h_final.fermi * n * filling
+    etot = float(np.real(etot)) + float(np.real(get_dc_energy(v_np, dm_np)))
     scf = SCF()
     scf.hamiltonian = h_final
     scf.hamiltonian.V = v
@@ -896,6 +1214,7 @@ def generic_densitydensity_jax(h0, mf=None, v=None, nk=8, mu=0.0,
     scf.total_energy = etot
     scf.mu = final_mu
     scf.iterations = ite
+    scf.residual = residual
     if verbose > 1:
         print("##################")
         print("Total energy", etot)

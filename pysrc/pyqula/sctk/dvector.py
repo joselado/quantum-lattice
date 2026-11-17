@@ -31,12 +31,11 @@ def dvector2deltas_old(ds):
 
 
 def check_spinful_nambu(h):
-    """Raise unless h has both the spin and the electron-hole degree of
-    freedom. Everything below reads the pairing out of a 4x4 spin x
-    electron-hole block per site (extract.extract_triplet_pairing), so on
-    any other Hilbert space it silently returns an array of the wrong
-    length -- zeros for a spinful non-Nambu Hamiltonian, an empty array
-    (and nan means) for a spinless Nambu one."""
+    """Raise unless h has the electron-hole degree of freedom (a Nambu
+    Hamiltonian is always spinful). Everything below reads the pairing out
+    of a 4x4 spin x electron-hole block per site
+    (extract.extract_triplet_pairing), so on a normal Hamiltonian it
+    silently returned an array of zeros of the wrong length."""
     if not h.check_mode("spinful_nambu"):
         raise ValueError("the d-vector needs a spinful Nambu Hamiltonian "
           +"(has_spin and has_eh); this one has has_spin="+str(h.has_spin)
@@ -117,22 +116,6 @@ def dvector_times_rij_map(h,nrep=4):
     m = np.round(m,5) # round values
     np.savetxt("DxR_MAP.OUT",m) # write in the file
 
-def dvector_times_mij_map(h,nrep=4):
-    """Compute the dvector times rij"""
-    check_spinful_nambu(h) # the extraction assumes this Hilbert space
-    h = h.supercell(nrep) # create a supercell (if needed)
-    hi = h.get_hopping_dict()[(0,0,0)]
-    dms = matrix2dvector(hi) # get the dvectors
-    rs = h.geometry.r[:,0:3] # get coordinates
-    ds = np.zeros(rs.shape,dtype=np.complex128) # array with the result
-    for i in range(len(rs)):
-        for j in range(len(rs)):
-            d = np.cross(dms[:,i,j],rs[i]-rs[j])
-            ds[i,:] = ds[i,:] + d # add contribution
-    m = np.array([rs[:,0],rs[:,1],rs[:,2],ds[:,0],ds[:,1],ds[:,2]]).T.real
-    m = np.round(m,5) # round values
-    np.savetxt("DxR_MAP.OUT",m) # write in the file
-
 
 def dvector_non_unitarity_map(h,nrep=2,**kwargs):
     """Write a real-space map of the d-vector non-unitarity to
@@ -162,7 +145,14 @@ def dvector_non_unitarity(h,nk=10):
     spin-triplet superconductor, and it points along +z for a pure up-up
     pairing. The d-vector is computed at each k-point of a uniform mesh,
     q is averaged over the mesh, and the pairing partners of each site
-    are summed over.
+    are summed over. That average is the sum of i*(d x d^*) over the bonds
+    of each site, so it does not depend on nk once the mesh resolves the
+    range of the pairing.
+
+    With a spin-singlet pairing on the same bonds, Delta Delta^dag also
+    carries the singlet-triplet interference 2*Re(psi^* d).sigma, which q
+    leaves out: it can move spin between the sites of a cell, but summed
+    over the cell it vanishes, so it carries no net spin.
 
     Optional arguments
        - nk = 10, number of k-points in each direction

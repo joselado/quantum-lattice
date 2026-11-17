@@ -523,13 +523,15 @@ def solve_scf(h,window):
     J1 = get("J1")
     J2 = get("J2")
     J3 = get("J3")
-    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    scf = meanfield.VJinteraction(h,check_convergence=False,
+                  nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   J1=J1,J2=J2,J3=J3,
                   mf=mf,mix=mix,T=T,verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=True)
                   )
   else:
-    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    scf = meanfield.Vinteraction(h,check_convergence=False,
+                  nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   mf=mf,load_mf=False,T=T,
                   mix=mix,
                   verbose=1,
@@ -574,13 +576,15 @@ def solve_scf_identify_symmetry_breaking(h,window):
     J1 = get("J1")
     J2 = get("J2")
     J3 = get("J3")
-    scf = meanfield.VJinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    scf = meanfield.VJinteraction(h,check_convergence=False,
+                  nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   J1=J1,J2=J2,J3=J3,
                   mf=mf,mix=mix,maxerror=error,verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=True)
                   )
   else:
-    scf = meanfield.Vinteraction(h,nk=nk,filling=filling,U=U,V1=V1,V2=V2,
+    scf = meanfield.Vinteraction(h,check_convergence=False,
+                  nk=nk,filling=filling,U=U,V1=V1,V2=V2,
                   mf=mf,load_mf=False,
                   mix=mix,maxerror=error,verbose=1,
                   **get_scf_solver_kwargs(h,window,for_vjinteraction=False)
@@ -637,7 +641,10 @@ def get_z2(h,window):
         # default NbSe2, a kagome lattice at half filling) - say that
         # instead of numpy's array-shape error
         # (LinAlgError is itself a ValueError; any other one is not this)
-        if not isinstance(e,np.linalg.LinAlgError) and "mismatch" not in str(e): raise
+        # (newer pyqula checks this itself, up front, with "not separated by
+        # a gap"; older ones died later in the SVD/matmul with "mismatch")
+        if not isinstance(e,np.linalg.LinAlgError) and not any(
+                m in str(e) for m in ("mismatch","not separated by a gap")): raise
         raise ValueError("The Z2 invariant needs a gap at the Fermi level: "
             "the number of occupied bands has to be the same at every k-point, "
             "and here it changes, so the system is a metal at this Fermi "

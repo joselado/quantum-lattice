@@ -41,14 +41,49 @@
 # running plain linear mixing (mix=lam, the same damping factor as the
 # paper's own Pratt step, just repeated instead of applied once) until the
 # residual drops below `warmup_tol` before switching to the multisecant phase
-# converged on EVERY case tested, and did so in 2-10x fewer step_vec
-# evaluations than plain linear mixing alone at any fixed mix. This is a
-# standard practical pattern in the SCF-mixing literature (start with a few
-# safe linear-mixing steps before turning on Broyden/Pulay/DIIS acceleration)
-# -- broyden_mixing_solve below does it automatically, using the existing
-# `lam` parameter as the warm-up's mixing factor (so no new "how aggressive"
-# knob is introduced) and switching once the residual falls below
-# `warmup_tol` (default 1e-2).
+# converged on EVERY case tested. This is a standard practical pattern in
+# the SCF-mixing literature (start with a few safe linear-mixing steps
+# before turning on Broyden/Pulay/DIIS acceleration) -- broyden_mixing_solve
+# below does it automatically, using the existing `lam` parameter as the
+# warm-up's mixing factor (so no new "how aggressive" knob is introduced)
+# and switching once the residual falls below `warmup_tol` (default 1e-2).
+#
+# The warm-up is where most of the cost goes, so its mixing factor sets the
+# price. Counting density-matrix evaluations (numpy engine, maxerror=1e-6
+# or 1e-7): with lam=0.1, the default this module first shipped with, the
+# warm-up took 85-96% of every run and the solver was SLOWER than plain
+# linear mixing at mix=0.8 -- the 8-atom biased Lieb flake of
+# tests/scf/test_broydenmixing.py, 3 seeds, took 234/271/198 evaluations
+# against 92/103/89 for plain mix=0.8. With lam=0.5 the same flake took
+# 59/69/134, converging on every seed, and four periodic systems (honeycomb
+# AF U=3, honeycomb CDW V1=2, square s-wave U=-2, 3x3 honeycomb AF) went
+# from 134/102/50/168 to 32/27/14/38 (plain mix=0.8: 50/24/21/43), all to
+# the same fixed point. Loosening warmup_tol instead is NOT safe: at
+# warmup_tol=1.0 the flake failed to converge on 2 of 3 seeds, and with
+# lam=0.5 as well on all 3. So lam defaults to 0.5, warmup_tol stays at
+# 1e-2, and the claim is only that this is about as fast as well-tuned
+# plain mixing while not needing the mix to be tuned -- not that it beats
+# it. densitydensity.generic_densitydensity forwards a caller's mix= as lam.
+#
+# A SECOND DEVIATION, the restart on a jump. At T=0 on a k-mesh the map is
+# not smooth: when a level crosses the Fermi level, a whole shell of
+# k-states changes its occupation, and the residual can grow by a factor 5
+# to 30 in one step. The secant pairs taken on the two sides of such a jump
+# fit neither side, and the next steps are taken on a wrong model. Measured
+# on the s-wave state with U=-2 at filling 0.3 on the spinful square lattice
+# with a Zeeman field 0.3 that kills the pairing (Broyden, maxerror=1e-10,
+# T=1e-7): 57 evaluations at nk=16 and 53 at nk=32. Dropping the memory and
+# seeding it again with one Pratt step when the residual grows by more than
+# `restart`=4 in one multisecant step gives 41 and 36, to the same state.
+# The smooth problems never restart, and keep their counts and energies to
+# the last digit: the three seeds of the Lieb flake (57/67/132), the
+# honeycomb AF U=3 with lam=0.5 and 0.1 (30/132), the honeycomb CDW V1=2
+# (31), the 3x3 honeycomb AF (51), and the gapped s-wave and d-wave BdG
+# states of tests/scf/test_bdg_fermi_level_solvers.py. A factor 2 gave the
+# same counts, 10 gave 42 and 43. A shorter memory (m=3) instead made the
+# Zeeman case worse, 308 and 327, so it is the pairs across the jump that
+# hurt, not the length of the memory (future_development/
+# tetrahedron_density_matrix.md, "The gapless Zeeman state").
 #
 # Only needs black-box evaluations of step_vec(x) -> F(x) (no Jacobian, no
 # autodiff), so one pure-numpy implementation serves both of this package's
@@ -66,8 +101,8 @@ import numpy as np
 
 
 def broyden_mixing_solve(step_vec, x0, maxite=500, tol=1e-8, m=8,
-        alpha=1e-4, R=0.1, sigma_bar=0.15, sigma0=None, lam=0.1,
-        warmup_tol=1e-2, verbose=0):
+        alpha=1e-4, R=0.1, sigma_bar=0.15, sigma0=None, lam=0.5,
+        warmup_tol=1e-2, restart=4., verbose=0):
     """Solve x = step_vec(x) with the regularized, limited-memory multisecant
     Broyden mixing of Marks & Luke (arXiv:0801.3098), Omega dropped, preceded
     by a plain-linear-mixing warm-up phase -- see this module's docstring for
@@ -101,6 +136,13 @@ def broyden_mixing_solve(step_vec, x0, maxite=500, tol=1e-8, m=8,
     0.2*sigma_bar (a conservative first guess -- the paper's own eq. for
     sigma_0 is tailored to an LAPW-specific diagnostic (dQ/dPW/dRMT) that has
     no analog here).
+
+    restart: when the residual of one multisecant step is more than restart
+    times the one of the step before, the map has a jump between the two
+    points, and the secant pairs that straddle it fit neither side. Then the
+    memory is dropped and seeded again with one Pratt step from the current
+    point, as at the end of the warm-up. None never restarts. This is not in
+    the paper; see the module docstring for the case behind it.
     """
     x = np.asarray(x0, dtype=float)
     if sigma0 is None:
@@ -147,6 +189,12 @@ def broyden_mixing_solve(step_vec, x0, maxite=500, tol=1e-8, m=8,
                     "sigma", sigma)
         if gnorm < tol:
             return x, ite, True
+        if restart is not None and gnorm > restart*gprev_norm:
+            # a jump of the map: forget the secant pairs, seed again
+            buf_x, buf_g = [x], [g]
+            x = x + lam * g
+            sigma, gprev_norm = sigma0, gnorm
+            continue
 
         # centered on the CURRENT point (eq. 32 in the paper -- preferred
         # over centering on the previous step, eq. 20), recomputed fresh

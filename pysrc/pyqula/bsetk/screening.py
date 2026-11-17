@@ -118,7 +118,8 @@ from numba import jit,prange
 from .. import algebra
 from .. import parallel
 from .. import gpu
-from .interaction import bare_interaction,interaction_at_q,qkey
+from .interaction import (bare_interaction,interaction_at_q,qkey,
+        bloch_phases,regular_mesh)
 from .pairbasis import select_bands
 
 
@@ -199,18 +200,25 @@ class ScreenedInteraction():
 
         It is not free, though. W(q) on an nk-point mesh determines W(d)
         on exactly nk lattice vectors, so the tail beyond the mesh
-        supercell is aliased back in. Entries whose largest element is
-        below tol are dropped."""
+        supercell is aliased back in. On an even mesh the lattice vector
+        -nk/2 of the zone boundary is the same mesh vector as +nk/2, and
+        its weight is split in half between the two (see
+        _boundary_images), so that W(d) = W(-d)^dagger holds for every
+        vector and W(q) is Hermitian at every q, not only on the mesh.
+        Entries whose largest element is below tol are dropped."""
         nq = len(self.qs)
-        ds = _mesh_vectors(self.nkmesh,self.geometry.dimensionality)
+        dim = self.geometry.dimensionality
+        ds = _mesh_vectors(self.nkmesh,dim)
+        # every lattice vector at once, as one matrix product over q
+        ph = np.conj(bloch_phases(self.geometry,self.qs,ds)) # (nq,nd)
+        Wq = np.asarray(self.Wq,dtype=np.complex128)
+        ms = (ph.T@Wq.reshape(nq,-1)).reshape((len(ds),)+Wq.shape[1:])/nq
         out = dict()
-        for d in ds:
-            m = np.zeros(self.Wq[0].shape,dtype=np.complex128)
-            for iq,q in enumerate(self.qs):
-                m = m + self.Wq[iq]*np.conj(self.geometry.bloch_phase(d,q))
-            m = m/nq
-            if np.max(np.abs(m))>tol: out[d] = m
-        return out
+        for d,m in zip(ds,ms):
+            images = _boundary_images(d,self.nkmesh,dim)
+            for di in images: # split the weight of a zone-boundary vector
+                out[di] = out.get(di,0.) + m/len(images)
+        return {d:m for d,m in out.items() if np.max(np.abs(m))>tol}
     def __str__(self):
         return ("ScreenedInteraction(%s, %s channel, %d q-points, "
                 "min eig eps = %s)"%(self.screening,self.channel,
@@ -222,7 +230,8 @@ def _mesh_vectors(nkmesh,dim):
     nk_i values -nk_i//2 ... nk_i-nk_i//2-1 along each periodic direction,
     and 0 along the rest. Centering matters -- the aliased tail of the
     inverse transform is then split symmetrically around the cell instead
-    of being dumped entirely on one side."""
+    of being dumped entirely on one side. For an even nk_i the range holds
+    -nk_i/2 but not +nk_i/2; _boundary_images restores the symmetry."""
     rngs = []
     for i in range(3):
         if i<dim:
@@ -234,6 +243,23 @@ def _mesh_vectors(nkmesh,dim):
         for d1 in rngs[1]:
             for d2 in rngs[2]: out.append((d0,d1,d2))
     return out
+
+
+def _boundary_images(d,nkmesh,dim):
+    """The lattice vectors that share the weight of the mesh vector d.
+
+    Along a periodic direction with an even nk_i, the component -nk_i/2
+    and the component +nk_i/2 give the same phase at every mesh q, so the
+    inverse transform cannot tell them apart. Both are returned, and the
+    caller gives each 1/len of the weight (1/2^k for k such directions).
+    Any other d is returned alone."""
+    from itertools import product
+    choices = []
+    for i in range(3):
+        n = int(nkmesh[i]) if i<dim else 1
+        if i<dim and n%2==0 and d[i]==-(n//2): choices.append((d[i],-d[i]))
+        else: choices.append((d[i],))
+    return list(product(*choices))
 
 
 @jit(nopython=True,parallel=True,cache=True)
@@ -284,6 +310,18 @@ def mesh_sum_index(kpoints,qs):
     k-point (modulo a reciprocal lattice vector) and the whole
     polarizability needs only ONE diagonalization per mesh point rather
     than one per (k,q) pair."""
+    mesh = regular_mesh(kpoints)
+    if mesh is not None and np.allclose(np.asarray(kpoints)[0],0.):
+        # integer arithmetic on the multi-indices of the mesh, instead of
+        # nk*nq dictionary lookups (5.7 s at 1296 points)
+        n,dim = mesh
+        qn = np.asarray(qs,dtype=np.float64)*n
+        iqn = np.rint(qn)
+        if np.max(np.abs(qn-iqn))<1e-6:
+            idx = np.array(np.unravel_index(np.arange(len(kpoints)),
+                (n,)*dim)) # (dim,nk)
+            s = (idx[:,:,None] + iqn.T[:dim,None,:].astype(np.int64))%n
+            return np.ravel_multi_index(tuple(s),(n,)*dim).astype(np.int64)
     index = {qkey(k): i for i,k in enumerate(kpoints)}
     nk,nq = len(kpoints),len(qs)
     ikq = np.zeros((nk,nq),dtype=np.int64)
@@ -304,19 +342,11 @@ def mesh_eigenstates(h,nk=10):
     layout PairBasis stores them in -- so a BSE that already has them can
     hand them straight to static_polarizability instead of paying for a
     second set of diagonalizations."""
+    from . import pairbasis
     h = h.get_multicell().get_dense()
     kpoints = np.array(h.geometry.get_kmesh(nk=nk),dtype=np.float64)
-    hk = h.get_hk_gen()
-    # one batched diagonalization of the whole mesh rather than a Python
-    # loop over scalar eigh: this is htk/eigenvectors.py's shared helper,
-    # so it follows the package's thread count and its GPU switch too
-    from ..htk.eigenvectors import parallel_diagonalization
-    hks = np.array([algebra.todense(hk(k)) for k in kpoints],
-            dtype=np.complex128)
-    ek,ws = parallel_diagonalization(hks)
-    # eigenvectors come back as columns; this layout wants states as rows
-    ck = np.array(np.transpose(ws,(0,2,1)),dtype=np.complex128)
-    return kpoints,np.array(ek),ck
+    ek,ck = pairbasis.mesh_eigenstates(h.get_hk_gen(),kpoints) # one batched solve
+    return kpoints,ek,ck
 
 
 def static_polarizability(h,nk=10,exclude=None,kpoints=None,ek=None,ck=None,
@@ -354,7 +384,12 @@ def static_polarizability(h,nk=10,exclude=None,kpoints=None,ek=None,ck=None,
             "is particle-hole symmetric about zero, so nothing downstream "
             "would notice. A superconducting screened interaction needs "
             "the Nambu-resolved response, not this one")
-    if kpoints is None or ek is None or ck is None:
+    given = [x is not None for x in (kpoints,ek,ck)]
+    if any(given) and not all(given): raise ValueError("kpoints, ek and ck "
+            "reuse eigenstates that are already computed and are given "
+            "together or not at all, got only %s"%(", ".join(n for n,x in
+                zip(("kpoints","ek","ck"),given) if x),))
+    if not any(given):
         kpoints,ek,ck = mesh_eigenstates(h,nk=nk)
     select_bands(ek) # validate: this raises if there is no gap at zero
     occ = np.array(ek<0.,dtype=np.float64) # Fermi energy is zero

@@ -3,6 +3,9 @@ from scipy.sparse import coo_matrix
 from copy import deepcopy
 from numba import jit
 
+# _row_sum_excluding is compiled into swap_delta_energy_ising, whose numba
+# cache is keyed on this file only: after editing it in latticegas.py,
+# clear the cache (the __pycache__ *.nbi/*.nbc files) or the old one runs
 from .latticegas import (_build_adjacency, _row_sum_excluding,
         _normalize_checkpoint_steps, add_tensor as _add_tensor_gas,
         regroup as _regroup_pairs)
@@ -25,7 +28,6 @@ from .latticegas import (_build_adjacency, _row_sum_excluding,
 
 class LatticeIsing():
     def __init__(self,g,m=0.0): # geometry, initial magnetization
-        g.nrep = 1
         self.geometry = g # store geometry
         self.nsites = len(g.r) # number of sites
         self.b = np.zeros(len(g.r)) # external field
@@ -41,9 +43,16 @@ class LatticeIsing():
         magnetization approximately equal to m (in [-1,1])"""
         N_up = int(np.round(self.nsites*(1.+m)/2.))
         self.s = random_spins(self.nsites,N_up)
-    def add_interaction(self,Jij=None,**kwargs):
-        h = self.geometry.get_hamiltonian(has_spin=False,tij=Jij)
-        m = coo_matrix(h.get_hk_gen()([0.,0.,0.])) # get onsite matrix
+    def add_interaction(self,Jij=None,rcut=None):
+        """Add the coupling Jij between pairs of sites, a list of couplings
+        to the first, second, ... neighbors, which reaches its last shell,
+        or a function Jij(r1,r2) or a HoppingGenerator taken on every pair
+        up to the distance rcut and on none beyond (None: every pair of a
+        finite system, 5.0 for a periodic one), a site with its own
+        periodic images included but not a site with itself. An rcut given
+        with a list raises"""
+        from .specialhopping import folded_interaction
+        m = folded_interaction(self.geometry,Jij,rcut=rcut) # k=0 couplings
         pairs = np.array([m.row,m.col]).transpose() # convert to array
         self.pairs = np.concatenate([self.pairs,pairs]) # add interaction
         self.j = np.concatenate([self.j,m.data]).real # store
@@ -205,7 +214,7 @@ def ising_energy_numba(b,pairs,js,s):
     return ising_energy_numba_jit(b,pairs,js,s)
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def ising_energy_numba_jit(b,pairs,js,s):
     """Compute the energy of the Ising model, E = -sum_i b_i*s_i -
     sum_pairs J_ij*s_i*s_j (pairs lists both directions of every bond,
@@ -221,27 +230,30 @@ def ising_energy_numba_jit(b,pairs,js,s):
     return etot
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def flip_delta_energy_ising(b,ptr,idx,jarr,s,i):
     """Energy change from flipping s[i] -> -s[i] in place, the
     grand-canonical-like move complementing swap_delta_energy_ising
     (magnetization is not conserved). Equal to
     2*s[i]*get_local_field()[i] -- see that function's docstring for
-    the derivation"""
+    the derivation. A pair (i,i) of the site with its own periodic
+    images is -J_ii*s[i]**2 = -J_ii, which no flip changes, so it is
+    left out of the row sum"""
     row = 0.
     for k in range(ptr[i],ptr[i+1]):
-        row += jarr[k]*s[idx[k]]
+        if idx[k]!=i: row += jarr[k]*s[idx[k]]
     return 2.*b[i]*s[i] + 4.*s[i]*row
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def swap_delta_energy_ising(b,ptr,idx,jarr,s,i1,i2):
     """Energy change from swapping s[i1] and s[i2] (equivalently,
     flipping both simultaneously, since Ising spins only take 2
     values). The direct i1-i2 bond's contribution depends only on
     s[i1]*s[i2], which a simultaneous double-flip leaves invariant, so
     (as in latticegas.swap_delta_energy) it is excluded from both row
-    sums below"""
+    sums below, and so is a pair (i,i) of a site with its own images,
+    -J_ii*s[i]**2, which does not change either"""
     a = s[i1] ; b_ = s[i2]
     if a==b_: return 0. # nothing changes
     row1 = _row_sum_excluding(ptr,idx,jarr,s,i1,i2)
@@ -356,7 +368,7 @@ def random_spins(Ntot,N_up):
 
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def _local_energy_numba(b,ptr,idx,jarr,s):
     """Local energy at every site, en[i] = -b[i]*s[i] -
     s[i]*sum_k J_ik*s[k], via the CSR adjacency (O(degree) per site,
@@ -373,7 +385,7 @@ def _local_energy_numba(b,ptr,idx,jarr,s):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def _row_sums_numba(ptr,jarr):
     """sum_k J_ik over each site's neighbors, the normalize=True
     divisor for get_local_energy"""
@@ -401,14 +413,14 @@ def get_local_energy(LI,normalize=False):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def _local_field_numba(b,ptr,idx,jarr,s):
     n = len(b)
     out = np.zeros(n)
     for i in range(n):
         row = 0.
         for k in range(ptr[i],ptr[i+1]):
-            row += jarr[k]*s[idx[k]]
+            if idx[k]!=i: row += jarr[k]*s[idx[k]] # not the own images
         out[i] = b[i] + 2.*row
     return out
 
@@ -419,6 +431,8 @@ def get_local_field(LI):
     exactly 2*s_i*h_eff_i (the factor of 2 in front of the sum, unlike
     the factor of 1 you might naively expect, comes from pairs listing
     both (i,k) and (k,i) -- same double-counting convention as
-    get_energy())"""
+    get_energy()). The sum is over k != i: the coupling of a site with
+    its own periodic images is -J_ii*s_i**2, a constant, and gives no
+    field"""
     ptr,idx,jarr = LI._get_adjacency()
     return _local_field_numba(LI.b,ptr,idx,jarr,LI.s)

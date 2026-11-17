@@ -18,6 +18,107 @@ _sy = np.asarray(sy.todense())
 _sz = np.asarray(sz.todense())
 
 
+def second_neighbor_cells(h,rcut=2.1):
+    """Return the cells holding a site closer than rcut to a site of the
+    unit cell: the cells a second neighbor of a site of the unit cell can
+    sit in (the first-neighbor distance is 1, and the generators below
+    accept a second-neighbor pair below a distance sqrt(4.1)). The origin
+    comes first. These are not the cells the Hamiltonian already has a
+    hopping to: a first-neighbor Hamiltonian of the diamond lattice has
+    hoppings to six cells, and the second neighbors sit in twelve.
+
+    The candidates are every cell within rcut (cells_within), with a range
+    per direction. A fixed box of cells (two cells, or 10/|a1| of them)
+    used to miss them on a sheared cell, a2' = a2 + n a1, where the second
+    neighbor a2 of the honeycomb lattice sits in the cell (-n,1)."""
+    from .multicell import close_enough # check if two rs are close
+    from .specialhopping import cells_within
+    g = h.geometry
+    if h.dimensionality==0: return [(0,0,0)]
+    cells = [(0,0,0)] # the origin always holds second neighbors
+    for (i,j,k) in cells_within(g,rcut):
+        if (i,j,k)==(0,0,0): continue # already there
+        r2 = [ri + i*g.a1 + j*g.a2 + k*g.a3 for ri in g.r]
+        if close_enough(g.r,r2,rcut=rcut): cells.append((i,j,k))
+    return cells
+
+
+def second_neighbor_paths(h,cells):
+    """The positions of the sites of the cells, the candidates for the
+    intermediate site of a second-neighbor path, cell by cell in the
+    order of the old loops over the cells"""
+    g = h.geometry
+    if h.dimensionality==0: return g.r
+    rs = [] # all the cells
+    for d in sorted(cells):
+        rs += [ri + d[0]*g.a1 + d[1]*g.a2 + d[2]*g.a3 for ri in g.r]
+    return rs
+
+
+def _is_zero(m):
+    """Whether a coupling matrix has no nonzero entry"""
+    if isnumber(m): return m==0
+    if hasattr(m,"count_nonzero"): return m.count_nonzero()==0
+    return not np.any(m)
+
+
+def add_to_cell(h,d,m):
+    """Add the matrix m to the hopping of a multicell Hamiltonian towards
+    the cell d, creating that hopping when the Hamiltonian has none there
+    yet (and nothing when m is zero)"""
+    d = tuple(int(round(x)) for x in d)
+    if d==(0,0,0): # intracell
+        h.intra = h.intra + m
+        return
+    for hop in h.hopping: # an existing hopping towards that cell
+        if tuple(int(round(x)) for x in hop.dir)==d:
+            hop.m += m
+            return
+    if _is_zero(m): return # no bond towards that cell
+    from .multicell import Hopping
+    hop = Hopping(d=np.array(d),m=h.intra*0.0) # zero matrix, same type
+    hop.m += m
+    h.hopping.append(hop)
+
+
+# the cells the single-cell storage of 1d and 2d holds besides the cell 0:
+# one of each pair d, -d, the other being its adjoint
+_single_cell = {1: {(1,0,0):"inter"},
+                2: {(1,0,0):"tx",(0,1,0):"ty",(1,1,0):"txy",(1,-1,0):"txmy"}}
+
+
+def check_storage(h,what):
+    """A Hamiltonian that is not multicell is finite, 1d or 2d"""
+    if not h.is_multicell and h.dimensionality>2:
+        raise NotImplementedError(what+" is only implemented up to 2d for "
+                "non-multicell Hamiltonians; call h.turn_multicell() first")
+
+
+def add_to_hamiltonian(h,ms):
+    """Add the couplings ms, a dictionary cell d -> matrix with both cells
+    of each pair d, -d, to the Hamiltonian h.
+
+    A multicell Hamiltonian takes every cell. The single-cell storage of
+    1d and 2d holds the cell 0 and the cells with every |n_k| <= 1, one of
+    each pair d, -d (inter, tx, ty, txy, txmy) with the other as its
+    adjoint. A second neighbor can sit farther: on the cell a2' = a2 + 2 a1
+    of the honeycomb lattice the second neighbor a2 is in the cell (-2,1),
+    and that storage lost it. So h is turned multicell when a nonzero
+    coupling sits in a cell the storage cannot hold"""
+    if not h.is_multicell and h.dimensionality>0:
+        def fits(d): return all(abs(x)<=1 for x in d)
+        if any(not fits(d) and not _is_zero(m) for (d,m) in ms.items()):
+            h.turn_multicell() # a bond the single-cell storage cannot hold
+    if h.is_multicell or h.dimensionality==0:
+        for (d,m) in ms.items(): add_to_cell(h,d,m)
+        return
+    held = _single_cell[h.dimensionality] # attribute of each cell
+    for (d,m) in ms.items():
+        if d==(0,0,0): h.intra = h.intra + m
+        elif d in held: setattr(h,held[d],getattr(h,held[d]) + m)
+        # the cell -d is the adjoint of a cell of held, stored with it
+
+
 def generalized_kane_mele(r1,r2,rm,fun=0.0,tol=1e-5):
     """Return the Kane-Mele generalized Hamiltonian.
 
@@ -80,17 +181,28 @@ def km_vector(ri,rj,rm,tol=1e-5):
   return km_vector_jit(np.array(ri).real,np.array(rj).real,v,np.array(rm).real,tol=tol)
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def km_vector_jit(ri,rj,v,rm,tol=1e-5):
+    """The Kane-Mele vector of the bond ri -> rj: the orientation
+    (rm-ri) x (rj-rm) of the path through a site rm at the first-neighbor
+    distance 1 of both, averaged over every such site of rm. The honeycomb
+    and the kagome lattices have one path per second neighbor. The
+    triangular lattice has two with opposite orientations, which cancel:
+    taking the first one found, as this did, gave a sign that followed the
+    order of the candidates, and so could change with the cell"""
+    v = np.zeros(3)
+    n = 0 # number of paths
     for k in range(rm.shape[0]): # look for an intermediate site
       dr1 = rm[k]-ri # difference
       dr2 = rj-rm[k] # difference
       dr1m = np.sum(dr1*dr1)
       dr2m = np.sum(dr2*dr2)
       if abs(dr1m-1.)<tol and abs(dr2m-1.)<tol: # if connected
-         v = np.cross(dr1,dr2) # Kane Mele vector
-         return v
-    v = np.array([0.,0.,0.])
+         v = v + np.cross(dr1,dr2) # Kane Mele vector of this path
+         n += 1
+    if n>0: v = v/n # average over the paths
+    for c in range(3): # paths that cancel leave only the rounding
+      if abs(v[c])<1e-10: v[c] = 0.0
     return v
 
 
@@ -143,30 +255,6 @@ def haldane(r1,r2,rm,fun=0.0,sublattice=None):
 
 
 
-def get_haldane_function(g,stagger=False):
-    """Return a function that computes the Haldane coupling"""
-    rm = g.multireplicas(3)
-    def f(r1,r2):
-      m = haldane([r1],[r2],rm,fun=1.0).todense()[0,0]
-      if not stagger: return m # conventional Haldane
-      i = g.get_index(r1,replicas=True)
-      j = g.get_index(r2,replicas=True)
-      i = g.sublattice[i]
-      j = g.sublattice[j]
-      m = m*(i+j)/2
-      return m
-    return f # return function
-
-
-
-
-
-
-
-
-
-
-
 def add_haldane(h,t):
   """Add Haldane to a Hamiltonian"""
 #  if h.has_spin: raise # not for spinful
@@ -192,101 +280,21 @@ def add_anti_kane_mele(h,t):
 def add_kane_mele(self,t,**kwargs):
   """Add to a Hamiltonian a Haldane-like hopping"""
   if not self.has_spin: self.turn_spinful() # spilful Hamiltonian
-  from .multicell import close_enough # check if two rs are close
   g = self.geometry
   require_spin(self,"the Kane-Mele coupling")
-  if self.is_multicell:   # multicell Hamiltonian
-    ncells = 2 # number of neighboring cells to check
-    if self.dimensionality==0: rs = g.r # fix for zero dimensional
-    elif self.dimensionality==1:  # three dimensional
-      rs = [] # all the cells
-      for i in range(-ncells,ncells+1): # loop over neighbouring cells
-        rtmp = [ri + i*g.a1 for ri in g.r] # new positions
-        if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
-          rs += rtmp
-    elif self.dimensionality==2:  # three dimensional
-      rs = [] # all the cells
-      for i in range(-ncells,ncells+1): # loop over neighbouring cells
-        for j in range(-ncells,ncells+1):
-          rtmp = [ri + i*g.a1 +j*g.a2 for ri in g.r] # new positions
-          if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
-            rs += rtmp
-    elif self.dimensionality==3:  # three dimensional
-      rs = [] # all the cells
-      for i in range(-ncells,ncells+1): # loop over neighbouring cells
-        for j in range(-ncells,ncells+1):
-          for k in range(-ncells,ncells+1):
-            rtmp = [ri + i*g.a1 +j*g.a2 + k*g.a3 for ri in g.r] # new positions
-            if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
-              rs += rtmp
-    else:
-      raise NotImplementedError("the Kane-Mele coupling is only implemented "
-              "up to 3d for multicell Hamiltonians")
-
-    m = generalized_kane_mele(g.r,g.r,rs,fun=t,**kwargs) # kane mele coupling
-    m = self.spinful2full(m) # convert the matrix
-    self.intra = self.intra + m # add matrix
-    for i in range(len(self.hopping)): # loop over hoppings
-      d = self.hopping[i].dir
-#      print("Generating Haldane-like",d,end="\r")
-      r2 = [ri + d[0]*g.a1 + d[1]*g.a2 +d[2]*g.a3 for ri in g.r] # second vectors
-      m = generalized_kane_mele(g.r,r2,rs,fun=t) # kane mele coupling
-      m = self.spinful2full(m) # convert the matrix
-      self.hopping[i].m += m
-    return
-
-  else:  # conventional Hamiltonian
-    if self.dimensionality==0:  # zero dimensional
-      rs = g.r # positions
-    elif self.dimensionality==1:  # one dimensional
-      rs = [] # all the cells
-      for i in (-1,0,1):
-        for ri in g.r:
-          rs.append(ri + i*g.a1)
-    elif self.dimensionality==2:  # two dimensional
-      rs = [] # all the cells
-      for i in (-1,0,1): # loop over neighbouring cells
-        for j in (-1,0,1):
-          for ri in g.r:
-            rs.append(ri + i*g.a1 + j*g.a2)
-    else:
-      raise NotImplementedError("the Kane-Mele coupling is only implemented "
-              "up to 2d for non-multicell Hamiltonians; call "
-              "h.turn_multicell() first")
-    # now create the hamiltonian
-    m = generalized_kane_mele(g.r,g.r,rs,fun=t,**kwargs) # kane mele coupling
-    m = self.spinful2full(m) # convert the matrix
-    self.intra = self.intra + m
-    if self.dimensionality==0: pass  # zero dimensional
-    elif self.dimensionality==1:  # zero dimensional
-      r2 = [ri + g.a1 for ri in g.r] # new positions
-      m = generalized_kane_mele(g.r,r2,rs,fun=t,**kwargs)
-      m = self.spinful2full(m) # convert the matrix
-      self.inter = self.inter + m 
-    elif self.dimensionality==2:  # two dimensional
-      r2 = [ri + 1*g.a1 + 0*g.a2 for ri in g.r] # second vectors
-      m = generalized_kane_mele(g.r,r2,rs,fun=t,**kwargs)
-      m = self.spinful2full(m) # convert the matrix
-      self.tx = self.tx + m 
-      ###############
-      r2 = [ri + 0*g.a1 + 1*g.a2 for ri in g.r] # second vectors
-      m = generalized_kane_mele(g.r,r2,rs,fun=t,**kwargs)
-      m = self.spinful2full(m) # convert the matrix
-      self.ty = self.ty + m 
-      #################
-      r2 = [ri + 1*g.a1 + 1*g.a2 for ri in g.r] # second vectors
-      m = generalized_kane_mele(g.r,r2,rs,fun=t)
-      m = self.spinful2full(m) # convert the matrix
-      self.txy = self.txy + m 
-      #################
-      r2 = [ri + 1*g.a1  -1*g.a2 for ri in g.r] # second vectors
-      m = generalized_kane_mele(g.r,r2,rs,fun=t)
-      m = self.spinful2full(m) # convert the matrix
-      self.txmy = self.txmy + m
-    else:
-      raise NotImplementedError("the Kane-Mele coupling is only implemented "
-              "up to 2d for non-multicell Hamiltonians; call "
-              "h.turn_multicell() first")
+  check_storage(self,"the Kane-Mele coupling")
+  # every cell a second neighbor can sit in, not only the cells the
+  # Hamiltonian already has a hopping to: a first-neighbor diamond
+  # Hamiltonian has none towards six of the twelve second neighbors
+  cells = second_neighbor_cells(self) # cells within 2.1 of the cell
+  rs = second_neighbor_paths(self,cells) # intermediate sites
+  ms = dict() # cell -> coupling towards that cell
+  for d in cells: # loop over cells
+    if d==(0,0,0): r2 = g.r # intracell
+    else: r2 = [ri + d[0]*g.a1 + d[1]*g.a2 +d[2]*g.a3 for ri in g.r] # second vectors
+    m = generalized_kane_mele(g.r,r2,rs,fun=t,**kwargs) # kane mele coupling
+    ms[d] = self.spinful2full(m) # convert the matrix
+  add_to_hamiltonian(self,ms) # store, in whichever storage h has
 
 
 
@@ -307,169 +315,15 @@ def add_haldane_like(self,t,spinless_generator,
      return self.spinless2full(m,time_reversal=time_reversal) # return matrix
 #     if self.has_spin: return spinful_sparse(m) # spinful
 #     else: return m # spinless
-  from .multicell import close_enough # check if two rs are close
-  if self.is_multicell:   # multicell Hamiltonians
-    if self.dimensionality==0:  rs = g.r
-    else: # higher dimensional
-      ncells = self.geometry.get_ncells() # number of unit cells
-      if self.dimensionality==1:  # three dimensional
-        rs = [] # all the cells
-        for i in range(-ncells,ncells+1): # loop over neighbouring cells
-          rtmp = self.geometry.replicas(d=[i,0,0]) 
-          if close_enough(g.r,rtmp,rcut=2.1): # if these positions are not too far
-            rtmp = [ri for ri in rtmp]
-            rs += rtmp
-      elif self.dimensionality==2:  # three dimensional
-        rs = [] # all the cells
-        for i in range(-ncells,ncells+1): # loop over neighbouring cells
-          for j in range(-ncells,ncells+1):
-            rtmp = self.geometry.replicas(d=[i,j,0]) 
-            if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
-              rtmp = [ri for ri in rtmp]
-              rs += rtmp
-      elif self.dimensionality==3:  # three dimensional
-        rs = [] # all the cells
-        for i in range(-ncells,ncells+1): # loop over neighbouring cells
-          for j in range(-ncells,ncells+1):
-            for k in range(-ncells,ncells+1):
-              rtmp = self.geometry.replicas(d=[i,j,k]) 
-              if close_enough(g.r,rtmp,rcut=2.1): # if not too far
-                rtmp = [ri for ri in rtmp]
-                rs += rtmp
-      else:
-        raise NotImplementedError("the Haldane-like coupling is only "
-                "implemented up to 3d for multicell Hamiltonians")
+  check_storage(self,"the Haldane-like coupling")
+  # every cell a second neighbor can sit in, not only the cells the
+  # Hamiltonian already has a hopping to (see add_kane_mele)
+  dirs = second_neighbor_cells(self) # directions
+  rs = second_neighbor_paths(self,dirs) # intermediate sites
+  def pfun(d): # function to parallelize
+    if d==(0,0,0): r2 = g.r # intracell, also in a finite system
+    else: r2 = self.geometry.replicas(d=d)
+    return generator(g.r,r2,rs,fun=t,sublattice=sublattice)
+  ms = parallel.pcall(pfun,dirs) # get matrices
+  add_to_hamiltonian(self,dict(zip(dirs,ms))) # store
 
-#    self.intra += generator(g.r,g.r,rs,fun=t,sublattice=sublattice) # coupling
-    dirs = [[0,0,0]] + [t.dir for t in self.hopping] # directions
-    def pfun(d): # function to parallelize
-#    for i in range(len(self.hopping)): # loop over hoppings
-#      print("Generating Haldane-like",d)
-      r2 = self.geometry.replicas(d=d)
-      return generator(g.r,r2,rs,fun=t,sublattice=sublattice) 
-    ms = parallel.pcall(pfun,dirs) # get matrices
-    self.intra = self.intra + ms[0] # intracell matrix
-    for i in range(len(self.hopping)):
-        self.hopping[i].m += ms[i+1] # store
-    return
-
-  else:  # conventional Hamiltonian
-    if self.dimensionality==0:  # zero dimensional
-      rs = g.r # positions
-    elif self.dimensionality==1:  # one dimensional
-      rs = [] # all the cells
-      for i in (-1,0,1):
-        for ri in g.r:
-          rs.append(ri + i*g.a1)
-    elif self.dimensionality==2:  # two dimensional
-      rs = [] # all the cells
-      for i in (-1,0,1): # loop over neighbouring cells
-        for j in (-1,0,1):
-          for ri in g.r:
-            rs.append(ri + i*g.a1 + j*g.a2)
-    else:
-      raise NotImplementedError("the Haldane-like coupling is only "
-              "implemented up to 2d for non-multicell Hamiltonians; call "
-              "h.turn_multicell() first")
-    # now create the hamiltonian
-    self.intra = self.intra + generator(g.r,g.r,rs,fun=t,sublattice=sublattice) # kane mele coupling
-    if self.dimensionality==0: pass  # zero dimensional
-    elif self.dimensionality==1:  # zero dimensional
-      r2 = [ri + g.a1 for ri in g.r] # new positions
-      self.inter += generator(g.r,r2,rs,fun=t,sublattice=sublattice) # kane mele coupling
-    elif self.dimensionality==2:  # two dimensional
-      r2 = [ri + 1*g.a1 + 0*g.a2 for ri in g.r] # second vectors
-      self.tx = self.tx + generator(g.r,r2,rs,fun=t,sublattice=sublattice)
-      r2 = [ri + 0*g.a1 + 1*g.a2 for ri in g.r] # second vectors
-      self.ty = self.ty + generator(g.r,r2,rs,fun=t,sublattice=sublattice)
-      r2 = [ri + 1*g.a1 + 1*g.a2 for ri in g.r] # second vectors
-      self.txy = self.txy + generator(g.r,r2,rs,fun=t,sublattice=sublattice)
-      r2 = [ri + 1*g.a1  -1*g.a2 for ri in g.r] # second vectors
-      self.txmy = self.txmy + generator(g.r,r2,rs,fun=t,sublattice=sublattice)
-    else:
-      raise NotImplementedError("the Haldane-like coupling is only "
-              "implemented up to 2d for non-multicell Hamiltonians; call "
-              "h.turn_multicell() first")
-
-
-
-
-def add_kane_mele_old(self,t):
-  """Add to a Hamiltonian a Haldane-like hopping"""
-#  print("This does not work with eh, kanemele")
-  if not self.has_spin: self.turn_spinful() # spilful Hamiltonian
-  from .multicell import close_enough # check if two rs are close
-  g = self.geometry
-  require_spin(self,"the Kane-Mele coupling")
-  if self.is_multicell:   # multicell Hamiltonians
-    ncells = 4 # number of neighboring cells to check
-    if self.dimensionality==1:  # three dimensional
-      rs = [] # all the cells
-      for i in range(-ncells,ncells+1): # loop over neighbouring cells
-        rtmp = [ri + i*g.a1 for ri in g.r] # new positions
-        if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
-          rs += rtmp
-    elif self.dimensionality==2:  # three dimensional
-      rs = [] # all the cells
-      for i in range(-ncells,ncells+1): # loop over neighbouring cells
-        for j in range(-ncells,ncells+1):
-          rtmp = [ri + i*g.a1 +j*g.a2 for ri in g.r] # new positions
-          if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
-            rs += rtmp
-    elif self.dimensionality==3:  # three dimensional
-      rs = [] # all the cells
-      for i in range(-ncells,ncells+1): # loop over neighbouring cells
-        for j in range(-ncells,ncells+1):
-          for k in range(-ncells,ncells+1):
-            rtmp = [ri + i*g.a1 +j*g.a2 + k*g.a3 for ri in g.r] # new positions
-            if close_enough(g.r,rtmp,rcut=2.1): # if this positions are not too far
-              rs += rtmp
-    else:
-      raise NotImplementedError("the Kane-Mele coupling is only implemented "
-              "up to 3d for multicell Hamiltonians")
-
-    self.intra += generalized_kane_mele(g.r,g.r,rs,fun=t) # kane mele coupling
-    for i in range(len(self.hopping)): # loop over hoppings
-      d = self.hopping[i].dir
-#      print("Adding Kane Mele in hopping",d,end="\r")
-      r2 = [ri + d[0]*g.a1 + d[1]*g.a2 +d[2]*g.a3 for ri in g.r] # second vectors
-      self.hopping[i].m += generalized_kane_mele(g.r,r2,rs,fun=t) # kane mele coupling
-    return
-
-  else:  # conventional Hamiltonian
-    if self.dimensionality==0:  # zero dimensional
-      rs = g.r # positions
-    elif self.dimensionality==1:  # one dimensional
-      rs = [] # all the cells
-      for i in (-1,0,1):
-        for ri in g.r:
-          rs.append(ri + i*g.a1)
-    elif self.dimensionality==2:  # two dimensional
-      rs = [] # all the cells
-      for i in (-1,0,1): # loop over neighbouring cells
-        for j in (-1,0,1):
-          for ri in g.r:
-            rs.append(ri + i*g.a1 + j*g.a2)
-    else:
-      raise NotImplementedError("the Kane-Mele coupling is only implemented "
-              "up to 2d for non-multicell Hamiltonians; call "
-              "h.turn_multicell() first")
-    # now create the hamiltonian
-    self.intra = self.intra + generalized_kane_mele(g.r,g.r,rs,fun=t) # kane mele coupling
-    if self.dimensionality==0: pass  # zero dimensional
-    elif self.dimensionality==1:  # zero dimensional
-      r2 = [ri + g.a1 for ri in g.r] # new positions
-      self.inter += generalized_kane_mele(g.r,r2,rs,fun=t) # kane mele coupling
-    elif self.dimensionality==2:  # two dimensional
-      r2 = [ri + 1*g.a1 + 0*g.a2 for ri in g.r] # second vectors
-      self.tx = self.tx + generalized_kane_mele(g.r,r2,rs,fun=t)
-      r2 = [ri + 0*g.a1 + 1*g.a2 for ri in g.r] # second vectors
-      self.ty = self.ty + generalized_kane_mele(g.r,r2,rs,fun=t)
-      r2 = [ri + 1*g.a1 + 1*g.a2 for ri in g.r] # second vectors
-      self.txy = self.txy + generalized_kane_mele(g.r,r2,rs,fun=t)
-      r2 = [ri + 1*g.a1  -1*g.a2 for ri in g.r] # second vectors
-      self.txmy = self.txmy + generalized_kane_mele(g.r,r2,rs,fun=t)
-    else:
-      raise NotImplementedError("the Kane-Mele coupling is only implemented "
-              "up to 2d for non-multicell Hamiltonians; call "
-              "h.turn_multicell() first")

@@ -10,14 +10,35 @@ g-wave and i-wave altermagnets, and perfectly nonreciprocal spin-current in
 f-wave magnets", arXiv:2411.16036 (Phys. Rev. B 111, 125420 (2025)), Eq.
 (Drude). For a Hamiltonian in which spin is a good quantum number, so that
 each spin channel s = +-1 is an independent single-band problem, solving the
-semiclassical Boltzmann equation recursively in the electric field gives,
-for the current expanded as j_b = sum sigma^{x^l1 y^l2 ; b} E_x^l1 E_y^l2,
+semiclassical Boltzmann equation recursively in the electric field gives
 
-  sigma_s^{x^l1 y^l2 ; b} =  (-e/hbar)^(l1+l2+1) / (i w + 1/tau)^(l1+l2)
-                             * Int d^D k f_s^(0) d^(l1+l2+1) eps_s
-                                         / (dk_x^l1 dk_y^l2 dk_b)
+  sigma_s^{x^l1 y^l2 ; b} =  (-e/hbar)^(l+1) prod_{p=1..l} 1/(1/tau - i p w)
+                             * Int d^D k f_s^(0) d^(l+1) eps_s
+                                         / (dk_x^l1 dk_y^l2 dk_b),
 
-and the spin and charge responses are
+with l = l1+l2. Here w is the frequency of the applied field E(t) =
+Re[E e^{-i w t}], in the exp(-i w t) convention of kubo.py and
+nonlinearkernel.py, and sigma is the response at the harmonic l w: the
+p-th step of the recursion, (1/tau - i p w) f_p = (e/hbar) E d_k f_{p-1},
+acts on the part of the distribution that oscillates at p w. At w = 0 the
+prefactor is tau^l, which is Ezawa's static result. At l = 1 it is the
+intraband part of kubo.optical_conductivity. Ezawa writes
+1/(i w + 1/tau)^l instead, which at l = 1 is the complex conjugate (the
+exp(+i w t) convention) and at l >= 2 is not the harmonic l w of the
+relaxation-time Boltzmann equation in either convention. Only the static
+limit, which is what the X-wave counting uses, is common to both.
+
+This is the symmetric tensor component sigma_{b a1...al} with l1 of the
+field indices a_j equal to x and l2 = l - l1 equal to y, which is what
+_sigma returns. The current is then
+
+  j_b = sum_{l1} binom(l,l1) sigma^{x^l1 y^l2 ; b} E_x^l1 E_y^l2,
+
+since binom(l,l1) orderings of the field indices give the same component;
+an expansion without the binomial undercounts every mixed term (at l = 2,
+sigma^{xy;b} enters j_b with a factor 2). In 3D a third count l3 of field
+indices equal to z joins them, with the multinomial l!/(l1! l2! l3!) in
+place of the binomial. The spin and charge responses are
 
   sigma_spin   = (sigma_up - sigma_dn)/2,
   sigma_charge =  sigma_up + sigma_dn.
@@ -28,6 +49,38 @@ its (l+1)-th derivative is the first one that is a nonzero constant and
 every lower one integrates to zero over the zone: d-wave responds at first
 order, f-wave at second, g-wave at third and i-wave at fifth. Reading off
 the lowest nonvanishing order therefore measures the wave index.
+
+That counting would put a p-wave magnet (form factor kx) at l = 0, and it
+is wrong there for two separate reasons.
+
+  * l = 0 vanishes for every band of every Hamiltonian. With F' = f,
+    f(eps) d eps/dk_b = d F(eps)/dk_b is a total derivative of a periodic
+    function, and its zone integral is zero: there is no current in
+    equilibrium. For the p-wave continuum model the constant first
+    derivative s J of the form factor is cancelled by the kinetic velocity
+    averaged over a Fermi sea that the same term has shifted to
+    kx = -m s J/hbar^2, which the counting leaves out (Ezawa's Eqs. (49)
+    and (50)).
+  * A p-wave magnet has no spin current at any order. On the square
+    lattice 2t cos kx + s J sin kx = sqrt(4t^2+J^2) cos(kx - s phi), so the
+    two spin bands are one band shifted rigidly along kx by +-phi. A zone
+    integral does not see a rigid shift, so sigma_up = sigma_dn at every
+    order and sigma_spin = 0 (Ezawa, Sec. V: "there is no spin-current
+    generation in p-wave magnets").
+
+Both zeros are exact for the zone integral but not, in general, for the sum
+over a uniform k-mesh: the mesh average of a k-derivative of a periodic
+function is not zero but the sum of its Fourier components at nonzero
+multiples of nk (aliasing), and the p-wave shift is not a translation of
+the mesh. The error falls exponentially with
+nk at finite T (the integrand is analytic in a strip of width ~T/v_F): for
+the p-wave model at J = 0.3, T = 0.02 and half a hopping above the band
+bottom, the even orders are 3.2e-4, 1.7e-5, 6.3e-8 and 1.1e-11 at nk = 48,
+96, 192 and 384. The p-wave odd orders vanish exactly on any Gamma-centered
+mesh, since inversion maps eps_up(k) onto eps_dn(-k). This is different from the zeros below the threshold of the
+d-, f-, g- and i-wave models, which are forced by a point-group symmetry
+that the mesh respects and so are machine zeros at any nk. A small entry
+that shrinks as the mesh is refined is a zero, not a threshold.
 
 Units and normalization
 -----------------------
@@ -74,6 +127,7 @@ import numpy as np
 from .. import algebra
 from .. import klist
 from .kubo import _fermi
+from .kubo import _cell_factors
 from ..check import require_spin
 
 
@@ -85,7 +139,8 @@ def _axis(c):
     raise ValueError("Unknown Cartesian component "+str(c))
 
 
-def _check_spin_conserving(h,tol=1e-8):
+def _check_spin_conserving(h,tol=1e-8,what="the nonlinear Drude formula "
+        "of arXiv:2411.16036"):
     """Check that every hopping matrix is block diagonal in spin.
 
     Without this, remove_spin() would silently discard the spin off-diagonal
@@ -100,18 +155,17 @@ def _check_spin_conserving(h,tol=1e-8):
         off = np.abs(m[0::2,1::2]).max()+np.abs(m[1::2,0::2]).max()
         if off>tol: raise ValueError(
             "spin is not a good quantum number in this Hamiltonian (spin "
-            "off-diagonal terms of size "+str(off)+"); the nonlinear Drude "
-            "formula of arXiv:2411.16036 assumes a spin-diagonal Hamiltonian")
+            "off-diagonal terms of size "+str(off)+"); "+what+" assumes a "
+            "spin-diagonal Hamiltonian")
 
 
-def _spin_channels(h):
+def _spin_channels(h,what="the nonlinear Drude conductivity"):
     """Return [(s, hs)] with s = +-1 and hs the spinless Hamiltonian of that
-    spin channel"""
-    require_spin(h,"the nonlinear Drude conductivity, whose two spin "
-        "channels have to be resolved,")
-    if h.has_eh: raise NotImplementedError(
-        "not implemented for Nambu (superconducting) Hamiltonians")
-    _check_spin_conserving(h)
+    spin channel; what names the routine in the error messages"""
+    require_spin(h,what+", whose two spin channels have to be resolved,")
+    if h.has_eh: raise NotImplementedError(what+" is not implemented for "
+        "Nambu (superconducting) Hamiltonians")
+    _check_spin_conserving(h,what=what)
     out = []
     for (s,channel) in [(1,"up"),(-1,"dn")]:
         hs = h.copy()
@@ -124,7 +178,7 @@ def _bloch_series(hm):
     """Decompose a multicell Hamiltonian into (integer directions, Cartesian
     lattice vectors, matrices): the terms of H(k) = sum_R m_R e^{i k.R}"""
     g = hm.geometry
-    avecs = np.array([g.a1,g.a2,np.zeros(3)])
+    avecs = np.array([g.a1,g.a2,g.a3])
     dirs = [(0,0,0)]
     ms = [np.asarray(algebra.todense(hm.intra))]
     for t in hm.hopping:
@@ -143,6 +197,7 @@ class _Channel():
 
     def __init__(self,hm,ks,degeneracy_tol=1e-8):
         self.hm = hm
+        self.dim = hm.dimensionality
         self.ks = np.array(ks,dtype=np.float64)
         self.dirs,self.rcart,self.ms = _bloch_series(hm)
         self.nbands = self.ms.shape[1]
@@ -162,18 +217,34 @@ class _Channel():
             for (lo,hi) in self._chunks():
                 self.es[lo:hi] = np.linalg.eigvalsh(self._hk(lo,hi))
 
-    def _chunks(self):
+    def _alphas(self,N):
+        """The multi-indices (p,q,r) of the Taylor coefficients up to total
+        order N, ordered by total order. Only the periodic directions get a
+        nonzero index: r = 0 below 3D and q = r = 0 in 1D, so a 1D or 2D
+        cell does the same work as with a two-index recursion"""
+        out = []
+        for n in range(N+1):
+            for p in range(n+1):
+                if self.dim<2: qs = [0] if p==n else []
+                elif self.dim<3: qs = [n-p]
+                else: qs = range(n-p+1)
+                for q in qs: out.append((p,q,n-p-q))
+        return out
+
+    def _chunks(self,nalpha=1):
         """Split the k-mesh into blocks small enough that the Taylor
         coefficient matrices of one block fit comfortably in memory.
 
-        The perturbation theory below holds ~(N+1)(N+2)/2 Hamiltonian
-        Taylor matrices and as many eigenvector ones, each (nk, nb, nb)
-        complex -- ~56 arrays at N = 6, so ~900 bytes per k-point per nb^2.
-        At the ~100 orbitals of a real superlattice cell that is gigabytes
-        for a full mesh, so k is processed in blocks and only the (much
-        smaller) eigenvalue coefficients are kept."""
+        The perturbation theory below holds, per multi-index of _alphas,
+        one Hamiltonian Taylor matrix, one eigenvector coefficient and one
+        effective-Hamiltonian coefficient, each (nk, nb, nb) complex; with
+        the temporaries that is ~64 bytes per k-point per nb^2 per
+        multi-index. There are 28 multi-indices at N = 6 in 2D and 84 in
+        3D, and at the ~100 orbitals of a real superlattice cell that is
+        gigabytes for a full mesh, so k is processed in blocks and only
+        the (much smaller) eigenvalue coefficients are kept."""
         nb = self.nbands
-        per = max(1,int(_CHUNK_BYTES/max(1.,1000.*nb*nb)))
+        per = max(1,int(_CHUNK_BYTES/max(1.,64.*nalpha*nb*nb)))
         return [(lo,min(lo+per,len(self.ks)))
                 for lo in range(0,len(self.ks),per)]
 
@@ -201,38 +272,43 @@ class _Channel():
         finite-difference scheme manufactures a spurious nonzero value there
         and so destroys the very thing being measured."""
         counts = [list(axes).count(a) for a in range(3)]
-        if counts[2]!=0: return np.zeros(self.es.shape) # 2D: no k_z
+        # no momentum along a direction that is not periodic
+        if any(counts[a]>0 for a in range(self.dim,3)):
+            return np.zeros(self.es.shape)
         if self.nbands==1:
             w = np.ones(len(self.rcart),dtype=np.complex128)
             for a in axes: w = w*(1.j*self.rcart[:,a])
             return np.real(self.ph@(self.coeffs*w))[:,None]
-        p,q = counts[0],counts[1]
-        c = self._eigenvalue_taylor(p+q)[(p,q)]
-        # the Taylor coefficient is the derivative divided by p! q!
-        return c*float(math.factorial(p)*math.factorial(q))
+        c = self._eigenvalue_taylor(sum(counts))[tuple(counts)]
+        # the Taylor coefficient is the derivative divided by p! q! r!
+        return c*float(math.factorial(counts[0])*math.factorial(counts[1])
+                *math.factorial(counts[2]))
 
     def _hamiltonian_taylor(self,N,lo,hi):
-        """Hc[(p,q)] = (1/(p! q!)) d^(p+q)H/dKx^p dKy^q on the mesh.
+        """Hc[(p,q,r)] = (1/(p! q! r!)) d^(p+q+r)H/dKx^p dKy^q dKz^r on the
+        mesh, for the multi-indices of _alphas.
 
         Straight from the Bloch series: each term m_R e^{i k.R} contributes
-        m_R (i R_x)^p (i R_y)^q/(p! q!) e^{i k.R}. Exact, and vectorized over
-        the whole k-mesh in one matrix product per (p,q)."""
+        m_R (i R_x)^p (i R_y)^q (i R_z)^r/(p! q! r!) e^{i k.R}. Exact, and
+        vectorized over the whole k-mesh in one matrix product per
+        multi-index."""
         out = dict()
-        for n in range(N+1):
-            for p in range(n+1):
-                q = n-p
-                w = ((1.j*self.rcart[:,0])**p)*((1.j*self.rcart[:,1])**q)
-                w = w/float(math.factorial(p)*math.factorial(q))
-                out[(p,q)] = np.einsum("kh,hij->kij",self.ph[lo:hi]*w,self.ms)
+        for (p,q,r) in self._alphas(N):
+            w = ((1.j*self.rcart[:,0])**p)*((1.j*self.rcart[:,1])**q)
+            if r>0: w = w*((1.j*self.rcart[:,2])**r)
+            w = w/float(math.factorial(p)*math.factorial(q)
+                    *math.factorial(r))
+            out[(p,q,r)] = np.einsum("kh,hij->kij",self.ph[lo:hi]*w,self.ms)
         return out
 
     def _eigenvalue_taylor(self,N):
-        """Taylor coefficients c[(p,q)][k,n] of the band energies,
+        """Taylor coefficients c[(p,q,r)][k,n] of the band energies,
 
-          eps_n(k+d) = sum_{p,q} c[(p,q)] dx^p dy^q,
+          eps_n(k+d) = sum_{p,q,r} c[(p,q,r)] dx^p dy^q dz^r,
 
         by Rayleigh-Schroedinger perturbation theory carried out in the ring
-        of truncated two-variable Taylor series. Writing
+        of truncated Taylor series in the three Cartesian components of d
+        (only the periodic ones, see _alphas). Writing
         H(k+d) = sum_a Hc[a] d^a and expanding the eigenpair as
         eps = sum_a e[a] d^a, v = sum_a v[a] d^a with the intermediate
         normalization u^dag v[a] = 0 for a != 0, the eigenvalue equation
@@ -252,10 +328,10 @@ class _Channel():
         nonsense -- see the error message for the way out."""
         if N<=self._taylor_order: return self._taylor
         nk,nb = self.es.shape
-        alphas = [(p,n-p) for n in range(N+1) for p in range(n+1)]
+        alphas = self._alphas(N)
         e = {a:np.zeros((nk,nb)) for a in alphas}
-        e[(0,0)] = self.es.copy()
-        for (lo,hi) in self._chunks():
+        e[(0,0,0)] = self.es.copy()
+        for (lo,hi) in self._chunks(len(alphas)):
             for (a,c) in self._taylor_chunk(N,lo,hi,alphas).items():
                 e[a][lo:hi] = c
         self._taylor = e
@@ -296,31 +372,32 @@ class _Channel():
         near = np.abs(de)<self.degeneracy_tol*self.scale # same block
         inv = np.where(near,0.,1./np.where(near,1.,de)) # reduced resolvent
         out = {a:np.zeros((hi-lo,nb)) for a in alphas}
-        out[(0,0)] = es
+        out[(0,0,0)] = es
         # V[a][k,i,n]: i the orbital index, n the band being expanded.
         # E[a][k,m,n]: the effective-Hamiltonian coefficients, nonzero only
         # within a degenerate group (the identity for a simple spectrum).
         v = {a:np.zeros((hi-lo,nb,nb),dtype=np.complex128) for a in alphas}
         E = {a:np.zeros((hi-lo,nb,nb),dtype=np.complex128) for a in alphas}
-        v[(0,0)] = ws
-        wsc = np.conjugate(ws)
-        for n in range(1,N+1):
-            for p in range(n+1):
-                a = (p,n-p)
-                hv = np.zeros((hi-lo,nb,nb),dtype=np.complex128)
-                ve = np.zeros((hi-lo,nb,nb),dtype=np.complex128)
-                for (p2,q2) in alphas:
-                    if (p2,q2)==(0,0): continue
-                    b = (a[0]-p2,a[1]-q2)
-                    if b[0]<0 or b[1]<0: continue
-                    hv = hv+np.einsum("kij,kjn->kin",hc[(p2,q2)],v[b])
-                    ve = ve+np.einsum("kim,kmn->kin",v[b],E[(p2,q2)])
-                Ea = np.einsum("kim,kin->kmn",wsc,hv) # <m|.|n>
-                E[a] = np.where(near,Ea,0.) # keep only within a group
-                out[a] = np.real(np.einsum("kmm->km",Ea))
-                r = ve-hv # no component inside the group, by construction
-                proj = np.einsum("kim,kin->kmn",wsc,r)
-                v[a] = np.einsum("kim,kmn->kin",ws,proj*inv)
+        v[(0,0,0)] = ws
+        wsh = np.conjugate(np.swapaxes(ws,1,2)) # the bras <m|, (k,m,i)
+        for a in alphas: # by total order, so every v[b] below is done
+            if a==(0,0,0): continue
+            hv = np.zeros((hi-lo,nb,nb),dtype=np.complex128)
+            ve = np.zeros((hi-lo,nb,nb),dtype=np.complex128)
+            for a2 in alphas:
+                if a2==(0,0,0): continue
+                b = tuple(a[i]-a2[i] for i in range(3))
+                if min(b)<0: continue
+                # batched matrix products (matmul, not einsum, which does
+                # not reach BLAS here: measured 4.6x at nk=100)
+                hv = hv+np.matmul(hc[a2],v[b])
+                ve = ve+np.matmul(v[b],E[a2])
+            Ea = np.matmul(wsh,hv) # <m|.|n>
+            E[a] = np.where(near,Ea,0.) # keep only within a group
+            out[a] = np.real(np.diagonal(Ea,axis1=1,axis2=2))
+            r = ve-hv # no component inside the group, by construction
+            proj = np.matmul(wsh,r)
+            v[a] = np.matmul(ws,proj*inv)
         return out
 
 
@@ -330,18 +407,17 @@ def _kmesh(h,nk):
 
 
 def _cell_volume(h):
-    """Unit cell volume (area in 2D, length in 1D)"""
-    g = h.geometry
-    if h.dimensionality==1: return np.sqrt(g.a1.dot(g.a1))
-    return np.linalg.norm(np.cross(g.a1,g.a2))
+    """Unit cell volume (volume in 3D, area in 2D, length in 1D)"""
+    return _cell_factors(h)[2]
 
 
 def _channels(h,nk,degeneracy_tol=1e-8):
     """The two spin channels, set up on a shared k-mesh, plus the 1/(N_k
     V_cell) normalization of the Brillouin-zone integral"""
-    if h.dimensionality not in (1,2): raise NotImplementedError(
-        "the nonlinear Drude conductivity is implemented for dimensionality "
-        "1 and 2 only")
+    if h.dimensionality not in (1,2,3): raise ValueError(
+        "the nonlinear Drude conductivity needs a periodic Hamiltonian "
+        "(dimensionality 1, 2 or 3), got dimensionality "
+        +str(h.dimensionality))
     ks = _kmesh(h,nk)
     chans = [(s,_Channel(hm,ks,degeneracy_tol=degeneracy_tol))
              for (s,hm) in _spin_channels(h)]
@@ -398,7 +474,10 @@ def _combine(out,channel):
 def _sigma(chans,norm,axes,b,channel,T,mu,tau,omega):
     """One tensor component, from already-built channels"""
     l = len(axes)
-    pref = (-1.)**(l+1)/(1j*omega+1./tau)**l # e = hbar = 1
+    # e = hbar = 1; the recursion of the Boltzmann equation, one factor per
+    # harmonic p w (see the module docstring)
+    pref = (-1.)**(l+1)
+    for p in range(1,l+1): pref = pref/(1./tau-1j*p*omega)
     out = dict()
     for (s,c) in chans:
         f = _fermi(c.es-mu,T)
@@ -428,37 +507,55 @@ def nonlinear_drude_conductivity(h,field="x",current="x",channel="spin",
 def nonlinear_drude_components(h,l,channel="spin",nk=100,T=0.01,mu=0.,
         tau=1.,omega=0.,degeneracy_tol=1e-8):
     """Every component of the l-th order conductivity, as
-    {"x^l1 y^l2;b": value}: the l field powers split between x and y, times
-    the two current directions. They share one k-mesh, one set of Bloch
-    phases and one perturbation expansion, so this is much cheaper than the
-    equivalent individual calls."""
+    {"x^l1 y^l2 z^l3;b": value}: the l field powers split between the
+    directions, times the current directions. The directions are x and y
+    in 1D and 2D, and x, y and z in 3D, where a spin splitting that
+    involves k_z (a d_xz form factor) responds only in components with a
+    z. They share one k-mesh, one set of Bloch phases and one perturbation
+    expansion, so this is much cheaper than the equivalent individual
+    calls."""
     chans,norm = _channels(h,nk,degeneracy_tol=degeneracy_tol)
     if channel=="spin": _spin_splitting_guard(chans)
     return _components(chans,norm,l,channel,T,mu,tau,omega)
 
 
+def _directions(chans):
+    """Cartesian directions of the sweep of _components: x and y below 3D,
+    the keys the sweep always had (the y components of a 1D cell are
+    zero), and x, y and z in 3D"""
+    return "xyz" if chans[0][1].dim==3 else "xy"
+
+
 def _components(chans,norm,l,channel,T,mu,tau,omega):
     """Components of one order, from already-built channels"""
+    dirs = _directions(chans)
     out = dict()
     for l1 in range(l+1):
-        field = "x"*l1+"y"*(l-l1)
-        axes = [_axis(c) for c in field]
-        for b in ["x","y"]:
-            out[field+";"+b] = _sigma(chans,norm,axes,_axis(b),channel,T,mu,
-                    tau,omega)
+        # powers of E_y; the rest of the l powers are E_z, none below 3D
+        l2s = range(l-l1+1) if "z" in dirs else [l-l1]
+        for l2 in l2s:
+            field = "x"*l1+"y"*l2+"z"*(l-l1-l2)
+            axes = [_axis(c) for c in field]
+            for b in dirs:
+                out[field+";"+b] = _sigma(chans,norm,axes,_axis(b),channel,
+                        T,mu,tau,omega)
     return out
 
 
 def nonlinear_drude_orders(h,lmax=6,channel="spin",nk=100,T=0.01,mu=0.,
         tau=1.,omega=0.,degeneracy_tol=1e-8):
     """Selection-rule sweep: for each order l = 0..lmax, the largest
-    |sigma^{x^l1 y^l2 ; b}| over all of that order's components.
+    |sigma^{x^l1 y^l2 z^l3 ; b}| over all of that order's components, those
+    of nonlinear_drude_components (l3 = 0 and b in x, y below 3D).
 
     The lowest l at which this is nonzero is the order of the magnet, and so
     a direct readout of the X-wave index -- d gives 1, f gives 2, g gives 3
-    and i gives 5 (Ezawa, arXiv:2411.16036). Taking the maximum over
-    components matters: a d-wave altermagnet responds in sigma^{x;y} but not
-    in sigma^{x;x}, so a sweep of one fixed component would miss it.
+    and i gives 5 (Ezawa, arXiv:2411.16036). A p-wave magnet gives zero at
+    every order, and l = 0 is zero for any Hamiltonian (see the module
+    docstring); on a coarse mesh both show up as small numbers that fall
+    exponentially with nk rather than as machine zeros. Taking the maximum
+    over components matters: a d-wave altermagnet responds in sigma^{x;y}
+    but not in sigma^{x;x}, so a sweep of one fixed component would miss it.
 
     Every order is evaluated from a single set of channels. That is not just
     tidiness: on a multiorbital cell the cost is dominated by the

@@ -151,7 +151,9 @@ class Geometry:
         self.update_reciprocal() # update reciprocal lattice vectors
         get_fractional(self,center=center) # get fractional coordinates
     def rotate(self,angle):
-      """Rotate the geometry"""
+      """Return the geometry rotated clockwise by angle, in degrees,
+      about the z axis (positions and lattice vectors), leaving this one
+      as it is. Only for geometries of dimensionality up to 2"""
       return sculpt.rotate(self,angle*np.pi/180)
     def clean(self,iterative=False):
       return sculpt.remove_unibonded(self,iterative=iterative)
@@ -168,7 +170,9 @@ class Geometry:
           self.sublattice = get_sublattice(self.r,**kwargs)
           self.has_sublattice = True
     def shift(self,r0):
-      """Shift all the positions by r0"""
+      """Move the origin to r0, in place: every position r becomes r-r0,
+      so the sites move by -r0. A periodic geometry then has its
+      positions wrapped back into the unit cell"""
       self.x[:] -= r0[0]
       self.y[:] -= r0[1]
       self.z[:] -= r0[2]
@@ -250,6 +254,7 @@ class Geometry:
 
 
 from .geometrytk.lattices import *
+from .geometrytk.amorphous import amorphous_lattice # sites at random positions
 
 
 
@@ -550,7 +555,7 @@ def array2function(g,v):
     return f # return function
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def array2function_jit(r,v,ir):
     n = len(r)
     for i in range(n):
@@ -571,12 +576,20 @@ read_xyz = readgeometry.read_xyz
 def get_supercell(self,nsuper,store_primal=False):
     """Creates a supercell"""
     from .checkclass import number2array
-    if store_primal: # store the primal geometry
-        self.primal_geometry = self.copy() 
+    if store_primal: # store the primal geometry, on the supercell only
+        # the builders below copy the geometry they are given, primal
+        # geometry included (and a builder that rotates the cell rotates
+        # it too, see sculpt.rotate), so they are handed a copy that
+        # carries it. It used to be set on self, so the geometry asked
+        # about kept it, and every later supercell of it inherited a
+        # primal geometry whether or not it asked for one
+        primal = self.copy()
+        self = self.copy()
+        self.primal_geometry = primal
     # a copy, never an alias of self: the caller is entitled to mutate
     # the returned geometry without touching the one it asked about
     if self.dimensionality==0: return self.copy() # zero dimensional
-    if np.array(nsuper).shape==(3,3): # if a matrix is given
+    if np.ndim(nsuper)==2: # a matrix, 3x3 or dxd (padded there)
         return supercelltk.non_orthogonal_supercell(self,nsuper)
     if self.dimensionality==1:
         if checkclass.is_iterable(nsuper): nsuper = nsuper[0]

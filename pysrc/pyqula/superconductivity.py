@@ -11,7 +11,6 @@ from .algebra import dagger
 def get_eh_sector_odd_even(m,i=0,j=0):
     """ Return the electron hole sector of a matrix,
     assumming that the matrix is in full nambu form""" 
-    if i>1 or j>1: return NotImplemented # meaningless
     m = nambu2block(m) # reorder the matrix
     n = m.shape[0]//2 # number of orbitals
     if i==0 and j==0: return m[0:n,0:n] 
@@ -70,9 +69,7 @@ def eh_operator(m):
   """Return the electron hole symmetry operator, as a function"""
   n = m.shape[0]//4 # number of sites 
   from .hamiltonians import sy
-  msy = [[None for ri in range(n)] for j in range(n)]
-  for i in range(n): msy[i][i] = sy # add sy
-  msy = bmat(msy) # sy matrix in the electron subspace
+  msy = sp.kron(sp.identity(n),sy,format="csc") # sy in the electron subspace
   out = [[None,1j*msy],[-1j*msy,None]]
   out = bmat(out) # sparse matrix
   out = reorder(out) # reshufle the matrix
@@ -165,7 +162,11 @@ deltadd = csc_matrix([[0.,0.,0.,0.],[0.,0.,0.,0.],[0.,1.,0.,0.],[0.,0.,0.,0.]])
 deltauu = dagger(deltauu)
 deltadd = dagger(deltadd)
 deltax = (deltadd - deltauu)/2.
-deltay = (deltadd + deltauu)/2j
+# the daggers above conjugate the 1/(2i) that would have been applied to the
+# undaggered pair, so it becomes i/2 here; with /2j the electron-hole block
+# of deltay was -sigma_y/2 against +sigma_x/2 and +sigma_z/2 for the other
+# two, and the three did not rotate together as a vector
+deltay = 1j*(deltadd + deltauu)/2.
 # this one is tricky, we only want the antisymmetric part
 deltaz = csc_matrix([[0.,0.,0.,0.],[0.,0.,0.,0.],[1.,0.,0.,0.],[0.,-1.,0.,0.]])/2.
 
@@ -179,9 +180,9 @@ def time_reversal(m):
   """Do the spinful time reversal of this matrix"""
   from .hamiltonians import sy
   n = m.shape[0]//2 # number of spinful blocks
-  msy = [[None for ri in range(n)] for j in range(n)]
-  for i in range(n): msy[i][i] = sy # add sy
-  msy = bmat(msy) # as block matrix
+  # kron builds it in time linear in n; bmat on an n x n list of blocks
+  # was quadratic (183 s for setup_nambu_spinor at 10,000 sites)
+  msy = sp.kron(sp.identity(n),sy,format="csc") # as block matrix
   return msy*np.conjugate(m)*msy # return time reversal
 
 
@@ -245,21 +246,11 @@ def add_swave_to_hamiltonian(self,delta,**kwargs):
           +str(sorted(kwargs))+"; it only takes the pairing amplitude. "
           +"For any other pairing symmetry use add_pairing(delta=...,"
           +"mode=...)")
-    from .operators import isnumber
-#    if isnumber(delta):
-#        if delta==0.0: return 
-    # spinless Hamiltonian
-    if self.check_mode("spinless") or self.check_mode("spinless_nambu"): 
-        from .sctk import spinless
-        spinless.add_swave_to_hamiltonian(self,delta)
-        # spinful Hamiltonian
-    elif self.check_mode("spinful") or self.check_mode("spinful_nambu"): 
-      self.turn_nambu() # add electron hole
-      self.intra = self.intra + add_swave(delta=delta,rs=self.geometry.r,is_sparse=self.is_sparse)
-    else:
-        raise ValueError("cannot add s-wave pairing to this Hamiltonian: "
-          +"it is neither spinless nor spinful (has_spin="
-          +str(self.has_spin)+", has_eh="+str(self.has_eh)+")")
+    # turn_nambu makes a spinless Hamiltonian spinful first, since a Nambu
+    # Hamiltonian is always spinful in pyqula
+    self.turn_nambu() # add electron hole
+    self.intra = self.intra + add_swave(delta=delta,rs=self.geometry.r,
+            is_sparse=self.is_sparse)
 
 
 
@@ -270,20 +261,30 @@ def add_swave_to_hamiltonian(self,delta,**kwargs):
 
 
 def add_pxipy(delta=0.0,is_sparse=False,r1=None,r2=None):
-  """Add px x + py y pairing"""
-  def deltafun(r1i,r2i):
-    """Function to calculate the pairing"""
-    dr = r2i-r1i
-    dr2 = dr.dot(dr)
-    if 0.9<dr2<1.1: # first neighbor
-      dr = delta*dr/np.sqrt(dr2) # unit vector
-#      dr = np.cross(dr,np.array([0.,0.,1.]))
-      dr = [dr[0],1j*dr[1],0.]      
-#      dr = [0.,0.,dr[0]+1j*dr[1]]
-#      return dr
-      return dvector2deltas(dr) # return delta
-    else: return [0.,0.,0.] # zero vector
-  return add_pairing(deltas=deltafun,r1=r1,r2=r2)
+  """Return the chiral px+ipy pairing between the sites at r1 and the sites
+  at r2: first neighbors (distance 1) are paired with
+  delta*exp(i*phi)*sigma_z in the Nambu spinor, phi the angle of r1-r2,
+  a spin triplet with the d-vector along z. This is the matrix that
+  add_pairing(mode="chiral_pwave",d=[0.,0.,1.]) puts between those sites,
+  and on a chain it is a px pairing. delta is a number or a function of
+  the position, evaluated at the middle of each bond.
+
+  Like add_pairing, only the electron-hole part is returned, and its
+  dagger has to be added too: m + m^dag inside the cell, and m^dag
+  towards the replica at -R when r2 is the replica at R."""
+  if r1 is None or r2 is None:
+      raise ValueError("add_pxipy needs the positions of the two sets of "
+              "sites to pair, pass them as r1 and r2")
+  from .utilities import get_callable
+  from .sctk.pairing import get_triplet
+  deltaf = get_callable(delta) # amplitude as a function of position
+  dz = lambda r: [0.,0.,1.] # d-vector along z
+  def weight(r1i,r2j): # 2x2 pairing matrix of a pair of sites
+    return deltaf((r1i+r2j)/2.)*get_triplet(r1i,r2j,dz,L=1)
+  # get_triplet pairs the first neighbors, at distance 1, only
+  m = add_pairing(deltas=weight,r1=r1,r2=r2,rcut=np.sqrt(1.01))
+  if is_sparse: return m
+  else: return m.todense()
 
 
 add_pwave = add_pxipy
@@ -295,32 +296,47 @@ from .sctk.dvector import delta2dvector
 
 
 
-def add_pairing(deltas=[[0.,0],[0.,0.]],is_sparse=True,r1=[],r2=[]):
+def add_pairing(deltas=[[0.,0],[0.,0.]],is_sparse=True,r1=[],r2=[],
+        rcut=None):
   """ Adds a general pairing in real space"""
+  return embed_pairing_block(pairing_block(deltas,r1=r1,r2=r2,rcut=rcut))
+
+
+def pairing_block(deltas=[[0.,0],[0.,0.]],r1=[],r2=[],rcut=None):
+  """Return the electron-hole block of a pairing between the sites at r1
+  and the sites at r2, with rows (site of r1, e_up/e_dn) and columns
+  (site of r2, h_dn/h_up). rcut is the largest distance at which the
+  pairing can be nonzero, when it is known: only the pairs within it are
+  evaluated, found with a KD-tree, so the cost is linear in the number of
+  sites. With rcut=None every pair of sites is evaluated, which is
+  quadratic and is what a pairing of unknown range needs."""
   def get_pmatrix(r1i,r2j): # return the different pairings
     if callable(deltas): dv = deltas(r1i,r2j) # get the components
     else: dv = deltas
-    duu = dv[0,1] # delta up up
-    ddd = dv[1,0] # delta dn dn
-    dud = dv[0,0] # delta up dn
-    ddu = dv[1,1] # delta up dn
+    dv = dv.toarray() if issparse(dv) else np.asarray(dv)
     # be aware of the minus signs coming from the definition of the
     # Nambu spinor!!!!!!!!!!!!!!!!!
     # c_up d_dn d^\dagger_dn -d^\dagger_up
-    D = csc_matrix([[dud,duu],[ddd,ddu]]) # SC matrix
-#    D = bmat([[None,D],[-D.H,None]]) # the minus sign comes from triplet
-    return D
-  # superconducting coupling
-  n = len(r1)  # number of sites
-  pout = [[None for i in range(n)] for j in range(n)] # initialize None matrix
-  # zeros in the diagonal
-#  for i in range(n): bout[i][i] = csc_matrix(np.zeros((4,4),dtype=np.complex128))
-  for i in range(n): # loop over sites
-    for j in range(n): # loop over sites
-      pout[i][j] = get_pmatrix(r1[i],r2[j]) # get this pairing
-  diag = sp.identity(2*len(r1))*0. # zero matrix
-#  diag = csc_matrix(np.zeros((2*len(r1),2*len(r1)),dtype=np.complex128)) # diag
-  pout = bmat(pout) # convert to block matrix
+    # [[delta up dn, delta up up],[delta dn dn, delta dn up]]
+    return [[dv[0,0],dv[0,1]],[dv[1,0],dv[1,1]]] # SC matrix
+  from .sctk.pairing import pairs_within
+  r1,r2 = np.asarray(r1),np.asarray(r2)
+  n1,n2 = len(r1),len(r2) # number of sites
+  ii,jj = pairs_within(r1,r2,rcut) # every pair, or those within rcut
+  blocks = np.array([get_pmatrix(r1[i],r2[j]) for (i,j) in zip(ii,jj)],
+          dtype=np.complex128).reshape(len(ii),2,2)
+  a = np.arange(2)
+  rows = (2*ii)[:,None,None] + a[None,:,None] + 0*a[None,None,:]
+  cols = (2*jj)[:,None,None] + 0*a[None,:,None] + a[None,None,:]
+  out = csc_matrix((blocks.ravel(),(rows.ravel(),cols.ravel())),
+          shape=(2*n1,2*n2),dtype=np.complex128)
+  out.eliminate_zeros() # only the pairs that are actually paired
+  return out
+
+
+def embed_pairing_block(pout):
+  """Put an electron-hole block in an otherwise empty Nambu matrix"""
+  diag = sp.identity(pout.shape[0])*0. # zero matrix
 #  mout = [[diag,pout],[np.conjugate(pout),diag]] # output matrix
   mout = [[diag,pout],[None,diag]] # output matrix
 #  mout = [[diag,pout],[pout,diag]] # output matrix
@@ -342,6 +358,8 @@ from .sctk.extract import extract_pairing
 from .sctk.extract import extract_singlet_pairing
 from .sctk.extract import extract_triplet_pairing
 from .sctk.pairing import pairing_generator
+from .sctk.pairing import check_fermi_antisymmetry
+from .sctk.pairing import check_periodic_pairing
 from .sctk.fastdeltaud import hopping2deltaud
 
 
@@ -351,21 +369,40 @@ def add_pairing_to_hamiltonian(self,**kwargs):
     """ Add a general pairing matrix to a Hamiltonian"""
 #    self.get_eh_sector = get_eh_sector_odd_even # assign function
     df = pairing_generator(self,**kwargs) # function that outputs a 2x2 matrix
+    if callable(kwargs.get("mode")): # a registered mode obeys it already
+        check_fermi_antisymmetry(self,kwargs["mode"],
+                rcut=kwargs.get("rcut")) # before h is touched
+    r = self.geometry.r # positions
+    # the electron-hole block towards every neighboring cell, all of them
+    # built before h is touched so that a pairing that is not periodic with
+    # the lattice is refused without leaving a half-modified Hamiltonian.
+    # The pairing goes to every cell within its range, with a range per
+    # direction (cells_within): a registered mode reaches its own shell, a
+    # callable mode rcut (5.0 by default in a periodic system). The box of
+    # geometry.ncells=2 cells lost a pairing beyond two cells, as nn=3 or
+    # a third-neighbor callable on the chain
+    rcut = df.rcut # range of the pairing, None for every pair in 0d
+    from .sctk.pairing import pairing_cells
+    blocks = dict()
+    for d in pairing_cells(self,rcut): # the cell 0 first
+        r2 = r if d==(0,0,0) else self.geometry.replicas(d=d) # positions
+        blocks[d] = pairing_block(df,r1=r,r2=r2,rcut=rcut)
+    callables = [name for name in ("d","delta","mode")
+                   if callable(kwargs.get(name))]
+    check_periodic_pairing(blocks,callables=callables)
     self.turn_nambu() # add electron hole terms
-    r = self.geometry.r # positions 
-    m = add_pairing(df,r1=r,r2=r) # intra cell
+    m = embed_pairing_block(blocks[(0,0,0)]) # intra cell
     self.intra = self.intra + m + algebra.dagger(m)
     if self.dimensionality>0:
       if not self.is_multicell: # for multicell hamiltonians
         self.turn_multicell()
 #        print("Converting Hamiltonian to multicell")
       from .multicell import Hopping
-      for d in self.geometry.neighbor_directions(): # loop over directions
+      for d in blocks: # loop over directions
         # this is a workaround to be able to do triplets
         # do it for +k and -k
-        if d.dot(d)<0.0001: continue # skip onsite
-        r2 = self.geometry.replicas(d=d) # positions
-        m = add_pairing(df,r1=r,r2=r2) # new matrix
+        if d==(0,0,0): continue # skip onsite
+        m = embed_pairing_block(blocks[d])
 #        m2 = add_pairing(df,r1=r,r2=r2) # new matrix, the other way
         m2 = m
         if np.max(np.abs(m))>0.0001: # non zero
@@ -442,16 +479,6 @@ def identify_superconductivity(h,tol=1e-5):
     if not h.has_eh: return [] # empty list
     dd = h.get_multihopping()
     if dd.norm()<tol: return [] # nothing
-    # every route below (the d-vector, dict2absdeltas, the singlet/triplet
-    # extraction) reads the pairing out of a 4x4 spin x electron-hole block
-    # per site, so name the requirement here rather than letting the
-    # d-vector complain about a Hilbert space the caller never mentioned
-    if not h.check_mode("spinful_nambu"):
-        raise NotImplementedError("identify_superconductivity classifies the "
-          +"pairing in the spin x electron-hole basis, so it needs a spinful "
-          +"Nambu Hamiltonian; this one is spinless Nambu (has_spin="
-          +str(h.has_spin)+"). Use h.extract('swave') or sctk.spinless for "
-          +"the spinless case")
     out = [] # initialize the list
 #    out.append("Superconductivity") # is superconducting
     dv = h.get_average_dvector() # get the average d-vector
@@ -517,9 +544,10 @@ def turn_nambu(self):
   """Turn a Hamiltonian an Nambu Hamiltonian"""
   nambu = build_eh
   if self.check_mode("spinful_nambu"): return # do nothing
-  elif self.check_mode("spinless_nambu"): return # do nothing, already Nambu
-  elif self.check_mode("spinless"): self.turn_spinful() # error
-  elif self.check_mode("spinful"): pass # error
+  # a Nambu Hamiltonian is always spinful, so a spinless one is made
+  # spinful before the electron-hole doubling
+  elif self.check_mode("spinless"): self.turn_spinful()
+  elif self.check_mode("spinful"): pass
   else:
       raise NotImplementedError("this Hilbert space cannot be turned into a "
               "Nambu one")

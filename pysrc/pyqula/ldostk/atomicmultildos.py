@@ -1,3 +1,4 @@
+from .. import filewrite
 import numpy as np
 from numba import jit
 import os
@@ -5,7 +6,7 @@ from .. import filesystem as fs
 from numba import jit
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def jit_get_orbital(r0,rs,ratomic): 
     """Atomic orbital"""
     dr = rs-r0
@@ -56,15 +57,9 @@ def profile_generator(h,delta=0.05,nrep=1,nk=20,dl=None,mode="LDOS",
           for i in range(len(rrep)): # loop over the atoms
               r0 = rrep[i] # get this center
               if not accept_center(r0): continue # skip this iteration
-              if h.has_eh:
-                if h.has_spin: # spinful
+              if h.has_eh: # always spinful
                   lodict[(tuple(d),4*i)] = get_orbital(r0,r) # store 
                   lodict[(tuple(d),4*i+1)] = get_orbital(r0,r) # store 
-           #       lodict[(tuple(d),4*i+2)] = 0. # store 
-           #       lodict[(tuple(d),4*i+3)] = 0. # store 
-                else:
-                    raise NotImplementedError("the atomic LDOS is not "
-                            "implemented for spinless Nambu Hamiltonians")
               else:
                 if h.has_spin: # spinful
                   lodict[(tuple(d),2*i)] = get_orbital(r0,r) # store 
@@ -75,6 +70,7 @@ def profile_generator(h,delta=0.05,nrep=1,nk=20,dl=None,mode="LDOS",
     # now compute the real-space wavefunctions including the Bloch phase
     ds = get_real_space_density_batch(lodict,h.geometry,vs,ks,
                               has_spin=h.has_spin) # (nwf,ngrid) array
+    ds = normalize_per_state(ds,vs,x,y,h.geometry,nrep) # weight of each state
     from ..klist import kmesh
     nkp = len(kmesh(h.dimensionality,nk=nk)) # kpoints the mesh has
     if mode=="LDOS": # LDOS mode
@@ -87,46 +83,51 @@ def profile_generator(h,delta=0.05,nrep=1,nk=20,dl=None,mode="LDOS",
     return f,evals,x,y,nkp # return generator
 
 
-def get_ldos(h,e=0.0,delta=0.05,**kwargs):
+def get_ldos(h,e=0.0,delta=0.05,write=None,**kwargs):
     """Compute a single LDOS"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     ldos_gen,evals,x,y,nkp = ldos_generator(h,e=e,delta=delta,**kwargs) 
     out = ldos_gen(e) # compute the LDOS
-    np.savetxt("LDOS.OUT",np.array([x,y,out]).T) # save
+    if write: np.savetxt("LDOS.OUT",np.array([x,y,out]).T) # save
     return x,y,out
 
 
-def get_density(h,e=0.0,delta=1e-3,**kwargs):
+def get_density(h,e=0.0,delta=1e-3,write=None,**kwargs):
     """Compute a single LDOS"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     ldos_gen,evals,x,y,nkp = profile_generator(h,e=e,delta=delta,
                                mode="density",**kwargs)
     out = ldos_gen(e) # compute the LDOS
-    np.savetxt("DENSITY.OUT",np.array([x,y,out]).T) # save
+    if write: np.savetxt("DENSITY.OUT",np.array([x,y,out]).T) # save
     return x,y,out
 
 
 
 
-def multi_ldos(h,energies=np.linspace(-2.0,2.0,100),delta=0.05,**kwargs):
+def multi_ldos(h,energies=np.linspace(-2.0,2.0,100),delta=0.05,write=None,**kwargs):
     """Compute the LDOS at different eenrgies, and add an envelop atomic
     orbital"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     ldos_gen,evals,x,y,nkp = ldos_generator(h,delta=delta,**kwargs) # get the generator
     # now compute all the LDOS
-    fs.rmdir("MULTILDOS")
-    fs.mkdir("MULTILDOS")
-    fo = open("MULTILDOS/MULTILDOS.TXT","w") # files with the names
-    for e in energies: # loop over energies
-        name0 = "LDOS_"+str(e)+"_.OUT" # name of the output
-        name = "MULTILDOS/" + name0
-        out = ldos_gen(e) # compute the LDOS
-        np.savetxt(name,np.array([x,y,out]).T) # save
-        fo.write(name0+"\n") # name of the file
-    fo.close()
-    from ..dos import calculate_dos,write_dos
-    es2 = np.linspace(min(energies),max(energies),len(energies)*10)
-    # same normalization as the maps above, and as dos.dos_kmesh: 1/pi
-    # for the Lorentzian and 1/nkp for the average over the Brillouin zone
-    ys = calculate_dos(evals,es2,delta,w=None)/(np.pi*nkp) # compute DOS
-    write_dos(es2,ys,output_file="MULTILDOS/DOS.OUT")
+    outs = np.array([ldos_gen(e) for e in energies]) # one map per energy
+    if write:
+        fs.rmdir("MULTILDOS")
+        fs.mkdir("MULTILDOS")
+        fo = open("MULTILDOS/MULTILDOS.TXT","w") # files with the names
+        for (e,out) in zip(energies,outs): # loop over energies
+            name0 = "LDOS_"+str(e)+"_.OUT" # name of the output
+            name = "MULTILDOS/" + name0
+            np.savetxt(name,np.array([x,y,out]).T) # save
+            fo.write(name0+"\n") # name of the file
+        fo.close()
+        from ..dos import calculate_dos,write_dos
+        es2 = np.linspace(min(energies),max(energies),len(energies)*10)
+        # same normalization as the maps above, and as dos.dos_kmesh: 1/pi
+        # for the Lorentzian and 1/nkp for the average over the Brillouin zone
+        ys = calculate_dos(evals,es2,delta,w=None)/(np.pi*nkp) # compute DOS
+        write_dos(es2,ys,output_file="MULTILDOS/DOS.OUT")
+    return x,y,np.array(energies),outs
 
 
 
@@ -167,6 +168,36 @@ def get_real_space_density_batch(lodict,g,vs,ks,has_spin=False):
 
 
 
+def grid_cell_area(x,y):
+    """Area of one cell of the rectangular grid returned by get_grids"""
+    xs = np.unique(x) ; ys = np.unique(y)
+    if len(xs)<2 or len(ys)<2:
+        raise ValueError("the real-space grid of the atomic LDOS needs at "
+                "least two points in each direction; lower dr")
+    return (xs[1]-xs[0])*(ys[1]-ys[0])
+
+
+def normalize_per_state(ds,vs,x,y,g,nrep):
+    """Normalize the real-space density of every eigenstate on the grid.
+
+    The atomic orbitals are not normalized and the orbitals of neighboring
+    sites overlap, so |Psi(r)|^2 carries the cross terms between them and a
+    bonding state integrates to much more than an antibonding one. Each row
+    of ds is rescaled so that its integral over the grid (sum times the
+    area of a grid cell) is the weight the state has in the tight-binding
+    map, |v|^2 per unit cell times the number of unit cells the grid
+    covers. The shape of each state is unchanged, and the maps at
+    different energies have the same normalization as projection="TB"."""
+    area = grid_cell_area(x,y) # area of one cell of the grid
+    ncells = len(g.multireplicas(nrep-1))/len(g.r) # unit cells on the grid
+    weights = np.sum(np.abs(np.array(vs))**2,axis=1)*ncells # target weights
+    integrals = np.sum(ds,axis=1)*area # integral of each state on the grid
+    scale = np.zeros(len(integrals))
+    nonzero = integrals>0.
+    scale[nonzero] = weights[nonzero]/integrals[nonzero]
+    return ds*scale[:,None]
+
+
 def get_grids(g,nrep=1,dr=0.1,deltax=1.0,deltay=1.0):
     """Return the grids to plot the real space wavefunctions"""
     r = g.multireplicas(nrep-1) # get all the position
@@ -183,7 +214,7 @@ def get_grids(g,nrep=1,dr=0.1,deltax=1.0,deltay=1.0):
     gridx,gridy = get_grids_jit(xp,yp,gridx,gridy)
     return gridx,gridy # return the grids
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def get_grids_jit(x,y,gridx,gridy):
     nx = len(x)
     ny = len(y)

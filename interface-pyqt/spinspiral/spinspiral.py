@@ -191,7 +191,9 @@ def initialize():
     h.add_zeeman(get_exchange_field(g)) # impose the spiral texture
     h.add_rashba(get("rashba")) # Rashba SOC
     h.add_kane_mele(get("kanemele")) # intrinsic (Kane-Mele) SOC - identically
-        # zero on a chain, whose two-hop paths are collinear
+        # zero on both lattices here: a chain's two-hop paths are collinear,
+        # and a triangular lattice's come in opposite-chirality pairs that
+        # pyqula averages to zero
     h.shift_fermi(get("fermi")) # shift the Fermi energy
     h.turn_dense()
     report_spiral() # tell the user what was actually built

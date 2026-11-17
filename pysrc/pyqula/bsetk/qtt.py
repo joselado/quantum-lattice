@@ -96,7 +96,7 @@ from .oracle import PairOracle
 def solve_qtt(h,V=None,Q=None,nk=16,nv=None,nc=None,kernel="full",
         neig=1,gauge="projection",screening=None,nkW=None,channel="charge",
         tolerance=1e-6,maxbonddim=None,unfolding="grouped",coarse_nk=8,
-        nsweep=24,maxdim=100,cutoff=1e-10,weight=None,seed=0,**kwargs):
+        nsweep=24,maxdim=100,cutoff=1e-10,weight=None,seed=0):
     """Solve the Tamm-Dancoff BSE with a quantics MPO and DMRG.
 
     Returns (oracle,W,Wx,(energies,amplitudes)) so that BSE can present
@@ -123,7 +123,7 @@ def solve_qtt(h,V=None,Q=None,nk=16,nv=None,nc=None,kernel="full",
             "the mesh gives nk lattice vectors, so the kernel's rank would "
             "grow with the mesh. Build the screened interaction "
             "separately, truncate it with "
-            "ScreenedInteraction.get_dict(cutoff=...), and pass the result "
+            "ScreenedInteraction.get_dict(tol=...), and pass the result "
             "as V=")
     nk = int(nk)
     if nk&(nk-1)!=0 or nk<2:
@@ -180,9 +180,8 @@ class LazyKernel():
     with F[m,a] = conj(el[m,a]) ho[m,a]. Everything it needs comes from
     PairOracle, which diagonalizes only the k-points actually asked for."""
     def __init__(self,pb,W,Wx=None,kernel="full"):
-        if kernel not in ("full","direct","exchange","none"):
-            raise ValueError("kernel must be one of 'full', 'direct', "
-                    "'exchange', 'none', got %r"%(kernel,))
+        from .kernel import kernel_terms
+        self.direct,self.exchange = kernel_terms(kernel)
         self.pairs = pb
         self.kernel = kernel
         self.W = W
@@ -237,15 +236,53 @@ class LazyKernel():
         Fm,elm,hom = self._pair_data(int(m))
         Fn,eln,hon = self._pair_data(int(n))
         out = 0.0+0.0j
-        if self.kernel in ("full","exchange"):
+        if self.exchange:
             out = out + self.norm*(Fm@self.WQ@np.conj(Fn))
-        if self.kernel in ("full","direct"):
+        if self.direct:
             ikm = int(m)//self.pairs.nband
             ikn = int(n)//self.pairs.nband
             Wq = self._direct_W(ikm,ikn)
             # sum_ab conj(el_m,a) el_n,a W_ab conj(ho_n,b) ho_m,b
             out = out - self.norm*((np.conj(elm)*eln)@Wq@
                                    (np.conj(hon)*hom))
+        return out
+    def elements(self,ms,ns):
+        """element(m,n) for every m,n of two equally long index arrays at
+        once, with the same arithmetic in the same order, so that a batch
+        of the cross interpolation costs a few array operations rather
+        than one Python call per element"""
+        ms = np.asarray(ms,dtype=np.int64)
+        ns = np.asarray(ns,dtype=np.int64)
+        out = np.zeros(len(ms),dtype=np.complex128)
+        if self.kernel=="none" or len(ms)==0: return out
+        uniq,inv = np.unique(np.concatenate([ms,ns]),return_inverse=True)
+        data = [self._pair_data(int(m)) for m in uniq]
+        F = np.array([d[0] for d in data])[inv]
+        el = np.array([d[1] for d in data])[inv]
+        ho = np.array([d[2] for d in data])[inv]
+        nm = len(ms)
+        Fm,Fn,elm,eln,hom,hon = F[:nm],F[nm:],el[:nm],el[nm:],ho[:nm],ho[nm:]
+        if self.exchange:
+            out = out + self.norm*np.einsum("ia,ab,ib->i",Fm,self.WQ,
+                    np.conj(Fn))
+        if self.direct:
+            nk = self.pairs.nk
+            dim = max(self.pairs.dimensionality,1)
+            a,b = ms//self.pairs.nband,ns//self.pairs.nband
+            # the per-direction index differences modulo nk, the key of
+            # _direct_W, as one integer per element
+            key = np.zeros(nm,dtype=np.int64)
+            ikm,ikn = a.copy(),b.copy()
+            digits = []
+            for _ in range(dim):
+                digits.append((ikm%nk - ikn%nk)%nk)
+                ikm,ikn = ikm//nk,ikn//nk
+            for dgt in digits: key = key*nk + dgt
+            ukeys,first,kinv = np.unique(key,return_index=True,
+                    return_inverse=True)
+            Wq = np.array([self._direct_W(a[i],b[i]) for i in first])
+            out = out - self.norm*np.einsum("ia,iab,ib->i",
+                    np.conj(elm)*eln,Wq[kinv],np.conj(hon)*hom)
         return out
     def diagonal_energy(self,m):
         """The independent-particle transition energy of pair m"""
@@ -337,6 +374,30 @@ def grid_to_pair(grid,gi):
     return (ik*(grid.pyqula_nband//grid.pyqula_ncb) + iv)*grid.pyqula_ncb + ic
 
 
+def grids_to_pairs(grid,qs):
+    """grid_to_pair(grid,grid.quantics_to_grididx(q)) for every row of the
+    integer array qs, (n,nsite), at once"""
+    qs = np.asarray(qs,dtype=np.int64)
+    gis = []
+    for d in range(grid.ndims()): # the quantics_to_grididx arithmetic
+        R = grid.Rs[d]
+        gi = np.zeros(len(qs),dtype=np.int64)
+        for bit in range(R):
+            site,pos = grid._lookup_table[d][bit]
+            digit = (qs[:,site]//grid._site_placevalues[site][pos]) \
+                    % grid._site_radices[site][pos]
+            gi += digit*grid.base[d]**(R-1-bit)
+        gis.append(gi)
+    ik = np.zeros(len(qs),dtype=np.int64)
+    for j in range(grid.pyqula_dim): ik = ik*grid.pyqula_nk + gis[j]
+    pos = grid.pyqula_dim
+    iv = np.zeros(len(qs),dtype=np.int64)
+    for sz in grid.pyqula_vsizes: iv = iv*sz + gis[pos] ; pos += 1
+    ic = np.zeros(len(qs),dtype=np.int64)
+    for sz in grid.pyqula_csizes: ic = ic*sz + gis[pos] ; pos += 1
+    return (ik*(grid.pyqula_nband//grid.pyqula_ncb) + iv)*grid.pyqula_ncb + ic
+
+
 def build_mpo(lk,grid,tolerance=1e-6,maxbonddim=None):
     """Cross-interpolate the kernel and the diagonal, and return their sum
     as a pyitensor MPO."""
@@ -386,12 +447,7 @@ def _kernel_cores(lk,grid,tolerance=1e-6,maxbonddim=None):
     fused = [d*d for d in dims]
     if lk.kernel=="none": # nothing to interpolate: the zero operator
         return [np.zeros((1,d,d,1),dtype=np.complex128) for d in dims]
-    def f(idx):
-        srow = [int(s)//d for s,d in zip(idx,dims)]
-        scol = [int(s)%d for s,d in zip(idx,dims)]
-        m = grid_to_pair(grid,grid.quantics_to_grididx(srow))
-        n = grid_to_pair(grid,grid.quantics_to_grididx(scol))
-        return complex(lk.element(m,n))
+    f = _KernelElements(lk,grid,dims)
     fc = CachedFunction(np.complex128,f,fused)
     # The default first pivot -- the all-zero index -- decodes to
     # srow = scol = 0, i.e. the element (0,0), which is ON THE DIAGONAL
@@ -405,6 +461,48 @@ def _kernel_cores(lk,grid,tolerance=1e-6,maxbonddim=None):
             dtype=np.complex128)
     # (row,column) -> the engine's (in,out) = (column,row) storage order
     return [np.swapaxes(T,1,2) for T in tt.sitetensors()]
+
+
+from ..qutecipytk.tensortrain.batcheval import BatchEvaluator
+
+
+class _KernelElements(BatchEvaluator):
+    """The kernel X - D as a function of the fused quantics index, site i
+    carrying s = s_row*d + s_col, for the cross interpolation. A batch is
+    decoded and evaluated with array operations (grids_to_pairs,
+    LazyKernel.elements): one Python call per element was most of the
+    time of the quantics solver after the k-points, 4.3 s of element
+    evaluation and 2.8 s of index decoding in a 13 s run of the chain at
+    nk=16384"""
+    def __init__(self,lk,grid,dims):
+        self.lk,self.grid = lk,grid
+        self.dims = np.array(dims,dtype=np.int64)
+    def _evaluate(self,idx):
+        idx = np.asarray(idx,dtype=np.int64).reshape(-1,len(self.dims))
+        m = grids_to_pairs(self.grid,idx//self.dims[None,:])
+        n = grids_to_pairs(self.grid,idx%self.dims[None,:])
+        return self.lk.elements(m,n)
+    def __call__(self,idx):
+        return complex(self._evaluate([idx])[0])
+    def batchevaluate(self,leftindexset,rightindexset,ncent):
+        import itertools
+        nl = len(leftindexset[0])
+        cdims = [int(d)**2 for d in self.dims[nl:nl+ncent]]
+        combos = list(itertools.product(*[range(d) for d in cdims]))
+        nr = len(rightindexset[0])
+        # explicit widths, since an empty left or right index set is a
+        # list of empty tuples, whose width -1 cannot infer
+        L = np.array(leftindexset,dtype=np.int64)
+        L = L.reshape(len(leftindexset),nl)
+        C = np.array(combos,dtype=np.int64).reshape(len(combos),ncent)
+        R = np.array(rightindexset,dtype=np.int64)
+        R = R.reshape(len(rightindexset),nr)
+        nL,nC,nR = len(L),len(C),len(R)
+        idx = np.concatenate([np.repeat(L,nC*nR,axis=0),
+                np.tile(np.repeat(C,nR,axis=0),(nL,1)),
+                np.tile(R,(nL*nC,1))],axis=1)
+        out = self._evaluate(idx)
+        return out.reshape((nL,*cdims,nR))
 
 
 def _mpo_from_cores(grid,corelists):
@@ -482,15 +580,25 @@ def run_dmrg(mpo,grid,neig=1,nsweep=24,maxdim=100,cutoff=1e-10,weight=None,
     this code, and a better excited-state driver (a proper block DMRG, or
     a shift-invert on the MPO) would slot straight in here. Until then,
     several excitons come from bsetk/iterative.py."""
-    from dmrgpy.pyitensor.mpsalgebra import randomMPS, inner
-    from dmrgpy.pyitensor.dmrg import dmrg, dmrg_excited
     from dmrgpy.pyitensor.sweeps import Sweeps
     sites = _Sites(grid.pyqula_sites)
     sweeps = Sweeps(nsweep)
     sweeps.maxdim = maxdim
     sweeps.cutoff = cutoff
     sweeps.niter = 4
+    # randomMPS draws from numpy's global generator, so it is seeded for
+    # reproducibility and given back afterwards, so that a solve does not
+    # reseed the caller's random stream
+    state = np.random.get_state()
     np.random.seed(seed)
+    try: return _run_dmrg(mpo,grid,neig,sweeps,sites,weight,maxdim)
+    finally: np.random.set_state(state)
+
+
+def _run_dmrg(mpo,grid,neig,sweeps,sites,weight,maxdim):
+    """The DMRG runs of run_dmrg, with the random state already set"""
+    from dmrgpy.pyitensor.mpsalgebra import randomMPS, inner
+    from dmrgpy.pyitensor.dmrg import dmrg, dmrg_excited
     states,energies = [],[]
     for i in range(neig):
         psi = randomMPS(sites,min(maxdim,8))
@@ -542,6 +650,12 @@ def _amplitudes(states,grid,max_npair=4_000_000):
     dims = list(grid.localdimensions())
     npair = int(np.prod(dims))
     if npair>max_npair:
+        import warnings
+        warnings.warn("the exciton amplitudes are not reconstructed: the "
+            "pair basis has %d pairs, above max_npair=%d, and the full "
+            "vector is the one allocation this solver exists to avoid. "
+            "BSE.amplitudes comes back with no columns; the energies are "
+            "unaffected"%(npair,max_npair),stacklevel=4)
         return np.zeros((len(states),0),dtype=np.complex128)
     perm = _site_to_variable_order(grid)
     out = []

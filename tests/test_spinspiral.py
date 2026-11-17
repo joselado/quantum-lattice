@@ -144,7 +144,6 @@ def test_inplane_projections_follow_the_spiral(mode, projection):
     ("Chain", "0.25, 0.0", 55.0, 0.5, 0.0),  # conical, Rashba
     ("Chain", "0.2, 0.0", 90.0, 0.5, 0.0),   # flat, Rashba
     ("Triangular", "0.25, 0.0", 90.0, 0.5, 0.0),
-    ("Triangular", "0.25, 0.0", 90.0, 0.0, 0.4),  # intrinsic SOC
 ])
 def test_soc_breaks_the_spiral_symmetry(mode, lattice, qvector, cone_angle,
                                         rashba, kanemele):
@@ -160,6 +159,17 @@ def test_soc_breaks_the_spiral_symmetry(mode, lattice, qvector, cone_angle,
     _configure(mode, lattice=lattice, qvector=qvector, cone_angle=cone_angle,
                rashba=rashba, kanemele=kanemele)
     assert _spread(_ldos_profile(mode)) > 1e-3
+
+
+@pytest.mark.parametrize("lattice", ["Chain", "Triangular"])
+def test_intrinsic_soc_vanishes_on_this_modes_lattices(mode, lattice):
+    """pyqula's Kane-Mele term averages the chirality of every two-hop
+    path: collinear on a chain, opposite-chirality pairs on a triangular
+    lattice - so it adds nothing to either, and the charge LDOS stays
+    uniform along the spiral."""
+    _configure(mode, lattice=lattice, qvector="0.25, 0.0", cone_angle=90.0,
+               rashba=0.0, kanemele=0.4)
+    assert _spread(_ldos_profile(mode)) < 1e-8
 
 
 # ---------------------------------------------------------------------

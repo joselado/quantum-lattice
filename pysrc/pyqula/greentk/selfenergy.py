@@ -7,6 +7,71 @@ from .kchain import green_kchain
 
 
 
+_selfenergy_modes = ("adaptive","renormalization","full","full_adaptive",
+        "triangle")
+# the tail of the refusal of the four modes that stop at two dimensions
+_only_1d_2d = (" is only implemented for 1d and 2d Hamiltonians; for a 3d "
+        "crystal use mode='triangle', which an Embedding takes as "
+        "eb.gf_mode='triangle'")
+
+
+def _triangle_green(h,energies,nk=100,delta=1e-2,gtype="bulk"):
+  """Bulk Green's function and selfenergy of a 3d crystal from the
+  tetrahedron integration of the band projectors on the uniform nk^3 mesh
+  (dostk/simplexdos.green_triangle), at every energy of energies from one
+  diagonalization of the mesh: two (len(energies),n,n) arrays. The mesh
+  only has to resolve the bands, not delta. In 1d and 2d the decimation
+  of mode="adaptive" is faster at equal accuracy
+  (future_development/qtci_dos_green.md), so this mode is only offered in
+  3d.
+
+  The Green's function depends on z = energy + i delta alone. So a
+  complex energy, as in the density-matrix contour of an embedding, is
+  the real energy Re z with the broadening Im z, and below the real axis
+  (delta<0, the other half of that contour) G(z) = G(z^*)^dagger, since
+  the Bloch Hamiltonian is Hermitian. The tetrahedra take one broadening
+  per call, so the energies are grouped by |Im z|: a sweep at real
+  energies is one call and one diagonalization of the mesh, the same
+  numbers as before, and a contour pays one diagonalization per point.
+  On the real axis it raises a ValueError that names the energy and the
+  delta that were passed: Im z = 0, or the few ulps that are left when the
+  imaginary part of the energy cancels delta."""
+  if h.dimensionality!=3:
+      raise ValueError("mode='triangle' of the Bloch selfenergy is only for "
+              "3d crystals, got dimensionality "+str(h.dimensionality)+
+              "; in 1d and 2d use mode='adaptive', which is faster at "
+              "equal accuracy")
+  if gtype!="bulk":
+      raise NotImplementedError("mode='triangle' gives the bulk Green's "
+              "function only, got gtype="+repr(gtype))
+  from ..dostk.simplexdos import green_triangle
+  h = h.get_dense()
+  intra = algebra.todense(h.intra)
+  n = intra.shape[0]
+  energies = np.atleast_1d(np.asarray(energies)).astype(np.complex128)
+  z = energies + delta*1j
+  eta = np.abs(z.imag) # the broadening of each energy
+  # on the real axis: Im z is zero, or it is what the rounding leaves when
+  # the imaginary part of the energy cancels delta, a few ulps of the two
+  onaxis = eta<=4.*np.finfo(np.float64).eps*(np.abs(energies.imag)+abs(delta))
+  if np.any(onaxis):
+      raise ValueError("mode='triangle' needs energy + i delta off the "
+              "real axis, where the real part of the simplex Green's "
+              "function has logarithmic divergences; got energy="
+              +str(energies[onaxis][0])+" with delta="+str(delta)
+              +", whose sum has no imaginary part")
+  g = np.zeros((len(z),n,n),dtype=np.complex128)
+  for x in np.unique(eta): # one call of the tetrahedra per broadening
+      same = eta==x
+      g[same] = green_triangle(h,z.real[same],nk=nk,delta=float(x))
+  lower = z.imag<0. # below the real axis, the Hermitian conjugate
+  g[lower] = np.conjugate(np.transpose(g[lower],(0,2,1)))
+  iden = np.identity(n)
+  selfenergy = np.array([iden*zi - intra - algebra.inv(gi)
+                         for (zi,gi) in zip(z,g)])
+  return g,selfenergy.reshape(g.shape)
+
+
 def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
                          mode="adaptive", # algorithm for integration
                          gtype="bulk", # bulk or surface
@@ -14,6 +79,13 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
   """ Calculates the selfenergy of a cell defect,
       input is a hamiltonian class"""
   if mode=="adaptative": mode = "adaptive"
+  if mode not in _selfenergy_modes:
+      raise ValueError("unknown mode "+repr(mode)+" for the Bloch "
+              "selfenergy, accepted values are "+", ".join(_selfenergy_modes))
+  if mode=="triangle": # 3d only, see _triangle_green
+      g,selfenergy = _triangle_green(h,[energy],nk=nk,delta=delta,
+              gtype=gtype)
+      return g[0],selfenergy[0]
   from ..htk.kchain import detect_longest_hopping
   if detect_longest_hopping(h)==1:
       def gr(h):
@@ -91,8 +163,8 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
           ks.append([ikx,iky,0.])
       ks = np.array(ks)  # all the kpoints
     else: # raise error
-      raise NotImplementedError("the full-integration selfenergy is only "
-              "implemented for 1d and 2d Hamiltonians")
+      raise NotImplementedError("the full-integration selfenergy"
+              +_only_1d_2d)
     for k in ks:  # loop in BZ
       g += algebra.inv(e - hk_gen(k))  # add green function  
     g = g/len(ks)  # normalize
@@ -112,8 +184,8 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
 #        g += green_kchain(h90,k=k,energy=energy,delta=delta,error=error)
       g = g/len(ks)
     else:
-      raise NotImplementedError("the renormalization selfenergy is only "
-              "implemented for 1d and 2d Hamiltonians")
+      raise NotImplementedError("the renormalization selfenergy"
+              +_only_1d_2d)
   #####################################################
   #####################################################
   elif mode=="adaptive":
@@ -139,8 +211,7 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
       g = integration.integrate_matrix(fint,xlim=[0.,1.],eps=error)
         # chain in the y direction
     else:
-      raise NotImplementedError("the adaptive selfenergy is only implemented "
-              "for 1d and 2d Hamiltonians")
+      raise NotImplementedError("the adaptive selfenergy"+_only_1d_2d)
   elif mode=="full_adaptive":
     fint = lambda k: algebra.inv(e - hk_gen(k))  # green's function
     if d==1: # adaptive 1D
@@ -152,8 +223,8 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
         g = integration.integrate_matrix_2D(fint,xlim=[0.,1.],ylim=[0.,1.],
               eps=error)
     else:
-      raise NotImplementedError("the fully adaptive selfenergy is only "
-              "implemented for 1d and 2d Hamiltonians")
+      raise NotImplementedError("the fully adaptive selfenergy"
+              +_only_1d_2d)
   # now calculate selfenergy
   selfenergy = e - h.intra - algebra.inv(g)
   return g,selfenergy
@@ -162,7 +233,7 @@ def bloch_selfenergy(h,nk=100,energy = 0.0, delta = 1e-2,
 
 
 def bloch_selfenergy_batch(h,energies,delta=1e-2,mode="adaptive",
-                           gtype="bulk",error=1e-3,**kwargs):
+                           gtype="bulk",error=1e-3,nk=100,**kwargs):
     """`bloch_selfenergy` at a whole set of energies at once, returned as
     two (len(energies),n,n) arrays -- the Green's function and the
     selfenergy, in the same order the scalar function returns them.
@@ -177,14 +248,27 @@ def bloch_selfenergy_batch(h,energies,delta=1e-2,mode="adaptive",
     sideband sweep of `keldyshtk.current.dc_current`, tens of thousands of
     times per dI/dV point.
 
+    The tetrahedron integration of a 3d crystal (`mode="triangle"`, on the
+    nk^3 mesh) also batches: one diagonalization of the mesh serves every
+    energy, where a loop would diagonalize the whole mesh once per energy.
+    Complex energies there share a diagonalization when they share their
+    imaginary part (see _triangle_green).
+
     Everything else falls back to a plain loop over `bloch_selfenergy`, so
     this is always safe to call: the same numbers either way, and a
     speedup only where there is one to be had."""
     from ..htk.kchain import detect_longest_hopping
-    energies = np.asarray(energies,dtype=np.float64)
-    if not (h.dimensionality==1 and mode=="adaptive"
+    if mode=="triangle": # 3d only, see _triangle_green
+        return _triangle_green(h,energies,nk=nk,delta=delta,gtype=gtype)
+    energies = np.asarray(energies)
+    # complex energies go through the loop, which keeps their imaginary
+    # part; the decimation batch takes real energies, and the cast to
+    # them dropped it with only a ComplexWarning
+    iscomplex = np.iscomplexobj(energies)
+    if not iscomplex: energies = energies.astype(np.float64)
+    if iscomplex or not (h.dimensionality==1 and mode=="adaptive"
                 and detect_longest_hopping(h)==1):
-        out = [bloch_selfenergy(h,energy=e,delta=delta,mode=mode,
+        out = [bloch_selfenergy(h,nk=nk,energy=e,delta=delta,mode=mode,
                                 gtype=gtype,error=error,**kwargs)
                for e in energies]
         return (np.array([o[0] for o in out]),np.array([o[1] for o in out]))

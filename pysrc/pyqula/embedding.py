@@ -1,5 +1,6 @@
 # library to perform embedding calculations
 from __future__ import print_function
+from . import filewrite
 
 from . import green
 from . import parallel
@@ -23,11 +24,23 @@ class Embedding():
         self.has_gf_generator = False
         self.has_spin = self.H.has_spin
         self.has_eh = self.H.has_eh
-        self.gf_mode = "renormalization" # mode for Green's functions
+        # mode for Green's functions: the renormalization selfenergy is
+        # built for 1d and 2d, and a 3d crystal takes the tetrahedra
+        if self.dimensionality==3: self.gf_mode = "triangle"
+        else: self.gf_mode = "renormalization"
         self.boundary_embedding_generator = None
         self.mode = "bulk" # mode
         self.nsuper = None # supercell between original Hamiltonian
-        if m is not None: 
+        if m is not None and selfenergy is not None:
+            # the boundary embedding of selfenergy= is built from h alone,
+            # so a defect passed as m used to be dropped without a word
+            # (bug_audit_6.md #12)
+            raise ValueError("Embedding takes either a defect m, embedded "
+                    "in the infinite crystal h, or a boundary selfenergy= "
+                    "of the finite system h, not both: with selfenergy= the "
+                    "defect would be ignored. Put the defect into h itself "
+                    "and pass only selfenergy=")
+        if m is not None:
             if isinstance(m, Hamiltonian):
 #                print("Picking intracell in embedding")
                 m = m.intra # get the intracell
@@ -48,6 +61,9 @@ class Embedding():
     def get_gf(self,**kwargs):
         return get_gf(self,**kwargs)
     def get_density_matrix(self,**kwargs):
+        """Return the density matrix of the embedded cell, in the index
+        convention of Hamiltonian.get_density_matrix (see
+        embeddingtk.embedded.get_dm)"""
         return get_dm(self,**kwargs)
     def get_ldos(self,**kwargs):
         return get_ldos(self,**kwargs)
@@ -61,8 +77,9 @@ class Embedding():
     def multidos(self,es=np.linspace(-1.0,1.0,30),
                    energies=None,**kwargs):
         if energies is not None: es = energies # overwrite
-        ds = parallel.pcall(lambda e: self.dos(energy=e,**kwargs),es)
-        return (es,np.array(ds))
+        from .embeddingtk.ldos import ldos_sweep
+        (x,y,ldos) = ldos_sweep(self,es,**kwargs) # the sweep of get_ldos
+        return (es,np.sum(ldos,axis=1)) # the sum over sites of each map
     def multildos(self,**kwargs):
         """Compute the ldos at different energies"""
         from .embeddingtk.ldos import multildos
@@ -108,8 +125,9 @@ class Embedding():
 
 def dos_impurity(h,vc=None,energies=np.linspace(-.5,.5,20),
                    mode="adaptive",delta=0.01,nk=50,silent=True,
-                   use_generator=False):
+                   use_generator=False,write=None):
   """ Calculates the green function using the embedding technique"""
+  write = filewrite.resolve(write,True) # the call, else the global switch
   if vc is None: vc = h.intra  # assume perfect
   iden = np.identity(h.intra.shape[0],dtype=np.complex128)
   if use_generator:
@@ -119,26 +137,36 @@ def dos_impurity(h,vc=None,energies=np.linspace(-.5,.5,20),
     def get_green(energy):
       return green.bloch_selfenergy(h,energy=energy,delta=delta,nk=nk,
                                        mode=mode)
-  def pfun(energy): # function to parallelize
-    g,selfe = get_green(energy) # get Green and selfenergy
-    emat = iden*(energy + delta*1j)  # E +i\delta 
+  def pfun(energy,gselfe=None): # function to parallelize
+    if gselfe is None: gselfe = get_green(energy) # get Green and selfenergy
+    g,selfe = gselfe
+    emat = iden*(energy + delta*1j)  # E +i\delta
     gv = lg.inv(emat - vc -selfe)   # Green function of a vacancy, with selfener
     d = -np.trace(g).imag  # save DOS of the pristine
     dv = -np.trace(gv).imag  # save DOS of the defected
     if not silent: print("Done",energy)
     return [d,dv]
-  out = np.array(parallel.pcall(pfun,energies)) # compute
+  if mode=="triangle" and not use_generator:
+    # the tetrahedra of a 3d crystal: the bulk of the whole sweep from one
+    # diagonalization of the nk^3 mesh, then the Dyson step energy by energy
+    gs,selfes = green.supercell_selfenergy_batch(h,energies,delta=delta,
+            nk=nk,nsuper=1,gf_mode=mode)
+    out = np.array([pfun(e,(g,s)) for (e,g,s) in zip(energies,gs,selfes)])
+  else: # energy by energy
+    out = np.array(parallel.pcall(pfun,energies)) # compute
   ds,dsv = out[:,0],out[:,1] # get the different data
-  np.savetxt("DOS_PRISTINE.OUT",np.array([energies,ds]).T)
-  np.savetxt("DOS_DEFECTIVE.OUT",np.array([energies,dsv]).T)
+  if write:
+    np.savetxt("DOS_PRISTINE.OUT",np.array([energies,ds]).T)
+    np.savetxt("DOS_DEFECTIVE.OUT",np.array([energies,dsv]).T)
   return ds,dsv # return object
 
 
 
 
 
-def bulk_and_surface(h1,nk=100,energies=np.linspace(-1.,1.,100),**kwargs):
+def bulk_and_surface(h1,nk=100,energies=np.linspace(-1.,1.,100),write=None,**kwargs):
   """Get the surface DOS of an interface"""
+  write = filewrite.resolve(write,True) # the call, else the global switch
   from scipy.sparse import csc_matrix,bmat
   if h1.dimensionality==2:
       kpath = [[k,0.,0.] for k in np.linspace(0.,1.,nk)]
@@ -158,7 +186,7 @@ def bulk_and_surface(h1,nk=100,energies=np.linspace(-1.,1.,100),**kwargs):
     dos_sur += np.array([-algebra.trace(g[0]).imag for g in outs])
   dos_bulk /= len(kpath)
   dos_sur /= len(kpath)
-  np.savetxt("DOS.OUT",np.array([energies,dos_bulk,dos_sur]).T)
+  if write: np.savetxt("DOS.OUT",np.array([energies,dos_bulk,dos_sur]).T)
   return energies,dos_bulk,dos_sur
 
 
@@ -300,43 +328,70 @@ def onsite_supercell_no_multicell(h,nsuper,mc=None):
 def get_gf(self,operator=None,**kwargs):
     """Return the Green's function
 
-    operator: None, or an operator spec (a name, a matrix, an Operator).
-        The Green's function is then weighted with that operator, the
-        same convention Embedding.get_ldos uses for its map. It is
-        applied here rather than in each branch so that both the exact
-        and the boundary-selfenergy Green's functions honour it.
+    operator: None, or an operator spec (a name, a matrix, an Operator,
+        a potential). The Green's function G is then weighted with that
+        operator A as (G A + A G)/2, so that -Im of its diagonal over pi
+        is the map of Embedding.get_ldos with the same operator, the
+        local matrix element of ldos.green2ldos. It is applied here
+        rather than in each branch so that both the exact and the
+        boundary-selfenergy Green's functions honour it. A name or a
+        potential is built on the embedded cell, the supercell when
+        nsuper>1 (embeddingtk.ldos.operator_matrix).
     """
     if self.selfenergy is None: # no selfenergy given, compute it
         gv = get_gf_exact(self,**kwargs)
     else: # a selfenergy is given
         from .embeddingtk.boundaryembedding import boundary_embedding_gf
         gv = boundary_embedding_gf(self,selfenergy=self.selfenergy,**kwargs)
-    if operator is not None: # project with the operator
-        gv = self.H.get_operator(operator)*gv # multiply
+    if operator is not None: # weight with the operator
+        from .embeddingtk.ldos import operator_matrix
+        op = operator_matrix(self,operator,nsuper=kwargs.get("nsuper",1))
+        gv = algebra.todense(gv)
+        gv = (gv@op + op@gv)/2. # symmetric, see the docstring
     return gv
+
+
+def _embedded_cell(self):
+    """The cell of the periodic embedding. When self.m is the onsite
+    matrix of a supercell (self.nsuper times the original cell) with a
+    defect in it, that supercell is the cell used for the bulk selfenergy,
+    so that the outer nsuper of get_gf_exact plays the same role (extra
+    padding around the given defective supercell) as it does in the
+    plain, non-supercell case"""
+    h = self.H
+    if self.nsuper is not None: h = h.supercell(self.nsuper)
+    return h
+
+
+def _dyson(ms,selfe,e,delta):
+    """Green's function of the defective cell ms with the bulk selfenergy
+    selfe at the energy e"""
+    iden = np.identity(ms.shape[0],dtype=np.complex128) # identity
+    emat = iden*(e + delta*1j) # energy matrix
+    return algebra.inv(emat - ms - selfe) # Defective Green function
 
 
 def get_gf_exact(self,energy=0.0,delta=1e-2,
         nsuper=1,nk=100,**kwargs):
     """Return the Green's function"""
-    h = self.H
-    e = energy
-    if self.nsuper is not None:
-        # self.m is the onsite matrix of a supercell (self.nsuper times
-        # the original cell) with a defect in it -- redefine the cell
-        # used for the periodic embedding *before* computing the bulk
-        # selfenergy, so that the outer nsuper below plays the same role
-        # (extra padding around the given defective supercell) as it does
-        # in the plain, non-supercell case
-        h = h.supercell(self.nsuper)
-    g,selfe = green.supercell_selfenergy(h,e=e,delta=delta,nk=nk,
+    h = _embedded_cell(self)
+    g,selfe = green.supercell_selfenergy(h,e=energy,delta=delta,nk=nk,
             nsuper=nsuper,gtype=self.mode,gf_mode=self.gf_mode)
     ms = onsite_defective_central(h,self.m,nsuper)
-    ns = ms.shape[0] # dimension of the supercell
-    iden = np.identity(ns,dtype=np.complex128) # identity
-    emat = iden*(e + delta*1j) # energy matrix
-    gv = algebra.inv(emat - ms -selfe)   # Defective Green function
-    return gv
+    return _dyson(ms,selfe,energy,delta)
+
+
+def get_gf_exact_batch(self,energies,delta=1e-2,nsuper=1,nk=100,**kwargs):
+    """get_gf_exact at every energy of energies, as a list of matrices.
+    The bulk selfenergies of the whole sweep come from one call of
+    green.supercell_selfenergy_batch, so that with gf_mode="triangle"
+    the nk^3 mesh is diagonalized once and not once per energy, and the
+    Dyson step is done energy by energy"""
+    h = _embedded_cell(self)
+    gs,selfes = green.supercell_selfenergy_batch(h,energies,delta=delta,
+            nk=nk,nsuper=nsuper,gtype=self.mode,gf_mode=self.gf_mode)
+    ms = onsite_defective_central(h,self.m,nsuper)
+    return [_dyson(ms,selfe,e,delta) for (e,selfe) in zip(energies,selfes)]
 
 
 from .embeddingtk.embedded import get_dm

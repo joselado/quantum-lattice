@@ -30,11 +30,16 @@ consistent between k-points:
     references produces a perfectly valid gauge at each k and no smooth
     gauge overall, which is the one thing the quantics route cannot
     survive.
+
+Which bands form a degenerate multiplet is NOT fixed up front: it is read
+off each k-point's own energies when that k-point is diagonalized. The
+projection may rotate only inside a multiplet at that k, since dE stays
+diagonal on the band labels, and that is what keeps the spectrum
+invariant (see bsetk/gauge.py).
 """
 import numpy as np
 
-from .. import algebra
-from .pairbasis import select_bands
+from .pairbasis import select_bands, mesh_eigenstates
 from .gauge import fix_gauge, default_trials, default_refs
 
 
@@ -90,11 +95,8 @@ class PairOracle():
         subset of the nk one whenever ncoarse divides nk, which is the
         case here since both are powers of two."""
         ks = _mesh_points(ncoarse,self.dimensionality)
-        es,cs = [],[]
-        for k in ks:
-            e,w = algebra.eigh(self.hk(k))
-            es.append(e) ; cs.append(np.array(w.T,dtype=np.complex128))
-        return np.array(cs),np.array(es)
+        es,cs = mesh_eigenstates(self.hk,ks)
+        return cs,es
     def kpoint(self,ik):
         """Fractional coordinates of mesh point ik, generated from the
         index rather than looked up. geometry.get_kmesh returns a
@@ -107,13 +109,22 @@ class PairOracle():
         out = self._cache.get(ik)
         if out is not None: return out
         k = self.kpoint(ik)
-        e1,w1 = algebra.eigh(self.hk(k))
-        e2,w2 = algebra.eigh(self.hk(k+self.Q))
-        c1 = np.array(w1.T,dtype=np.complex128)[None,:,:]
-        c2 = np.array(w2.T,dtype=np.complex128)[None,:,:]
+        es,cs = mesh_eigenstates(self.hk,[k,k+self.Q]) # the same solver
+        # as PairBasis, so the raw gauge is the same too
+        e1,e2 = es
+        nocc = self.vbands[-1] + 1 # the window sits at the gap
+        if np.sum(e1<0.)!=nocc or np.sum(e2<0.)!=nocc:
+            raise ValueError("the band window of this quantics BSE was "
+                "found on a coarse submesh with %d occupied bands, but mesh "
+                "point %d has %d (and %d at k+Q): a band crosses the Fermi "
+                "level between the coarse points, so this mesh has no gap "
+                "and no electron-hole pair basis. Raise coarse_nk, or use "
+                "solver='iterative', whose pair basis checks every point"
+                %(nocc,ik,np.sum(e1<0.),np.sum(e2<0.)))
+        c1,c2 = cs[0:1],cs[1:2]
         kw = dict(mode=self.gauge,trials=self.trials,refs=self.refs)
-        c1 = fix_gauge(c1,self.groups,**kw)[0]
-        c2 = fix_gauge(c2,self.groups,**kw)[0]
+        c1 = fix_gauge(c1,self.groups,ek=e1[None,:],**kw)[0]
+        c2 = fix_gauge(c2,self.groups,ek=e2[None,:],**kw)[0]
         out = (e1,c1,e2,c2)
         self._cache[ik] = out
         return out

@@ -1,5 +1,6 @@
 # kernel polynomial method libraries
 from __future__ import print_function,division
+from . import filewrite
 import scipy.sparse.linalg as lg
 from scipy.sparse import csc_matrix as csc
 import numpy.random as rand
@@ -86,17 +87,39 @@ def get_momentsA(v,m,n=100,A=None,**kwargs):
 from .kpmtk.kpmnumba import kpm_moments_ij as get_moments_ij
 
 from .kpmtk.kpmnumba import kpm_moments_vivj as get_moments_vivj
+from .kpmtk.scaleguard import check_scale
+
+
+def operator_norm_bound(A):
+    """Upper bound on the spectral norm of the operator A, the bound on
+    the operator-weighted moments <T_n(m)v|A|v> of a unit vector v:
+    sqrt(|A|_1 |A|_inf), the largest column and row sums of |A|. One for
+    no operator"""
+    if A is None: return 1.
+    A = abs(csc(A))
+    return np.sqrt(np.max(A.sum(axis=0))*np.max(A.sum(axis=1)))
+
+
+# the most entries of the block of site-basis vectors full_trace hands to
+# the batched kernel at once (256 MB in complex128)
+_TRACE_CHUNK = 2**24
 
 
 def full_trace(m_in,n=200,**kwargs):
   """ Get full trace of the matrix, one site-basis vector per numba
-  thread (see kpm_moments_batch)"""
+  thread (see kpm_moments_batch). The vectors go in chunks of at most
+  _TRACE_CHUNK entries, so that the memory is linear in the dimension:
+  they used to be one dense nd x nd block, 2.6 TB at 4 x 10^5 orbitals"""
   m = csc(m_in) # saprse matrix
   nd = m.shape[0] # length of the matrix
-  from .kpmtk.ldos import index2vector
-  vs = np.array([index2vector(i,nd) for i in range(nd)])
-  mus = get_moments_batch(vs,m,n=n,**kwargs) # (nd,2n) moments, one row per site
-  return np.sum(mus,axis=0)/nd
+  chunk = max(1,min(nd,_TRACE_CHUNK//nd)) # vectors per batch
+  mus = 0.
+  for i0 in range(0,nd,chunk):
+      ii = np.arange(i0,min(nd,i0+chunk)) # the sites of this batch
+      vs = np.zeros((len(ii),nd),dtype=np.complex128)
+      vs[np.arange(len(ii)),ii] = 1. # one site-basis vector per row
+      mus = mus + np.sum(get_moments_batch(vs,m,n=n,**kwargs),axis=0)
+  return mus/nd
 
 
 
@@ -125,19 +148,70 @@ def tdos(m_in,scale=10.,npol=None,ne=500,kernel="jackson",
   if npol is None: npol = ne
   mus = random_trace(m_in/scale,ntries=ntries,n=npol,fun=frand,
           operator=operator,**kwargs)
+  check_scale(mus,scale,bound=operator_norm_bound(operator),
+          kpm_prec=kwargs.get("kpm_prec","double"))
+  return moments_to_dos(mus,scale=scale,ne=ne,ewindow=ewindow,
+          kernel=kernel,x=x)
+
+
+def moments_to_dos(mus,scale=10.,ne=500,ewindow=None,kernel="jackson",
+        x=None):
+  """Turn the Chebyshev moments of m/scale into a density on an energy
+  grid, ne points spanning the spectrum or the window ewindow, or at
+  exactly the energies x when they are given (ne and ewindow are then not
+  used, and the density is zero outside [-scale,scale])"""
+  if x is not None: # the series at the energies asked for, no grid
+    xs = np.array(x,dtype=float).reshape(-1)/scale
+    ys = generate_profile(mus,xs,kernel=kernel).real/scale
+    return x,ys.reshape(np.shape(x))
   if ewindow is None or abs(ewindow)>scale: # no window provided
     xs = np.linspace(-1.0,1.0,ne,endpoint=True)*1.01 # energies
   else:
     xx = abs(ewindow/scale) # scale
     xs = np.linspace(-xx,xx,ne,endpoint=True)*1.01 # energies
   ys = generate_profile(mus,xs,kernel=kernel).real
-  (xs,ys) = (scale*xs,ys/scale)
-  if x is not None:
-    from scipy.interpolate import interp1d
-    f = interp1d(xs,ys,bounds_error=False,fill_value=0.)
-#    f = interp1d(xs,ys,bounds_error=False,fill_value=[ys[0],ys[-1]])
-    return x,f(x)
-  else: return xs,ys
+  return scale*xs,ys/scale
+
+
+def factored_moments(m,U,n=200,**kwargs):
+  """Chebyshev moments of Tr[U U^dagger T_j(m)] = sum_a <u_a|T_j(m)|u_a>,
+  j=0,...,2n-1, for the r columns u_a of the N x r matrix U, exactly.
+
+  This is the trace of an operator of rank r that is given as U U^dagger,
+  which takes r Chebyshev recursions, one per column, where the trace of a
+  general operator takes a stochastic average over random vectors. With
+  Bloch states as the columns it is the momentum-resolved spectral
+  function, the diagonal of the moments <k,a|T_j(H)|k,b> between Bloch
+  states of Joao, Viana Parente Lopes and Ferreira, J. Phys. Mater. 5,
+  045002 (2022), arXiv:2110.00574. The columns run as
+  one batch, one per numba thread or on the device, see
+  get_moments_batch. Returns an (r,2n) array with the moments of each
+  column normalized to one, and the squared norms of the columns, which
+  weigh them in the trace; the columns that are zero are left out of
+  both"""
+  from scipy.sparse import issparse
+  vs = U.T.toarray() if issparse(U) else np.array(U).T # one row per column
+  vs = np.array(vs,dtype=np.complex128)
+  w = np.sum(np.abs(vs)**2,axis=1) # squared norms
+  vs = vs[w>0.] ; w = w[w>0.] # an empty column adds nothing
+  if len(w)==0: return np.zeros((0,2*n),dtype=np.complex128),w
+  vs = vs/np.sqrt(w)[:,None] # unit vectors
+  mus = get_moments_batch(vs,csc(m),n=n,**kwargs) # (r,2n)
+  return mus,w
+
+
+def factored_dos(m_in,U,scale=10.,npol=None,ne=500,kernel="jackson",
+        ewindow=None,x=None,**kwargs):
+  """Density of Tr[U U^dagger delta(E-m)], with no stochastic trace: the
+  weight of the rank-r operator U U^dagger in the density of states of m,
+  from one Chebyshev expansion per column of U (see factored_moments)"""
+  if npol is None: npol = ne
+  mus,w = factored_moments(m_in/scale,U,n=npol,**kwargs)
+  if len(w)>0: # each row is the moments of a unit vector, bounded by one
+    check_scale(mus,scale,bound=1.,kpm_prec=kwargs.get("kpm_prec","double"))
+  mus = np.sum(w[:,None]*mus,axis=0) # the trace, weighted by the norms
+  return moments_to_dos(mus,scale=scale,ne=ne,ewindow=ewindow,
+          kernel=kernel,x=x)
 
 
 def pdos(m,P=None,**kwargs):
@@ -166,10 +240,14 @@ def pdos(m,P=None,**kwargs):
 tdos0d = tdos # redefine
 
 
-def total_energy(m_in,scale=10.,npol=None,ne=500,ntries=20):
+def total_energy(m_in,scale=10.,npol=None,ne=500,ntries=20,fermi=0.):
+   """Sum of the eigenvalues of m_in below fermi, the chemical potential
+   (zero by default), from the KPM density of states. tdos gives the
+   density per state, so its integral is multiplied by the dimension of
+   m_in"""
    x,y = tdos0d(m_in,scale=scale,npol=npol,ne=ne,ntries=ntries)
-   z = .5*(np.sign(x)+1.)*x*y # function to integrate
-   return np.trapezoid(z,x)
+   z = np.where(x<fermi,x,0.)*y # occupied states only
+   return m_in.shape[0]*np.trapezoid(z,x)
 
 
 
@@ -225,26 +303,68 @@ def full_trace_A(m_in,n=200,A=None,**kwargs):
 
 
 
-def correlator0d(m_in,i=0,j=0,scale=10.,npol=None,ne=500,write=True,
-    x=None):
-    """Return two arrays with energies and local DOS"""
+def correlator0d(m_in,i=0,j=0,scale=10.,npol=None,ne=500,write=None,
+    x=None,kernel="jackson",lorentz_lambda=3.):
+    """Green's function G^R_ij(E) = <i|(E + i0 - m)^-1|j> between two sites
+    from a Chebyshev expansion, real part included (Weisse et al., Rev.
+    Mod. Phys. 78, 275 (2006), arXiv:cond-mat/0504627, Eq. (140)), with no
+    matrix inversion.
+
+    Returns (E, Re G^R_ij, -Im G^R_ij), the same pair that
+    correlator.correlator0d returns from the matrix inversion, so that for
+    i=j the third array is pi times the local DOS. Joined as a complex
+    number, second + 1j*third is the complex conjugate of G^R_ij; the
+    retarded function is second - 1j*third.
+
+    npol: number of polynomials (2*npol moments), ne energies unless x
+    (the energies) is given, and the whole spectrum must lie inside
+    [-scale,scale]. kernel: "jackson" broadens each pole into a nearly
+    Gaussian peak of half width kpmtk.kernels.jackson_hwhm(scale,npol);
+    "lorentz" into a Lorentzian of half width
+    lorentz_lambda*scale/(2*npol), the G^R(E + i delta) of a matrix
+    inversion with that delta (Weisse et al., Sec. II.C.4), up to the
+    truncation of its exp(-lorentz_lambda n/N) at N=2*npol moments, about
+    10% of the height of a pole at the default lorentz_lambda=3. At a fixed
+    delta a larger lorentz_lambda needs npol=lorentz_lambda*scale/(2*delta)
+    and shrinks that error. write=True also writes
+    the three columns to CORRELATOR_KPM.OUT"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     if npol is None: npol = ne
     mus = get_moments_ij(m_in/scale,n=npol,i=i,j=j)
+    check_scale(mus,scale)
     if x is None: xs = np.linspace(-1.0,1.0,ne,endpoint=True)*0.99 # energies
     else: xs = x/scale # use from input
-    ys = generate_green_profile(mus,xs,kernel="jackson")/scale*np.pi # so it is the Green function
-  #  imys = hilbert(ys).imag
-    if write: 
-        np.savetxt("CORRELATOR_KPM.OUT",np.array([scale*xs,-ys.imag,ys.real]).T)
+    # generate_green_profile gives conj(G^R_ij)/pi in units of the scale
+    ys = generate_green_profile(mus,xs,kernel=kernel,
+            lorentz_lambda=lorentz_lambda)/scale*np.pi
+    # the same columns as the arrays returned, and as the CORRELATOR.OUT
+    # of correlator.correlator0d; it used to write (E, Im G^R, Re G^R)
+    if write:
+        np.savetxt("CORRELATOR_KPM.OUT",np.array([scale*xs,ys.real,ys.imag]).T)
     return (scale*xs,ys.real,ys.imag)
 
 
 
 
 def dm_ij_energy(m_in,i=0,j=0,scale=10.,npol=None,ne=500,x=None):
-  """Return the correlation function"""
+  """Energy-resolved density matrix between sites i and j,
+
+  pi<i|delta(E-m)|j> = pi sum_n <i|n><n|j> delta(E-E_n)
+                     = (i/2)[G^R_ij(E) - G^A_ij(E)],
+
+  with G^{R,A}_ij = <i|(E +- i0 - m)^-1|j>: the spectral part of the Green's
+  function, not the Green's function itself (for that, see correlator0d).
+  For i=j it is pi times the local DOS, for i!=j it integrates to zero
+  over the energy, and its integral up to the Fermi energy is pi times the
+  density matrix element <c_j^dagger c_i>. Returns (E, complex array).
+
+  npol: number of polynomials (2*npol moments), with the Jackson kernel,
+  so each level becomes a nearly Gaussian peak of half width
+  kpmtk.kernels.jackson_hwhm(scale,npol); the whole spectrum must lie
+  inside [-scale,scale]"""
   if npol is None: npol = ne
   mus = get_moments_ij(m_in/scale,n=npol,i=i,j=j)
+  check_scale(mus,scale)
   if x is None: xs = np.linspace(-1.0,1.0,ne,endpoint=True)*0.99 # energies
   else: xs = x/scale # use from input
   ysr = generate_profile(mus.real,xs,kernel="jackson")/scale*np.pi # so it is the Green function
@@ -255,16 +375,22 @@ def dm_ij_energy(m_in,i=0,j=0,scale=10.,npol=None,ne=500,x=None):
 
 
 def dm_vivj_energy(m_in,vi,vj,scale=10.,npol=None,ne=500,x=None):
-  """Return the correlation function"""
+  """pi<vi|delta(E-m)|vj>, the energy-resolved density matrix of
+  dm_ij_energy between two arbitrary vectors instead of two sites"""
   if npol is None: npol = ne
   mus = get_moments_vivj(m_in/scale,vi,vj,n=npol)
+  check_scale(mus,scale,
+          bound=np.linalg.norm(np.ravel(vi))*np.linalg.norm(np.ravel(vj)))
   if np.sum(np.abs(mus.imag))>0.001:
 #    print("WARNING, off diagonal has nonzero imaginary elements",np.sum(np.abs(mus.imag)))
     pass
   if x is None: xs = np.linspace(-1.0,1.0,ne,endpoint=True)*0.99 # energies
   else: xs = x/scale # use from input
-  ysr = generate_profile(mus.real,xs,kernel="lorentz")/scale*np.pi # so it is the Green function
-  ysi = generate_profile(mus.imag,xs,kernel="jackson")/scale*np.pi # so it is the Green function
+  # both parts with the Jackson kernel, as in dm_ij_energy: the real part
+  # used to take the Lorentz kernel, a different broadening of the same
+  # function
+  ysr = generate_profile(mus.real,xs,kernel="jackson")/scale*np.pi
+  ysi = generate_profile(mus.imag,xs,kernel="jackson")/scale*np.pi
   ys = ysr - 1j*ysi
   return (scale*xs,ys)
 
@@ -280,11 +406,14 @@ from .kpmtk.momenttoprofile import generate_profile
 
 
 def dos(m_in,xs,ntries=20,n=200,scale=10.):
-  """Return the density of states"""
+  """Return the density of states per state and per unit energy at the
+  energies xs, the same normalization as tdos"""
   if scale is None: scale = 10.*np.max(np.abs(m_in.data)) # estimate of the value
   mus = random_trace(m_in/scale,ntries=ntries,n=n)
-  ys = generate_profile(mus,xs/scale) # generate the DOS
-  return ys # return the DOS 
+  check_scale(mus,scale)
+  # the profile is a density in x = E/scale, so dE = scale dx
+  ys = generate_profile(mus,xs/scale).real/scale # generate the DOS
+  return ys # return the DOS
 
 
 

@@ -11,7 +11,6 @@ from copy import deepcopy
 
 class LatticeGas():
     def __init__(self,g,filling=0.5): # geometry
-        g.nrep = 1
         self.geometry = g # store geometry
         self.nsites = len(g.r) # number of sites
         self.mu = np.zeros(len(g.r)) # chemical potential
@@ -27,9 +26,16 @@ class LatticeGas():
         self.den[:] = 0. # initialize all to zero
         N = int(np.round(self.nsites*filling)) # filled sites
         self.den = random_density(len(self.den),N) # random density
-    def add_interaction(self,Jij=None,**kwargs):
-        h = self.geometry.get_hamiltonian(has_spin=False,tij=Jij)
-        m = coo_matrix(h.get_hk_gen()([0.,0.,0.])) # get onsite matrix
+    def add_interaction(self,Jij=None,rcut=None):
+        """Add the coupling Jij between pairs of sites, a list of couplings
+        to the first, second, ... neighbors, which reaches its last shell,
+        or a function Jij(r1,r2) or a HoppingGenerator taken on every pair
+        up to the distance rcut and on none beyond (None: every pair of a
+        finite system, 5.0 for a periodic one), a site with its own
+        periodic images included but not a site with itself. An rcut given
+        with a list raises"""
+        from .specialhopping import folded_interaction
+        m = folded_interaction(self.geometry,Jij,rcut=rcut) # k=0 couplings
         pairs = np.array([m.row,m.col]).transpose() # convert to array
         self.pairs = np.concatenate([self.pairs,pairs]) # add interaction
         self.j = np.concatenate([self.j,m.data]).real # store
@@ -188,7 +194,7 @@ def energy_numba(mu,pairs,js,den):
     return energy_numba_jit(mu,pairs,js,den)
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def energy_numba_jit(mu,pairs,js,den):
     """Compute the energy of the lattice gas model"""
     nump = len(pairs) # number of pairs
@@ -217,33 +223,52 @@ def _build_adjacency(n,pairs,js):
     return ptr,idx,jarr
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def _row_sum_excluding(ptr,idx,jarr,den,i,exclude):
-    """sum_k J_{i,k}*den[k] over site i's neighbors, skipping `exclude`"""
+    """sum_k J_{i,k}*den[k] over site i's neighbors, skipping `exclude`
+    and i itself. A pair (i,i) is a site coupled to its own periodic
+    images (a coupling that reaches a lattice vector of the cell), and its
+    energy J_ii*den[i]**2 depends on den[i] alone, so a move changes it in
+    another way than a bond to a neighbor (see _self_coupling)"""
     s = 0.
     for k in range(ptr[i],ptr[i+1]):
         neighbor = idx[k]
-        if neighbor!=exclude:
+        if neighbor!=exclude and neighbor!=i:
             s += jarr[k]*den[neighbor]
     return s
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
+def _self_coupling(ptr,idx,jarr,i):
+    """sum of J_ii over the pairs (i,i) of site i, the coupling of the
+    site with its own periodic images"""
+    s = 0.
+    for k in range(ptr[i],ptr[i+1]):
+        if idx[k]==i: s += jarr[k]
+    return s
+
+
+@jit(nopython=True,cache=True)
 def swap_delta_energy(mu,ptr,idx,jarr,den,i1,i2):
     """Energy change from swapping den[i1] and den[i2]. Equivalent to
     energy_numba_jit(mu,pairs,js,den_after) - energy_numba_jit(mu,pairs,js,den_before)
     but costs O(degree(i1)+degree(i2)) instead of O(n_pairs): the direct
     i1-i2 edge (if any) cancels exactly under a swap since its
     contribution only depends on the product den[i1]*den[i2], which a
-    swap leaves unchanged, so it is excluded from both row sums below"""
+    swap leaves unchanged, so it is excluded from both row sums below.
+    A pair (i1,i1) of a site with its own images is one term
+    J_11*den[i1]**2, not two, and it goes from J_11*a**2 to J_11*b**2"""
     a = den[i1] ; b = den[i2]
     if a==b: return 0. # nothing changes
     sum1 = _row_sum_excluding(ptr,idx,jarr,den,i1,i2)
     sum2 = _row_sum_excluding(ptr,idx,jarr,den,i2,i1)
-    return (mu[i1]-mu[i2])*(b-a) + 2.*(b-a)*(sum1-sum2)
+    self1 = _self_coupling(ptr,idx,jarr,i1) # site with its own images
+    self2 = _self_coupling(ptr,idx,jarr,i2)
+    return ((mu[i1]-mu[i2])*(b-a) + 2.*(b-a)*(sum1-sum2)
+            + (self1-self2)*(b*b-a*a))
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def flip_delta_energy(mu,ptr,idx,jarr,den,i):
     """Energy change from flipping den[i] (0<->1) in place, the
     grand-canonical move complementing swap_delta_energy (filling is
@@ -254,12 +279,14 @@ def flip_delta_energy(mu,ptr,idx,jarr,den,i):
     that convention: row already sums J_{i,k}*den[k] once per
     neighbor (single direction, via ptr[i]), and by the symmetric
     pairs guarantee that equals the "other direction" contribution
-    too, hence the factor 2"""
+    too, hence the factor 2. A pair (i,i) of the site with its own
+    images is one term J_ii*den[i]**2, which changes by J_ii*delta_n"""
     delta_n = 1.-2.*den[i] # +1 if turning on, -1 if turning off
-    row = 0.
+    row = 0. ; jself = 0.
     for k in range(ptr[i],ptr[i+1]):
-        row += jarr[k]*den[idx[k]]
-    return mu[i]*delta_n + 2.*row*delta_n
+        if idx[k]==i: jself += jarr[k] # the site with its own images
+        else: row += jarr[k]*den[idx[k]]
+    return mu[i]*delta_n + 2.*row*delta_n + jself*delta_n
 
 
 def _normalize_checkpoint_steps(checkpoint_at):
@@ -406,7 +433,7 @@ def get_susceptibility(ns,temp,burn=0.2):
 
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def _row_sums_den_numba(ptr,idx,jarr,den):
     """sum_k J_ik*den[k] over each site's neighbors, via the CSR
     adjacency -- the row sum shared by get_local_energy/get_local_mu"""
@@ -420,7 +447,7 @@ def _row_sums_den_numba(ptr,idx,jarr,den):
     return out
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def _row_sums_numba(ptr,jarr):
     """sum_k J_ik over each site's neighbors, the normalize=True
     divisor for get_local_energy/get_local_mu"""
@@ -449,13 +476,35 @@ def get_local_energy(LG,normalize=False):
     return out
 
 
+@jit(nopython=True,cache=True)
+def _addition_energy_numba(ptr,idx,jarr,den):
+    """The interaction energy of adding a particle on each site with the
+    others as they are, J_ii + 2 sum_{k!=i} J_ik*den[k]: the energy counts
+    each pair from both of its sites (see flip_delta_energy), hence the 2,
+    and a pair (i,i) of the site with its own periodic images is one term
+    J_ii*den_i**2, which gives J_ii"""
+    n = len(ptr)-1
+    out = np.zeros(n)
+    for i in range(n):
+        row = 0. ; jself = 0.
+        for k in range(ptr[i],ptr[i+1]):
+            if idx[k]==i: jself += jarr[k] # the site with its own images
+            else: row += jarr[k]*den[idx[k]]
+        out[i] = jself + 2.*row
+    return out
+
+
 def get_local_mu(LG,normalize=False):
-    """Return the local chemical potential: the marginal energy cost
-    of occupying site ii, independent of its current occupation (mu_i
-    + sum_k J_ik*den_k) -- see get_local_energy's docstring for the
-    same O(n*n_pairs) -> O(n_pairs) rewrite"""
+    """Return the local chemical potential: the energy cost of adding a
+    particle on site ii with the others as they are, E(den_ii=1) -
+    E(den_ii=0) = mu_i + J_ii + 2 sum_{k!=i} J_ik*den_k, the same as the
+    Monte Carlo moves (flip_delta_energy), so it does not depend on the
+    occupation of site ii itself. J_ii is the coupling of the site with
+    its own periodic images. It used to count each bond once, sum_k
+    J_ik*den_k, half of the cost; the maintainer chose the cost on 15
+    November 2026"""
     ptr,idx,jarr = LG._get_adjacency()
-    row = _row_sums_den_numba(ptr,idx,jarr,LG.den)
+    row = _addition_energy_numba(ptr,idx,jarr,LG.den)
     out = LG.mu + row
     if normalize: out = out/_row_sums_numba(ptr,jarr)
     return out

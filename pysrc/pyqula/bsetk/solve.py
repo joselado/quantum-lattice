@@ -38,10 +38,13 @@ class BSE():
                   and every exciton, and the only one whose behavior is
                   unchanged by this option existing. Its cost is the
                   (2*npair)^2 matrix that check_memory guards.
-      "iterative" apply the kernel matrix-free through its exact low-rank
-                  factorization (bsetk/factorize.py) and run LOBPCG for
-                  the neig lowest excitons. No dense matrix ever exists,
-                  so the memory wall is gone; Tamm-Dancoff only.
+      "iterative" apply the kernel matrix-free, through its exact
+                  low-rank factorization (bsetk/factorize.py) or as a
+                  convolution on the mesh (bsetk/convolution.py),
+                  whichever is cheaper (iterative.resonant_block), and
+                  run LOBPCG for the neig lowest excitons. No dense
+                  matrix ever exists, so the memory wall is gone;
+                  Tamm-Dancoff only.
       "qtt"       quantics tensor train: compress the kernel into an MPO
                   and solve it with DMRG (bsetk/qtt.py). Cost grows with
                   log(nk) rather than nk, at the price of a smooth-gauge
@@ -53,8 +56,9 @@ class BSE():
     None means 4 for "iterative" and 1 for "qtt".
 
     gauge smooths the arbitrary phase algebra.eigh leaves on each Bloch
-    eigenvector (bsetk/gauge.py). It changes no energy -- it is a
-    block-diagonal unitary on the pair index -- so the default "auto"
+    eigenvector (bsetk/gauge.py). It changes no energy -- it rotates
+    only inside degenerate multiplets, where it commutes with the band
+    energies of the pair basis -- so the default "auto"
     turns it on only for solver="qtt", which cannot work without it, and
     leaves the other two in the raw gauge where it makes no difference.
     Setting it explicitly ("phase", "projection" or None) applies to every
@@ -99,6 +103,25 @@ class BSE():
                 "for the same reason. tests/bse/test_bse_physics.py shows "
                 "the two agreeing at weak coupling, which is the regime "
                 "bound excitons live in"%(solver,))
+        if solver=="dense" and kwargs:
+            # the extra keywords are the other two solvers' own options,
+            # so here they would be dropped without a word, a misspelt
+            # nk or kernel included. metal= is refused too: PairBasis
+            # would build every (k,v,c) triple and leave the occupancy
+            # filter to the caller, and build_blocks has none
+            raise TypeError("solver='dense' got unexpected keyword "
+                "argument(s) %s; the extra options belong to "
+                "solver='iterative' (maxiter, tol, shift) and solver='qtt' "
+                "(see bsetk/qtt.solve_qtt)"%(", ".join(sorted(kwargs)),))
+        if solver=="iterative" and screening is not None:
+            # refused here, before the screened interaction is computed.
+            # The convolution apply of iterative.resonant_block would take
+            # a tabulated W; lifting this refusal is a decision not taken
+            raise ValueError("solver='iterative' does not take a screened "
+                "interaction, which is tabulated on the mesh rather than "
+                "given in real space. Truncate it in real space with "
+                "ScreenedInteraction.get_dict(tol=...) and pass that as "
+                "V=, or use solver='dense'")
         if neig is None:
             # the quantics solver returns the lowest exciton only (see
             # qtt.solve_qtt for the measurements behind that), so the
@@ -179,13 +202,15 @@ class BSE():
     def solve(self):
         """Diagonalize the BSE matrix and keep the positive branch"""
         if self.tda: # Tamm-Dancoff: the resonant block alone, Hermitian
-            es,ws = lg.eigh(self.A)
+            # divide and conquer, twice as fast as the default MRRR
+            # driver on these blocks, with the same energies to 1e-14
+            es,ws = lg.eigh(self.A,driver="evd")
             self.energies = es
             self.amplitudes = np.array(ws.T,dtype=np.complex128)
             self.amplitudesY = np.zeros(self.amplitudes.shape,
                     dtype=np.complex128)
             return
-        es,ws = solve_pseudo_hermitian(self.get_matrix())
+        es,ws = solve_pseudo_hermitian(self.get_matrix(),positive=True)
         np_ = self.pairs.npair
         # The spectrum comes in +-E pairs: +E are the excitons at +Q, -E
         # the ones at -Q. Keep the positive branch. An eigenvalue with a
@@ -252,7 +277,8 @@ def get_direct_interaction(h,pb,V=None,nk=10,screening=None,nkW=None,
     if screening is None: return bare_interaction(h,V=V)
     if hasattr(screening,"at"): return screening # precomputed, reuse it
     from .screening import screened_interaction
-    if kernel in ("exchange","none"):
+    from .kernel import kernel_terms
+    if not kernel_terms(kernel)[0]: # no direct term to screen
         warnings.warn("screening=%r has no effect with kernel=%r: the "
             "screened interaction only enters the direct (ladder) term, "
             "and the exchange term deliberately keeps the bare "
@@ -279,11 +305,19 @@ def get_direct_interaction(h,pb,V=None,nk=10,screening=None,nkW=None,
             ck=pb.ck if reuse else None)
 
 
-def solve_pseudo_hermitian(H):
+def solve_pseudo_hermitian(H,positive=False,n1=None):
     """Diagonalize the BSE matrix, exploiting its structure.
 
     H itself is not Hermitian, but S@H with S = diag(1,...,1,-1,...,-1) is
-    (that is what the block layout in BSE.get_matrix buys). Handing H
+    (that is what the block layout in BSE.get_matrix buys). The first n1
+    entries of S are +1, the excitation half of H, and the rest -1; n1
+    defaults to half of H, as in the exciton BSE, where the two halves
+    have the same size. The magnon problem of spinflip.py has halves of
+    different sizes as soon as the magnet is not an antiferromagnet, and
+    passes its own n1: with S split in the middle there, K below was not
+    Hermitian, so the Cholesky always failed and the result came from the
+    general solver, and a matrix of odd size could not be solved at all
+    (the Lieb ferrimagnet at nk=5, 25 + 100 pairs). Handing H
     straight to a general non-Hermitian eigensolver therefore throws that
     structure away and pays for it in accuracy: H is non-normal, so its
     eigenvalue errors scale with the conditioning of its eigenvector
@@ -301,9 +335,17 @@ def solve_pseudo_hermitian(H):
     is unstable against some excitation (the interaction has overcome the
     gap) and that excitation's energy is genuinely imaginary. That is
     physically meaningful rather than an error, so fall back to the
-    general solver and let the caller see the complex eigenvalue."""
-    n = H.shape[0]//2
-    S = np.concatenate([np.ones(n),-np.ones(n)])
+    general solver and let the caller see the complex eigenvalue.
+
+    positive=True returns only the positive branch when the Cholesky
+    succeeds, which is all BSE.solve keeps. L^dag@S@L is congruent to S,
+    so by Sylvester's law of inertia exactly n1 of its eigenvalues are
+    positive, the upper n1 of the sorted ones, and only their
+    eigenvectors are taken back through the triangular solve. The
+    fallback returns every eigenpair either way."""
+    n1 = H.shape[0]//2 if n1 is None else int(n1)
+    S = np.ones(H.shape[0])
+    S[n1:] = -1.
     K = S[:,None]*H # S@H, S diagonal
     K = (K+K.conj().T)/2. # symmetrize away roundoff
     try:
@@ -313,7 +355,12 @@ def solve_pseudo_hermitian(H):
         return es,np.array(ws.T,dtype=np.complex128)
     M = (L.conj().T*S[None,:])@L # L^dag @ S @ L, Hermitian (S is diagonal)
     M = (M+M.conj().T)/2.
-    es,ys = lg.eigh(M)
+    # divide and conquer: 1.2 to 1.3 times faster than the default MRRR
+    # driver here, with the same energies to 1e-14
+    es,ys = lg.eigh(M,driver="evd",overwrite_a=True)
+    if positive: # the upper n1, see above
+        n2 = H.shape[0]-n1
+        es,ys = es[n2:],ys[:,n2:]
     # x = L^-dag y, i.e. solve L^dag x = y
     xs = lg.solve_triangular(L.conj().T,ys,lower=False)
     return es.astype(np.complex128),np.array(xs.T,dtype=np.complex128)

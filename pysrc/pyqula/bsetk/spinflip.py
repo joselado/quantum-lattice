@@ -111,6 +111,7 @@ import numpy as np
 from .interaction import (interaction_channels,
                           spin_block_parts)
 from .pairbasis import PairBasis
+from .gauge import degenerate_groups
 from .solve import solve_pseudo_hermitian
 from ..check import require_spin
 
@@ -156,38 +157,31 @@ def spin_diagonalize(pb, tol=1e-8):
     legitimate because Sz commutes with a collinear mean-field
     Hamiltonian, so the two are simultaneously diagonalizable and this
     picks the common eigenbasis."""
-    from .. import algebra
     norb = pb.ck.shape[1]
-    Sz = np.zeros((norb, norb), dtype=np.complex128)
-    for i in range(norb//2):
-        Sz[2*i, 2*i] = 0.5
-        Sz[2*i+1, 2*i+1] = -0.5
+    sz = np.tile([0.5, -0.5], norb//2) # the diagonal of Sz
     def fix(es, cs): # cs[ik][n] = coefficients of band n
         out = np.array(cs, dtype=np.complex128, copy=True)
+        # the multiplets of the whole mesh, grouped by size, so that each
+        # size is one stacked eigh rather than one call per multiplet
+        # (6912 calls of a 2x2 eigh were 40% of the magnon bands of the
+        # Neel honeycomb at nk=12)
+        bysize = dict()
         for ik in range(out.shape[0]):
-            for group in _degenerate_groups(es[ik], tol=tol):
+            for group in degenerate_groups(es[ik], tol=tol):
                 if len(group) == 1: continue
-                sub = out[ik][group] # (ng,norb)
-                m = np.conj(sub)@Sz@sub.T # Sz inside the multiplet
-                _, u = algebra.eigh((m+m.conj().T)/2.)
-                out[ik][group] = (np.array(u).T)@sub
+                bysize.setdefault(len(group), []).append((ik, group))
+        for items in bysize.values():
+            iks = np.array([ik for (ik, _) in items])
+            ns = np.array([group for (_, group) in items])
+            sub = out[iks[:, None], ns] # (nmult,ng,norb)
+            m = np.einsum("gia,a,gja->gij", np.conj(sub), sz, sub)
+            _, u = np.linalg.eigh((m+np.conj(np.swapaxes(m, 1, 2)))/2.)
+            out[iks[:, None], ns] = np.swapaxes(u, 1, 2)@sub
         return out
     pb.ck = fix(pb.ek, pb.ck)
     pb.ckq = fix(pb.ekq, pb.ckq)
     pb.build() # rebuild el/ho/elA/hoA from the rotated coefficients
     return pb
-
-
-def _degenerate_groups(es, tol=1e-8):
-    """Group the indices of a sorted energy list into degenerate blocks"""
-    groups, cur = [], [0]
-    for i in range(1, len(es)):
-        if abs(es[i]-es[i-1]) < tol: cur.append(i)
-        else:
-            groups.append(cur)
-            cur = [i]
-    groups.append(cur)
-    return groups
 
 
 def occupancy_masks(pb):
@@ -221,15 +215,20 @@ def spinflip_masks(pb, tol=1e-6):
     and no such block exists.
 
     The two halves of the matrix need DIFFERENT subsets, which is the one
-    thing about this restriction that is easy to get wrong:
+    thing about this restriction that is easy to get wrong. Written here
+    for the S^- channel (the S^+ one, chosen below for a state polarized
+    down, is the same with up and down exchanged):
 
       m1  resonant pairs that lower the total spin, hole up and electron
           down, so that S^- creates them
       m2  pairs whose ANTIRESONANT partner lowers the total spin. The
           antiresonant state of the pair labelled (v,c) is the
-          de-excitation c^dag_v c_c, which raises Sz by exactly what the
-          resonant one lowers -- so m2 is the mask of the pairs with the
-          OPPOSITE resonant spin change, hole down and electron up.
+          de-excitation c^dag_{v,k+Q} c_{c,k}, and m2 is read off its own
+          spin change. When every band has the same spin at k and at k+Q
+          that is the mask of the pairs with the OPPOSITE resonant spin
+          change, hole down and electron up; when an up and a down band
+          swap order along the mesh it is not, and at finite Q only the
+          antiresonant pair itself gives the right set.
 
     Restricting both halves to m1 (the obvious thing to do) throws away
     the de-excitation half of the spin-lowering generator, and with it the
@@ -244,9 +243,19 @@ def spinflip_masks(pb, tol=1e-6):
 
     Which of the two spin channels is the resonant one depends on which
     way the state polarized, and that is not something a caller should
-    have to arrange: a mean field that came out polarized DOWN has no
-    S^--lowerable pair at all, and its magnons are the S^+ excitations
-    instead. The returned third element says which generator the block
+    have to arrange. In the S^- channel the Casida norm of the Goldstone
+    vector, X^dag X - Y^dag Y, is <[S^+,S^-]> = 2 Sz, so for a state
+    polarized DOWN the acoustic magnon has negative norm, sits in the half
+    magnon_energies discards, and what is kept is the gapped branch. The
+    channel is therefore chosen by the sign of the total Sz of the
+    occupied states: S^- when it is positive or zero (an antiferromagnet
+    has the Goldstone mode in both), S^+ when it is negative, the other
+    one only when the chosen one has no pair. Choosing S^- whenever it had
+    a pair, as this did before 30 October 2026, was right for a saturated
+    magnet, which has no S^- pair when polarized down, and wrong for a
+    ferrimagnet: the Lieb ferrimagnet polarized down gave 0.906 at Q=0
+    instead of the Goldstone zero of the same state polarized up.
+    The returned third element says which generator the block
     belongs to, -1 for S^- and +1 for S^+, so goldstone_vector can build
     the matching one. Both are equally physical -- they are each other's
     image under a spin flip -- and an antiferromagnet has both."""
@@ -259,10 +268,24 @@ def spinflip_masks(pb, tol=1e-6):
     iv = np.array([l[1] for l in pb.labels])
     ic = np.array([l[2] for l in pb.labels])
     dsz = szkq[ik, ic] - szk[ik, iv] # spin change of the resonant pair
+    # spin change of the antiresonant pair of the same label, c^dag_{v,k+Q}
+    # c_{c,k}. It is -dsz only when every band has the same spin at k and
+    # at k+Q, which fails once an up and a down band swap order somewhere
+    # on the mesh, so it is read off that pair itself
+    dszA = szkq[ik, iv] - szk[ik, ic]
     lower = (np.abs(dsz + 1.) < tol) # excitations S^- creates
     raise_ = (np.abs(dsz - 1.) < tol) # excitations S^+ creates
-    if np.any(lower & o1): return lower & o1, raise_ & o2, -1 # S^- channel
-    if np.any(raise_ & o1): return raise_ & o1, lower & o2, +1 # S^+ channel
+    lowerA = (np.abs(dszA + 1.) < tol) # de-excitations of the S^- channel
+    raiseA = (np.abs(dszA - 1.) < tol) # de-excitations of the S^+ channel
+    sminus = (lower & o1, lowerA & o2, -1) # S^- channel
+    splus = (raise_ & o1, raiseA & o2, +1) # S^+ channel
+    # 2 Sz in the window, the norm of the Goldstone vector in the S^-
+    # channel; it grows with the mesh, so the tolerance does too
+    sz = np.sum(szk[pb.occk])
+    first, second = (splus, sminus) if sz < -tol*len(pb.kpoints) \
+            else (sminus, splus)
+    for (m1, m2, op) in (first, second):
+        if np.any(m1): return m1, m2, op
     return None # no spin-flip pair at all, nothing to restrict to
 
 
@@ -501,17 +524,20 @@ def check_su2_interaction(W, tol=1e-8, recorded=False):
             "it"%(i, j, d, 4*cx.real, 4*cy.real, 4*cz.real))
 
 
-def _check_memory(dim, max_memory):
+def _check_memory(dim, max_memory, full=True):
     """Raise before allocating a magnon matrix that would not fit.
 
     solve.py's check_memory is written in terms of a pair count and
     advises narrowing the band window or turning the Tamm-Dancoff
     approximation on, neither of which applies here -- the magnon problem
     has no free tda switch, and its dimension is already the restricted
-    one. Same arithmetic (a complex128 matrix plus the eigensolver's
-    working copies, measured at about four times the matrix itself),
-    different advice."""
-    gb = dim*dim*16/1e9*4.
+    one. Same arithmetic, a complex128 matrix plus the eigensolver's
+    working copies: about four times the matrix for the resonant block
+    alone (full=False) and eight for the full problem, whose
+    pseudo-Hermitian solve keeps the Cholesky factor, the Hermitian
+    matrix and both sets of eigenvectors alive, as check_memory measures.
+    Different advice."""
+    gb = dim*dim*16/1e9*(8. if full else 4.)
     if gb > max_memory:
         raise MemoryError("this magnon calculation needs about %.1f GB "
             "(a %d x %d dense matrix plus eigensolver workspace), above "
@@ -634,7 +660,8 @@ def magnon_matrix(h, Q=None, nk=10, V=None, channel="auto", nv=None, nc=None,
         m1, m2 = occupancy_masks(pb) # still only the pairs that exist
         op = 0 # generator picked by weight, see goldstone_vector
     else: m1, m2, op = masks
-    _check_memory(int(np.sum(m1)+np.sum(m2)), max_memory)
+    _check_memory(int(np.sum(m1)+np.sum(m2)), max_memory,
+                  full=bool(np.any(m2)))
     A, Abar, B = masked_blocks(pb, W, m1, m2)
     if Abar.shape[0] == 0: M = A # saturated: no de-excitation half at all
     else: M = np.block([[A, B], [-B.conj().T, -np.conj(Abar)]])
@@ -671,7 +698,7 @@ def magnon_energies(h, n=None, **kwargs):
         es, _ = _solve_resonant(p.M)
         es = np.sort(es)
     else:
-        es, ws = solve_pseudo_hermitian(p.M)
+        es, ws = solve_pseudo_hermitian(p.M, n1=p.n1)
         ws = ws/np.linalg.norm(ws, axis=1)[:, None]
         norm = (np.sum(np.abs(ws[:, 0:p.n1])**2, axis=1)
                 - np.sum(np.abs(ws[:, p.n1:])**2, axis=1))
@@ -768,7 +795,7 @@ def magnon_spectrum(h, **kwargs):
         keep = np.arange(len(es))
         metric = np.ones(len(es))
     else:
-        es, ws = solve_pseudo_hermitian(p.M)
+        es, ws = solve_pseudo_hermitian(p.M, n1=p.n1)
         ws = ws/np.linalg.norm(ws, axis=1)[:, None]
         metric = (np.sum(np.abs(ws[:, 0:p.n1])**2, axis=1)
                   - np.sum(np.abs(ws[:, p.n1:])**2, axis=1))
@@ -778,6 +805,12 @@ def magnon_spectrum(h, **kwargs):
     S = np.ones(p.M.shape[0])
     if p.n2 > 0: S[p.n1:] = -1. # the Casida metric diag(1,-1)
     ov = np.abs(ws.conj()@(S*v))**2
+    # the residue of a mode is |x^+ S v|^2 with x normalized in the metric,
+    # x^+ S x = 1, and ws are normalized to one in the Euclidean norm, so
+    # x = w/sqrt(metric). Leaving the metric out underweighted the modes
+    # with a large de-excitation part, the Goldstone mode first (0.81
+    # against 0.93 on the honeycomb Neel state at Q=0.05)
+    ov = ov/np.maximum(np.abs(metric),1e-14)
     denom = np.sum(ov)
     if denom > 0: ov = ov/denom
     order = np.argsort(es.real)
@@ -821,7 +854,7 @@ def goldstone_residual(h, nk=10, relative=True, **kwargs):
     return res
 
 
-def magnon_bands_tdhf(h, qpath=None, nq=20, n=None, by="energy", **kwargs):
+def magnon_bands_tdhf(h, qpath=None, nq=None, n=None, by="energy", **kwargs):
     """Return the magnon bands E(Q) of a magnetic mean-field state, from
     the spin-flip channel of the Bethe-Salpeter equation.
 
@@ -857,7 +890,8 @@ def magnon_bands_tdhf(h, qpath=None, nq=20, n=None, by="energy", **kwargs):
                 "magnon_energies for its discrete spin excitations")
     if by not in ("energy", "weight"):
         raise ValueError("by must be 'energy' or 'weight', got %r"%(by,))
-    qpath = h.geometry.get_kpath(qpath, nk=nq) # generate the q-path
+    from ..klist import get_qpath
+    qpath = get_qpath(h.geometry, qpath, nq) # generate the q-path
     def f(q):
         if by == "energy": return magnon_energies(h, Q=q, n=n, **kwargs)
         es, w = magnon_spectrum(h, Q=q, **kwargs)

@@ -1,8 +1,9 @@
 
 from ..geometry import same_site
 import numpy as np
-from ..kanemele import get_haldane_function
+import scipy.sparse as sp
 from ..utilities import get_callable
+from ..check import require_sublattice
 from .dvector import dvector2delta
 
 
@@ -13,12 +14,23 @@ from .dvector import dvector2delta
 # callable and the caller's keyword bag, and returns the weight function
 # weightf(r1,r2) -> 2x2 pairing matrix.
 # (tests/superconductivity/test_pairing_modes.py builds every advertised one)
+#
+# Every weight has to obey Fermi antisymmetry, which in pyqula's Nambu basis
+# (c_up, c_dn, c_dn^dag, -c_up^dag) reads D_ij = sigma_y D_ji^T sigma_y: the
+# spin-singlet part even under i <-> j and the d-vector odd. A weight that
+# breaks it is not a pairing at all, since the part of the BdG matrix that
+# violates it adds only a constant to the many-body Hamiltonian, and yet it
+# shows up in the BdG spectrum. The "haldane"/"antihaldane" (odd singlet),
+# "swavez" (onsite triplet) and "SnnAB" (even triplet off a bipartite
+# lattice) modes did this and were removed.
 
 
-def _haldane_weight(H,stagger=False):
-    """Haldane-like (next-nearest-neighbor, complex) weight, spin diagonal"""
-    f = get_haldane_function(H.geometry,stagger=stagger)
-    return lambda r1,r2: f(r1,r2)*np.identity(2)
+def _on_sublattice(H,mode,weightf):
+    """Sublattice-resolved weights need a labeled sublattice. Without one
+    they added zero pairing without saying so (square lattice) or died in
+    get_index with an IndexError or an AttributeError"""
+    require_sublattice(H,"the '"+mode+"' pairing")
+    return weightf
 
 
 # mode -> builder(H,df,kwargs) -> weightf(r1,r2). The helpers the builders
@@ -34,21 +46,19 @@ _pairing_builders = {
   "chiral_fwave": lambda H,df,kw: get_triplet_generator(df,L=3,H=H,**kw),
   "chiral_dwave": lambda H,df,kw: lambda r1,r2: get_singlet(r1,r2,L=2,**kw),
   "chiral_gwave": lambda H,df,kw: lambda r1,r2: get_singlet(r1,r2,L=4,**kw),
-  "antihaldane": lambda H,df,kw: _haldane_weight(H,stagger=True),
-  "haldane": lambda H,df,kw: _haldane_weight(H,stagger=False),
-  "swavez": lambda H,df,kw: lambda r1,r2: same_site(r1,r2)*tauz,
   "px": lambda H,df,kw: lambda r1,r2: px(r1,r2),
   "dpid": lambda H,df,kw: lambda r1,r2: dpid(r1,r2,**kw),
-  "swaveA": lambda H,df,kw: lambda r1,r2: swaveA(H.geometry,r1,r2),
-  "swaveB": lambda H,df,kw: lambda r1,r2: swaveB(H.geometry,r1,r2),
-  "swavesublattice": lambda H,df,kw: lambda r1,r2: (
-          swaveB(H.geometry,r1,r2) - swaveA(H.geometry,r1,r2)),
+  "swaveA": lambda H,df,kw: _on_sublattice(H,"swaveA",
+          lambda r1,r2: swaveA(H.geometry,r1,r2)),
+  "swaveB": lambda H,df,kw: _on_sublattice(H,"swaveB",
+          lambda r1,r2: swaveB(H.geometry,r1,r2)),
+  "swavesublattice": lambda H,df,kw: _on_sublattice(H,"swavesublattice",
+          lambda r1,r2: swaveB(H.geometry,r1,r2) - swaveA(H.geometry,r1,r2)),
   "dx2y2": lambda H,df,kw: lambda r1,r2: dx2y2(r1,r2,H=H,**kw),
   "nodal_dwave": lambda H,df,kw: lambda r1,r2: dx2y2(r1,r2,H=H,**kw),
   "dxy": lambda H,df,kw: lambda r1,r2: dxy(r1,r2,H=H,**kw),
   "snn": lambda H,df,kw: lambda r1,r2: swavenn(r1,r2),
   "C3nn": lambda H,df,kw: lambda r1,r2: C3nn(r1,r2),
-  "SnnAB": lambda H,df,kw: lambda r1,r2: SnnAB(H.geometry,r1,r2),
   }
 
 
@@ -62,22 +72,171 @@ def get_pairing_modes():
 
 
 def pairing_generator(self,delta=0.0,mode="swave",d=[0.,0.,1.],
-    **kwargs):
+    rcut=None,**kwargs):
     """Create a generator, taking as input two positions, and returning
-    the 2x2 pairing matrix"""
+    the 2x2 pairing matrix. rcut is the distance a pairing given as a
+    callable mode reaches (see callable_range); a registered mode has a
+    known range and takes no rcut"""
     # wrapper for the amplitude and d-vector
     deltaf = get_callable(delta) # callable for the amplitude
     df = get_callable(d) # callable for the d-vector
     if callable(mode):
         weightf = mode # mode is a function returning a 2x2 pairing matrix
+        rcut = callable_range(self,rcut) # every pair beyond it is zero
     else:
         if mode not in _pairing_builders:
             raise ValueError("unknown pairing mode '"+str(mode)+"'; it must be "
               +"one of "+str(list(pairing_modes))+", or a callable returning "
               +"the 2x2 pairing matrix")
+        if rcut is not None:
+            raise TypeError("got rcut and the registered pairing mode '"
+              +str(mode)+"', two ranges for the same pairing; a registered "
+              +"mode reaches its own distance (nn selects the shell), and "
+              +"rcut is the range of a pairing given as a callable mode")
+        if kwargs.get("nn",1)>1 and "dist2" not in kwargs:
+            # the distance of the nn-th shell once, not once per pair
+            nn = kwargs["nn"]
+            kwargs = dict(kwargs) # leave the caller's dictionary alone
+            kwargs["dist2"] = self.geometry.get_neighbor_distances(n=nn)[nn-1]**2
         weightf = _pairing_builders[mode](self,df,kwargs)
+        rcut = _pairing_range(kwargs)
     matrixf = lambda r1,r2: deltaf((r1+r2)/2.)*weightf(r1,r2) 
+    matrixf.rcut = rcut # read by add_pairing, to skip the distant pairs
     return matrixf # return function
+
+
+def _pairing_range(kw):
+    """Distance beyond which every registered pairing weight vanishes:
+    each pairs a site with itself or with the sites at one distance, which
+    is 1 (the first neighbors) unless dist2 gives its square, which
+    pairing_generator sets from the nn-th neighbor shell when nn>1. The
+    margin covers the tolerance the weights compare the distance with.
+    tests/superconductivity/test_pairing_range.py checks every registered
+    mode against the evaluation of every pair, so a new weight with a
+    longer reach fails there instead of losing its distant pairs."""
+    return np.sqrt(max(1.0,kw.get("dist2",1.0))+1e-2)
+
+
+_TOL = 1e-6 # a shell sitting exactly at rcut is kept whole
+
+
+def callable_range(h,rcut=None):
+    """The distance a pairing given as a callable mode reaches: every pair
+    of sites farther than rcut is zero. None is 5.0 in a periodic system,
+    as for a hopping function of get_hamiltonian, and no cut in a finite
+    one, where every pair is evaluated. A callable has no range of its
+    own: it used to be evaluated on the box of geometry.ncells=2 cells,
+    so on the one-site chain a third-neighbor pairing given as a function
+    added nothing, without a warning"""
+    if rcut is None:
+        if h.dimensionality==0: return None # every pair of a finite system
+        rcut = 5.0
+    return float(rcut) + _TOL
+
+
+def pairing_cells(h,rcut):
+    """The cells add_pairing evaluates, the cell 0 first: every cell with
+    a pair of sites within rcut (specialhopping.cells_within), and the
+    cell 0 alone in a finite system"""
+    if h.dimensionality==0: return [(0,0,0)]
+    from ..specialhopping import cells_within
+    return cells_within(h.geometry,rcut)
+
+
+def pairs_within(r1,r2,rcut=None):
+    """The index pairs (i,j) of the sites r1[i] and r2[j] closer than
+    rcut, as two arrays, found with a KD-tree so that the cost is linear
+    in the number of sites. With rcut=None every pair, which is quadratic"""
+    r1,r2 = np.asarray(r1),np.asarray(r2)
+    n1,n2 = len(r1),len(r2) # number of sites
+    if rcut is None: return np.divmod(np.arange(n1*n2),n2) # every pair
+    from scipy.spatial import cKDTree
+    near = cKDTree(r1).query_ball_tree(cKDTree(r2),rcut)
+    ii = np.repeat(np.arange(n1),[len(x) for x in near])
+    jj = np.array([j for x in near for j in sorted(x)],dtype=int)
+    return ii,jj
+
+
+def check_fermi_antisymmetry(h,weightf,tol=1e-6,rcut=None):
+    """Raise if a pairing weight breaks Fermi antisymmetry,
+    D(r1,r2) = sigma_y D(r2,r1)^T sigma_y, on the pairs of positions that
+    add_pairing evaluates for a callable of range rcut (callable_range):
+    every pair within rcut, inside the cell and between the cell and each
+    cell within rcut. The registered modes obey it by construction, so
+    this is only needed for a callable"""
+    sy = np.array([[0.,-1j],[1j,0.]])
+    g = h.geometry
+    r = np.array(g.r)
+    rcut = callable_range(h,rcut) # the range add_pairing uses
+    for d in pairing_cells(h,rcut):
+        r2 = r if d==(0,0,0) else g.replicas(d=d)
+        ii,jj = pairs_within(r,r2,rcut)
+        for (i,j) in zip(ii,jj):
+            r1i,r2j = r[i],r2[j]
+            w12 = np.array(weightf(r1i,r2j),dtype=np.complex128)
+            w21 = np.array(weightf(r2j,r1i),dtype=np.complex128)
+            if w12.shape!=(2,2):
+                raise ValueError("a pairing callable must return the "
+                    "2x2 pairing matrix, and this one returned shape "
+                    +str(w12.shape))
+            dev = np.max(np.abs(w12 - sy@w21.T@sy))
+            if dev>tol:
+                raise ValueError("the pairing callable breaks Fermi "
+                    "antisymmetry, which needs D(r1,r2) = "
+                    "sigma_y D(r2,r1)^T sigma_y (the singlet part even "
+                    "under r1 <-> r2 and the d-vector odd): at r1="
+                    +str(np.round(r1i,4))+", r2="+str(np.round(r2j,4))
+                    +" the two sides differ by "+str(dev)+". The part "
+                    "that breaks it is not a pairing, it only adds a "
+                    "constant to the many-body Hamiltonian, and yet it "
+                    "shows up in the BdG spectrum")
+
+
+def check_periodic_pairing(blocks,callables=(),tol=1e-6):
+    """Raise unless the electron-hole blocks D_R that add_pairing built,
+    between the cell and its replica at R (a dict R -> 2n x 2n block, R=0
+    included), obey Fermi antisymmetry across cells,
+
+        D_R = S D_{-R}^T S,   S = 1 x sigma_y.
+
+    The pairing between site i of the cell and site j of the cell at R, and
+    the one between site j of the cell and site i of the cell at -R, are
+    the same bond seen from its two ends, but add_pairing evaluates them at
+    two positions a lattice vector apart. A d-vector, amplitude or weight
+    given as a function of position that is not periodic with the lattice
+    gives them two different values, and the part of the BdG matrix that
+    breaks the relation is not a pairing at all: it only adds a constant to
+    the many-body Hamiltonian, and yet it shows up in the BdG spectrum and
+    in the d-vector non-unitarity. callables names the arguments that were
+    given as functions, for the message"""
+    sy = np.array([[0.,-1j],[1j,0.]])
+    n = blocks[(0,0,0)].shape[0]//2 # number of sites
+    S = sp.kron(sp.identity(n),sy,format="csr")
+    scale = max([abs(b).max() if b.nnz>0 else 0. for b in blocks.values()])
+    if scale==0.: return # no pairing at all
+    for R in blocks:
+        mR = tuple(-np.array(R))
+        dev = sp.coo_matrix(blocks[R] - S@blocks[mR].T@S)
+        if dev.nnz==0: continue
+        a = np.argmax(np.abs(dev.data))
+        if np.abs(dev.data[a])<=tol*scale: continue
+        i = dev.row[a]//2 ; j = dev.col[a]//2 # the two sites
+        if len(callables)>0:
+            given = " and ".join(callables)+(" was" if len(callables)==1
+                        else " were")+" given as a function, and"
+        else: given = ""
+        raise ValueError("the pairing breaks Fermi antisymmetry between "
+            "unit cells, which needs a pairing given as a function of "
+            "position to be periodic with the lattice: "+given+" the "
+            "pairing between site "+str(i)+" of the cell and site "+str(j)
+            +" of the cell at R="+str(tuple(int(x) for x in R))+" differs "
+            "by "+str(np.round(np.abs(dev.data[a]),6))+" (of a largest "
+            "pairing "+str(np.round(scale,6))+") from the one between site "
+            +str(j)+" of the cell and site "+str(i)+" of the cell at -R, "
+            "which is the same bond seen from its other end. Make it "
+            "periodic, for instance on a supercell commensurate with the "
+            "modulation, or use a zero-dimensional geometry")
+
 
 # matrices for the e-h subsector
 iden = np.array([[1.,0.],[0.,1.]],dtype=np.complex128)
@@ -134,30 +293,6 @@ def C3nn(r1,r2):
 
 
 
-def C3nn(r1,r2):
-    """Function with first neighbor C3 profile"""
-    dr = r1-r2
-    dr2 = dr.dot(dr)
-    if 0.99<dr2<1.001: # first neighbor
-#        return dr[0]
-        phi = np.arctan2(dr[1],dr[0]) # angle
-        return 1.0*np.exp(1j*phi)*tauz
-    return 0.0*tauz
-
-
-
-def SnnAB(g,r1,r2):
-    """Swave between AB"""
-    dr = r1-r2
-    dr2 = dr.dot(dr)
-    if 0.99<dr2<1.001: # first neighbor
-        i = g.get_index(r1,replicas=True)
-        j = g.get_index(r2,replicas=True)
-        if g.sublattice[i]==1 and g.sublattice[j]==-1:
-          return 1.0*tauz
-        else: return -1.0*tauz
-#          return 1.0*np.matrix([[1.,0.],[0.,0.]])
-    return 0.0*iden
 
 
 
@@ -195,7 +330,9 @@ def px(r1,r2):
 
 
 def get_triplet_generator(df,nn=1,H=None,**kwargs):
-    if nn>1: # more than first neighbor
+    dist2 = kwargs.pop("dist2",None) # square of the distance, if known
+    if dist2 is not None: pass
+    elif nn>1: # more than first neighbor
       dist = H.geometry.get_neighbor_distances(n=nn)[nn-1] # get this distance
       dist2 = dist**2
     else: dist2 = 1.0 # first neighbor
@@ -218,13 +355,16 @@ def get_triplet(r1,r2,df,L=1,dist2=1.0):
     else: return 0.0*tauz
 
 
-def get_singlet(r1,r2,L=2,phi0=0.,H=None,nn=1):
-    """Function for p-wave order"""
+def get_singlet(r1,r2,L=2,phi0=0.,H=None,nn=1,dist2=None):
+    """Function for p-wave order. dist2 is the square of the pairing
+    distance when the caller already has it, otherwise it is the nn-th
+    neighbor distance of H"""
     if L%2!=0:
         raise ValueError("a singlet order parameter needs an even angular "
                 "momentum L")
     dr = r1-r2 ; dr2 = dr.dot(dr)
-    if nn>1: # more than first neighbor
+    if dist2 is not None: pass
+    elif nn>1: # more than first neighbor
       dist = H.geometry.get_neighbor_distances(n=nn)[nn-1] # get this distance
       dist2 = dist**2
     else: dist2 = 1.0 # first neighbor

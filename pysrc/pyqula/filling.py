@@ -41,7 +41,13 @@ def get_fermi_energy(es,filling,fermi_shift=0.0,
 
 
 def eigenvalues(h0,nk=10,notime=True):
-    """Return all the eigenvalues of a Hamiltonian"""
+    """Return all the eigenvalues of a Hamiltonian. For a non-Hermitian one
+    these are the real parts of its complex eigenvalues, the ones a Fermi
+    energy cuts (as spectrum.get_fermi4filling and
+    densitymatrix.biorthogonal_dm occupy the states)"""
+    if h0.non_hermitian: # a Hermitian eigensolver would read half of H
+        from .densitymatrix import nonhermitian_eigenvalues
+        return nonhermitian_eigenvalues(h0.get_dense(),nk=nk).real
     from . import klist
     from .htk.eigenvectors import peigvalsh_bloch
     h = h0.copy() # copy hamiltonian
@@ -122,8 +128,9 @@ def set_individual_filling(h,filling=0.5,**kwargs):
     a scalar, the same on every site, or an array with one value per
     site."""
     check_filling(filling) # complain about a meaningless filling
-    # states per site, counting only the electron sector: get_vev already
-    # restricts a Nambu Hamiltonian to it
+    # states per site, counting only the electron sector: the occupation
+    # get_vev returns for a Nambu Hamiltonian is that of its electron
+    # sector (operators.vev_operator)
     nper = 2 if h.has_spin else 1
     target = filling*nper # occupancy per site the solver aims at
     def fmin(ons):

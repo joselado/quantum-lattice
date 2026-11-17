@@ -2,11 +2,9 @@
 # routines for dealing with spin models, using the Holfstein Primakov
 # transformation
 
-from . import neighbor
 import numpy as np
 from scipy.sparse import csc_matrix,coo_matrix
 from scipy.sparse import identity as sparseiden
-from .algebra import dagger
 
 
 class SpinModel():
@@ -38,24 +36,6 @@ class SpinModel():
 
  
 
-def set_couplings(g,f=None):
-  """Set the exchange couplings"""
-  js = []
-  xs = []
-  ys = []
-  if callable(f): # callable function
-    m = neighbor.parametric_hopping(g.r,g.r)
-  else:
-    raise TypeError("set_couplings needs a callable exchange function, pass "
-            "it as f")
-  return m # return pairs
-
-def xyj(m):
-  from scipy.sparse import coo_matrix
-  m2 = coo_matrix(m)
-  return (m.rows,m.cols,m.data)
-
-
 def hp_heisenberg(sm,fun=None,d=None,k=None):
   """Perform the Holfstein-Primakov for this spin model"""
   sm.hamiltonian = sm.geometry.get_hamiltonian(has_spin=False,fun=fun) # initialize
@@ -84,22 +64,24 @@ def hp_heisenberg(sm,fun=None,d=None,k=None):
     (mons,mhop) = c2h(hk.intra) # anisotropic part
     sm.hamiltonian.intra = sm.hamiltonian.intra + mons
 
-  if sm.dimensionality == 0: pass # one dimensional
-  elif sm.dimensionality == 1: # one dimensional
-    (mons,mhop) = c2h(sm.hamiltonian.inter)
-    (mons2,mhop2) = c2h(dagger(sm.hamiltonian.inter))
-    sm.hamiltonian.inter = mhop
-    sm.hamiltonian.intra += mons + mons2
-  elif sm.dimensionality == 2: # one dimensional
-    for name in ["tx","ty","txy","txmy"]: # loop over attributes
-      (mons,mhop) = c2h(getattr(sm.hamiltonian,name))
-      (mons2,mhop2) = c2h(dagger(getattr(sm.hamiltonian,name)))
-      setattr(sm.hamiltonian,name,mhop) # set hopping
-      sm.hamiltonian.intra += mons + mons2 # add to onsite
-  else:
+  if sm.dimensionality > 2:
     raise NotImplementedError("the Holstein-Primakoff transformation is only "
             "implemented up to 2d")
+  for t in cell_couplings(sm.hamiltonian): # couplings to the other cells
+    (mons,mhop) = c2h(t.m)
+    t.m = mhop # the magnon hopping
+    sm.hamiltonian.intra += mons # and the SzSz onsite term
   return sm
+
+
+def cell_couplings(h):
+  """The couplings to the other cells, one matrix per cell R, with R and -R
+  both present, so the SzSz term of a pair is counted once from each of
+  its two sites. A coupling given as a function is stored this way in any
+  dimension, and the first-neighbor one is turned into it"""
+  if h.dimensionality == 0: return []
+  h.turn_multicell()
+  return h.hopping
     
 
 
@@ -147,18 +129,11 @@ def szsz(sm,fun=None):
     sm.hamiltonian.intra[i,i] = 0.0 # set coupling to zero
   (mons,mhop) = c2h(sm.hamiltonian.intra)
   mout = mons.copy() # copy matrix
-  if sm.dimensionality == 0: pass # one dimensional
-  elif sm.dimensionality == 1: # one dimensional
-    (mons,mhop) = c2h(sm.hamiltonian.inter)
-    (mons2,mhop2) = c2h(dagger(sm.hamiltonian.inter))
-    mout += mons + mons2
-  elif sm.dimensionality == 2: # one dimensional
-    for name in ["tx","ty","txy","txmy"]: # loop over attributes
-      (mons,mhop) = c2h(getattr(sm.hamiltonian,name))
-      (mons2,mhop2) = c2h(dagger(getattr(sm.hamiltonian,name)))
-      mout += mons + mons2
-  else:
+  if sm.dimensionality > 2:
     raise NotImplementedError("the SzSz term is only implemented up to 2d")
+  for t in cell_couplings(sm.hamiltonian): # couplings to the other cells
+    (mons,mhop) = c2h(t.m)
+    mout += mons
   return mout  # return onsite matrix
     
 

@@ -14,8 +14,11 @@ from ..htk.eigenvectors import hk_matrix_batch, parallel_diagonalization
 
 _kbatch = 64 # k-points whose Bloch matrices are held in memory at once by
              # the batched loops below (same convention as ldos.py and
-             # densitymatrix.py): the k-sums are all linear, so the batch
-             # size bounds the memory footprint without affecting the result
+             # densitymatrix.py). It bounds the Bloch matrices and the
+             # eigenvectors; what the k-sums of the grid conductivity and
+             # the Drude weight hold is bounded by their slabs, _slab_size
+_slab_bytes = 2e8 # bytes of velocities and occupation weights held at once
+                  # by the k-sums, see _mesh_sum
 
 
 def _setup(h):
@@ -29,15 +32,32 @@ def _setup(h):
 
     As in topologytk/qgt.py's _multicell_and_orders: get_multicell()
     returns a copy, so the caller's Hamiltonian is untouched, and every
-    stored matrix is coerced to a plain numpy.ndarray because Hamiltonians built
-    through get_supercell() keep their hoppings as the legacy
-    numpy.matrix, whose "*" is a matrix product -- that would silently
-    corrupt the elementwise algebra downstream. hkgen is built once here
+    stored matrix is coerced to a plain dense numpy.ndarray because
+    Hamiltonians built through get_supercell() keep their hoppings as the
+    legacy numpy.matrix, whose "*" is a matrix product -- that would
+    silently corrupt the elementwise algebra downstream -- and those made
+    spinful with turn_spinful() keep them as scipy sparse matrices, which
+    np.asarray would wrap into a useless object array. hkgen is built once here
     and reused at every k-point (rebuilding it per k-point does real setup
     work and is dramatically slower on a mesh sweep)."""
     hm = h.get_multicell() # a copy, modified below
-    hm.intra = np.asarray(hm.intra)
-    for t in hm.hopping: t.m = np.asarray(t.m)
+    hm.intra = algebra.todense(hm.intra)
+    for t in hm.hopping: t.m = algebra.todense(t.m)
+    orders,jac,cellvol = _cell_factors(h)
+    hkgen = hm.get_hk_gen() # build once, reuse at every k-point
+    scale = max(np.max(np.abs(hm.intra)),
+                max((np.max(np.abs(t.m)) for t in hm.hopping),default=0.0),
+                1e-12) # characteristic hopping energy (floored, so that a
+                       # Hamiltonian with vanishing hoppings still gets a
+                       # small but nonzero scale)
+    dr = _bond_vectors(h,hm.intra.shape[0])
+    return hm,orders,hkgen,jac,dr,cellvol,scale
+
+
+def _cell_factors(h):
+    """The derivative orders (one per periodic direction), the
+    reduced->Cartesian Jacobian jac[i,alpha] = a_i[alpha]/(2 pi) (see
+    _velocities) and the unit cell volume"""
     dim = h.dimensionality
     g = h.geometry
     if dim==1:
@@ -48,18 +68,14 @@ def _setup(h):
         orders = [[1,0],[0,1]]
         avecs = np.array([g.a1,g.a2])
         cellvol = np.linalg.norm(np.cross(g.a1,g.a2)) # area of the unit cell
+    elif dim==3:
+        orders = [[1,0,0],[0,1,0],[0,0,1]]
+        avecs = np.array([g.a1,g.a2,g.a3])
+        cellvol = abs(np.dot(g.a1,np.cross(g.a2,g.a3))) # volume of the cell
     else: raise NotImplementedError(
-        "optical conductivity only implemented for dimensionality 1 or 2 "
-        "(current.derivative, the shared k-derivative, has no 3D branch)")
-    hkgen = hm.get_hk_gen() # build once, reuse at every k-point
-    scale = max(np.max(np.abs(hm.intra)),
-                max((np.max(np.abs(t.m)) for t in hm.hopping),default=0.0),
-                1e-12) # characteristic hopping energy (floored, so that a
-                       # Hamiltonian with vanishing hoppings still gets a
-                       # small but nonzero scale)
-    jac = np.array(avecs)/(2.*np.pi) # jac[i,alpha] = a_i[alpha]/(2 pi)
-    dr = _bond_vectors(h,hm.intra.shape[0])
-    return hm,orders,hkgen,jac,dr,cellvol,scale
+        "the Kubo velocities are implemented for dimensionality 1, 2 or 3, "
+        "got dimensionality "+str(dim))
+    return orders,np.array(avecs)/(2.*np.pi),cellvol
 
 
 def _bond_vectors(h,n):
@@ -74,6 +90,12 @@ def _bond_vectors(h,n):
     the charge vertex is not the identity (the hole block carries the
     opposite charge), so the current operator is not i[H,r] and this
     module's formula does not apply as written."""
+    rr = _orbital_positions(h,n)
+    return np.array([rr[None,:,a]-rr[:,None,a] for a in range(3)])
+
+
+def _orbital_positions(h,n):
+    """Position of every orbital, (n,3), see _bond_vectors"""
     if h.has_eh: raise NotImplementedError(
         "optical conductivity is not implemented for Nambu (superconducting) "
         "Hamiltonians: the charge current operator there is not i[H,r]")
@@ -81,8 +103,7 @@ def _bond_vectors(h,n):
     nsites = len(r)
     if n%nsites!=0: raise ValueError(
         "Hamiltonian dimension is not a multiple of the number of sites")
-    rr = np.repeat(r,n//nsites,axis=0) # one position per orbital
-    return np.array([rr[None,:,a]-rr[:,None,a] for a in range(3)])
+    return np.repeat(r,n//nsites,axis=0) # one position per orbital
 
 
 def _hopping_arrays(hm):
@@ -280,7 +301,7 @@ def _hk(hkgen,k):
     return np.asarray(algebra.todense(hkgen(k)))
 
 
-def _bands_and_velocities(h,ks):
+def _bands_and_velocities(h,ks,setup=None):
     """Diagonalize H(k) on every k-point of ks and rotate the Cartesian
     velocity operators into the instantaneous eigenbasis. Returns the band
     energies es[k,n], the velocity matrix elements vs[k,alpha,n,m] =
@@ -301,9 +322,15 @@ def _bands_and_velocities(h,ks):
     below is built to be invariant under exactly that freedom (see
     _response_weights and drude_weight), and the invariance is checked
     directly in tests/conductivity/test_kubo_batched_paths.py -- the
-    physical output is what must agree, never vs itself."""
-    hm,orders,hkgen,jac,dr,cellvol,scale = _setup(h)
-    tms,dirs = _hopping_arrays(hm) # hoppings, stacked once for the mesh
+    physical output is what must agree, never vs itself.
+
+    setup, if given, is the tuple (_setup(h), _hopping_arrays(...)) built
+    once by a caller that diagonalizes many small sets of k-points (the
+    quantics path of kubosimplex.py), so that it is not rebuilt per call."""
+    if setup is None:
+        hm,orders,hkgen,jac,dr,cellvol,scale = _setup(h)
+        tms,dirs = _hopping_arrays(hm) # hoppings, stacked once for the mesh
+    else: (hm,orders,hkgen,jac,dr,cellvol,scale),(tms,dirs) = setup
     nk = len(ks)
     n = hm.intra.shape[0]
     es = np.zeros((nk,n),dtype=np.float64)
@@ -400,20 +427,115 @@ def _sigma_jit(dE,ratio,vs,omegas,delta):
     return 1j*out
 
 
+def _slab_size(n):
+    """k-points per slab of the mesh sums with n bands: the velocities
+    (48 n^2 bytes per k-point) and the occupation weights with their
+    temporaries (about 41 n^2) of one slab fit in _slab_bytes, but a slab
+    is never smaller than one batch of the diagonalization, _kbatch, which
+    holds as much per k-point already and keeps the threads of the batched
+    eigh busy"""
+    return max(_kbatch,int(_slab_bytes//(100.*n*n)))
+
+
+def _mesh_sum(h,ks,window,degeneracy_tol,term):
+    """sum over the k-points ks of term(es,vs,scale), with es and vs the
+    bands and velocity matrix elements of a slab of ks and scale the
+    energy scale of h, together with the cell volume. The sum is linear in
+    k, so it is added up one slab at a time, and the memory does not grow
+    with the mesh beyond the k-points themselves (24 bytes each).
+
+    With a band window the range of bands is fixed on the whole mesh
+    (kubowindow.py), so the bands and velocities of the window are found
+    on the whole mesh first, nw^2 per k-point, and only the sum runs by
+    slabs."""
+    if window is not None:
+        esw,vsw,cellvol,scale = mesh_bands(h,ks,window,degeneracy_tol)
+        size = _slab_size(esw.shape[1])
+        slabs = ((esw[i:i+size],vsw[i:i+size])
+                for i in range(0,len(ks),size))
+    else:
+        setup = _setup(h)
+        setup = (setup,_hopping_arrays(setup[0]))
+        cellvol,scale = setup[0][5],setup[0][6]
+        size = _slab_size(setup[0][0].intra.shape[0])
+        slabs = (_bands_and_velocities(h,ks[i:i+size],setup=setup)[:2]
+                for i in range(0,len(ks),size))
+    out = 0.
+    for es,vs in slabs: # one slab at a time
+        out = out + term(es,vs,scale)
+        del es,vs # freed before the next slab is built
+    return out,cellvol
+
+
+def _sigma_grid(h,energies,nk,T,delta,intraband,interband,degeneracy_tol,
+        tolerance=None,window=None):
+    """Optical conductivity tensor as a plain sum over the uniform mesh"""
+    ks = _kmesh(h,nk)
+    def term(es,vs,scale): # the Kubo sum over the k-points of a slab
+        ratio,dE = _response_weights(es,T,degeneracy_tol*scale,
+                intraband=intraband,interband=interband)
+        parallel.set_num_threads() # set the number of threads for numba
+        return _sigma_jit(dE,ratio,vs,energies,delta)
+    sigma,cellvol = _mesh_sum(h,ks,window,degeneracy_tol,term)
+    return sigma/(len(ks)*cellvol) # (1/V) sum_k, with V = N_k * V_cell
+
+
+def mesh_bands(h,ks,window,degeneracy_tol):
+    """Bands and velocity matrix elements on the k-points ks: all the
+    bands if window is None, else those of the band window
+    (kubowindow.py)"""
+    if window is None: return _bands_and_velocities(h,ks)
+    from . import kubowindow
+    es,vs,cellvol,scale,_ = kubowindow.bands_and_velocities(h,ks,window,
+            tol_rel=degeneracy_tol)
+    return es,vs,cellvol,scale
+
+
+def _sigma_triangle(h,energies,nk,T,delta,intraband,interband,
+        degeneracy_tol,tolerance=None,window=None):
+    from . import kubosimplex
+    return kubosimplex.sigma_triangle(h,energies,nk,T,delta,intraband,
+            interband,degeneracy_tol,window=window)
+
+
+def _sigma_qtci(h,energies,nk,T,delta,intraband,interband,degeneracy_tol,
+        tolerance=1e-6,window=None):
+    if h.dimensionality==3: raise NotImplementedError(
+        "integration='qtci' of the optical conductivity is not implemented "
+        "in 3D; use integration='triangle' (tetrahedra) or 'grid'")
+    from . import kubosimplex
+    return kubosimplex.sigma_qtci(h,energies,nk,T,delta,intraband,
+            interband,degeneracy_tol,tolerance=tolerance,window=window)
+
+
+_integrations = {
+    "grid": _sigma_grid, # plain sum over the mesh
+    "triangle": _sigma_triangle, # exact resolvent over linear simplices
+    "qtci": _sigma_qtci, # the same on a quantics-interpolated fine mesh
+    }
+
+
+def get_integration_names():
+    """Accepted values of integration= in optical_conductivity"""
+    return list(_integrations)
+
+
 def optical_conductivity(h,energies=None,nk=20,T=None,delta=0.1,
-        intraband=True,interband=True,component=None,degeneracy_tol=1e-6):
+        intraband=True,interband=True,component=None,degeneracy_tol=1e-6,
+        integration="grid",tolerance=1e-6,ewindow=None,nv=None,nc=None):
     """Kubo-Greenwood optical conductivity tensor, see
     conductivity.optical_conductivity for the documentation."""
+    from .kubowindow import get_window
+    window = get_window(ewindow=ewindow,nv=nv,nc=nc)
+    if integration not in _integrations:
+        raise ValueError("unknown integration '"+str(integration)+"' for "
+          +"the optical conductivity; it must be one of "
+          +str(get_integration_names()))
     if energies is None: energies = np.linspace(0.,4.,100)
     energies = np.array(energies,dtype=np.float64)
     if T is None: T = delta # same default as chitk/chiAB.py
-    ks = _kmesh(h,nk)
-    es,vs,cellvol,scale = _bands_and_velocities(h,ks)
-    ratio,dE = _response_weights(es,T,degeneracy_tol*scale,
-            intraband=intraband,interband=interband)
-    parallel.set_num_threads() # set the number of threads for numba
-    sigma = _sigma_jit(dE,ratio,vs,energies,delta)
-    sigma = sigma/(len(ks)*cellvol) # (1/V) sum_k, with V = N_k * V_cell
+    sigma = _integrations[integration](h,energies,nk,T,delta,intraband,
+            interband,degeneracy_tol,tolerance=tolerance,window=window)
     if component is not None:
         return energies,sigma[:,_index(component[0]),_index(component[1])]
     return energies,sigma
@@ -430,14 +552,15 @@ def drude_weight(h,nk=20,T=None,degeneracy_tol=1e-6):
     """Drude (intraband) weight tensor, see conductivity.drude_weight"""
     if T is None: T = 0.05
     ks = _kmesh(h,nk)
-    es,vs,cellvol,scale = _bands_and_velocities(h,ks)
-    ratio,dE = _response_weights(es,T,degeneracy_tol*scale,
-            intraband=True,interband=False)
     # D_ab = (1/V) sum_k sum_{nm in a degenerate block} (-df/dE) v^a_nm v^b_mn
     # The trace over each degenerate block makes this real and basis
     # independent within the block (it is Tr[P v_a P v_b P], with P the
     # projector onto the block); the imaginary residue is numerical noise.
-    D = np.einsum("knm,kanm,kbmn->ab",ratio,vs,vs,optimize=True)
+    def term(es,vs,scale): # the k-points of one slab
+        ratio,dE = _response_weights(es,T,degeneracy_tol*scale,
+                intraband=True,interband=False)
+        return np.einsum("knm,kanm,kbmn->ab",ratio,vs,vs,optimize=True)
+    D,cellvol = _mesh_sum(h,ks,None,degeneracy_tol,term)
     return D.real/(len(ks)*cellvol)
 
 

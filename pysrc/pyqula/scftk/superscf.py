@@ -173,3 +173,560 @@ def get_mf_bdg(v,dm,compute_anomalous=True,compute_normal=True,**kwargs):
                 np.round(mf[(0,0,0)],2))
     return mf # return mean field matrix
 
+
+
+def get_charge_bdg(dm):
+    """Number of electrons per unit cell held by a Nambu density matrix:
+    the trace of the electron block of its onsite matrix dm[(0,0,0)],
+    sum_i <c^dag_i c_i>. Every density-matrix integration of the mean
+    field ("ed", "triangle", "qtci") computes these diagonal entries for a
+    Bogoliubov-de Gennes Hamiltonian, dense or sparse"""
+    from ..superconductivity import get_eh_sector
+    m = get_eh_sector(dm[(0,0,0)],i=0,j=0)
+    return float(np.real(m.diagonal().sum()))
+
+
+
+class ShellFilling:
+    """The partly filled shell of a gapless Bogoliubov-de Gennes state.
+
+    In a state with no gap on the mesh the paired charge is a staircase in
+    mu: when a shell of levels sits at zero energy, the charge jumps by the
+    charge of the shell, and the requested charge N0 falls inside the jump,
+    so no chemical potential holds it. Here the shell is filled in part
+    instead. The shell is the set of BdG levels with |E| < tol, with
+    tol = max(width*T, 1e-6/(kappa*Nk)): the levels that the Fermi-Dirac
+    weight at T does not turn into a step (width = 40), and at T=0 a floor
+    far below the level spacing 1/(kappa*Nk) of the mesh. At T>0 the
+    fill is then a shift of the chemical potential at T inside the shell,
+    which holds N0 whenever the charge of the shell can, and at T=0 it
+    fills the degenerate levels at zero energy in part. A state whose
+    Fermi level falls between two levels further apart than the shell at
+    T=0 has no level to fill there and keeps its charge error.
+
+    The occupations of the shell are the ones of the chemical potential
+    mu + y*Ts to first order, so that the whole range where the
+    Fermi-Dirac weight is not a step moves with the chemical potential,
+    and "ed" and the triangle, which builds its filled density matrix on
+    the same occupations, end in the same state. At each k the levels of
+    the shell are grouped in degenerate multiplets (within degeneracy,
+    1e-12, the rounding of the energies), each multiplet takes the mean of
+    its energies (zero for a multiplet at zero within the rounding, so
+    that it and its partner at -k have exactly opposite energies), and the
+    shell Hamiltonian sum_m E_m P_m - y*Ts*Q is diagonalized, with P_m the
+    projector of the multiplet, Q = V^dag tau_z V the charge in the shell
+    (tau_z = P_e - P_h) and Ts = tol/width the smearing (T, or the floor
+    at T=0). Its eigenvectors get the Fermi-Dirac occupations of their
+    eigenvalues at Ts, and y is set so that the trace of the electron
+    block, get_charge_bdg(dm), is exactly N0. The shell Hamiltonian is
+    built from the projectors, so the filled density matrix depends only
+    on the shell, not on the eigenbasis the diagonalization picks inside a
+    multiplet. In a multiplet at zero energy, as the star of the Zeeman
+    state, the vectors of charge 1 get one occupation f and their
+    partners, of charge -1, 1 - f. The partner of a vector at k is at -k
+    with the opposite energy and charge, so the filled density matrix
+    stays particle-hole symmetric. A shell whose levels are split by more
+    than Ts keeps them in the order of their energies. A single f for the
+    whole shell does not: on the chain with V1=1 at half filling from a
+    ferromagnetic guess (nk=20), whose half filled shell at mu has to
+    split, it ended 5e-3 above the normal state. The k-points of the
+    shell are handled in groups of the same number of levels, each group
+    with one batched diagonalization.
+
+    The shell is armed (start returns True) only when the pairing
+    amplitude of the Hamiltonian, pairing (the largest anomalous entry, set
+    by BdGFermiLevel.shift), is below the smearing Ts, or when the window
+    of the offset, window (also set by shift), is narrower than the shell
+    at T=0, floor times the level spacing. This is the case when the
+    pairing has died out or was never there, and then the levels of the
+    shell are states of one charge, which the first-order shift of the
+    chemical potential treats exactly. The second condition does not
+    depend on T and is the one that matters at low T, since in the Zeeman
+    state (U=-2, B=0.3, nk=16) the paired charge jumps while the pairing
+    is still about 1e-4. While the pairing lives, the offset of
+    BdGFermiLevel is what holds the charge: filling the shell broke the
+    ferromagnetic triplet chain of
+    tests/scf/test_unconventional_superconductivity.py (nk=6,
+    Delta=1.73), whose level at the node k=1/2 converges to mu, since once
+    filled the mean field pushed it 0.18 away and the loop went round a
+    cycle of 22 iterations. The gate went through three versions before
+    this one. The window alone, which closes as Delta^3, armed live
+    states: against the shell, 40 T, the s-wave state with U=-1 at T=1e-2
+    (Delta=0.025) in every iteration, and against Ts the one with U=-0.5
+    at nk=32 and T=1e-3 (Delta=3.1e-3), whose energy then moved by 6e-7.
+    The pairing alone, against Ts or 1e-8 times the bandwidth, let Broyden
+    mixing without its restart go round the gate in the Zeeman state, 300
+    iterations without convergence with the pairing between 7e-8 and
+    7e-6; with the window it converges in 51. So the pairing is compared
+    with Ts, and the window only with the shell at T=0, which is far
+    below any live pairing. A density matrix that is not armed is
+    exactly the one of before, on the device route too.
+
+    An armed shell is filled when the density matrix misses N0 by more
+    than held electrons per cell, so that a shell that holds its charge
+    already, as the triangle of the chain above with its own weights, is
+    left alone, and when N0 lies strictly between the charges of the shell
+    emptied and filled in charge (y to minus and plus infinity), so that
+    the shell can hold it. test(dm) says whether this holds. A first
+    version also asked for a jump of the charge, the charge of the levels
+    within 5 Ts larger than 10 times the one a smooth density of states
+    puts there, to keep gapped states unchanged, which the arming does
+    now. That test went round a cycle of two iterations in the Zeeman
+    state at T=1.4e-3 to 1.6e-3: the jump was 11.8 and 7.8 times the
+    smooth charge in turn, the fill fired every second iteration, its
+    Hartree term moved the star relative to the window of 5 T, and the
+    loop did not converge in 1000 iterations.
+
+    A fill also gives correction, (1/2) Tr H (rho_filled - rho) per unit
+    cell, with rho the density matrix before the fill and H the
+    Hamiltonian it was built from, the change of the band energy made by
+    the fill. The mean field adds it to the step band energy of the
+    library, which is what a normal state reports at every T. It is
+    identically zero when the shell is not filled, so a shell that is
+    armed and never filled reports exactly the energy of before, and at
+    the start of the fill it starts from the charge error that triggers
+    it, 1e-12 per cell, so the energy has no jump there and dE/dN0 is the
+    chemical potential. A first version reported Tr H rho of the density
+    matrix whenever the shell was armed, which changed the convention at
+    the gate where nothing physical happens: the s-wave state with U=-0.5
+    at nk=32 with "ed" is armed at T=1.4e-3 with Delta=7.6e-4 alive, and
+    its energy jumped by 6.1e-6 between T=1.3e-3 and 1.4e-3.
+
+    The fill moves the chemical potential by mu = y*Ts inside the shell,
+    which the mean field adds to the Fermi level of the Hamiltonian it
+    returns, shifted by it, so that the Hamiltonian and its density matrix
+    describe the same state.
+
+    Use: armed = start(h,T,nkpoints) before a density matrix, and when
+    armed, collect(ks,es,vs,occ) on the eigenpairs of every batch (only
+    the k-points with levels in the shell are kept), and fill(dm) at the
+    end.
+
+    fill(dm,add=...) takes the routine that adds the change of the fill
+    to the density matrix, for one that is not a dense matrix per
+    direction: the ultracell keeps only the entries the mean field reads,
+    and adds the change there (ultracelltk.meanfield.shell_adder), with
+    the vectors of the shell on the orbitals of the supercell. The
+    occupations, the energy and the chemical potential are the same."""
+    width = 40. # the shell is |E| < width*T
+    floor = 1e-6 # at T=0, the shell in units of the level spacing
+    qzero = 1e-10 # a smaller |q| is a level with no charge
+    held = 1e-12 # a charge error per cell below this is held already
+    degeneracy = 1e-12 # levels closer than this are one multiplet
+
+    def __init__(self,charge0):
+        self.charge0 = charge0 # electrons per cell, as BdGFermiLevel
+        self.kappa = None # dN/dmu per cell, set by BdGFermiLevel.shift
+        self.pairing = 0. # the pairing amplitude, set by BdGFermiLevel.shift
+        self.window = 0. # the window of the offset, set by BdGFermiLevel.shift
+        self._reset()
+
+    def _reset(self):
+        self.fired, self.fraction, self.mu = False, None, 0.
+        self.levels, self.groups = [], []
+        self.correction = 0. # the change of the band energy made by the fill
+
+    def start(self,h,T,nkpoints):
+        """Before the density matrix of h on a mesh of nkpoints, at T.
+        Returns whether the shell is armed, the pairing being dead; if not,
+        the density matrix is computed as if there were no shell"""
+        self._reset()
+        self.nkpoints = nkpoints
+        spacing = 1./(self.kappa*nkpoints) # mean level spacing at mu
+        self.tol = max(self.width*T,self.floor*spacing)
+        self.ts = self.tol/self.width # the smearing of the shell
+        if self.pairing>=self.ts and self.window>=self.floor*spacing:
+            return False # the pairing lives, the offset holds the charge
+        # tau_z on the Nambu orbitals, +1 on the electrons (4i and 4i+1)
+        # and -1 on the holes, as pairing_amplitude reads them: the
+        # diagonal of 2 P_e - 1, without the matrix of P_e, which for a
+        # sparse supercell would be a dense one of its size
+        self.tau = np.where(np.arange(h.intra.shape[0])%4<2,1.,-1.)
+        return True
+
+    def held_already(self,dm):
+        """Whether dm holds charge0 already, so that it is not filled"""
+        return abs(get_charge_bdg(dm)-self.charge0)<=self.held
+
+    def restart(self):
+        """Forget the batches, to collect a density matrix again"""
+        self.levels, self.groups = [], []
+
+    def collect(self,ks,es,vs,occ):
+        """Keep the shell of a batch: es (nb,n), vs (nb,n,n) with the
+        eigenvectors as columns, occ (nb,n) the occupations the density
+        matrix was built with, in [0,1]"""
+        es = np.asarray(es)
+        for ik in np.nonzero(np.any(np.abs(es)<self.tol,axis=1))[0]:
+            s = np.abs(es[ik])<self.tol
+            self.levels.append((np.array(ks[ik],dtype=float),
+                np.array(es[ik][s]),vs[ik][:,s],np.array(occ[ik][s])))
+
+    def _multiplets(self,es):
+        """es (g,m), sorted along the rows, replaced by the mean of their
+        multiplet, and by zero within the rounding of it"""
+        g,m = es.shape
+        cut = np.diff(es,axis=1)>=self.degeneracy # a new multiplet
+        label = np.concatenate([np.zeros((g,1),dtype=int),
+            np.cumsum(cut,axis=1)],axis=1)+m*np.arange(g)[:,None]
+        total = np.bincount(label.ravel(),weights=es.ravel(),minlength=g*m)
+        count = np.bincount(label.ravel(),minlength=g*m)
+        out = (total/np.maximum(count,1))[label]
+        out[np.abs(out)<self.degeneracy] = 0.
+        return out
+
+    def _group(self):
+        """the levels of the shell in groups of k-points with the same
+        number of levels: ks (g,3), es, em (g,m), vs (g,n,m), occ (g,m),
+        Q (g,m,m)"""
+        self.groups = []
+        sizes = np.array([len(l[1]) for l in self.levels])
+        for m in np.unique(sizes):
+            ls = [self.levels[i] for i in np.nonzero(sizes==m)[0]]
+            ks = np.array([l[0] for l in ls])
+            es = np.array([l[1] for l in ls])
+            vs = np.array([l[2] for l in ls])
+            occ = np.array([l[3] for l in ls])
+            Q = np.matmul(np.transpose(vs.conj(),(0,2,1)),
+                    self.tau[:,None]*vs) # V^dag tau_z V
+            Q = np.ascontiguousarray(Q)
+            self.groups.append((ks,es,self._multiplets(es),vs,occ,Q))
+
+    def _charges(self,q):
+        """electron weights of the levels of negative and positive charge"""
+        w = (1.+q)/2.
+        return (np.sum(w*(q<-self.qzero)),np.sum(w*(q>self.qzero)))
+
+    def test(self,dm):
+        """Whether fill(dm) fills the shell"""
+        from scipy.special import expit
+        if len(self.levels)==0: return False # no level at zero energy
+        if self.held_already(dm): return False
+        n = get_charge_bdg(dm)
+        nk = float(self.nkpoints)
+        self._group()
+        old, c0, c1 = 0., 0., 0.
+        for (ks,es,em,vs,occ,Q) in self.groups:
+            old += np.sum(occ*np.real(np.einsum("gmm->gm",Q)+1.)/2.)/nk
+            q,R = np.linalg.eigh(Q)
+            a,b = self._charges(q)
+            c0 += a/nk # emptied in charge, the vectors of q<0 are filled
+            c1 += b/nk # and filled in charge, the vectors of q>0
+            for ig in np.nonzero(np.any(np.abs(q)<=self.qzero,axis=1))[0]:
+                z = np.abs(q[ig])<=self.qzero # no charge: the occupation
+                Rz = R[ig][:,z] # of their energies at any y
+                e = np.linalg.eigvalsh(Rz.conj().T@(em[ig][:,None]*Rz))
+                c = np.sum(expit(-e/self.ts)*(1.+q[ig][z])/2.)/nk
+                c0, c1 = c0+c, c1+c
+        # the charge of dm without its shell, to which a fill adds the
+        # charge of the filled shell, _occupations(y)[1]; c0 and c1 are
+        # the totals with the shell emptied and filled in charge
+        self.base = n-old
+        self.c0, self.c1 = c0+self.base, c1+self.base
+        return bool(self.c0<self.charge0<self.c1) # the shell can hold N0
+
+    def _occupations(self,y):
+        """Rotations, occupations and charge per cell of the shell at y"""
+        from scipy.special import expit
+        out, charge = [], 0.
+        for (ks,es,em,vs,occ,Q) in self.groups:
+            m = es.shape[1]
+            lam,R = np.linalg.eigh(em[:,:,None]*np.eye(m)/self.ts-y*Q)
+            on = expit(-lam) # Fermi-Dirac at the smearing ts
+            q = np.real(np.einsum("gmi,gmn,gni->gi",R.conj(),Q,R))
+            charge += np.sum(on*(1.+q)/2.)/self.nkpoints
+            out.append((R,on))
+        return out,charge
+
+    def add_dense(self,dm,ks,B,c):
+        """Add the change of the fill to the dense density matrix dm,
+        {d: (n,n)}: sum_s c_s exp(2 pi i k_s.d)/Nk conj(B[i,s]) B[j,s],
+        with B (n, g l) the vectors of g k-points ks as columns, l of
+        them per k-point, and c (g,l) the change of their occupations"""
+        nk = float(self.nkpoints)
+        for d in dm:
+            ph = np.exp(2j*np.pi*(ks@np.array(d,dtype=float)))/nk
+            dm[d] = dm[d]+(B.conj()*(c*ph[:,None]).reshape(-1))@B.T
+
+    def fill(self,dm,add=None):
+        """Fill the shell in part so that dm holds charge0, if test(dm)
+        passes; dm is changed in place and returned. Sets correction,
+        (1/2) Tr H (rho_filled - rho), the change of the band energy.
+        add(dm,ks,B,c) adds the change of the density matrix, add_dense
+        by default; a density matrix that is not a dense matrix per
+        direction gives its own, and only needs the electron diagonal of
+        dm[(0,0,0)] to be read by get_charge_bdg"""
+        if not self.test(dm): return dm
+        from scipy.optimize import brentq
+        nk = float(self.nkpoints)
+        # the charge after the fill minus N0. It goes from c0 - N0 < 0 at
+        # y to minus infinity to c1 - N0 > 0 at plus infinity, so test()
+        # guarantees the bracket. Adding c0 instead of base counted the
+        # charge of the emptied shell twice, which lands on N0 minus that
+        # charge when the shell vectors carry a fractional charge
+        def error(y): return self._occupations(y)[1]+self.base-self.charge0
+        b = 2.*self.width # every level of the shell is within width*ts
+        while error(-b)>=0. or error(b)<=0.: # q below 1 needs more
+            b *= 4.
+            if b>1e12: return dm # the charge of the shell is too small
+        y = brentq(error,-b,b,xtol=1e-14,rtol=1e-14,maxiter=500)
+        if add is None: add = self.add_dense
+        change = 0.
+        for ((ks,es,em,vs,occ,Q),(R,on)) in zip(self.groups,
+                self._occupations(y)[0]):
+            ws = np.matmul(vs,R) # eigenvectors at y
+            change += np.sum(on*np.einsum("gm,gmn->gn",es,np.abs(R)**2))
+            change -= np.sum(occ*es)
+            # the change of the density matrix, the new occupations of ws
+            # minus the old ones of vs, as one product over the k-points
+            # and the levels: B holds the vectors as columns (n, 2 g m).
+            # A three-operand einsum did this as one loop without BLAS,
+            # 12 times slower at n = 160, and the whole fill 6 times
+            # (future_development/tetrahedron_density_matrix.md)
+            n = vs.shape[1]
+            B = np.concatenate([ws,vs],axis=2).transpose(1,0,2).reshape(n,-1)
+            c = np.concatenate([on,-occ],axis=1) # (g, 2m)
+            add(dm,ks,B,c)
+        self.correction = change/nk/2. # the band energy is half the trace
+        self.fired, self.mu = True, y*self.ts
+        self.fraction = (self.charge0-self.c0)/(self.c1-self.c0) # filled
+        return dm
+
+    def move_fermi(self,h):
+        """Add the shift of the chemical potential of the last fill to the
+        Fermi level of h, shifting h by it, so that h and the filled
+        density matrix describe the same state; nothing when not filled"""
+        if not self.fired: return h
+        h.shift_fermi(-self.mu)
+        h.fermi = h.fermi + self.mu
+        return h
+
+
+
+class BdGFermiLevel:
+    """The Fermi level of a Bogoliubov-de Gennes mean field at a fixed
+    filling, found on the charge of the paired state itself.
+
+    The Fermi level that holds `filling` in the normal state (the
+    electron-only Hamiltonian, spectrum.get_fermi4filling) does not hold it
+    in the paired state: for U=-2 at filling 0.3 on the square lattice the
+    paired state holds 0.606 electrons per cell instead of 0.600. So the
+    chemical potential is written as mu = mu_n + x, with mu_n the Fermi
+    level of the normal state of the current Hamiltonian (search(h,filling),
+    the search of the integration in use) and x an offset that is one more
+    unknown of the self-consistent loop. Each density matrix gives the
+    charge N of the paired state (get_charge_bdg), and the offset of the
+    next iteration is x - gain*damping*(N-N0)/kappa, with N0 the requested
+    charge and kappa the compressibility dN/dmu of the normal state at the
+    first Hamiltonian. This is one step per iteration and no extra density
+    matrix; the loop holds the size of the step (residual) to its tolerance
+    together with the change of the mean field, so at convergence a gapped
+    paired state holds N0. A mixing solver takes x as one more entry of its
+    vector.
+
+    Writing mu around mu_n rather than on its own keeps the uniform
+    Hartree shift, which moves mu_n, out of the offset. The offset is also
+    clipped to a window |x| <= 2 Delta^3/(Delta^2 + Delta_s^2), with Delta
+    the pairing amplitude of the Hamiltonian (the largest entry of its
+    anomalous blocks) and Delta_s = small*W, W = (electron states)/kappa an
+    energy scale of the bands. So the window is 2 Delta for a sizable
+    pairing, and closes as Delta^3 when the pairing dies out: a Hamiltonian
+    with no pairing gets exactly the Fermi level of the normal state, as
+    before. The gain halves each time the charge error changes sign, down
+    to gain_min, and grows back by regain up to 1 while it does not. This
+    matters for a Nambu Hamiltonian whose state has no gap on the mesh (no
+    pairing, a pairing that dies out, a Bogoliubov Fermi surface, or a gap
+    the mesh does not resolve): there the charge is a staircase in mu (the
+    triangle density matrix of a BdG Hamiltonian is the step one of exact
+    diagonalization, see dmtk/simplexdm.py), so the offset may have to sit
+    on a level, where the smearing T makes the charge continuous, or no
+    offset may hold N0 at all. The halving gain lets the offset settle on a
+    level instead of oscillating around it. The step gives up, and sets
+    the offset to zero for the rest of the loop, which is then the loop
+    with the Fermi level of the normal state as before, in two cases: when
+    the window has held the step patience times in a row, and when the
+    error has changed sign flip_patience times at the smallest gain (errors
+    below flip_floor are not counted, they are the noise of the
+    interpolation of qtci). A state with a gap settles long before. When
+    the step gives up the loop converges with a charge error, which stays
+    in error, and warn says so.
+
+    The halving gain, the damping and the give-up are a history of the
+    loop, so they belong to the plain loop only. A quasi-Newton solver
+    (Broyden mixing, the scipy solvers) takes the offset as one more entry
+    of its vector and fits a model of the map from that vector to the next
+    one, which only works if the map is a function of the vector. With the
+    gain inside, the same trial vector gave a different step at each call:
+    for a d-wave state from V1=-2 with U=1 at filling 0.4 on the square
+    lattice the gain moved between 1 and 0.18 in one Broyden run, which
+    then needed 48 iterations. So those solvers call step with
+    adaptive=False, a step that depends only on the Hamiltonian and the
+    offset: the Newton step -(N-N0)/kappa, clipped to the window, and zero
+    when it is longer than the whole window, 2*bound, since then no offset
+    in the window holds the charge on the linear estimate. This last rule
+    replaces the give-up for the solvers. In a state whose pairing dies
+    out, the charge error is a staircase of order one k-shell while the
+    window closes as Delta^3, so the step soon becomes longer than the
+    window and the offset stays at zero, the Fermi level of the normal
+    state, which is where the give-up of the plain loop ends too. The
+    d-wave state above needs 20 iterations with it.
+
+    No offset holds N0 in a state with no gap on the mesh, since N0 falls
+    inside a jump of the staircase. That jump is the shell of levels at
+    zero energy, and the density matrices of "ed", "triangle" and the
+    ultracell (ultracelltk.meanfield.SparseBackend.fill_shell) fill it
+    in part when they are given shell, the ShellFilling of this object:
+    the shell is occupied at a chemical potential shifted inside it, set
+    so that the charge is exactly N0, which in a shell degenerate at zero
+    energy gives the occupations f and 1-f to its two charges (see
+    ShellFilling). It fires only when the density matrix misses N0 and
+    the shell can hold it, so a state that holds its charge already does
+    not change, and only once the pairing is
+    below the smearing of the shell, or its window below the shell at
+    T=0, so that while the pairing lives the offset alone holds the
+    charge. With it the Zeeman state below (U=-2 at
+    filling 0.3 with a field 0.3 that kills the pairing) holds N0 to 1e-16
+    instead of ending with the error of one k-shell, 1.6e-3 per cell at
+    nk=16, and "ed" and the triangle give the same energy and Fermi level.
+    The step itself is unchanged: there N - N0 is zero, so the offset
+    stays where it is.
+
+    compressibility, if given, is a function kappa(h) that replaces the
+    finite difference of compressibility() for kappa; the ultracell gives
+    it from all the levels of the lattice-periodic part of the electrons
+    (ultracelltk.meanfield.SparseBackend.normal_compressibility).
+
+    Use: shift(h,x) on each Hamiltonian before its density matrix (it sets
+    h.fermi), then step(x,dm) for the offset of the next iteration, which
+    also leaves the charge error N-N0 in error and the size of the step in
+    residual. Pass shell to the density matrix, add shell.correction to
+    the band energy of the last Hamiltonian, and shift that Hamiltonian
+    with shell.move_fermi."""
+    damping = 0.5 # with kappa off by up to a factor 4 the step still converges
+    # the pairing moves the Fermi level by roughly Delta^2/W, so a window of
+    # 2 Delta is generous (U=-2 at filling 0.3: Delta=0.21, x=-0.03; U=-6 at
+    # filling 0.1: Delta=1.38)
+    bound_factor = 2.
+    halve = 0.5 # factor of the gain when the error changes sign
+    regain = 1.5 # growth of the gain while the error keeps its sign
+    small = 1e-3 # a pairing below small*W closes the window
+    patience = 8 # steps in a row held by the window, to give up
+    flip_patience = 8 # changes of sign at the smallest gain, to give up
+    gain_min = 1./64. # the smallest gain
+    flip_floor = 1e-6 # smaller errors are noise, and their signs not counted
+
+    def __init__(self,h,filling,search,compressibility=None):
+        self.filling = filling
+        self.search = search # search(h,filling): Fermi level of the normal state
+        # kappa(h), dN/dmu of the normal state of h, when the integration
+        # gives it itself (the ultracell, whose windowed search may not
+        # reach filling +- df); otherwise compressibility() below
+        self.kappa_of = compressibility
+        self.charge0 = filling*(h.intra.shape[0]//2) # electron states per cell
+        self.kappa = None # set on the first Hamiltonian
+        self.bound = 0. # the window of the last Hamiltonian
+        self.x = 0. # the offset the last Hamiltonian was shifted by
+        self.error = 0.
+        self.residual = 0.
+        self.gain, self.last = 1., None
+        self.flips, self.clipped, self.frozen = 0, 0, False
+        # the partly filled shell of a gapless state, which the density
+        # matrices of "ed", "triangle" and the ultracell take as shell=
+        self.shell = ShellFilling(self.charge0)
+
+    def compressibility(self,h,df=0.05):
+        """dN/dmu of the normal state of h around the requested filling,
+        from two Fermi searches: a finite difference of the charge over a
+        window of 2*df in filling, wide enough to span many levels of an
+        exact-diagonalization mesh, whose Fermi level is a staircase"""
+        df = min(df,self.filling/2.,(1.-self.filling)/2.)
+        if df<=0.: return 1.0 # empty or full, nothing to hold
+        dmu = self.search(h,self.filling+df) - self.search(h,self.filling-df)
+        dmu = max(dmu,1e-6) # a degenerate level: a small, safe step
+        return 2.*df*(h.intra.shape[0]//2)/dmu
+
+    def shift(self,h,x):
+        """Shift h by the chemical potential mu_n + x, with x clipped to
+        the window of the pairing amplitude of h"""
+        mu = self.search(h,self.filling)
+        if self.kappa is None:
+            if self.kappa_of is None: self.kappa = self.compressibility(h)
+            else: self.kappa = self.kappa_of(h)
+            self.shell.kappa = self.kappa
+        d = pairing_amplitude(h)
+        dmin = self.small*(h.intra.shape[0]//2)/self.kappa # small, in units of W
+        self.bound = self.bound_factor*d*d**2/(d**2+dmin**2)
+        self.shell.pairing = d # the shell waits for the pairing to die
+        self.shell.window = self.bound
+        self.x = float(np.clip(x,-self.bound,self.bound))
+        if self.frozen: self.x = 0. # given up, see step
+        h.fermi = mu + self.x
+        h.shift_fermi(-h.fermi)
+        return h
+
+    def step(self,x,dm,adaptive=True):
+        """Offset of the next iteration, from the density matrix of the
+        Hamiltonian shift(h,x) gave. adaptive=False is the step of the
+        quasi-Newton solvers, which depends only on x and dm: no gain, no
+        damping and no give-up (see the class docstring)"""
+        self.error = get_charge_bdg(dm) - self.charge0
+        if not adaptive: # the map of x and dm alone, for a solver
+            dx = -self.error/self.kappa # the Newton step of the offset
+            # longer than the window: no offset in it holds the charge,
+            # wherever x is, so the Fermi level of the normal state
+            if abs(dx)>2.*self.bound: xnew = 0.
+            else: xnew = float(np.clip(self.x+dx,-self.bound,self.bound))
+            self.residual = abs(xnew-x)
+            return xnew
+        if self.last is not None: # halve on a change of sign, else grow
+            if self.last*self.error<0.:
+                # a change of sign at the smallest gain is no progress
+                if self.gain<=self.gain_min and \
+                        min(abs(self.last),abs(self.error))>self.flip_floor:
+                    self.flips += 1
+                self.gain = max(self.gain_min,self.halve*self.gain)
+            else: self.gain = min(1.,self.regain*self.gain)
+        self.last = self.error
+        if self.flips>=self.flip_patience: self.frozen = True
+        if self.frozen: xnew = 0. # the Fermi level of the normal state
+        else:
+            xnew = self.x - self.gain*self.damping*self.error/self.kappa
+            if abs(xnew)>self.bound: self.clipped += 1 # held by the window
+            else: self.clipped = 0
+            xnew = float(np.clip(xnew,-self.bound,self.bound)) # the window
+            if self.clipped>=self.patience: # the charge is out of reach
+                self.frozen, xnew = True, 0.
+        self.residual = abs(xnew-x)
+        return xnew
+
+    def warn(self,maxerror,converged=True):
+        """Say so when a converged loop does not hold the charge, which is
+        the case of a state with no gap on the mesh. A loop stopped at
+        maxite says nothing about the gap, so then nothing is printed"""
+        if not converged: return
+        if abs(self.error)>100*maxerror:
+            print("The paired state holds the requested charge to %.1e "
+                    "electrons per cell, not to the tolerance: its "
+                    "quasiparticle spectrum has no gap on this mesh, see "
+                    "scftk.superscf.BdGFermiLevel"%abs(self.error))
+
+
+
+def pairing_amplitude(h):
+    """Largest modulus of the anomalous (electron-hole) blocks of the
+    hoppings of a Nambu Hamiltonian, onsite and between cells. The Nambu
+    spinor of site i is (4i, 4i+1) for the electrons and (4i+2, 4i+3) for
+    the holes, so the anomalous block is read with these indices, without
+    the reordering of superconductivity.get_eh_sector, which densified and
+    permuted every hopping at each call (12% of an iteration of the s-wave
+    loop at nk=16, a quarter of BdGFermiLevel.shift)"""
+    from scipy.sparse import issparse
+    i = np.arange(h.intra.shape[0]//4) # Nambu sites
+    e = np.concatenate([4*i,4*i+1]) # electrons
+    o = np.concatenate([4*i+2,4*i+3]) # holes
+    out = 0.
+    for m in h.get_dict().values():
+        a = m[e,:][:,o]
+        a = a.toarray() if issparse(a) else np.asarray(a)
+        out = max(out,float(np.max(np.abs(a))))
+    return out

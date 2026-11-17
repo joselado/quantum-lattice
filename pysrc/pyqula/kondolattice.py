@@ -5,12 +5,15 @@ minimal model of heavy-fermion compounds.
 Each localized moment is represented as S_j = 1/2 f_j^dagger sigma f_j
 (Abrikosov pseudofermions), subject to the hard local constraint
 f_j^dagger f_j = 1, and exchange-coupled to a conduction electron at the
-same site through the Coqblin-Schrieffer Kondo interaction. Following
+same site through the Coqblin-Schrieffer Kondo interaction -- or, with J
+given as a function of two positions, to the conduction electrons of other
+sites and of other unit cells, one hybridization field per bond (see
+scftk/kondolattice.py). Following
 P. Coleman, "Heavy Fermions: electrons at the edge of magnetism",
-arXiv:cond-mat/0612006, Sec. III.C ("The Large N Kondo Lattice", Eq.
+arXiv:cond-mat/0612006, Sec. II.C ("The Large N Kondo Lattice", Eq.
 65-99), this is decoupled in the large-N (here N=2, spin-1/2) saddle-point
 approximation into a self-consistent hybridization field
-V_j = -(J/2) <f_j^dagger c_j> (a composite fermion, "half electron, half
+V_j = -(J/2) <c_j^dagger f_j> (a composite fermion, "half electron, half
 spin-flip", Eq. 100-102) plus a Lagrange multiplier lam_j enforcing
 <f_j^dagger f_j> = 1 -- see scftk/kondolattice.py for the SCF
 loop and the exact equations it implements.
@@ -54,17 +57,21 @@ an unseeded SCF run (the default, mf=None) starts there and stays there
 even for a J that also supports a genuine hybridized state; a seed away
 from zero (mf=(V, lam), see get_mean_field_hamiltonian below) is needed to
 find that other state. Where both coexist, the hybridized state is the
-true (lower-energy) ground state -- see
-tests/kondolattice/test_kondolattice.py::
-test_kondo_branch_has_lower_energy_than_trivial_branch, which also
-exercises return_total_energy=True's Eq. 83 constant terms end to end.
+true ground state, with the lower grand potential at the same chemical
+potential and T -- see tests/kondolattice/test_kondolattice.py::
+test_kondo_branch_has_lower_energy_than_trivial_branch. The energy that
+return_total_energy=True gives is that grand potential per unit cell,
+-T (1/Nk) sum_kn ln(1+exp(-(e_kn-mu)/T)) plus Eq. 83's constants
+sum N|V|^2/J - sum lam Q, so it is stationary in V and lam at the
+converged point and its derivative in mu is minus the electron count
+(tests/kondolattice/test_kondolattice_energy.py).
 
 Only the U(1) (hybridization-only) large-N saddle point is implemented --
 this is the same approximation level Coleman's review presents as the
 standard Kondo-lattice mean field theory (the Read-Newns path integral,
 Eq. 80-81); it does not capture magnetism or superconductivity (both
 explicitly listed among the large-N approach's known limitations in the
-review's Sec. III.D), nor the combined Kondo-Heisenberg (RKKY + Kondo,
+review's Sec. II.D), nor the combined Kondo-Heisenberg (RKKY + Kondo,
 Eq. 133-134) model, which needs a Nambu-doubled SU(2) gauge theory and is
 out of scope here."""
 import numpy as np
@@ -83,7 +90,8 @@ class KondoLatticeHamiltonian(Hamiltonian):
     site of `hc`'s geometry, offset in z purely so the two sublattices do
     not spatially overlap) is fused on top of `hc` with zero bare hopping
     -- see the module docstring for the physics. The Kondo coupling is
-    supplied entirely through get_mean_field_hamiltonian's `J` kwarg::
+    supplied entirely through get_mean_field_hamiltonian's `J` kwarg, a
+    number for an onsite coupling::
 
         from pyqula import geometry
         from pyqula.kondolattice import KondoLatticeHamiltonian
@@ -97,6 +105,28 @@ class KondoLatticeHamiltonian(Hamiltonian):
         h2.hybridization      # converged V_j per localized site
         h2.constraint_lambda  # converged per-site Lagrange multipliers
 
+    or a function J(rc, rm) of the position rc of a conduction site and the
+    position rm of the site that holds a moment, for a coupling between
+    different sites, in the same cell or in different cells (every bond up
+    to the distance rcut, 5.0 by default for a periodic system and every
+    pair for a finite one; a bond with J=0 is dropped)::
+
+        def J(rc, rm): # onsite 1.5, and 0.4 to the first neighbors
+            d = np.linalg.norm(rc - rm)
+            if d < 1e-3: return 1.5
+            if abs(d - 1.0) < 1e-3: return 0.4
+            return 0.0
+        h2 = h.get_mean_field_hamiltonian(J=J, filling=0.15, nk=150,
+                                          mf=(0.3, 0.0))
+        h2.kondo_bonds    # the bonds (c, m, R, J_b): the moment m of the
+                          # cell 0 and the conduction site c of the cell R
+        h2.hybridization  # one converged V_b per bond, in the same order
+
+    The bonds are sorted by moment and then by distance, so for a number J
+    there is one bond per moment and hybridization keeps one V per moment.
+    The seed mf=(V, lam) takes one V per bond and one lam per moment, or a
+    number for all of them.
+
     `filling` sets a lattice-wide chemical potential ONCE, from the bare
     (V=0, lam=0) conduction+f bands, and holds it fixed through the SCF
     loop (Hamiltonian.get_fermi4filling's usual fraction-of-all-spin-
@@ -109,9 +139,17 @@ class KondoLatticeHamiltonian(Hamiltonian):
     previous run's converged (or intermediate) `(h2.hybridization,
     h2.constraint_lambda)` pair instead of the default all-zero guess (see
     the module docstring for why a nonzero seed is generally needed at
-    all). `nk=`, `mix=`, `maxerror=`, `maxite=`, `T=` are forwarded to the
-    SCF loop (scftk.kondolattice.kondo_lattice_mean_field)
-    unchanged.
+    all). `rcut=`, `nk=`, `mix=`, `maxerror=`, `maxite=`, `T=` are
+    forwarded to the SCF loop (scftk.kondolattice.kondo_lattice_mean_field)
+    unchanged. With `return_total_energy=True` it also returns the grand
+    potential per unit cell at the fixed chemical potential and at the
+    smearing `T` of the loop (see the module docstring).
+
+    The routines below work with any of these couplings, since they take
+    the Bloch Hamiltonian of the converged mean field with all its bonds.
+    Their own `J=` keyword, which sets the amplitude of the composite
+    fermion of a site, takes the same number or function and uses the
+    onsite bond of each moment.
 
     An external Zeeman/magnetic field couples EXACTLY to both fermion
     species here (the conduction electron and the localized moment
@@ -133,7 +171,8 @@ class KondoLatticeHamiltonian(Hamiltonian):
     exact under a field. Genuine physics, not a bug: a field competes with
     the Kondo singlet, so |V| SHRINKS as the field grows at fixed J, and a
     strong enough field destroys the hybridized state entirely -- the SCF
-    then correctly reports non-convergence (a `None` return), the same
+    then correctly reports non-convergence (get_mean_field_hamiltonian
+    raises scftk.convergence.MeanFieldConvergenceError), the same
     "decays toward the always-self-consistent V=0 branch" signal a
     subcritical J produces (see kondo_lattice_mean_field's `residual`
     docstring) -- not a smaller-but-nonzero V. See
@@ -170,5 +209,59 @@ class KondoLatticeHamiltonian(Hamiltonian):
         if scf.converged:
             scf.hamiltonian.local_occupation = scf.local_occupation
             scf.hamiltonian.hybridization = scf.hybridization
+            scf.hamiltonian.kondo_bonds = scf.kondo_bonds
             scf.hamiltonian.constraint_lambda = scf.constraint_lambda
         return _mean_field_scf_result(scf, return_total_energy)
+
+    def get_cotunneling_didv(self, **kwargs):
+        """Cotunneling STM dI/dV of a converged Kondo lattice mean field,
+        resolved by Kondo pair: the tip tunnels into psi = tc*c + tf*f
+        (Maltseva, Dzero and Coleman, arXiv:0910.1138), giving
+        tc^2 N_cc + tf^2 N_ff + 2 tc tf N_cf at the site under the tip.
+        Call it on the Hamiltonian returned by get_mean_field_hamiltonian.
+        Returns (energies, dIdV), plus the cc, ff and interference parts
+        with return_parts=True; see kondotk.cotunneling.cotunneling_didv
+        for the keywords (tc, tf, J, nk, delta, T, site)."""
+        from .kondotk import cotunneling
+        return cotunneling.cotunneling_didv(self, **kwargs)
+
+    def get_composite_spectral_function(self, **kwargs):
+        """Momentum-resolved spectral functions of the conduction electron
+        c and of the composite fermion F = (2/3) (sigma.S) c, an electron
+        together with a spin flip of the moment, and the propagator g_F of
+        the composite fermion without its hybridization: the matrix
+        spectral function of Chen, Stoudenmire, Komijani and Coleman,
+        arXiv:2302.09701, in the mean field, where F is the f fermion
+        times an amplitude. Call it on the Hamiltonian returned by
+        get_mean_field_hamiltonian. Returns (ks, energies, out) with out a
+        dictionary with "cc", "FF", "cF" and "gF"; see
+        kondotk.compositespectrum.composite_spectral_function for the
+        keywords (kpath, energies, delta, J, hybridization_scale, site,
+        nk)."""
+        from .kondotk import compositespectrum
+        return compositespectrum.composite_spectral_function(self, **kwargs)
+
+    def get_moment_spinchi(self, **kwargs):
+        """Dynamical spin susceptibility of the local moments of a
+        converged Kondo lattice mean field, the convolution of two f
+        propagators, dressed with a residual interaction U(q) in the
+        random phase approximation, 1/(1/chi - U): the mean-field and RPA
+        susceptibilities of arXiv:2302.09701. Call it on the Hamiltonian
+        returned by get_mean_field_hamiltonian. Returns (energies, chi)
+        with one matrix between the moments of the unit cell per energy;
+        see kondotk.momentchi.moment_spinchi for the keywords (q,
+        energies, U, nk, delta, T, hybridization_scale)."""
+        from .kondotk import momentchi
+        return momentchi.moment_spinchi(self, **kwargs)
+
+    def get_moment_magnon_chern(self, window, **kwargs):
+        """Chern number of a band of the magnon of the moments, the spin
+        exciton of the local moments of a converged two-dimensional Kondo
+        lattice mean field, from the null vectors of the RPA kernel with
+        the residual interaction U(q) at its zeros inside the frequency
+        window. Call it on the Hamiltonian returned by
+        get_mean_field_hamiltonian; see chitk.kernelchern.moment_rpa_chern
+        for the keywords (U, bands, nq, nk, T, channel,
+        hybridization_scale, shift, tol, full_output)."""
+        from .chitk import kernelchern
+        return kernelchern.moment_rpa_chern(self, window, **kwargs)

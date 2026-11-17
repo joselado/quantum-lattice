@@ -1,4 +1,5 @@
 # library to calculate topological properties
+from . import filewrite
 import numpy as np
 from scipy.sparse import bmat, csc_matrix
 import scipy.linalg as lg
@@ -22,11 +23,14 @@ arpack_maxiter = algebra.arpack_maxiter
 def get_berry_curvature_path(h,kpath=None,dk=0.01,
       window=None,max_waves=None,nk=600,
       mode="Wilson",delta=0.001,reciprocal=False,operator=None,
-      silent = True):
-    """Calculate and write in file the Berry curvature
-    in a certain kpath"""
+      silent = True,write=None):
+    """Berry curvature along a k-path. Returns the index of each kpoint
+    and the curvature there, and writes the kpoint and curvature to
+    BERRY_CURVATURE.OUT (and the path to the k-path files) unless
+    write=False"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     operator = get_operator(h,operator)
-    kpath = klist.get_kpath(h.geometry,kpath=kpath,nk=nk) # take default kpath
+    kpath = klist.get_kpath(h.geometry,kpath=kpath,nk=nk,write=write) # take default kpath
     tr = timing.Testimator("BERRY CURVATURE",silent=silent)
     ik = 0
     if operator is not None: mode="Green" # Green function mode
@@ -42,20 +46,22 @@ def get_berry_curvature_path(h,kpath=None,dk=0.01,
       else:
         raise ValueError("unknown mode for the Berry curvature; the accepted "
                 "ones are 'Wilson' and 'Green'")
-      return str(k[0])+"   "+str(k[1])+"   "+str(b)+"\n"
-    fo = open("BERRY_CURVATURE.OUT","w") # open file
+      return b
     if parallel.cores==1: # serial execution
+      bs = []
       for k in kpath:
         tr.remaining(ik,len(kpath))
         ik += 1
-        fo.write(getb(k)) # write result
-        fo.flush()
+        bs.append(getb(k))
     else: # parallel execution
-        out = parallel.pcall(getb,kpath)
-        for o in out: fo.write(o) # write
-    fo.close() # close file
-    m = np.genfromtxt("BERRY_CURVATURE.OUT").transpose()
-    return np.array(range(len(m[0]))),m[2]
+        bs = parallel.pcall(getb,kpath)
+    bs = np.array(bs,dtype=float)
+    if write:
+        fo = open("BERRY_CURVATURE.OUT","w") # open file
+        for (k,b) in zip(kpath,bs):
+            fo.write(str(k[0])+"   "+str(k[1])+"   "+str(b)+"\n")
+        fo.close() # close file
+    return np.arange(len(bs)),bs
 
 
 # alias for compatibility
@@ -66,7 +72,7 @@ write_berry = get_berry_curvature_path
 
 
 
-def berry_phase(h,nk=20,kpath=None,write=True):
+def berry_phase(h,nk=20,kpath=None,write=None):
     """ Calculates the Berry phase of a Hamiltonian
 
     SIGN CONVENTION. This returns +gamma in the standard discrete
@@ -77,6 +83,7 @@ def berry_phase(h,nk=20,kpath=None,write=True):
     SIGN CONVENTION docstring for the derivation. Checked against a direct
     King-Smith-Vanderbilt evaluation on closed k-loops (six digits).
     """
+    write = filewrite.resolve(write,True) # the call, else the global switch
     if h.dimensionality==0:
         raise ValueError("a 0-dimensional Hamiltonian has no Brillouin "
           +"zone, so it has no Berry phase")
@@ -125,6 +132,146 @@ def berry_phase(h,nk=20,kpath=None,write=True):
 
 
 
+
+
+def _chiral_operator(h,chiral):
+    """Dense matrix of the chiral operator S of a one-dimensional
+    Hamiltonian, checked to be one: S^2=1 and S H(k) S = -H(k)
+
+    chiral=None takes sigma_y tau_y on every site of a Nambu Hamiltonian,
+    the chiral symmetry of a BdG Hamiltonian that is real in real space
+    (class BDI, a Kitaev chain), and the sublattice operator otherwise"""
+    n = h.intra.shape[0]
+    if chiral is None:
+        if h.has_eh:
+            sy = np.array([[0.,-1j],[1j,0.]])
+            S = np.kron(np.identity(n//4),np.kron(sy,sy)) # tau_y sigma_y
+        elif h.geometry.has_sublattice:
+            S = h.get_operator("sublattice").get_matrix()
+        else:
+            raise ValueError("the winding number needs a chiral operator, "
+              +"and this Hamiltonian is not a Nambu one and has no "
+              +"sublattice to take it from; pass chiral=, a name, a "
+              +"matrix or an Operator, or label the sublattice with "
+              +"g.get_sublattice()")
+    else: S = get_operator(h,chiral).get_matrix()
+    S = np.array(algebra.todense(S),dtype=complex)
+    if np.max(np.abs(S@S-np.identity(n)))>1e-6:
+        raise ValueError("the chiral operator has to square to the identity")
+    hkgen = h.get_hk_gen()
+    for k in [0.,0.5,0.1234,0.3791]: # S has to anticommute with H(k)
+        hk = np.array(algebra.todense(hkgen([k,0.,0.])),dtype=complex)
+        r = np.max(np.abs(S@hk+hk@S))
+        if r>1e-6*max(1.,np.max(np.abs(hk))):
+            raise ValueError("the chiral operator does not anticommute with "
+              +"the Hamiltonian, the residual of S H(k) + H(k) S is "+str(r)
+              +" at k="+str(k)+", so this Hamiltonian has no such chiral "
+              +"symmetry and no winding number")
+    return S
+
+
+def winding_number(h,chiral=None,nk=200):
+    """Winding number of a one-dimensional Hamiltonian with a chiral
+    symmetry (classes AIII and BDI)
+
+    In the eigenbasis of the chiral operator S, H(k) is off-diagonal, with
+    a block q(k) = P_+^dagger H(k) P_- between the states of S=+1 and S=-1,
+    and the winding number is that of det q(k) around the Brillouin zone,
+    W = (1/2 pi i) int dk d log det q(k) (Ryu-Schnyder-Furusaki-Ludwig,
+    arXiv:0912.2157). It counts the zero modes at each end of an open
+    chain, on one sublattice, an integer where the Zak phase gives only its
+    parity. No eigenvector of H enters, so there is no gauge to fix.
+
+    chiral: None (see _chiral_operator), or a name, a matrix or an Operator
+    nk: k-points around the zone; each step of the phase of det q must stay
+        below pi
+
+    The sign of W follows the sign of S, and a gap closing, a k-point
+    where det q vanishes, raises."""
+    if h.dimensionality!=1:
+        raise ValueError("the winding number needs a one-dimensional "
+          +"Hamiltonian, and this one has dimensionality "
+          +str(h.dimensionality))
+    S = _chiral_operator(h,chiral)
+    (s,v) = np.linalg.eigh(S)
+    pp,pm = v[:,s>0],v[:,s<0] # the S=+1 and S=-1 subspaces
+    if pp.shape[1]!=pm.shape[1]:
+        raise ValueError("the chiral operator has "+str(pp.shape[1])
+          +" eigenvalues +1 and "+str(pm.shape[1])+" eigenvalues -1, and "
+          +"the winding number needs as many of each")
+    hkgen = h.get_hk_gen()
+    ks = np.linspace(0.,1.,nk,endpoint=False)
+    dets,smin = [],[]
+    for k in ks:
+        q = pp.conj().T@np.array(algebra.todense(hkgen([k,0.,0.])))@pm
+        dets.append(np.linalg.det(q))
+        smin.append(np.min(np.linalg.svd(q,compute_uv=False)))
+    if np.min(smin)<1e-8*max(1.,np.max(smin)):
+        raise ValueError("the gap closes at k="+str(ks[np.argmin(smin)])
+          +", so the winding number is not defined")
+    phi = np.angle(dets)
+    dphi = np.diff(np.concatenate([phi,phi[:1]])) # closed loop
+    dphi = (dphi+np.pi)%(2.*np.pi) - np.pi
+    return int(np.round(np.sum(dphi)/(2.*np.pi)))
+
+
+def z2_invariant_1d(h,nk=200):
+    """Z2 invariant of a one-dimensional time-reversal-symmetric
+    superconductor (class DIII): +1 trivial, -1 with a Kramers pair of
+    Majorana zero modes at each end
+
+    It is the Kramers polarization of Budich-Ardonne (arXiv:1308.1256,
+    built on cond-mat/0606336),
+
+        nu = det(U) Pf theta(0) / Pf theta(1/2),
+
+    where U is the product of the overlaps of the negative-energy states
+    from k=0 to k=1/2 (the Kato propagator, each link replaced by its
+    unitary part so that nu converges faster in nk) and theta is the time
+    reversal T = i sigma_y K restricted to those states at the two
+    time-reversal-invariant momenta, where it is antisymmetric. Any basis
+    of the negative-energy states is allowed at every k-point, so there is
+    no gauge to fix. A global phase of the pairing is removed first, as in
+    has_time_reversal_symmetry, since T is exact only without it.
+
+    nk: k-points from 0 to 1/2
+
+    nu is +-1 up to the discretization of the product, and a value far
+    from both raises, asking for a larger nk."""
+    from .htk.symmetry import _remove_pairing_phase
+    from .topologytk.pfaffian import pfaffian
+    if h.dimensionality!=1:
+        raise ValueError("this Z2 invariant needs a one-dimensional "
+          +"Hamiltonian, and this one has dimensionality "
+          +str(h.dimensionality))
+    from .check import require_nambu
+    require_nambu(h,"the Z2 invariant of a class DIII superconductor")
+    if not h.has_time_reversal_symmetry():
+        raise ValueError("the Z2 invariant of a class DIII superconductor "
+          +"needs a time-reversal-symmetric Hamiltonian, and this one "
+          +"breaks time reversal")
+    h1 = _remove_pairing_phase(h) # T = i sigma_y K is exact on this copy
+    n = h1.intra.shape[0]
+    UT = np.kron(np.identity(n//2),np.array([[0.,1.],[-1.,0.]])) # i sigma_y
+    hkgen = h1.get_hk_gen()
+    def occ(k): # negative-energy states, as columns
+        (e,v) = np.linalg.eigh(np.array(algebra.todense(hkgen([k,0.,0.]))))
+        return v[:,e<0.]
+    ks = np.linspace(0.,0.5,nk+1) # from k=0 to k=1/2, both included
+    vs = [occ(k) for k in ks]
+    U = np.identity(vs[0].shape[1],dtype=complex)
+    for j in range(nk): # ordered from right to left with increasing k
+        (a,sv,b) = np.linalg.svd(vs[j+1].conj().T@vs[j])
+        U = (a@b)@U # unitary part of the link
+    def theta(v): # time reversal on the states v, antisymmetric at a TRIM
+        t = v.conj().T@UT@v.conj()
+        return (t-t.T)/2.
+    nu = np.linalg.det(U)*pfaffian(theta(vs[0]))/pfaffian(theta(vs[-1]))
+    if abs(nu-np.sign(nu.real))>0.2:
+        raise ValueError("the Z2 invariant came out as "+str(nu)+", not "
+          +"close to +1 or -1, so the product over the k-points is not "
+          +"converged or the gap closes; raise nk")
+    return int(np.sign(nu.real))
 
 
 def berry_curvature(h,k,dk=0.01,window=None,max_waves=None):
@@ -201,8 +348,10 @@ from .topologytk.overlap import uij
 
 
 def precise_chern(h,dk=0.01, mode="Wilson",delta=0.0001,operator=None,
-        nk=None):
-    """ Calculates the chern number of a 2d system """
+        nk=None,write=None):
+    """ Calculates the chern number of a 2d system, and writes it to
+    CHERN.OUT unless write=False"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     from scipy import integrate
     if nk is not None: # every sibling Chern path takes one; this one cannot
         raise ValueError("precise_chern integrates the Brillouin zone "
@@ -235,13 +384,16 @@ def precise_chern(h,dk=0.01, mode="Wilson",delta=0.0001,operator=None,
     c = integrate.dblquad(f,0.,1.,lambda x : 0., lambda x: 1.,epsabs=0.01,
                             epsrel=0.01)
     chern = c[0]/(2.*np.pi)
-    open("CHERN.OUT","w").write(str(chern)+"\n")
+    if write: open("CHERN.OUT","w").write(str(chern)+"\n")
     return chern
 
 
 def mesh_chern(h,dk=-1,nk=10,delta=0.0001,mode="Wilson",
-        operator=None,kmesh=None):
-    """ Calculates the chern number of a 2d system """
+        operator=None,kmesh=None,write=None):
+    """ Calculates the chern number of a 2d system. Unless write=False it
+    also writes the Berry curvature on the mesh to BERRY_CURVATURE.OUT and
+    the Chern number to CHERN.OUT"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     c = 0.0
     ks = [] # array for kpoints
     bs = [] # array for berrys
@@ -272,13 +424,13 @@ def mesh_chern(h,dk=-1,nk=10,delta=0.0001,mode="Wilson",
         bs = berry_curvature_mesh(h,ks,dk=dk)
     else: # per-kpoint dispatch
         bs = parallel.pcall(fberry,ks) # compute all the Berry curvatures
-    # write in file
-    fo = open("BERRY_CURVATURE.OUT","w") # open file
-    for (k,b) in zip(ks,bs):
-      fo.write(str(k[0])+"   ")
-      fo.write(str(k[1])+"   ")
-      fo.write(str(b)+"\n")
-    fo.close() # close file
+    if write: # write in file
+      fo = open("BERRY_CURVATURE.OUT","w") # open file
+      for (k,b) in zip(ks,bs):
+        fo.write(str(k[0])+"   ")
+        fo.write(str(k[1])+"   ")
+        fo.write(str(b)+"\n")
+      fo.close() # close file
     ################
     c = np.sum(bs) # sum berry curvatures
     if kmesh is None: # no kmesh provided
@@ -286,12 +438,12 @@ def mesh_chern(h,dk=-1,nk=10,delta=0.0001,mode="Wilson",
     else: # kmesh is given
         den = klist.infer_kmesh_density(kmesh,d=2) # infer the volume
         c = den*c/(2.*np.pi) # normalize
-    open("CHERN.OUT","w").write(str(c)+"\n")
+    if write: open("CHERN.OUT","w").write(str(c)+"\n")
     return c
 
 
 def chern_qtci(h,mode="Wilson",delta=0.0001,dk=-1,operator=None,
-        nk=20,tolerance=1e-6,**kwargs):
+        nk=20,tolerance=1e-6,write=None,**kwargs):
     """Compute the Chern number of a 2D system by integrating the Berry
     curvature over the BZ with qutecipy, instead of summing it over a
     k-point mesh (see mesh_chern). qutecipy approximates the integrand as
@@ -332,6 +484,7 @@ def chern_qtci(h,mode="Wilson",delta=0.0001,dk=-1,operator=None,
 
     See tests/topology/test_chern_qtci_accuracy.py, which pins the smooth
     case and records the sharp-case limitation."""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     from .qtcitk.gkintegrate import gkorder_from_nk, integrate_robust
     operator = get_operator(h,operator) # accept a name, matrix or callable
     if dk<0: dk = 1./float(2*nk) # automatic dk, tied to the quadrature resolution
@@ -349,7 +502,7 @@ def chern_qtci(h,mode="Wilson",delta=0.0001,dk=-1,operator=None,
                   "accepted ones are 'Wilson' and 'Green'")
     c = integrate_robust(np.float64,f,GKorder,tolerance,**kwargs)
     c = c/(2.*np.pi) # normalize so that the integral gives an integer
-    open("CHERN.OUT","w").write(str(c)+"\n")
+    if write: open("CHERN.OUT","w").write(str(c)+"\n") # unless write=False
     return c
 
 
@@ -369,15 +522,40 @@ def get_berry_curvature_master(h,dk=None,nk=100,
         reciprocal=True,nsuper=1,window=None,
         kpath=None,
                max_waves=None,mode="Wilson",delta=0.001,operator=None,
-               write=True,verbose=0):
-    """ Return the Berry curvature in 2D reciprocal space """
+               write=None,verbose=0):
+    """Berry curvature map in 2D momentum space, returned as (kx,ky,b),
+    nk*nk points, the first index running along kx.
+
+    With reciprocal=True (default) and a 2d Hamiltonian, kx and ky are
+    Cartesian momenta, in the units of get_k2K(), and the mesh covers a
+    window centered at Gamma that
+    holds a whole number of Brillouin zones: a rectangle when the
+    reciprocal lattice has vectors along x and along y (one zone for a
+    square lattice, of side |b1|; two for a hexagonal one, of sides |b1|
+    and sqrt(3)|b1|), and otherwise the parallelogram spanned by the two
+    reciprocal lattice vectors, one zone, whose points are then not an
+    axis-aligned grid (topologytk.berry.whole_zone_window). nsuper repeats
+    the window nsuper times along each side.
+
+    With reciprocal=False kx and ky are reduced momenta, from -nsuper to
+    nsuper, so (2*nsuper)^2 zones. A 3d Hamiltonian keeps that square of
+    side 2*nsuper at kz=0, converted with get_k2K() when reciprocal=True.
+
+    b is the curvature per unit area of the reduced zone, whose area is
+    one, and for a 2d Hamiltonian the window is a union of whole zones, so the
+    Chern number of the occupied states is np.mean(b)/(2*np.pi)."""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     operator = get_operator(h,operator) # accept a name, matrix or callable
     # get the right kpoints
     if kpath is None: # no kpath, just to a grid
-        ks = [] # list with kpoints
-        for x in np.linspace(-nsuper,nsuper,nk,endpoint=False):
-          for y in np.linspace(-nsuper,nsuper,nk,endpoint=False):
-              ks.append([x,y,0.])
+        if reciprocal and h.dimensionality==2: # whole zones, Cartesian
+            from .topologytk.berry import whole_zone_kmesh
+            ks = whole_zone_kmesh(h.geometry,nk=nk,nsuper=nsuper)
+        else: # square mesh of the coordinates
+            ks = [] # list with kpoints
+            for x in np.linspace(-nsuper,nsuper,nk,endpoint=False):
+              for y in np.linspace(-nsuper,nsuper,nk,endpoint=False):
+                  ks.append([x,y,0.])
     else: # kpath provided
         ks = h.geometry.get_kpath(kpath,nk=nk)
         reciprocal = False # if given, assume they are in standard way
@@ -431,21 +609,80 @@ from .topologytk.wannier import smooth_gauge
 
 
 def z2_wannier_centers(h,full=False,**kwargs):
-    """Return the Wannier centers for the Z2 invariant"""
-    return wannier_centers(h,full=False,**kwargs)
+    """Return the Wannier centers for the Z2 invariant, over half of the
+    Brillouin zone, or over all of it with full=True"""
+    # full used to be dropped here, so full=True returned half the flow
+    return wannier_centers(h,full=full,**kwargs)
 
 
 z2_vanderbilt = z2_wannier_centers # for compatibility
 
 
-def wannier_centers(h,nk=30,nt=100,nocc=None,full=False):
-    """ Calculate Z2 invariant according to Vanderbilt algorithm"""
+def wannier_centers(h,nk=30,nt=100,nocc=None,full=False,loop=0,pump=1,
+        kfix=0.,gauge="lattice",write=None):
+    """Flow of the hybrid Wannier centers (Soluyanov-Vanderbilt algorithm)
+
+    Returns an array whose first row is the momentum t along the reciprocal
+    direction pump and whose other rows are the phases of the eigenvalues
+    of the Wilson loop along the direction loop, one row per occupied band.
+    t runs over half of the Brillouin zone, from t=0 to t=1/2, as the Z2
+    invariant needs, or over all of it with full=True.
+
+    loop, pump: indices (0, 1, or 2 in three dimensions) of the reciprocal
+        lattice vectors the Wilson loop and the pumping run along
+    kfix: in three dimensions, the momentum along the remaining direction,
+        so that the flow is the one of the plane at that momentum
+    gauge: "lattice" places every orbital at the origin of its cell, as
+        pyqula's Bloch Hamiltonian does, which leaves every winding as it
+        is; "atomic" places it at its position, so that the centers are
+        positions (a phase 2 pi x for a center at the fractional
+        coordinate x along loop), which is what a polarization needs
+    nocc: the number of bands, counted from the lowest, whose centers are
+        followed; by default the ones below zero energy. They have to be
+        separated from the band above them by a gap everywhere"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
+    from .topologytk.qgt import _check_gauge,_orbital_fractions
+    _check_gauge(gauge)
+    dim = h.dimensionality
+    if dim not in (2,3):
+        raise ValueError("the Wannier-center flow needs a two- or "
+          +"three-dimensional Hamiltonian, and this one has dimensionality "
+          +str(dim))
+    if loop==pump or not (0<=loop<dim and 0<=pump<dim):
+        raise ValueError("loop and pump must be two different directions "
+          +"out of "+str(list(range(dim)))+"; got loop="+str(loop)
+          +" and pump="+str(pump))
+    if dim==2 and kfix!=0.:
+        raise ValueError("kfix fixes the third momentum of a "
+          +"three-dimensional Hamiltonian, and this one is two-dimensional")
+    def kvector(k,t): # fractional momentum at loop momentum k and pump t
+        kv = np.zeros(3)
+        if dim==3: kv[3-loop-pump] = kfix # the remaining direction
+        kv[loop] = k ; kv[pump] = t
+        return kv
     out = [] # output list
     path = np.linspace(0.,1.,nk) # set of kpoints
-    fo = open("WANNIER_CENTERS.OUT","w")
     if full:  ts = np.linspace(0.,1.0,nt,endpoint=False)
-    else:  ts = np.linspace(0.,0.5,nt,endpoint=False)
-    wfall = [[occ_states2d(h,np.array([k,t,0.,])) for k in path] for t in ts] 
+    else:  ts = np.linspace(0.,0.5,nt) # from t=0 to t=1/2, both included
+    hkgen = h.get_hk_gen() # Bloch Hamiltonian generator
+    wfall = [[occupied_states(hkgen,kvector(k,t),nocc=nocc) for k in path]
+                for t in ts]
+    sizes = set([len(wf) for wft in wfall for wf in wft]) # occupied states
+    if len(sizes)!=1:
+        # the Wilson loop needs the same number of occupied states at every
+        # k-point, and a ragged set used to die in np.array with an opaque
+        # inhomogeneous-shape error
+        raise ValueError("the number of occupied states changes over the "
+          +"Brillouin zone (between "+str(min(sizes))+" and "+str(max(sizes))
+          +"), so the occupied manifold is not separated by a gap and its "
+          +"Wannier centers are not defined. Shift the Fermi energy into a "
+          +"gap with h.shift_fermi / h.set_filling first")
+    if gauge=="atomic": # u(k) -> exp(-i 2pi k.x) u(k) on each orbital
+        frac = _orbital_fractions(h,h.intra.shape[0]) # (orbitals,dim)
+        for (t,wft) in zip(ts,wfall):
+            for (ik,k) in enumerate(path):
+                phase = np.exp(2j*np.pi*frac@kvector(k,t)[:dim])
+                wft[ik] = wft[ik]*phase[None,:] # rows are conjugated states
     # select a continuos gauge for the first wave
     for it in range(len(ts)-1): # loop over ts
       wfall[it+1][0] = smooth_gauge(wfall[it][0],wfall[it+1][0]) 
@@ -455,26 +692,38 @@ def wannier_centers(h,nk=30,nt=100,nocc=None,full=False):
       wfs = wfall[it] # get set of waves 
       for i in range(len(wfs)-1):
         wfs[i+1] = smooth_gauge(wfs[i],wfs[i+1]) # transform into a smooth gauge
-  #      m = uij(wfs[i],wfs[i+1]) # matrix of wavefunctions
-      m = uij(wfs[0],wfs[len(wfs)-1]) # matrix of wavefunctions
+      wf0 = wfs[0] # the loop closes on the first states, or in the atomic
+      if gauge=="atomic": # gauge on their periodic image exp(-i 2pi x) u(0)
+          wf0 = wf0*np.exp(2j*np.pi*frac[:,loop])[None,:]
+      m = uij(wf0,wfs[len(wfs)-1]) # matrix of wavefunctions
       evals = lg.eigvals(m) # eigenvalues of the rotation 
-      x = np.angle(evals) # phase of the eigenvalues
-      fo.write(str(t)+"    ") # write pumping variable
-      row.append(t) # store
+      x = -np.angle(evals) # m is the conjugate of the Wilson loop, so the
+                           # centers 2 pi x are minus the phases of m
+      row.append(t) # store the pumping variable
       for ix in x: # loop over phases
-        fo.write(str(ix)+"  ")
         row.append(ix) # store
-      fo.write("\n")
       out.append(row) # store
-    fo.close()
+    if write: # one row per t: t, then the centers
+      fo = open("WANNIER_CENTERS.OUT","w")
+      for row in out: fo.write("    ".join([str(r) for r in row])+"\n")
+      fo.close()
     return np.array(out).transpose() # transpose the map
 
 
-def z2_invariant(h,nk=60,nt=60,nocc=None):
-  """Compute Z2 invariant with pumping of Wannier centers"""
-  return wannier_winding(h,nk=nk,nt=nt,nocc=nocc,full=False) 
+def z2_invariant(h,nk=60,nt=60,nocc=None,write=None):
+  """Compute Z2 invariant with pumping of Wannier centers. The flow of the
+  centers goes to WANNIER_CENTERS.OUT unless write=False"""
+  return z2_wannier_winding(h,nk=nk,nt=nt,nocc=nocc,write=write)
 
 
+
+
+# integration= of chern() -> the routine that evaluates the Chern number
+_chern_integrations = {
+    "grid": lambda h,**kw: mesh_chern(h,**kw),
+    "qtci": lambda h,**kw: chern_qtci(h,**kw),
+    "wannier": lambda h,**kw: wannier_winding(h,full=True,**kw),
+    }
 
 
 def chern(h,integration="grid",**kwargs):
@@ -484,60 +733,164 @@ def chern(h,integration="grid",**kwargs):
     k-point mesh, see mesh_chern. "qtci" instead integrates the Berry
     curvature over the BZ using qutecipy (tensor cross interpolation +
     Gauss-Kronrod quadrature), see chern_qtci, adaptively refining the
-    sampling instead of relying on a fixed mesh density.
+    sampling instead of relying on a fixed mesh density. "wannier" counts
+    the winding of the hybrid Wannier centers, see wannier_winding.
+
+    An operator= weights the Berry curvature by an operator, see
+    mesh_chern. On a Nambu Hamiltonian the name "sz" is the physical spin,
+    sigma_z tau_0 in the basis (c_up, c_dn, c^dag_dn, -c^dag_up), which an
+    equal-spin pairing does not conserve: the two decoupled sectors of a
+    helical p-wave superconductor are labelled by sigma_z tau_z,
+    diag(1,-1,-1,1), and with "sz" the weighted Chern number is zero there.
     """
-    if integration=="qtci": return chern_qtci(h,**kwargs)
-    return mesh_chern(h,**kwargs) # workaround
-    # the wannier winding does not work
-    c = wannier_winding(h,full=True,**kwargs)
-    open("CHERN.OUT","w").write(str(c))
-    return c
+    if integration not in _chern_integrations:
+        raise ValueError("unknown integration '"+str(integration)+"' for "
+          +"the Chern number; it must be one of "
+          +str(list(_chern_integrations)))
+    return _chern_integrations[integration](h,**kwargs)
+
+
+def wannier_winding(h,nk=30,nt=100,full=True,loop=0,pump=1,kfix=0.,
+        nocc=None,write=None):
+    """Signed number of times the hybrid Wannier centers cross a fixed line
+
+    At each momentum t along the second reciprocal direction, the Wilson
+    loop along the first one has the hybrid Wannier centers of the occupied
+    bands as the phases of its eigenvalues (wannier_centers). We follow
+    them as t runs over the whole Brillouin zone (full=True), or over half
+    of it, from the time-reversal-invariant momentum t=0 to t=1/2
+    (full=False), and count how many times they cross a horizontal line
+    theta0, downwards minus upwards. Over the whole zone the count is the
+    Chern number, the same for any line: the Berry flux through the strip
+    between two consecutive t is minus the change of the Berry phase along
+    the loop, so the sum of the centers moves by -C lattice constants per
+    cycle with the orientation of h.get_chern(). Over half of it, its parity is
+    the Z2 invariant of a time-reversal-symmetric system, since Kramers
+    partners that switch cross any such line an odd number of times
+    (Soluyanov-Vanderbilt, arXiv:1102.5600; Z2Pack, arXiv:1610.08983); see
+    z2_wannier_winding.
+
+    nk: k-points of each Wilson loop
+    nt: values of t
+    full: the whole Brillouin zone (the Chern number) or half of it (the
+        count whose parity is the Z2 invariant)
+    loop, pump, kfix: the directions and the plane, as for wannier_centers;
+        exchanging loop and pump reverses the orientation, and so the sign
+        of the Chern number
+    nocc: the number of bands counted from the lowest, as for
+        wannier_centers
+
+    The count needs no tracking of the individual centers. Between two
+    consecutive t the sum phi of the centers moves by dphi, brought into
+    [-pi,pi), and the sum F of the centers measured from theta0 in
+    [0,2pi) moves by the same amount, except that it drops by 2pi each time
+    a center crosses theta0 upwards and gains 2pi each time one crosses it
+    downwards. The count is therefore (F(end) - F(start) - sum of dphi)/2pi,
+    and on the closed loop of full=True the F terms cancel, which leaves the
+    winding of phi. theta0 goes in the middle of the largest gap between the
+    centers at the two ends, where they are furthest from it. The result is
+    an integer at any nt, and the right one as long as the sum of the
+    centers moves by less than half a lattice constant per step; the
+    centers move fast where the gap is small, so a small gap needs a larger
+    nt."""
+    m = wannier_centers(h,nk=nk,nt=nt,full=full,loop=loop,pump=pump,
+            kfix=kfix,nocc=nocc,write=write)
+    x = m[1:] # centers, one row per occupied band and one column per t
+    if full: x = np.concatenate([x,x[:,:1]],axis=1) # close the loop in t
+    phi = np.sum(x,axis=0) # sum of the centers at each t
+    dphi = (np.diff(phi)+np.pi)%(2.*np.pi) - np.pi # each step into [-pi,pi)
+    theta0 = _largest_gap_center(np.concatenate([x[:,0],x[:,-1]]))
+    def F(xt): return np.sum((xt-theta0)%(2.*np.pi)) # measured from theta0
+    c = (F(x[:,-1]) - F(x[:,0]) - np.sum(dphi))/(2.*np.pi) # down minus up
+    return int(np.round(c))
+
+
+def _largest_gap_center(thetas):
+    """Middle of the largest gap between a set of phases on the circle"""
+    t = np.sort(np.mod(thetas,2.*np.pi))
+    gaps = np.diff(np.concatenate([t,[t[0]+2.*np.pi]])) # the last one wraps
+    i = np.argmax(gaps)
+    return t[i] + gaps[i]/2.
+
+
+def z2_wannier_winding(h,nk=100,nt=100,nocc=None,**kwargs):
+    """Z2 invariant from the Wannier-center flow over half of the Brillouin
+    zone: +1 trivial, -1 topological, the parity of wannier_winding with
+    full=False (loop, pump and kfix select the plane, as there)"""
+    return 1 - 2*(wannier_winding(h,nk=nk,nt=nt,full=False,nocc=nocc,
+                **kwargs)%2)
+
+
+def z2_invariant_3d(h,nk=60,nt=60):
+    """Strong and weak Z2 indices nu0;(nu1 nu2 nu3) of a three-dimensional
+    time-reversal-symmetric insulator, each 0 or 1
+
+    The plane k_i=1/2 of the Brillouin zone is time-reversal symmetric and
+    has a Z2 invariant of its own, which is the weak index nu_i, and the
+    strong index nu0 is the sum modulo 2 of the invariants of the planes
+    k_i=0 and k_i=1/2 (the product of their signs (-1)^nu, in the +1/-1
+    form of Fu-Kane-Mele), which has to be the same for the three
+    directions i
+    (Fu-Kane-Mele, cond-mat/0607699; Soluyanov-Vanderbilt, arXiv:1102.5600).
+    Each plane goes through z2_wannier_winding, six planes in all; the
+    weak indices are the components of G = nu1 b1 + nu2 b2 + nu3 b3 in the
+    reciprocal lattice vectors of the geometry.
+
+    nk, nt: k-points of each Wilson loop and momenta of each half-zone flow
+
+    If the three strong indices disagree the flow was not resolved, or the
+    system has no gap, and this raises rather than picking one."""
+    if h.dimensionality!=3:
+        raise ValueError("the strong and weak Z2 indices need a "
+          +"three-dimensional Hamiltonian, and this one has dimensionality "
+          +str(h.dimensionality)+"; use z2_invariant in two dimensions")
+    z = np.zeros((3,2),dtype=int) # 1 where the plane k_i=0, 1/2 is odd
+    for i in range(3):
+        (loop,pump) = [a for a in range(3) if a!=i] # the plane of k_i fixed
+        for (j,kfix) in enumerate([0.,0.5]):
+            z[i,j] = wannier_winding(h,nk=nk,nt=nt,full=False,loop=loop,
+                    pump=pump,kfix=kfix)%2
+    nu0s = (z[:,0]+z[:,1])%2 # the strong index from each direction
+    if len(set(nu0s))!=1:
+        raise ValueError("the strong Z2 index comes out different from the "
+          +"three directions ("+str(list(nu0s))+"), so the Wannier-center "
+          +"flow of some plane was not resolved or the gap closes; raise nk "
+          +"and nt, and check that the system is gapped")
+    return (int(nu0s[0]),tuple(int(v) for v in z[:,1]))
+
+
+def chern_vector(h,nk=30,nt=100,kfix=0.):
+    """Chern numbers (C1,C2,C3) of the planes k_1, k_2 and k_3 fixed at kfix
+    of a three-dimensional insulator, from the winding of the hybrid Wannier
+    centers
+
+    C_i is the Chern number of the plane spanned by the next two reciprocal
+    lattice vectors in cyclic order, the Wilson loop along b_{i+1} and the
+    pumping along b_{i+2}, so that C3 is the Chern number of a layer in the
+    (b1,b2) plane with the orientation of the two-dimensional h.get_chern().
+    In an insulator it does not depend on kfix; the Hall conductivity of a
+    layered system is set by these three integers."""
+    if h.dimensionality!=3:
+        raise ValueError("the Chern vector needs a three-dimensional "
+          +"Hamiltonian, and this one has dimensionality "
+          +str(h.dimensionality)+"; use h.get_chern() in two dimensions")
+    return tuple(wannier_winding(h,nk=nk,nt=nt,full=True,loop=(i+1)%3,
+                    pump=(i+2)%3,kfix=kfix) for i in range(3))
 
 
 
+from .topologytk.nestedwilson import wannier_sector_polarization
+from .topologytk.nestedwilson import wannier_gap
+from .topologytk.nestedwilson import quadrupole_moment
 
-def z2_wannier_winding(h,nk=100,nt=100,nocc=None,full=True):
-    """Compute the winding of the Wannier functions"""
-    m = z2_wannier_centers(h,nk=nk,nt=nt,nocc=nocc,full=full)
-    x = m[0]
-    from .topologytk.wannier import maximum_wannier_gap
-    fermis = maximum_wannier_gap(m)
-    # now check the number of cuts of each wannier center
-    def angleg(a,b,c):
-      """Function to say if a jump has been made or not"""
-      d = np.sin(a-b) + np.sin(b-c) + np.sin(c-a)
-      return -d
-  
-    if full: # for the Chern number
-      raise NotImplementedError("the full (Chern-number) branch of "
-              "z2_wannier_winding is not implemented; call it with full=False")
-      # this part is wrong
-      #####################
-      cuts = 0 # start with 0
-  #    print(fermis)
-      for i in range(1,len(m)): # loop over waves 
-        cwf = m[i] # center of the wave
-        for it in range(len(x)-1): # loop over times
-          s1 = np.sign(fermis[it]-cwf[it])
-          s2 = np.sign(fermis[it+1]-cwf[it])
-  #        print(s1,s2)
-          cuts += (s1-s2)/2. 
-      return cuts
-  
-    else: # for the Z2 invariant
-      parity = 1 # start with
-      for i in range(1,len(m)): # loop over waves 
-        cwf = m[i] # center of the wave
-        for it in range(len(x)-1): # loop over times
-          s = np.sign(angleg(fermis[it],fermis[it+1],cwf[it])) 
-          if s<0.:  parity *= -1 # add a minus sign
-      return parity
-
-
-
-wannier_winding = z2_wannier_winding # for compatibility
-
-
+from .topologytk.symmetryeigenvalues import symmetry_eigenvalues
+from .topologytk.symmetryeigenvalues import invariant_momenta
+from .topologytk.symmetryeigenvalues import rotation_operation
+from .topologytk.symmetryeigenvalues import inversion_operation
+from .topologytk.symmetryeigenvalues import chern_mod_n
+from .topologytk.symmetryeigenvalues import parity_z2
+from .topologytk.symmetryeigenvalues import corner_charge
+from .topologytk.symmetryeigenvalues import z4_indicator
 
 
 def operator_berry(hin,k=[0.,0.],operator=None,delta=0.00001,ewindow=None):
@@ -620,8 +973,9 @@ def quantum_metric(h,**kwargs):
 
 
 
-def spin_chern(h,nk=40,delta=0.00001,k0=[0.,0.],expandk=1.0):
+def spin_chern(h,nk=40,delta=0.00001,k0=[0.,0.],expandk=1.0,write=None):
   """Calculate the spin Chern number"""
+  write = filewrite.resolve(write,True) # the call, else the global switch
   kxs = np.linspace(-.5,.5,nk,endpoint=False)*expandk + k0[0]
   kys = np.linspace(-.5,.5,nk,endpoint=False)*expandk + k0[1]
   kk = [] # list of kpoints
@@ -630,12 +984,13 @@ def spin_chern(h,nk=40,delta=0.00001,k0=[0.,0.],expandk=1.0):
       kk.append(np.array([i,j])) # store vector
   sz = operators.get_sz(h) # get sz operator
   bs = [operator_berry(h,k=ki,operator=sz,delta=delta) for ki in kk] # get all berries
-  fo = open("BERRY_CURVATURE_SZ.OUT","w") # open file
-  for (k,b) in zip(kk,bs):
-    fo.write(str(k[0])+"   ")
-    fo.write(str(k[1])+"   ")
-    fo.write(str(b)+"\n")
-  fo.close() # close file
+  if write:
+    fo = open("BERRY_CURVATURE_SZ.OUT","w") # open file
+    for (k,b) in zip(kk,bs):
+      fo.write(str(k[0])+"   ")
+      fo.write(str(k[1])+"   ")
+      fo.write(str(b)+"\n")
+    fo.close() # close file
   bs = np.array(bs)/(2.*np.pi) # normalize by 2 pi
   return sum(bs)/len(kk)
 
@@ -664,8 +1019,8 @@ def precise_spin_chern(h,delta=0.00001,tol=0.1,nk=None):
       raise ValueError("precise_spin_chern integrates the Brillouin zone "
           "adaptively (scipy.integrate.dblquad), so it has no k-mesh and "
           "nk is meaningless here; got nk="+str(nk)+". Use tol to set the "
-          "integration tolerance, or h.get_spin_chern(nk=...) for the "
-          "fixed-mesh spin Chern number")
+          "integration tolerance, or topology.spin_chern(h,nk=...) for the "
+          "same s_z-weighted integral on a fixed mesh")
   err = {"epsabs" : 0.01, "epsrel": 0.01,"limit" : 20}
   sz = operators.get_sz(h) # get sz operator
   def f(x,y): # function to integrate
@@ -680,10 +1035,7 @@ from .topologytk.green import berry_green
 from .topologytk.green import berry_operator
 
 
-from .topologytk.quantumgeometry import QG_green_rmap_kpoint
-
-def berry_green_rmap_kpoint(H,**kwargs):
-    return QG_green_rmap_kpoint(H,**kwargs).imag # return Berry part
+from .topologytk.green import berry_green_rmap_kpoint
 
 
 
@@ -693,11 +1045,12 @@ def spatial_berry_density(h,**kwargs):
 
 
 
-def Omega_rmap(h,nrep=5,k=[0.,0.,0.],operator=None,nk=None,**kwargs):
+def Omega_rmap(h,nrep=5,k=[0.,0.,0.],operator=None,nk=None,write=None,**kwargs):
   """
   Write the spatial resolved Berry curvature of a kpoint in a file.
   If nk is provided, it does a sum over reciprocal space
   """
+  write = filewrite.resolve(write,True) # the call, else the global switch
   if operator is not None: # this is a dirty workaround
     if type(operator) is str:
       operator = h.get_operator(operator) 
@@ -717,8 +1070,8 @@ def Omega_rmap(h,nrep=5,k=[0.,0.,0.],operator=None,nk=None,**kwargs):
     out = np.mean(out,axis=0) # resum
   from . import geometry
   from .ldos import spatial_dos
-  # write in a file
-  geometry.write_profile(h.geometry,
+  if write: # write in a file
+    geometry.write_profile(h.geometry,
           spatial_dos(h,out),name="BERRY_RMAP.OUT",nrep=nrep)
   return out
 
@@ -729,39 +1082,72 @@ from .topologytk.green import dOmega_dE
 from .topologytk.green import dOmega_dE_generator
 
 
-def dOmega_dE_kmap(h,nk=40,reciprocal=True,nsuper=1,
-               delta=None,operator=None,dk=0.01):
-  """Compute a Berry density map dOmega/dE (k) at a fixed energy"""
+def dOmega_dE_kmap(h,nk=40,reciprocal=True,nsuper=1,e=0.0,
+               delta=None,operator=None,dk=None,write=None):
+  """Map of the energy-resolved Berry curvature dOmega/dE (k,e) at the
+  energy e, with a Green's function broadening delta (5/nk by default),
+  returned as (kx,ky,b), nk*nk points.
+
+  The window is the one of get_berry_curvature_master: with
+  reciprocal=True and a 2d Hamiltonian, Cartesian momenta over a window
+  of whole Brillouin zones centered at Gamma
+  (topologytk.berry.whole_zone_window); with reciprocal=False, reduced
+  momenta from -nsuper to nsuper. In both cases np.mean(b)/(2*np.pi) is
+  the Brillouin-zone integral that chern_density returns at the energy e,
+  whose integral in energy up to the Fermi level gives the Chern number
+  in the limit of a small delta. dk is the finite-difference step in k,
+  delta/25 by default"""
+  write = filewrite.resolve(write,True) # the call, else the global switch
   if delta is None: delta = 5./nk
   if reciprocal: R = h.geometry.get_k2K()
   else: R = np.array(np.identity(3))
-  fo = open("BERRY_DENSITY_KMAP.OUT","w") # open file
-  nt = nk*nk # total number of points
-  ik = 0
-  ks = [] # list with kpoints
-  for x in np.linspace(-nsuper,nsuper,nk,endpoint=False):
-    for y in np.linspace(-nsuper,nsuper,nk,endpoint=False):
-        ks.append([x,y,0.])
+  if reciprocal and h.dimensionality==2: # whole zones, Cartesian
+      from .topologytk.berry import whole_zone_kmesh
+      ks = whole_zone_kmesh(h.geometry,nk=nk,nsuper=nsuper)
+  else: # square mesh of the coordinates
+      ks = [] # list with kpoints
+      for x in np.linspace(-nsuper,nsuper,nk,endpoint=False):
+        for y in np.linspace(-nsuper,nsuper,nk,endpoint=False):
+            ks.append([x,y,0.])
+  fdomega = dOmega_dE_generator(h,operator=get_operator(h,operator),
+          delta=delta,dk=dk) # built once, not per k-point
   tr = timing.Testimator("BERRY DENSITY",maxite=len(ks))
   def fp(ki): # function to compute the Berry curvature
       if parallel.cores == 1: tr.iterate()
       else: print("Doing",ki)
-      r = np.array(ki) # real space vectors
-      k = R@r # change of basis
-      b = dOmega_dE(h,k=k,operator=operator,dk=dk) # get the density
-      return b
+      k = R@np.array(ki) # change of basis
+      return fdomega(k=k,e=e) # get the density
   bs = parallel.pcall(fp,ks) # compute all the Berry curvatures
-  for (b,k) in zip(bs,ks): # write everything
-      fo.write(str(k[0])+"   "+str(k[1])+"     "+str(b)+"\n")
-      fo.flush()
-  fo.close() # close file
+  if write:
+    fo = open("BERRY_DENSITY_KMAP.OUT","w") # open file
+    for (b,k) in zip(bs,ks): # write everything
+        fo.write(str(k[0])+"   "+str(k[1])+"     "+str(b)+"\n")
+    fo.close() # close file
+  ks = np.array(ks)
+  return ks[:,0],ks[:,1],np.array(bs)
 
 
 
-def chern_density(h,nk=10,operator=None,delta=0.02,dk=0.02,
-        write=False,
-        es=np.linspace(-1.0,1.0,40)):
-  """Compute the Chern density as a function of the energy"""
+def chern_density(h,nk=10,operator=None,delta=0.02,dk=None,
+        write=None,
+        es=np.linspace(-1.0,1.0,40),exact_at=None,nodes=8):
+  """Compute the Chern density as a function of the energy, the Brillouin
+  zone integral of dOmega/dE at each energy of es, and its cumulative
+  integral. dk is the finite-difference step in k, delta/25 by default.
+
+  The broadening delta moves part of the curvature of the states above an
+  energy below it, so the cumulative integral inside a gap is below the
+  Chern number by an amount that goes to zero only slowly with delta.
+  exact_at, a list of energies inside gaps (and within es, whose first
+  energy must be below the spectrum), returns a fourth array with the
+  cumulative integral at those energies without broadening: the path of
+  the integral is closed down to the real axis at both ends, with a
+  Gauss-Legendre rule of nodes points, which costs about nodes energies of
+  es per energy of exact_at. The result does not depend on delta, and on a
+  fine enough k-mesh it is the Chern number of the states below each
+  energy. Inside a band the closing segment is not smooth and the result
+  is meaningless."""
+  write = filewrite.resolve(write,False) # the call, else the global switch
   operator = get_operator(h,operator) # accept a name, matrix or callable
   ks = klist.kmesh(h.dimensionality,nk=nk)
   cs = np.zeros(es.shape[0]) # initialize
@@ -785,7 +1171,20 @@ def chern_density(h,nk=10,operator=None,delta=0.02,dk=0.02,
   if write:
       np.savetxt("CHERN_DENSITY.OUT",np.array([es,cs]).T)
       np.savetxt("CHERN_DENSITY_INTEGRATED.OUT",np.array([es,csi]).T)
-  return (es,cs,csi)
+  if exact_at is None: return (es,cs,csi)
+  from .topologytk.green import dOmega_dE_vertical
+  exact_at = np.array(exact_at,dtype=float).reshape(-1)
+  tol = 1e-9*(1.+np.max(np.abs(es))) # rounding of the ends of es
+  if np.min(exact_at)<es[0]-tol or np.max(exact_at)>es[-1]+tol:
+      raise ValueError("the energies of exact_at must lie within es, from "
+              +str(es[0])+" to "+str(es[-1])+", got "+str(exact_at))
+  def vertical(x): # closing segment at the energy x
+      return dOmega_dE_vertical(h,x,ks,operator=operator,delta=delta,dk=dk,
+              nodes=nodes)/(len(ks)*np.pi*2)
+  c0 = vertical(es[0]) # below the spectrum
+  cex = np.array([np.interp(e,es,csi) + c0.imag - vertical(e).imag
+      for e in exact_at]) # the path closed on the real axis at both ends
+  return (es,cs,csi,cex)
 
 
 
@@ -801,6 +1200,10 @@ def chern_density(h,nk=10,operator=None,delta=0.02,dk=0.02,
 # this binding shadowed: the dk/n keywords it advertised had no effect on
 # anything, since the name always resolved to chern at import time.
 hall_conductivity = chern
+
+# The Fermi-sea Hall conductivity at any Fermi level and temperature, metals
+# included, with the triangle or the uniform integration of the Fermi sea
+from .topologytk.anomaloushall import anomalous_hall_conductivity
 
 
 
@@ -831,6 +1234,7 @@ def get_operator(h,op):
 from .topologytk import realspace
 
 real_space_chern = realspace.real_space_chern
+site_areas = realspace.site_areas # Voronoi area of each site, the marker's normalization
 
 
 from .topologytk.topologicalsector import get_berry_curvature_operator_sector

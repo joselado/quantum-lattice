@@ -1,7 +1,7 @@
 # compute vacuum expectation values
 
 import numpy as np
-from .operators import Operator
+from .operators import Operator, vev_operator
 
 def get_dm_vev(H,A,**kwargs):
     """Compute a vacuum expectation value of two operators"""
@@ -12,10 +12,17 @@ def get_dm_vev(H,A,**kwargs):
     # so the vev was the zero-temperature one whatever was asked for
     dm = H.get_density_matrix(**kwargs) # return the DM, as a matrix
     A = Operator(A) # convert to operator
+    # on a Nambu Hamiltonian the full density matrix counts a normal
+    # observable twice, so drop its hole-hole block as get_vev does
+    A = vev_operator(H,A)
     # transposed for the same reason as in spectrum.ev: full_dm's
     # convention is the transpose of the usual density matrix, so
     # contracting it directly gives <A*> instead of <A>
-    return np.trace(A@np.transpose(dm)) # return the expectation value
+    rho = np.transpose(dm) # the standard density matrix
+    if A.matrix is None: # defined only by its action, one column at a time
+        rho = np.asarray(rho)
+        return np.sum([A(rho[:,j])[j] for j in range(rho.shape[0])])
+    return np.trace(A@rho) # return the expectation value
 
 
 
@@ -39,13 +46,18 @@ def kresolved_orbital_vev(h,operator,nk=30,fermi=0.0,T=None,delta=None,
     spectrum.ev whenever both can be applied. Sum the result to get the
     total expectation value, or pass it through h.full2profile to resolve
     it by site."""
-    from .densitymatrix import delta_dm
+    from .densitymatrix import default_smearing
     from .htk.eigenvectors import peigh_bloch
     if T is not None and delta is not None and T!=delta:
         raise TypeError("kresolved_orbital_vev got both T="+str(T)+" and "
                 "delta="+str(delta)+", which are the same energy smearing "
                 "under two names; pass only one")
-    smearing = T if T is not None else (delta if delta is not None else delta_dm)
+    # no smearing given: the temperature a self-consistent h was converged
+    # at, as full_dm does, else delta_dm. A fixed delta_dm here read a
+    # mean-field output at another temperature than spectrum.ev, so the
+    # same operator gave two numbers depending on whether it had a matrix
+    smearing = T if T is not None else (delta if delta is not None
+            else default_smearing(h))
     if smearing==0.: smearing = 1e-15 # just very small, as full_dm does
     op = h.get_operator(operator) # resolve names and matrices alike
     if op is None:

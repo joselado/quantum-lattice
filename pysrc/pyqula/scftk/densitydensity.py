@@ -1,10 +1,12 @@
 # specialized routine to perform an SCF, taking as starting point an
 # attractive local interaction in a spinless Hamiltonian
 
+from .. import filewrite
 from .. import inout
 import numpy as np
 import time
 import os
+import warnings
 from .. import filesystem as fs
 from .. import densitymatrix
 from copy import copy, deepcopy
@@ -121,12 +123,22 @@ def mix_mf(mf,mf0,mix=0.8):
 
 
 def diff_mf(mf0,mf):
-    """Difference mean fields"""
+    """Difference mean fields: the mean modulus of the change of each
+    matrix, summed over the directions. A dense matrix is averaged over
+    all its entries, and a sparse one over the entries the two mean fields
+    hold, so that a sparse mean field is measured per entry whatever its
+    size: averaged over all N^2 entries, most of them zero, a change of 0.1
+    on every diagonal entry of 20,000 orbitals reads 1e-5"""
+    from scipy.sparse import issparse
     out = 0.0 # initialize
     for key in mf: # loop
-        if key not in mf0: out += np.mean(np.abs(mf[key]))
-        else: out += np.mean(np.abs(mf0[key] - mf[key])) # add contribution
-        #out += np.mean(np.abs(mf0[key] - mf[key])) # add contribution
+        if key not in mf0: d, held = mf[key], [mf[key]]
+        else: d, held = mf0[key] - mf[key], [mf0[key], mf[key]]
+        if all(issparse(m) for m in held):
+            stored = abs(held[0])
+            for m in held[1:]: stored = stored + abs(m) # either one holds
+            out += abs(d).sum()/max(1, stored.nnz)
+        else: out += np.mean(np.abs(d)) # over every entry
     return out # return
 
 
@@ -156,6 +168,14 @@ def random_hermitian_guess(v,shape,scale=1.0):
     which blows up exponentially over npol recursion steps (observed:
     >1e40 mean-field magnitude after a single SCF iteration with the old,
     onsite-only-symmetrized guess) instead of just being somewhat wrong.
+    A Hermitian guess only covers that first step, though: the loop keeps
+    the mean field Hermitian afterwards only because the KPM density
+    matrix is Hermitian by construction (kpmtk.densitymatrix_kpm.
+    _dm_kpm_from_needed computes one entry of each conjugate pair and sets
+    the other by conjugation). When its two entries were computed
+    independently, roundoff reopened an anti-Hermitian part every
+    iteration and the loop amplified it until the recursion diverged,
+    from this guess just as from any other.
 
     scale multiplies every freshly-drawn direction's matrix by a real
     constant before its opposite direction (if any) mirrors it -- this
@@ -234,65 +254,170 @@ def dm_sparse_pairs(v,ds,n,has_spin=True):
     return pairs
 
 
+def add_pair_interaction(v,g,Vr,rcut=None,name="Vr"):
+    """Add the pair interaction Vr(r_i,r_j) of every pair of sites up to
+    rcut (specialhopping.distance_cut_interaction) to the interaction
+    dictionary v of a mean-field calculation, in place, and return v.
+
+    v stores half of the interaction of each pair, which is how V1/V2/V3
+    are stored (V1/2 on every first-neighbor entry) and U (U/2 on each of
+    the two up-down entries of a site): the decoupling (get_mf_normal)
+    visits every pair from both of its ends, through v[d] and v[-d], and
+    so counts it twice. Vr is halved here for the same reason, so that a
+    Vr equal to V1 on the first-neighbor shell is V1. It used to be stored
+    whole, which made the mean field of Vr the one of 2*Vr, twice the Vr
+    of bsetk.interaction.density_interaction and chitk.densitychi. The
+    exchange tail Jr goes through here as well, with the same meaning.
+
+    The pair of a site with itself is one of the pairs, so Vr(0) lands on
+    the same-site block as Vr(0)/2 on every spin entry, i.e. the H_int of
+    bsetk.interaction.bare_interaction gets Vr(0) n_i n_i / 2, which on one
+    orbital is a Hubbard U = Vr(0) plus a one-body term that Hartree-Fock
+    drops (n_a n_a decouples to nothing). Jr(0) is the same diagonal with
+    the Sz_i Sz_j sign pattern, an onsite (Jr(0)/2) S_i.S_i; see
+    spinspin._build_v for what that is at the mean-field level. A
+    function meant as a bond coupling only has to return zero at zero
+    distance.
+
+    A pair has one coupling: a Vr that gives two numbers for the two ends
+    of a pair, or one that is not real and finite, raises
+    (specialhopping.require_pair_interaction, with name the keyword of the
+    caller, Vr or Jr, in the message)."""
+    from .. import specialhopping
+    for d,m in specialhopping.distance_cut_interaction(g,Vr,rcut=rcut,
+            name=name).items():
+        v[d] = v[d] + m/2. if d in v else m/2.
+    return v
+
+
+def require_hermitian(h,what):
+    """Refuse a non-Hermitian Hamiltonian in a mean-field backend that has
+    no biorthogonal counterpart: only exact diagonalization builds the
+    biorthogonal density matrix (densitymatrix.biorthogonal_dm)"""
+    if getattr(h,"non_hermitian",False):
+        raise NotImplementedError(what+" needs a Hermitian Hamiltonian; a "
+                "non-Hermitian one is solved with its biorthogonal density "
+                "matrix, which only exact diagonalization builds: use "
+                "integration=\"ed\" (the default) without use_jax")
+
+
+def _get_dm_ed(h,v,nk=None,tolerance=None,shell=None,**kwargs):
+    """integration="ed": exact diagonalization on the uniform k-mesh"""
+    if nk is None: nk = 1
+    ds = [(0,0,0)] # directions
+    for key in v: ds.append(key) # store the vector
+    # normal state, and v is the interaction dictionary (not just a
+    # list of directions, which carries no pattern to build a mask
+    # from -- scftk.spinspin's post-convergence recompute passes one,
+    # and wants the full matrices anyway): compute only the entries
+    # the mean field reads, with the same kernel VJinteraction uses,
+    # instead of a full (n,n) matmul per direction and kpoint
+    if not h.has_eh and isinstance(v,dict):
+        from ..densitymatrix import full_dm_accumulate_sparse, delta_dm
+        T = kwargs.pop("T",delta_dm) # the energy smearing
+        if T==0.: T = 1e-15 # as densitymatrix.full_dm does
+        pairs = dm_sparse_pairs(v,ds,h.intra.shape[0],
+                has_spin=h.has_spin)
+        return full_dm_accumulate_sparse(h,pairs,nk=nk,delta=T,**kwargs)
+    if shell is not None: kwargs["shell"] = shell # a BdG h at a filling
+    dms = h.get_density_matrix(ds=ds,nk=nk,**kwargs) # get all the density matrices
+    return dms # return dictionary
+
+
+def _get_dm_qtci(h,v,nk=None,tolerance=1e-6,shell=None,**kwargs):
+    """integration="qtci": the triangle weights on a 2^R x 2^R mesh whose
+    band energies and projectors come from quantics cross interpolations,
+    see qtcitk.densitymatrix_qtci. It does not fill the shell of a gapless
+    BdG state, so shell is not used"""
+    require_hermitian(h,"integration=\"qtci\"")
+    from ..qtcitk.densitymatrix_qtci import get_dm_qtci
+    return get_dm_qtci(h,v,nk=nk,tolerance=tolerance,**kwargs)
+
+
+def _get_dm_triangle(h,v,nk=None,tolerance=None,T=0.,shell=None,**kwargs):
+    """integration="triangle": linear simplex integration of the
+    occupations on the uniform k-mesh, see dmtk.simplexdm"""
+    from ..dmtk import simplexdm
+    if nk is None: nk = simplexdm.default_nk
+    ds = [(0,0,0)] + [d for d in v if tuple(d)!=(0,0,0)]
+    return simplexdm.get_dm(h,ds,nk=nk,T=T,shell=shell,**kwargs)
+
+
+# the density-matrix backends of the SCF loop, by the name integration=
+# selects them with
+dm_integrations = {
+    "ed": _get_dm_ed, # exact diagonalization on the k-mesh
+    "qtci": _get_dm_qtci, # triangle on cross-interpolated fields
+    "triangle": _get_dm_triangle, # linear simplex integration of the step
+    }
+
+
+def get_integration_names():
+    """Accepted values of integration= in get_dm and in the mean-field
+    entry points that go through densitydensity (Vinteraction, hubbard)"""
+    return list(dm_integrations)
+
+
+def check_integration(integration):
+    """Refuse an integration= that no backend implements"""
+    if integration not in dm_integrations:
+        raise ValueError("unknown integration %r for the mean-field density "
+                "matrix; it must be one of %s"%(integration,
+                    get_integration_names()))
+
+
 def get_dm(h,v,nk=None,integration="ed",tolerance=1e-6,**kwargs):
     """Get the density matrix.
 
-    integration: "ed" (default) computes it by exact diagonalization on a
+    integration: one of get_integration_names().
+    "ed" (default) computes it by exact diagonalization on a
     k-mesh (h.get_density_matrix), with nk defaulting to 1 if not given.
-    "qtci" instead integrates each required entry over the BZ with
-    qutecipy (tensor cross interpolation), see
-    qtcitk.densitymatrix_qtci.get_dm_qtci -- same {direction: matrix}
-    return contract, so it is a drop-in replacement in the SCF loop below
-    (scftk.densitydensity.generic_densitydensity); nk defaults
-    to get_dm_qtci's own DEFAULT_NK if not given (nk=None is forwarded
+    "qtci" is the triangle integration below on a 2^R x 2^R mesh in 2D,
+    the tetrahedron one on a 2^R x 2^R x 2^R mesh in 3D (nk rounded up
+    to a power of two), whose band energies and band projectors
+    are reconstructed from quantics cross interpolations instead of a
+    diagonalization at every point, see qtcitk.densitymatrix_qtci.get_dm_qtci;
+    it computes only the entries the mean field reads, and nk defaults to
+    get_dm_qtci's own DEFAULT_NK if not given (nk=None is forwarded
     through rather than substituting a different, ED-only default here).
-    tolerance only applies to (and is only forwarded for) "qtci"; the "ed"
-    path never sees it, so nothing needs to know which kwargs are safe for
-    which backend other than this function itself."""
-    if integration=="qtci":
-        from ..qtcitk.densitymatrix_qtci import get_dm_qtci
-        return get_dm_qtci(h,v,nk=nk,tolerance=tolerance,**kwargs)
-    elif integration=="ed":
-        if nk is None: nk = 1
-        ds = [(0,0,0)] # directions
-#    if h.dimensionality>0:
-        for key in v: ds.append(key) # store the vector
-        # normal state, and v is the interaction dictionary (not just a
-        # list of directions, which carries no pattern to build a mask
-        # from -- scftk.spinspin's post-convergence recompute passes one,
-        # and wants the full matrices anyway): compute only the entries
-        # the mean field reads, with the same kernel VJinteraction uses,
-        # instead of a full (n,n) matmul per direction and kpoint
-        if not h.has_eh and isinstance(v,dict):
-            from ..densitymatrix import full_dm_accumulate_sparse, delta_dm
-            T = kwargs.pop("T",delta_dm) # the energy smearing
-            if T==0.: T = 1e-15 # as densitymatrix.full_dm does
-            pairs = dm_sparse_pairs(v,ds,h.intra.shape[0],
-                    has_spin=h.has_spin)
-            return full_dm_accumulate_sparse(h,pairs,nk=nk,delta=T,**kwargs)
-        dms = h.get_density_matrix(ds=ds,nk=nk,**kwargs) # get all the density matrices
-        return dms # return dictionary
-    else:
-        raise ValueError("integration must be 'ed' or 'qtci', got %r -- "
-                "unrecognized values used to silently fall back to 'ed' "
-                "with no warning"%(integration,))
+    "triangle" diagonalizes the same uniform mesh as "ed" but integrates
+    the Fermi step exactly over the linearly interpolated bands (the linear
+    tetrahedron method in 3D), see dmtk.simplexdm; it returns every entry
+    of each direction. tolerance only applies to "qtci"; the other
+    backends never see it, so nothing needs to know which kwargs are safe
+    for which backend other than this function itself.
+
+    shell: None, or for a Bogoliubov-de Gennes h at a filling the
+    superscf.ShellFilling of its superscf.BdGFermiLevel. "ed" and
+    "triangle" then fill the shell of levels at zero energy in part when
+    the charge misses the requested one, so that a gapless
+    state holds it; "qtci" does not use it. Without it the density matrix
+    is the one of before."""
+    check_integration(integration)
+    return dm_integrations[integration](h,v,nk=nk,tolerance=tolerance,
+            **kwargs)
 
 
 
 def get_mf(v,dm,has_eh=False,compute_anomalous=True,
-        compute_normal=True,**kwargs):
+        compute_normal=True,non_hermitian=False,**kwargs):
     """Get the mean field matrix.
 
     has_eh=True (BdG/Nambu Hamiltonian) delegates to superscf.get_mf_bdg,
     which combines the normal (Hartree+Fock) and anomalous (pairing)
     decoupling of the interaction into one self-contained step -- see its
     docstring for why both are needed. has_eh=False is the plain
-    Hartree-Fock decoupling, get_mf_normal below."""
+    Hartree-Fock decoupling, get_mf_normal below, which takes a
+    biorthogonal density matrix with non_hermitian=True."""
     if has_eh:
+        if non_hermitian:
+            raise NotImplementedError("the mean field of a non-Hermitian "
+                    "Hamiltonian is only implemented for a normal-state "
+                    "(non-Nambu) one")
         from .superscf import get_mf_bdg
         return get_mf_bdg(v,dm,compute_anomalous=compute_anomalous,
                 compute_normal=compute_normal,**kwargs)
-    else: return get_mf_normal(v,dm,**kwargs) # no BdG Hamiltonian
+    else: return get_mf_normal(v,dm,non_hermitian=non_hermitian,**kwargs)
 
 
 
@@ -323,12 +448,46 @@ def get_mf_normal_core(v,dm,keys,term_ii,term_jj,term_ij,dag,
 
 
 def get_mf_normal(v,dm,compute_dd=True,add_dagger=True,
-        compute_cross=True):
-    """Get the mean field"""
+        compute_cross=True,non_hermitian=False):
+    """Get the mean field. non_hermitian=True takes dm as the biorthogonal
+    density matrix of a non-Hermitian Hamiltonian, see
+    get_mf_normal_biorthogonal"""
+    if non_hermitian:
+        return get_mf_normal_biorthogonal(v,dm,compute_dd=compute_dd,
+                add_dagger=add_dagger,compute_cross=compute_cross)
     def dag(m): return m.T.conjugate()
     return get_mf_normal_core(v,dm,v.keys(),normal_term_ii,normal_term_jj,
             normal_term_ij,dag,compute_dd=compute_dd,
             add_dagger=add_dagger,compute_cross=compute_cross)
+
+
+def get_mf_normal_biorthogonal(v,dm,compute_dd=True,add_dagger=True,
+        compute_cross=True):
+    """Hartree-Fock mean field from the biorthogonal density matrix of a
+    non-Hermitian Hamiltonian (densitymatrix.biorthogonal_dm), whose
+    expectation values <c^dag_i c_j> are those of Brody's biorthogonal
+    quantum mechanics (arXiv:1308.2609, Eq. (27)).
+
+    The Hartree terms and the Fock term of the bond d are those of
+    get_mf_normal. What changes is the Fock term of the opposite bond -d:
+    get_mf_normal writes it as the Hermitian conjugate of the term of d,
+    which uses <c^dag_j c_i> = <c^dag_i c_j>^*, true for a Hermitian
+    density matrix and not for a biorthogonal one. It is computed here
+    from the density matrix instead, with normal_term_ji, which reduces to
+    that conjugate when dm is Hermitian and v real. The mean field that
+    comes out is not Hermitian in general."""
+    zero = dm[(0,0,0)]*0.0
+    mf = {d: zero for d in v.keys()} # initialize
+    for d in v.keys(): # loop over directions
+        d2 = (-d[0],-d[1],-d[2]) # minus this direction
+        if compute_cross: # the Fock terms of d and of -d
+            mf[d] = mf[d] + normal_term_ij(v[d],dm[d2])
+            if add_dagger:
+                mf[d2] = mf[d2] + normal_term_ji(v[d],dm[d])
+        if compute_dd: # the Hartree terms
+            mf[(0,0,0)] = mf[(0,0,0)] + normal_term_ii(v[d],dm[(0,0,0)])
+            mf[(0,0,0)] = mf[(0,0,0)] + normal_term_jj(v[d2],dm[(0,0,0)])
+    return mf
 
 
 
@@ -362,10 +521,20 @@ def electron_dimension(h):
     return n//2 if h.has_eh else n # undo the Nambu doubling
 
 
-def get_dc_energy(v,dm):
-    """Compute double counting energy"""
+def get_dc_energy(v,dm,non_hermitian=False):
+    """Compute double counting energy. non_hermitian=True takes dm as a
+    biorthogonal density matrix, where the Fock product
+    <c^dag_i c_j><c^dag_j c_i> is not |<c^dag_i c_j>|^2, and returns the
+    real part of the complex double counting"""
     out = 0.0
     dm00 = dm[(0,0,0)]
+    if non_hermitian:
+        n = np.diag(dm00) # biorthogonal occupations, complex in general
+        for d in v:
+            d2 = (-d[0],-d[1],-d[2])
+            out -= n@v[d]@n # Hartree, as in get_dc_energy_jit
+            out += np.sum(v[d]*dm[d]*dm[d2].T) # Fock, without conjugation
+        return out.real
     for d in v: # loop over interactions
         out += get_dc_energy_jit(v[d],dm00,dm[d])
     return out.real
@@ -376,28 +545,47 @@ from .mfconstrains import obj2mf
 
 mf_file = "MF.pkl" 
 
-def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
+def generic_densitydensity(h0,mf=None,mix=None,v=None,nk=8,solver="plain",
         maxerror=1e-5,callback_mf=None,callback_dm=None,
         load_mf=True,compute_cross=True,compute_dd=True,verbose=1,
         compute_anomalous=True,compute_normal=True,info=False,
-        maxite=None,
+        maxite=1000,
         T=1e-7, # temperature
-        integration="ed", # "ed" (exact diagonalization) or "qtci"
+        integration="ed", # one of get_integration_names()
         tolerance=1e-6, # qtci-only: crossinterpolate2 convergence tolerance
-        callback_h=None,**kwargs):
-    """Perform the SCF mean field"""
-    if len(kwargs)>0:
-        # this is the end of the mean-field call chain: anything left over
-        # here is a keyword nobody consumed, and used to be dropped in
-        # silence (a misspelled filling= would run with the default)
-        raise TypeError("unexpected keyword argument(s) "
-          +str(sorted(kwargs))+" in the mean-field calculation; nothing "
-          +"in the call chain consumes them, so they would be ignored")
+        callback_h=None,fermi_level=None,write=None,**kwargs):
+    """Perform the SCF mean field
+
+    mix: the linear-mixing factor. solver="plain" and solver="linear"
+    (scipy's linearmixing, the same step) mix with it (0.3 when not
+    given), and solver="broyden_mixing" uses it as the mixing factor
+    of its linear warm-up phase (broyden_mixing_solve's lam, whose own
+    default applies when not given). The other scipy solvers ("krylov",
+    "anderson", "broyden1") have no use for it, and warn when it is
+    given.
+
+    write: False keeps the converged mean field out of MF.pkl in the
+    working directory. With load_mf=True an MF.pkl already there is still
+    read as the starting guess.
+
+    fermi_level: None, or an object that sets the chemical potential of
+    each Hamiltonian from one extra unknown x of the loop, such as
+    superscf.BdGFermiLevel: fermi_level.shift(h,x) before the density
+    matrix, then fermi_level.step(x,dm) gives the x of the next iteration
+    and leaves a charge error in fermi_level.error. The plain loop takes
+    that step and holds its size, fermi_level.residual, to maxerror
+    together with the change of the mean field; the other solvers take x
+    as the last entry of their vector, so their fixed point has the step
+    at rest, and call fermi_level.step(x,dm,adaptive=False), a step that
+    depends on x and dm alone, since they fit a model of that map."""
+    write = filewrite.resolve(write,True) # the call, else the global switch
+    reject_leftover_kwargs(kwargs)
     if verbose>1: info=True
 #    if not h0.check_mode("spinless"): raise # sanity check
     h1 = h0.copy() # initial Hamiltonian
     h1 = h1.get_dense()
     h1.nk = nk # store the number of kpoints
+    h1.temperature = T # and the smearing, which observables read it at
     if mf is None: # no mean field given
       try:
           if load_mf:
@@ -415,8 +603,8 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
     ii = 0
     fs.rmfile("STOP") # remove stop file
     hop0 = hamiltonian2dict(h1) # create dictionary
-    def f(mf,h=h1):
-      """Function to minimize"""
+    def f(mf,x=0.,h=h1):
+      """Function to minimize; x is the unknown of fermi_level"""
 #      print("Iteration #",ii) # Iteration
       # Shallow copy, not deepcopy: `mf0` exists only to restore the incoming
       # guess in the STOP-file branch at the end of this function, and `mf` is
@@ -444,17 +632,19 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
       set_hoppings(h,hop) # set the new hoppings in the Hamiltonian
       if callback_h is not None:
           h = callback_h(h) # callback for the Hamiltonian
+      if fermi_level is not None: h = fermi_level.shift(h,x)
       t0 = time.perf_counter() # time
       # get_dm itself decides which kwargs (e.g. tolerance) are safe to
       # forward to which backend, so this call never needs to know that
-      dm = get_dm(h,v,nk=nk,T=T,integration=integration,tolerance=tolerance)
+      dm = get_dm(h,v,nk=nk,T=T,integration=integration,tolerance=tolerance,
+              shell=getattr(fermi_level,"shell",None)) # see BdGFermiLevel
       if callback_dm is not None:
           dm = callback_dm(dm) # callback for the density matrix
       t1 = time.perf_counter() # time
       # return the mean field
       mf = get_mf(v,dm,compute_cross=compute_cross,compute_dd=compute_dd,
               has_eh=h0.has_eh,compute_anomalous=compute_anomalous,
-              compute_normal=compute_normal) 
+              compute_normal=compute_normal,non_hermitian=h0.non_hermitian)
       if callback_mf is not None:
           mf = callback_mf(mf) # callback for the mean field
       t2 = time.perf_counter() # time
@@ -470,17 +660,29 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
       scf.dm = dm # store density matrix
       scf.v = v # store interaction
       scf.tol = maxerror # maximum error
+      if fermi_level is not None: # the step of the chemical potential
+          # the other solvers need a map of their vector alone, so the
+          # adaptive gain of the step is only for the plain loop
+          scf.x = x
+          scf.x_next = fermi_level.step(x,dm,adaptive=(solver=="plain"))
+          scf.charge_error = fermi_level.error
+          scf.fermi_residual = fermi_level.residual
       return scf
     if solver=="plain":
+      if mix is None: mix = 0.3 # default linear mixing
       do_scf = True
 #      from .mixing import Mixing
 #      Mxg = Mixing() # initialize
       ite = 0 # start counter
+      x = 0. # the unknown of fermi_level
       while do_scf:
-        scf = f(mf) # new vector
+        scf = f(mf,x) # new vector
         mfnew = scf.mf # new vector
         t0 = time.perf_counter() # time
         diff = diff_mf(mfnew,mf) # mix mean field
+        if fermi_level is not None: # the charge is held as well
+            diff = max(diff,scf.fermi_residual)
+            x = scf.x_next # an already damped step
 #        mix = Mxg.get_mix(diff) # add error
 #        print("Mixing",mix)
         mf = mix_mf(mfnew,mf,mix=mix) # mix mean field
@@ -492,43 +694,90 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
             print("ERROR in the SCF cycle",ite,diff)
         #print("Mixing",dmix)
         if diff<maxerror: 
-            scf = f(mfnew) # last iteration, with the unmixed mean field
-            scf.converged = True # no convergence
-            inout.save(scf.mf,mf_file) # save the mean field
-         #   scf.hamiltonian.check(tol=100*maxerror) # perform some sanity checks
-            return scf
+            scf = f(mfnew,x) # last iteration, with the unmixed mean field
+            # the charge of this last density matrix is checked again: it
+            # is computed at the next x, which a mean field that has
+            # stopped moving leaves within the tolerance, and the loop
+            # goes on otherwise
+            if fermi_level is None or scf.fermi_residual<maxerror:
+                scf.converged = True # converged
+                scf.iterations, scf.residual = ite, diff # as reached
+                if write: inout.save(scf.mf,mf_file) # save the mean field
+                return scf
+            x = scf.x_next
         if maxite is not None: # maximum number of iterations reached
             if ite>=maxite:
                 scf.converged = False # no convergence
+                scf.iterations, scf.residual = ite, diff # for the error
                 print("No convergence has been reached in",maxite,"iterations, stopping")
                 return scf # return
         ite += 1 # increase number of iterations
     else: # use different solvers
         scf = f(mf) # perform one iteration
-        fmf2a = get_mf2array(scf) # convert MF to array
-        fa2mf = get_array2mf(scf) # convert array to MF
+        fmf2a_mf = get_mf2array(scf) # convert MF to array
+        fa2mf_mf = get_array2mf(scf) # convert array to MF
+        # with a fermi_level, its unknown is the last entry of the vector,
+        # and the entry of the new vector is its step
+        if fermi_level is None:
+            fmf2a, fa2mf = fmf2a_mf, fa2mf_mf
+            def fscf(a): return f(fa2mf(a))
+            def fnew(scf1): return fmf2a(scf1.mf)
+        else:
+            def fmf2a(mf,x=0.): return np.append(fmf2a_mf(mf),x)
+            def fa2mf(a): return fa2mf_mf(a[:-1])
+            def fscf(a): return f(fa2mf(a),a[-1])
+            def fnew(scf1): return fmf2a(scf1.mf,scf1.x_next)
         def fsol(x): # define the function to solve
-            mf1 = fa2mf(x) # convert to a MF
-            scf1 = f(mf1) # compute function
-            xn = fmf2a(scf1.mf) # new vector
+            scf1 = fscf(x) # compute function
+            xn = fnew(scf1) # new vector
             diff = x - xn # difference vector
-            print("ERROR",np.max(np.abs(diff)))
-            print()
+            if verbose>0:
+                print("ERROR",np.max(np.abs(diff)))
+                print()
             return x - xn # return vector
-        x0 = fmf2a(scf.mf) # initial guess
-        # these methods do seem too efficient, but lets have them anyway
+        x0 = fnew(scf) # initial guess
+        if mix is not None and solver not in ("broyden_mixing","linear"):
+            # as densitydensity_jax warns for its own non-mixing solvers
+            warnings.warn("mix=%r has no effect for solver=%r (only "
+                    "solver=\"plain\", solver=\"linear\" and "
+                    "solver=\"broyden_mixing\" use linear mixing)"%(mix,solver),stacklevel=2)
+        # these methods do seem too efficient, but lets have them anyway.
+        # Every loop is held to the same number, maxerror, but each one
+        # measures the residual in its own norm. The scipy solvers stop
+        # when the largest entry of fsol is below f_tol (the max-norm over
+        # the real and imaginary parts of every entry), broyden_mixing when
+        # the L2 norm of the same vector is below tol, and the plain loop
+        # when diff_mf, the mean modulus of the change of each matrix
+        # summed over the directions, is below maxerror. So for one entry
+        # of an n x n matrix that changes by delta the plain loop reads
+        # delta/n^2 and the other two delta, and for every entry of nd
+        # directions changing by delta (real and imaginary) the plain loop
+        # reads nd sqrt(2) delta, scipy delta and broyden_mixing
+        # delta sqrt(2 nd) n. scf.converged says that the loop met maxerror
+        # in its own norm, and scf.residual below is the max-norm for both
+        # broyden_mixing and scipy. Before, krylov and anderson used the
+        # scipy default (6e-6) and broyden1 and linear 100*maxerror, while
+        # the loop was marked converged, so a BdG state stopped short of
+        # its charge was told it had no gap
         if solver=="krylov":
             from scipy.optimize import newton_krylov
-            x = newton_krylov(fsol,x0,rdiff=1e-3) # use the solver
+            x = newton_krylov(fsol,x0,rdiff=1e-3,f_tol=maxerror) # use the solver
         elif solver=="anderson":
             from scipy.optimize import anderson
-            x = anderson(fsol,x0) # use the solver
+            x = anderson(fsol,x0,f_tol=maxerror) # use the solver
         elif solver=="broyden1":
             from scipy.optimize import broyden1
-            x = broyden1(fsol,x0,f_tol=maxerror*100) # use the solver
+            x = broyden1(fsol,x0,f_tol=maxerror) # use the solver
         elif solver=="linear":
+            # scipy's linearmixing steps x -> x - alpha*F(x) with the
+            # Jacobian taken as -1/alpha, the convention of F(x)=g(x)-x.
+            # fsol is x-g(x), whose Jacobian is close to +1, so with
+            # scipy's default (positive) alpha every step went away from
+            # the fixed point and the error grew until it overflowed.
+            # alpha=-mix makes the step x + mix*(g(x)-x), the plain loop
             from scipy.optimize import linearmixing
-            x = linearmixing(fsol,x0,f_tol=maxerror*100) # use the solver
+            if mix is None: mix = 0.3 # as the plain loop
+            x = linearmixing(fsol,x0,alpha=-mix,f_tol=maxerror)
         elif solver=="broyden_mixing":
             # regularized, limited-memory multisecant Broyden mixing
             # (arXiv:0801.3098) -- see scftk/broydenmixing.py's
@@ -539,6 +788,9 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
             step_vec = lambda x: x - fsol(x)
             bm_kwargs = dict(tol=maxerror, verbose=verbose)
             if maxite is not None: bm_kwargs["maxite"] = maxite
+            # mix is the linear-mixing factor, which for this solver is
+            # the one of its warm-up phase
+            if mix is not None: bm_kwargs["lam"] = mix
             x, ite, converged = broyden_mixing_solve(step_vec, x0, **bm_kwargs)
             if not converged:
                 print("No convergence has been reached in",ite,
@@ -547,11 +799,18 @@ def generic_densitydensity(h0,mf=None,mix=0.1,v=None,nk=8,solver="plain",
             raise ValueError("unknown solver; the accepted ones are 'plain', "
                     "'krylov', 'anderson', 'broyden1', 'linear' and "
                     "'broyden_mixing'")
-        mf = fa2mf(x) # transform to MF
-        scf = f(mf) # compute the SCF with the solution
-        if solver=="broyden_mixing": scf.converged = converged # store convergence flag
+        scf = fscf(x) # compute the SCF with the solution
+        if solver=="broyden_mixing":
+            scf.converged = converged # store convergence flag
+            scf.iterations = ite
+            scf.residual = np.max(np.abs(x - fnew(scf))) # reached error
+        else: # the scipy solvers raise NoConvergence when they fail
+            scf.residual = np.max(np.abs(x - fnew(scf))) # reached error
+            # the residual of the last evaluation, at the tolerance the
+            # solver was given (fsol of x is evaluated once more above)
+            scf.converged = bool(scf.residual<=maxerror)
         scf.error = maxerror # store the error
-        inout.save(scf.mf,mf_file) # save the mean field
+        if write: inout.save(scf.mf,mf_file) # save the mean field
         return scf # return the mean field
 
 
@@ -588,33 +847,76 @@ def get_array2mf(scf):
 
 def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
     """Function for density-density interactions"""
+    from ..checkclass import is_iterable
+    if is_iterable(filling): # see VJinteraction's docstring
+        raise NotImplementedError("A per-site (array) filling is only "
+                "supported by VJinteraction (h.get_mean_field_hamiltonian "
+                "with integration=\"ed\" or \"kpm\") for a spinful Hamiltonian; "
+                "this density-density engine (Vinteraction, hubbard, SzSz, "
+                "SxSx, SySy) "
+                "takes a single scalar filling, got %r" % (filling,))
     if use_jax:
+        require_hermitian(h,"use_jax=True")
         from .densitydensity_jax import densitydensity_jax
         return densitydensity_jax(h,filling=filling,mu=mu,verbose=verbose,
                 **kwargs)
     # read, not consumed: generic_densitydensity below still gets its own T
     T = kwargs.get("T",1e-7) # temperature, same default as that function
     integration = kwargs.get("integration","ed") # density-matrix backend
-    if h.has_eh:
-        if not h.has_spin: return NotImplemented # only for spinful
+    check_integration(integration)
+    if integration=="qtci": require_hermitian(h,"integration=\"qtci\"")
+    if integration=="triangle":
+        from ..dmtk import simplexdm
+        simplexdm.check_hamiltonian(h,"integration=\"triangle\"")
     h = h.get_multicell()
     h = h.get_dense()
+    def search(h,filling):
+        """Fermi level that holds `filling` in h, with the count of the
+        integration in use. T, because the density matrix below is built
+        with the Fermi-Dirac weight at this same T: a Fermi level located
+        by a T=0 eigenvalue count would hold a different number of
+        electrons than `filling` asks for. For a Bogoliubov-de Gennes h
+        each of them counts the normal state"""
+        if integration=="qtci":
+            # on the triangles of the reconstructed mesh get_dm_qtci
+            # integrates on, which also keeps the eigenpairs for it
+            from ..qtcitk.densitymatrix_qtci import get_fermi4filling_qtci
+            return get_fermi4filling_qtci(h,filling,nk=h.nk,T=T,
+                    tolerance=kwargs.get("tolerance",1e-6),keep_mesh=True)
+        elif integration=="triangle":
+            # on the simplices the density matrix is integrated on, where
+            # the charge is a continuous function of the Fermi level, so
+            # the density matrix holds exactly the requested filling. The
+            # search keeps its mesh (band energies, eigenvectors and
+            # simplices) for the density matrix of h shifted by this level,
+            # which follows, see dmtk.simplexdm._last_search
+            from ..dmtk import simplexdm
+            return simplexdm.get_fermi4filling(h,filling,nk=h.nk,T=T,
+                    keep_mesh=True)
+        else: return h.get_fermi4filling(filling,nk=h.nk,T=T)
+    # a Bogoliubov-de Gennes h at a filling: the Fermi level is found on
+    # the charge of the paired state, as an offset from the one of the
+    # normal state that the loop converges together with the mean field
+    # (superscf.BdGFermiLevel)
+    fermi_level = None
+    if mu is None and h.has_eh:
+        from .superscf import BdGFermiLevel
+        fermi_level = BdGFermiLevel(h,filling,search)
     def callback_h(h):
         """Set the filling"""
-        if mu is None:
-          # T, because the density matrix below is built with the
-          # Fermi-Dirac weight at this same T: a Fermi level located by a
-          # T=0 eigenvalue count would hold a different number of
-          # electrons than `filling` asks for
-          fermi = h.get_fermi4filling(filling,nk=h.nk,T=T) # get the filling
+        if fermi_level is not None: pass # shifted by fermi_level instead
+        elif mu is None:
+          fermi = search(h,filling)
           if verbose>1: print("Fermi energy",fermi)
           h.fermi = fermi
           h.shift_fermi(-fermi) # shift by the fermi energy
         else: h.shift_fermi(-mu) # shift by mu
         return h
-#    callback_h = None
     scf = generic_densitydensity(h,callback_h=callback_h,verbose=verbose,
-            **kwargs)
+            fermi_level=fermi_level,**kwargs)
+    if fermi_level is not None: # the charge of the paired state, N-N0
+        scf.charge_error = fermi_level.error
+        fermi_level.warn(kwargs.get("maxerror",1e-5),scf.converged)
     # Now compute the total energy
     h = scf.hamiltonian
     # scf.dm is user-visible, while the loop above only ever computed the
@@ -622,17 +924,19 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
     # fraction of each off-diagonal direction's matrix for a large system,
     # and eventually of the onsite one too. Recompute it in full once here,
     # exactly as spinspin._run_anisotropic_scf does at the end of its own
-    # loop; only for the path that actually went sparse (a dense recompute
+    # loop; only for the paths that actually went sparse (a dense recompute
     # would defeat the point of any other integrator)
+    ds = [(0,0,0)] + [d for d in scf.v if d!=(0,0,0)] # every direction
     if integration=="ed" and not h.has_eh:
-        ds = [(0,0,0)] + [d for d in scf.v] # every direction of the mean field
         scf.dm = h.get_density_matrix(ds=ds,nk=h.nk,T=T)
-    etot = h.get_total_energy(nk=h.nk)
-    if mu is None:
-        # electron_dimension, not h.intra.shape[0]: N = filling*(number of
-        # electron states), which is not the Nambu-doubled dimension
-        etot += h.fermi*electron_dimension(h)*filling # add the Fermi energy
-    #print("Occupied energies",etot)
+    elif integration=="qtci":
+        # get_dm_qtci left every entry the mean field does not read at
+        # zero. Recomputed with the same construction, on the same mesh
+        from ..qtcitk.densitymatrix_qtci import full_dm_qtci
+        scf.dm = full_dm_qtci(h,ds,nk=h.nk,T=T,
+                tolerance=kwargs.get("tolerance",1e-6))
+    # integration="triangle" already computed every entry of every
+    # direction in the last iteration, on the same simplices
     # get_dc_energy assumes dm's shape matches v's, which is never
     # Nambu-doubled even when h (hence scf.dm) is BdG -- so the electron
     # sector must be extracted from scf.dm first for a BdG h, or this
@@ -645,7 +949,48 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
         from .. import superconductivity
         dm_dc = {key: superconductivity.get_eh_sector(m,i=0,j=0)
                 for (key,m) in scf.dm.items()}
-    etot += get_dc_energy(scf.v,dm_dc) # add the double counting energy
+    # the band energy of h, which is shifted by its Fermi level, so this is
+    # the expectation value of H - mu N
+    if integration=="qtci":
+        # with the triangle weights at T=0 on the same reconstructed mesh
+        # as scf.dm
+        from ..qtcitk.densitymatrix_qtci import band_energy_qtci
+        etot = band_energy_qtci(h,nk=h.nk,
+                tolerance=kwargs.get("tolerance",1e-6))
+    elif integration=="triangle":
+        # the band energy of the linear bands on the same simplices, with
+        # the step at the Fermi level, as "ed" and "qtci" sum it
+        from ..dmtk import simplexdm
+        etot = simplexdm.band_energy(h,nk=h.nk)
+    else:
+        etot = h.get_total_energy(nk=h.nk)
+    if fermi_level is not None:
+        # the change of the band energy made by the fill of the shell of a
+        # gapless state, (1/2) Tr H (rho_filled - rho), zero when it does
+        # not fill, so that the energy is the step band energy above
+        # otherwise and continuous where the fill starts
+        # (superscf.ShellFilling)
+        etot += fermi_level.shell.correction
+    if mu is None:
+        # add back mu N with N the requested charge, filling times the
+        # number of electron states (electron_dimension, not the
+        # Nambu-doubled h.intra.shape[0]), for every integration. This is
+        # the charge the density matrix holds: in a normal state to 1e-12
+        # for "triangle" and to the interpolation tolerance for "qtci", and
+        # in a superconductor to the tolerance of the loop, since its Fermi
+        # level is found on the charge of the paired state
+        # (superscf.BdGFermiLevel). So the energy is <H> at that charge.
+        # When the step of the Fermi level gives up (a state without a gap
+        # on the mesh) the charge is not held, and this is Omega + mu N0,
+        # which differs from <H> by mu (N - N0), with N - N0 in
+        # scf.charge_error.
+        # Before, the Fermi level of a superconductor came from the normal
+        # state, the paired state held another charge (0.606 instead of
+        # 0.600 for U=-2 at filling 0.3 on the square lattice), and this
+        # was Omega + mu N0 rather than <H> (future_development/
+        # tetrahedron_density_matrix.md)
+        etot += h.fermi*electron_dimension(h)*filling
+    etot += get_dc_energy(scf.v,dm_dc,non_hermitian=h.non_hermitian) # add the double counting energy
     if h.has_eh and kwargs.get("compute_anomalous",True):
         # the pairing part of the interaction energy, which the band
         # energy also counts twice (see get_dc_energy_anomalous)
@@ -654,6 +999,9 @@ def densitydensity(h,filling=0.5,mu=None,verbose=0,use_jax=False,**kwargs):
         etot += get_dc_energy_anomalous(mf,scf.dm)
     etot = etot.real
     scf.total_energy = etot
+    if fermi_level is not None: # the shift of the chemical potential of a
+        fermi_level.shell.move_fermi(h) # filled shell, after the energy
+        scf.shell = fermi_level.shell # its fill, fired, mu and correction
     if verbose>1:
       print("##################")
       print("Total energy",etot)
@@ -668,6 +1016,7 @@ def hubbard(h,U=1.0,constrains=[],**kwargs):
     h = h.copy() # copy Hamiltonian
     h.turn_multicell() # multicell Hamiltonian
     U = obj2geometryarray(U,h.geometry) # redefine as array 
+    reject_spinless_U(h,U) # the same refusal as Vinteraction
     n = len(h.geometry.r) # number of spinless sites
     if h.has_spin:
       zero = np.zeros((2*n,2*n),dtype=np.complex128)
@@ -708,12 +1057,60 @@ legacy_selfconsistency_kwargs = {
   }
 
 
+# The three refusals below are shared with the KPM engine
+# (densitydensity_kpm.py), so that both spell them the same way.
+
+def reject_leftover_kwargs(kwargs):
+    """Raise on the keywords left over at the end of a mean-field call
+    chain: nobody consumed them, and they used to be dropped in silence (a
+    misspelled filling= would run with the default)"""
+    if len(kwargs)>0:
+        raise TypeError("unexpected keyword argument(s) "
+          +str(sorted(kwargs))+" in the mean-field calculation; nothing "
+          +"in the call chain consumes them, so they would be ignored")
+
+
+def reject_legacy_kwargs(kwargs):
+    """Refuse the keywords of the old scftypes.selfconsistency interface
+    (see legacy_selfconsistency_kwargs), and return the keywords with the
+    old spelling nkp of the k-mesh renamed to nk"""
+    from ..utilities import rename_kwarg
+    kwargs = rename_kwarg(kwargs,"nkp","nk") # the old spelling of the k-mesh
+    legacy = [k for k in kwargs if k in legacy_selfconsistency_kwargs]
+    if len(legacy)>0:
+        msg = "".join(["\n  "+k+": "+legacy_selfconsistency_kwargs[k]
+                        for k in sorted(legacy)])
+        raise TypeError("keyword argument(s) "+str(sorted(legacy))+" belong "
+          +"to the old scftypes.selfconsistency interface and have no "
+          +"effect here -- a call that passes them silently runs with no "
+          +"interaction at all. The current spellings are:"+msg)
+    return kwargs
+
+
+def reject_spinless_U(h,U):
+    """Refuse a local Hubbard U (an array over the sites) on a spinless
+    Hamiltonian: the on-site Hubbard term is the up-down density-density
+    interaction, so it has no meaning without spin, and it used to be
+    built and then quietly dropped"""
+    if not h.has_spin and np.max(np.abs(U))>0.0:
+        raise ValueError("a local Hubbard U requires the spin degree of "
+          +"freedom (it is the interaction between the up and down "
+          +"densities on the same site), but this Hamiltonian has "
+          +"has_spin=False. Build it with g.get_hamiltonian(has_spin=True), "
+          +"or use the intersite interactions V1/V2/V3/Vr, which are "
+          +"defined for spinless fermions.")
+
+
 def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
-        constrains=[],Vr=None,**kwargs):
+        constrains=[],Vr=None,rcut=None,**kwargs):
     """Perform a mean-field calculation with density-density interactions
     - U, local Hubbard interaction
     - V1, first neighbor interaction
     - V2, second neighbor interaction
+    - Vr, a function Vr(r1,r2) of two positions, and rcut its range: every
+      pair of sites up to rcut interacts and none beyond it. rcut=None
+      keeps every pair of a finite (0d) system and means 5.0 for a
+      periodic one, see specialhopping.distance_cut_interaction
 
     NOT the default engine behind Hamiltonian.get_mean_field_hamiltonian
     any more -- that now calls VJinteraction (scftk/spinspin.py),
@@ -726,24 +1123,29 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
     equivalence checks), so don't remove or extend it speculatively -- only
     touch it if a bug is found here specifically.
 
-    integration: "ed" (default) computes the density matrix at each SCF
-    step by exact diagonalization on a k-mesh. "qtci" instead integrates
-    each required density-matrix entry over the BZ with qutecipy (tensor
-    cross interpolation) -- see scftk.densitydensity.get_dm and
-    qtcitk.densitymatrix_qtci.get_dm_qtci; only 2D Hamiltonians are
-    supported for "qtci". VJinteraction does not support this (or
+    integration: one of scftk.densitydensity.get_integration_names().
+    "ed" (default) computes the density matrix at each SCF
+    step by exact diagonalization on a k-mesh. "qtci" is "triangle" on a
+    2^R x 2^R (2D) or 2^R x 2^R x 2^R (3D) mesh whose band energies and band projectors come from
+    quantics cross interpolations (qutecipy) instead of a diagonalization
+    at every point -- see scftk.densitydensity.get_dm and
+    qtcitk.densitymatrix_qtci.get_dm_qtci; only 2D and 3D Hamiltonians
+    are supported for "qtci". "triangle" integrates the Fermi step exactly
+    over the bands interpolated linearly in the triangles (2D),
+    tetrahedra (3D) or segments (1D) of the same k-mesh, the case where
+    it pays being a metal at low temperature, see dmtk.simplexdm.
+    VJinteraction does not support "qtci" or "triangle" (or
     solver=/compute_cross=/etc. below) at all -- call Vinteraction
     directly if you need them.
 
     WARNING: if the SCF loop does not converge (e.g. maxite reached before
-    maxerror is met), the returned Hamiltonian is None, but the returned
-    total_energy is still whatever value was reached at that point, NOT
-    necessarily a meaningful self-consistent energy - this applies to
-    VJinteraction/get_mean_field_hamiltonian(return_total_energy=True) too.
-    Always check the SCF object's .converged attribute (or that the
-    returned Hamiltonian is not None) before trusting total_energy; do not
-    assume a returned number is correct just because no exception was
-    raised. This is easy to miss with
+    maxerror is met), the SCF object returned here has .converged=False,
+    and its .hamiltonian and .total_energy are whatever was reached at that
+    point, NOT a meaningful self-consistent answer. The Hamiltonian-level
+    entry points (get_mean_field_hamiltonian and its siblings) raise
+    scftk.convergence.MeanFieldConvergenceError in that case instead of
+    returning anything; when calling this function directly, always check
+    .converged before trusting the result. This is easy to miss with
     solver="newton"/"fsolve"/"newton_krylov" (use_jax=True): those can stop
     after zero completed iterations if the very first Newton/GMRES step
     fails to find an improving direction (e.g. an unbiased spinful
@@ -752,51 +1154,26 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
     reported total_energy is essentially just the unmodified initial guess
     evaluated once, not a converged answer.
     """
-    from ..utilities import rename_kwarg
-    kwargs = rename_kwarg(kwargs,"nkp","nk") # the old spelling of the k-mesh
-    legacy = [k for k in kwargs if k in legacy_selfconsistency_kwargs]
-    if len(legacy)>0:
-        msg = "".join(["\n  "+k+": "+legacy_selfconsistency_kwargs[k]
-                        for k in sorted(legacy)])
-        raise TypeError("keyword argument(s) "+str(sorted(legacy))+" belong "
-          +"to the old scftypes.selfconsistency interface and have no "
-          +"effect here -- a call that passes them silently runs with no "
-          +"interaction at all. The current spellings are:"+msg)
+    kwargs = reject_legacy_kwargs(kwargs)
+    if kwargs.get("integration")=="ultracell": # a spinless ultracell
+        return _ultracell_sparse_loop(h,V1=V1,V2=V2,V3=V3,U=U,
+                constrains=constrains,Vr=Vr,rcut=rcut,**kwargs)
     h = h.get_multicell() # multicell Hamiltonian
     h = h.get_dense()
     # define the function
     nd = h.geometry.neighbor_distances() # distance to first neighbors
     from .. import specialhopping
-    mgenerator = specialhopping.distance_hopping_matrix([V1/2.,V2/2.,V3/2.],nd[0:3])
-    hv = h.geometry.get_hamiltonian(has_spin=False,is_multicell=True,
-            mgenerator=mgenerator) 
-    if Vr is not None:
-      hv1 = h.geometry.get_hamiltonian(has_spin=False,is_multicell=True,
-              tij=Vr)
-      hv = hv + hv1 # add the two Hamiltonians
-    v = hv.get_hopping_dict() # hopping dictionary
+    # every cell that holds a pair of the three shells, however far
+    v = specialhopping.shell_interaction(h.geometry,[V1/2.,V2/2.,V3/2.],nd)
+    if Vr is not None: # every pair within rcut, whole distance shells
+      add_pair_interaction(v,h.geometry,Vr,rcut=rcut) # halved, as V1
     U = obj2geometryarray(U,h.geometry) # convert to array
-    if not h.has_spin and np.max(np.abs(U))>0.0:
-        # the on-site Hubbard term is the up-down density-density
-        # interaction, so it has no meaning without spin -- it used to be
-        # built here and then quietly dropped by the has_spin branch below
-        raise ValueError("a local Hubbard U requires the spin degree of "
-          +"freedom (it is the interaction between the up and down "
-          +"densities on the same site), but this Hamiltonian has "
-          +"has_spin=False. Build it with g.get_hamiltonian(has_spin=True), "
-          +"or use the intersite interactions V1/V2/V3/Vr, which are "
-          +"defined for spinless fermions.")
+    reject_spinless_U(h,U)
     if h.has_spin: #raise # not implemented
-        for d in v: # loop
-            m = v[d] ; n = m.shape[0]
-            m1 = np.zeros((2*n,2*n),dtype=np.complex128)
-            for i in range(n):
-              for j in range(n): 
-                  m1[2*i,2*j] = m[i,j]
-                  m1[2*i+1,2*j] = m[i,j]
-                  m1[2*i,2*j+1] = m[i,j]
-                  m1[2*i+1,2*j+1] = m[i,j]
-            v[d] = m1 # store
+        for d in v: # the same coupling between every spin of the two sites
+            n = v[d].shape[0]
+            v[d] = np.kron(np.asarray(v[d],dtype=np.complex128),
+                    np.ones((2,2)))
         for i in range(n):
             v[(0,0,0)][2*i,2*i+1] += U[i]/2. # add
             v[(0,0,0)][2*i+1,2*i] += U[i]/2. # add
@@ -810,6 +1187,25 @@ def Vinteraction(h,V1=0.0,V2=0.0,V3=0.0,U=0.0,
             return mf
     return densitydensity(h,v=v,callback_mf=callback_mf,**kwargs)
 
+
+
+def _ultracell_sparse_loop(h,integration=None,**kwargs):
+    """integration="ultracell" for a spinless supercell, which the spinful
+    engine (scftk.spinspin) does not take: the sparse loop of
+    scftk.densitydensity_kpm, with the density matrix, the Fermi level and
+    the band energy from the ultracell states (ultracelltk.meanfield.
+    SparseBackend) instead of the KPM, so that no dense matrix of the
+    supercell is built. nk and T default to those of this module's loop"""
+    from .densitydensity_kpm import Vinteraction_kpm
+    from ..ultracelltk.meanfield import SparseBackend, get_basis
+    get_basis(h) # the supercell of an ultracell, Hermitian; a spinless
+    # Hamiltonian has no Nambu, which goes through scftk.spinspin
+    h = h.get_multicell()
+    h.turn_sparse()
+    kwargs.setdefault("nk",8) # the defaults of generic_densitydensity
+    kwargs.setdefault("T",1e-7)
+    backend = SparseBackend(nk=kwargs["nk"],T=kwargs["T"])
+    return Vinteraction_kpm(h,backend=backend,**kwargs)
 
 
 from ..meanfield import identify_symmetry_breaking

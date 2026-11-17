@@ -1,5 +1,6 @@
 from numba import jit
 import numpy as np
+import scipy.sparse as sp
 
 
 def crop_matrix(m,store):
@@ -8,13 +9,16 @@ def crop_matrix(m,store):
         raise ValueError("the list of sites to keep must have one entry per "
                 "row of the matrix")
     store = np.array(store,dtype=int) # transform to an integer
+    if sp.issparse(m): # sparse input, crop by slicing and stay sparse
+        keep = np.where(store==1)[0]
+        return sp.csc_matrix(m)[keep,:][:,keep].asformat(m.format)
     n = np.sum(store) # number of entries of the matrix
     mout = np.zeros((n,n),dtype=np.complex128)
     out = crop_matrix_jit(m,store,mout)
 #    print(np.sum(np.abs(out))) 
     return out
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def crop_matrix_jit(m,store,mout):
     """Just retain the right elements"""
     ii = 0

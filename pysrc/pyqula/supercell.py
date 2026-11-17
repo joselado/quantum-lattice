@@ -6,10 +6,36 @@ from . import sculpt
 from numba import jit
 
 
+def padded_matrix(m,dim):
+  """The supercell matrix m as a 3x3 array of floats. On a dim-dimensional
+  lattice m can also be dim x dim, and it is then padded with 1 along the
+  missing directions"""
+  mf = np.array(m,dtype=float)
+  if mf.shape not in [(3,3),(dim,dim)]:
+    raise ValueError("a supercell matrix of a "+str(dim)+"-dimensional "
+            "lattice is "+str(dim)+"x"+str(dim)+" or 3x3, got shape "
+            +str(mf.shape))
+  out = np.identity(3)
+  out[0:mf.shape[0],0:mf.shape[1]] = mf
+  return out
 
-def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
+
+
+def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill"):
   """Generate a non orthogonal supercell based on a tranformation
-  matrix of the unit vectors, pretty much as VESTA does"""
+  matrix of the unit vectors, pretty much as VESTA does
+
+  In the fill mode the cells searched for atoms are the box that the
+  entries of m reach (see search_box). ncheck is used
+  by the brute mode only"""
+  # rounded and not truncated, so that a matrix computed in floating
+  # point, with 1.9999999999 for 2, is the matrix of those integers, for
+  # the cell vectors and for the recorded supercell_matrix alike
+  mf = padded_matrix(m,gin.dimensionality)
+  if not np.all(np.abs(mf-np.round(mf))<1e-6): # also refuses a nan
+    raise ValueError("the supercell matrix must have integer entries, got "
+            +str(mf.tolist()))
+  m = np.round(mf).astype(int)
   # workaround
   g = gin.copy()
   if g.dimensionality==0: return
@@ -40,11 +66,10 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
     L = algebra.inv(R) # inverse matrix
     d0 = -0.122132112 # some random number
     d1 = 1.0 + d0 # accuracy
-    from .geometry import neighbor_cells
-# get as many cells as necessary
-    cneigh = reducef(c) # cells to generate given the volume increase c
-    cneigh = int(round(cneigh)) # integer
-    inds = np.array(neighbor_cells(cneigh,dim=g.dimensionality))
+    # every cell that can hold an atom of the new cell; the box used to be
+    # -c..c in every direction, with c=|det m|, which misses atoms when an
+    # entry of m is larger than its determinant
+    inds = search_box(g,m,d0,d1)
     natoms = len(g.r)
     cell_basis = np.array([g.a1,g.a2,g.a3])
     # candidate position of every atom in every candidate cell, vectorized
@@ -52,7 +77,7 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
     # atom (this used to dominate the cost of every twisted-multilayer
     # builder in specialgeometry.py). Candidate cells are processed in
     # chunks so peak memory stays bounded by chunk size regardless of how
-    # many cells neighbor_cells() produces, instead of materializing every
+    # many cells search_box() produces, instead of materializing every
     # (cell,atom) candidate position at once.
     chunk_cells = max(1,200000//max(natoms,1))
     rs_parts = [] # matched positions, one array per chunk
@@ -89,9 +114,11 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
     go.supercell_replica = np.concatenate(replica_parts) if replica_parts else np.zeros((0,3),dtype=int)
     go.supercell_primal_index = np.concatenate(primal_parts) if primal_parts else np.array([],dtype=int)
     if len(rs)!=len(g.r)*c:
-      raise ValueError("not all the atoms of the supercell have been found: "
-              +str(len(rs))+" found, "+str(len(g.r)*c)+" expected for a "
-              "cell-volume increase of "+str(c)+"; increase ncheck")
+      raise ValueError("the supercell of matrix "
+              +str(np.array(m).tolist())+" holds "+str(len(rs))+" atoms, "
+              "but a cell-volume increase of "+str(c)+" needs "
+              +str(len(g.r)*c)+", "+str(c)+" times the "+str(len(g.r))
+              +" atoms of the unit cell")
   elif mode=="brute":
     if g.dimensionality==1:
       rs3 = replicate3d(g.r,g.a1,g.a2,g.a3,c,1,1) # new positions
@@ -120,7 +147,29 @@ def non_orthogonal_supercell(gin,m,ncheck=2,mode="fill",reducef=lambda x: x):
   go.center()
   go.get_fractional()
   return go # return new geometry
-  
+
+
+def search_box(g,m,d0,d1):
+  """The cells R of g that can hold an atom of the supercell of matrix m,
+  for the window d0 < f < d1 of the fractional coordinates f of the new
+  cell, in the order of neighbor_cells (first index outermost)
+
+  A point with coordinates f in the new cell has coordinates f@m in the
+  old one, so an atom with old fractional coordinates b sits in the cell
+  R = f@m - b. Each component of R is then bounded by the extremes of f@m,
+  which the entries of m set, minus those of b. Only the first
+  dimensionality directions are searched, the others stay at zero"""
+  dim = g.dimensionality
+  M = np.array(m,dtype=float)[0:dim,0:dim]
+  A = np.array([g.a1,g.a2,g.a3]) # old cell vectors, as rows
+  b = np.real(np.array(g.r)@np.linalg.inv(A))[:,0:dim] # old fractional coordinates
+  lo = np.sum(np.minimum(d0*M,d1*M),axis=0) - np.max(b,axis=0)
+  hi = np.sum(np.maximum(d0*M,d1*M),axis=0) - np.min(b,axis=0)
+  axes = [np.arange(int(np.floor(lo[j]))-1,int(np.ceil(hi[j]))+2)
+          for j in range(dim)]
+  axes = axes + [np.zeros(1,dtype=int) for j in range(dim,3)]
+  return np.array(np.meshgrid(*axes,indexing="ij")).reshape(3,-1).T
+
 
 
 def record_diagonal_supercell(go,nc,n1,n2,n3):
@@ -145,7 +194,7 @@ def replicate3d(rs,a1,a2,a3,n1,n2,n3):
     ro = np.zeros((n1*n2*n3*nc,3)) # allocate output array
     return replicate3d_jit(rs,a1,a2,a3,n1,n2,n3,ro) # compute
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def replicate3d_jit(rs,a1,a2,a3,n1,n2,n3,ro):
   """Function to make a three dimensional supercell"""
   nc = len(rs)
@@ -292,7 +341,7 @@ def supercell2d(g,n1=1,n2=1):
   return go
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def supercell2d_jit(r,n1,n2,a1,a2,rs):
     nc = len(r) # number of atoms in a cell
     n = nc*n1*n2 # total number of positions

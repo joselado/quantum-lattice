@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit
 from .. import algebra
 
 
@@ -37,7 +38,10 @@ class PairBasis():
     gauge, if given, smooths the arbitrary phase (or intra-multiplet
     unitary) algebra.eigh leaves on each eigenvector -- see bsetk/gauge.py.
     It changes no observable: the exciton spectrum is invariant, because
-    the gauge is a block-diagonal unitary on the pair index. It exists for
+    the gauge rotates only inside degenerate multiplets, so it commutes
+    with the dE that build() keeps on the band labels (a rotation across
+    bands of different energy would not, which is why the projection
+    gauge does not rotate a whole window). It exists for
     the quantics solver, whose tensor-train ranks are destroyed by the raw
     gauge, and it is applied here (rather than only there) so the dense
     solver can be used to check that invariance directly."""
@@ -47,23 +51,23 @@ class PairBasis():
                 "Hamiltonians (h.has_eh): a superconducting mean field "
                 "needs a different two-particle structure, not the "
                 "electron-hole pair basis built here")
+        from .gauge import check_gauge
+        check_gauge(gauge) # before the diagonalization of the whole mesh
         h = h.get_multicell().get_dense() # canonical form
         self.h = h
         self.geometry = h.geometry
         if Q is None: Q = [0.,0.,0.]
         self.Q = np.array(Q,dtype=np.float64)
         self.kpoints = np.array(h.geometry.get_kmesh(nk=nk),dtype=np.float64)
+        self.Qzero = not np.any(np.abs(self.Q)>1e-12)
+        # energies (nk,norb) and coefficients (nk,norb,norb), ck[ik][n] =
+        # C^{n,k}, at k and at k+Q
         hk = h.get_hk_gen() # Bloch Hamiltonian generator
-        eks,cks,ekqs,ckqs = [],[],[],[]
-        for k in self.kpoints: # loop over the mesh
-            e1,w1 = algebra.eigh(hk(k))
-            e2,w2 = algebra.eigh(hk(k+self.Q))
-            eks.append(e1) ; cks.append(np.array(w1.T,dtype=np.complex128))
-            ekqs.append(e2) ; ckqs.append(np.array(w2.T,dtype=np.complex128))
-        self.ek = np.array(eks) # (nk,norb) energies at k
-        self.ck = np.array(cks) # (nk,norb,norb), ck[ik][n] = C^{n,k}
-        self.ekq = np.array(ekqs) # energies at k+Q
-        self.ckq = np.array(ckqs) # coefficients at k+Q
+        self.ek,self.ck = mesh_eigenstates(hk,self.kpoints)
+        if self.Qzero: # copies, since a gauge rotates the two separately
+            self.ekq,self.ckq = self.ek.copy(),self.ck.copy()
+        else:
+            self.ekq,self.ckq = mesh_eigenstates(hk,self.kpoints+self.Q)
         self.metal = metal
         if metal: # occupancy decided per k-point, see select_bands
             if nv is not None or nc is not None:
@@ -89,47 +93,82 @@ class PairBasis():
             trials = default_trials(self.ck,groups)
             refs = default_refs(self.ck)
             kw = dict(mode=gauge,trials=trials,refs=refs)
-            self.ck = fix_gauge(self.ck,groups,**kw)
+            self.ck = fix_gauge(self.ck,groups,ek=self.ek,**kw)
             # the SAME trial orbitals and reference orbitals at k+Q, so
             # the two are gauged consistently: a pair basis whose k and
             # k+Q sides were smoothed towards different references is not
             # smooth in the pair index, which is the only thing the gauge
             # is for
-            self.ckq = fix_gauge(self.ckq,groups,**kw)
+            self.ckq = fix_gauge(self.ckq,groups,ek=self.ekq,**kw)
         self.build()
     def build(self):
         """Build the flattened pair index and its coefficient arrays"""
         nk = len(self.kpoints)
         vb,cb = self.vbands,self.cbands
         norb = self.ck.shape[1]
-        npair = nk*len(vb)*len(cb)
+        nv,nc = len(vb),len(cb)
+        npair = nk*nv*nc
         self.npair = npair
+        # the pair m = (ik,iv,ic) is row m of every array, with ic fastest
+        shape = (nk,nv,nc,norb)
+        def pairs(C,bands,axis): # the coefficients of bands, per pair
+            Cb = C[:,bands,:] # (nk,nbands,norb)
+            out = np.empty(shape,dtype=np.complex128) # one copy, owned
+            out[...] = Cb[:,:,None,:] if axis==1 else Cb[:,None,:,:]
+            return out.reshape(npair,norb)
         # resonant: hole (v,k), electron (c,k+Q)
-        el = np.zeros((npair,norb),dtype=np.complex128)
-        ho = np.zeros((npair,norb),dtype=np.complex128)
-        # antiresonant: hole (v,k+Q), electron (c,k)
-        elA = np.zeros((npair,norb),dtype=np.complex128)
-        hoA = np.zeros((npair,norb),dtype=np.complex128)
-        dE = np.zeros(npair,dtype=np.float64) # resonant energies
-        dEA = np.zeros(npair,dtype=np.float64) # antiresonant energies
-        kindex = np.zeros(npair,dtype=np.int64) # k-point of each pair
-        labels = [] # (ik,iv,ic) of each pair, for postprocessing
-        m = 0
-        for ik in range(nk): # loop over k-points
-            for iv in vb: # loop over valence bands
-                for ic in cb: # loop over conduction bands
-                    el[m] = self.ckq[ik][ic] ; ho[m] = self.ck[ik][iv]
-                    elA[m] = self.ck[ik][ic] ; hoA[m] = self.ckq[ik][iv]
-                    dE[m] = self.ekq[ik][ic] - self.ek[ik][iv]
-                    dEA[m] = self.ek[ik][ic] - self.ekq[ik][iv]
-                    kindex[m] = ik
-                    labels.append((ik,iv,ic))
-                    m += 1
-        self.el,self.ho = el,ho
-        self.elA,self.hoA = elA,hoA
-        self.dE,self.dEA = dE,dEA
-        self.kindex = kindex
-        self.labels = labels
+        self.el,self.ho = pairs(self.ckq,cb,2),pairs(self.ck,vb,1)
+        self.dE = (self.ekq[:,cb][:,None,:] - self.ek[:,vb][:,:,None]
+                ).reshape(-1) # resonant energies
+        # antiresonant: hole (v,k+Q), electron (c,k). At Q=0 these are the
+        # resonant arrays themselves, shared rather than copied, which
+        # halves the largest arrays of the pair basis
+        if self.Qzero and np.array_equal(self.ckq,self.ck):
+            self.elA,self.hoA,self.dEA = self.el,self.ho,self.dE
+        else:
+            self.elA,self.hoA = pairs(self.ck,cb,2),pairs(self.ckq,vb,1)
+            self.dEA = (self.ek[:,cb][:,None,:] - self.ekq[:,vb][:,:,None]
+                    ).reshape(-1) # antiresonant energies
+        self.kindex = np.repeat(np.arange(nk),nv*nc) # k-point of each pair
+        # (ik,iv,ic) of each pair, for postprocessing
+        ik,iv,ic = np.meshgrid(np.arange(nk),vb,cb,indexing="ij")
+        self.labels = list(zip(ik.reshape(-1).tolist(),
+                iv.reshape(-1).tolist(),ic.reshape(-1).tolist()))
+
+
+def mesh_eigenstates(hk,kpoints):
+    """Return (ek,ck), the energies (nk,norb) and the eigenvectors as rows
+    (nk,norb,norb) of the Bloch Hamiltonian generator hk at every k-point,
+    from one batched diagonalization (htk/eigenvectors.py's, so it follows
+    the thread count and the GPU switch) rather than a Python loop over
+    scalar eigh. Every pair basis of this package diagonalizes through
+    here, the quantics oracle's single k-points included, so that the
+    raw gauge of an eigenvector does not depend on which one built it"""
+    from ..htk.eigenvectors import parallel_diagonalization,_on_gpu
+    hks = np.array([algebra.todense(hk(k)) for k in kpoints],
+            dtype=np.complex128)
+    if len(hks)<16 and not _on_gpu(hks):
+        # the same LAPACK call without the thread launch, which costs 0.5
+        # ms and was 2 s of a quantics run that asks for two k-points at
+        # a time; the eigenvectors are bit for bit the same
+        ek,ws = _eigh_serial(hks)
+    else: ek,ws = parallel_diagonalization(hks)
+    # eigenvectors come back as columns, the pair basis wants rows
+    ck = np.ascontiguousarray(np.transpose(ws,(0,2,1)),dtype=np.complex128)
+    return np.array(ek,dtype=np.float64),ck
+
+
+@njit(cache=True)
+def _eigh_serial(hks):
+    """htk/eigenvectors.py's numba kernel, without the prange"""
+    nh,n = hks.shape[0],hks.shape[1]
+    es = np.zeros((nh,n),dtype=np.float64)
+    ws = np.zeros((nh,n,n),dtype=np.complex128)
+    for i in range(nh):
+        e,w = np.linalg.eigh(hks[i])
+        es[i,:] = e
+        ws[i,:,:] = w
+    return es,ws
 
 
 def select_bands(ek,nv=None,nc=None):

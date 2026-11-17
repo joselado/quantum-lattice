@@ -124,7 +124,15 @@ def test_pyqula_keywords_accepted(rel, lineno, mod, attr, kws):
         pytest.skip("no introspectable signature")
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
         return # **kwargs: accepts anything, nothing to check
-    unknown = [k for k in kws if k not in params]
+    # a functools.wraps wrapper (e.g. meanfield's _raising(), which adds
+    # check_convergence=) reports the wrapped engine's signature above, so
+    # also accept the wrapper's own named keywords
+    accepted = set(params)
+    if hasattr(obj, "__wrapped__"):
+        accepted |= {n for n, p in inspect.signature(obj, follow_wrapped=False)
+                     .parameters.items()
+                     if p.kind in (p.KEYWORD_ONLY, p.POSITIONAL_OR_KEYWORD)}
+    unknown = [k for k in kws if k not in accepted]
     assert not unknown, (
         "%s:%d calls %s.%s() with keyword(s) %s it does not accept (its "
         "parameters are %s)" % (rel, lineno, mod, attr, unknown, list(params)))

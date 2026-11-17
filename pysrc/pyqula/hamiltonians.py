@@ -47,11 +47,13 @@ def _mean_field_scf_result(scf,return_total_energy):
     """Shared tail for the get_*_mean_field_hamiltonian wrappers below:
     SzSz/SxSx/SySy return the NotImplemented sentinel (not an SCF object)
     for spinless/BdG Hamiltonians, which must be checked before touching
-    scf.converged."""
+    scf.converged. A loop that did not converge raises
+    MeanFieldConvergenceError (scftk/convergence.py)."""
     if scf is NotImplemented:
         if return_total_energy: return (None,None)
         else: return None
-    if not scf.converged: scf.hamiltonian = None # no convergence
+    from .scftk.convergence import require_converged
+    require_converged(scf) # raise if the loop did not converge
     if return_total_energy:
         return (scf.hamiltonian,scf.total_energy)
     else: return scf.hamiltonian
@@ -134,6 +136,100 @@ class Hamiltonian():
     def get_berry_curvature(h,**kwargs):
         return topology.get_berry_curvature(h,**kwargs)
 
+    def get_anomalous_hall_conductivity(h,**kwargs):
+        """Fermi-sea anomalous Hall conductivity of a 2D or 3D metal or
+        insulator, in units of e^2/h (2D) or e^2/h per unit length (3D),
+        see topologytk/anomaloushall.py"""
+        return topology.anomalous_hall_conductivity(h,**kwargs)
+
+    def get_berry_curvature_path(h,**kwargs):
+        """Berry curvature along a k-path, see topology.get_berry_curvature_path"""
+        return topology.get_berry_curvature_path(h,**kwargs)
+
+    def get_spin_chern(h,**kwargs):
+        """Spin Chern number (C_+ - C_-)/2 of the occupied states split by
+        the sign of P s_z P, see topologytk/topologicalsector.py"""
+        from .topologytk.topologicalsector import spin_chern
+        return spin_chern(h,**kwargs)
+
+    def get_mirror_chern(h,**kwargs):
+        """Mirror Chern number (C_{+i} - C_{-i})/2 for the mirror z -> -z,
+        see topologytk/topologicalsector.py"""
+        from .topologytk.topologicalsector import mirror_chern
+        return mirror_chern(h,**kwargs)
+
+    def get_bott_index(h,**kwargs):
+        """Bott index of a periodic supercell at k=0, the Chern number of a
+        disordered sample, see topologytk/bott.py"""
+        from .topologytk.bott import bott_index
+        return bott_index(h,**kwargs)
+
+    def get_kpm_chern_marker(h,**kwargs):
+        """Local Chern marker of a flake from the KPM projector, at a cost
+        linear in the number of sites, see topologytk/kpmchern.py"""
+        from .topologytk.kpmchern import kpm_chern_marker
+        return kpm_chern_marker(h,**kwargs)
+
+    def get_orbital_magnetization(h,**kwargs):
+        """Total orbital magnetization of a finite flake, from a Chebyshev
+        expansion at a cost linear in the number of orbitals, or from the
+        eigenstates, see topologytk/orbitalmagnetization.py"""
+        from .topologytk.orbitalmagnetization import orbital_magnetization
+        return orbital_magnetization(h,**kwargs)
+
+    def get_multipole_chiral_number(h,**kwargs):
+        """Multipole chiral number N_xy of a supercell of a chiral-symmetric
+        two-dimensional insulator, see topologytk/multipolechiral.py"""
+        from .topologytk.multipolechiral import multipole_chiral_number
+        return multipole_chiral_number(h,**kwargs)
+
+    def get_spin_bott_index(h,**kwargs):
+        """Spin Bott index (B_+ - B_-)/2 of a periodic supercell at k=0, with
+        the occupied states split by the sign of P s_z P, see
+        topologytk/bott.py"""
+        from .topologytk.bott import spin_bott_index
+        return spin_bott_index(h,**kwargs)
+
+    def get_winding_number(h,**kwargs):
+        """Winding number of a one-dimensional Hamiltonian with a chiral
+        symmetry, see topology.winding_number"""
+        return topology.winding_number(h,**kwargs)
+
+    def get_wannier_sector_polarization(h,**kwargs):
+        """Polarization of a sector of the Wannier bands, from the nested
+        Wilson loop, see topologytk/nestedwilson.py"""
+        return topology.wannier_sector_polarization(h,**kwargs)
+
+    def get_quadrupole_moment(h,**kwargs):
+        """Quadrupole moment q_xy from the nested Wilson loop, see
+        topologytk/nestedwilson.py"""
+        return topology.quadrupole_moment(h,**kwargs)
+
+    def get_symmetry_eigenvalues(h,op,k,**kwargs):
+        """Eigenvalues of a point-group operation on the occupied states at
+        an invariant momentum, see topologytk/symmetryeigenvalues.py"""
+        return topology.symmetry_eigenvalues(h,op,k,**kwargs)
+
+    def get_chern_mod_n(h,**kwargs):
+        """Chern number modulo n from the C_n eigenvalues of the occupied
+        states, see topologytk/symmetryeigenvalues.py"""
+        return topology.chern_mod_n(h,**kwargs)
+
+    def get_corner_charge(h,**kwargs):
+        """Fractional corner charge of a C_n-symmetric insulator from its
+        rotation invariants, see topologytk/symmetryeigenvalues.py"""
+        return topology.corner_charge(h,**kwargs)
+
+    def get_z4_indicator(h,**kwargs):
+        """Z4 symmetry indicator of a three-dimensional insulator with
+        inversion, see topologytk/symmetryeigenvalues.py"""
+        return topology.z4_indicator(h,**kwargs)
+
+    def get_parity_z2(h,**kwargs):
+        """Fu-Kane Z2 invariant from the inversion eigenvalues at the
+        time-reversal-invariant momenta, see topologytk/symmetryeigenvalues.py"""
+        return topology.parity_z2(h,**kwargs)
+
     def get_quantum_geometric_tensor(h,**kwargs):
         """Multiband (non-Abelian) quantum geometric tensor at a single
         k-point, see topologytk/qgt.py for the formula and references"""
@@ -150,6 +246,79 @@ class Hamiltonian():
         conductivity.py for the formula and conventions"""
         from . import conductivity
         return conductivity.optical_conductivity(h,**kwargs)
+
+    def get_dc_conductivity(h,**kwargs):
+        """DC conductivity tensor of a large sparse Hamiltonian by the
+        Kubo-Bastin formula with a Chebyshev double expansion, including
+        the Hall conductivity, see conductivitytk/kpmkubo.py"""
+        from .conductivitytk import kpmkubo
+        return kpmkubo.dc_conductivity(h,**kwargs)
+
+    def get_shg_conductivity(h,**kwargs):
+        """Second-harmonic conductivity sigma_abc(2w;w,w), see
+        conductivity.shg_conductivity for the formula and conventions"""
+        from . import conductivity
+        return conductivity.shg_conductivity(h,**kwargs)
+
+    def get_shg_susceptibility(h,**kwargs):
+        """Second-harmonic susceptibility chi_abc(2w;w,w) in nm^(4-d)/V,
+        see conductivity.shg_susceptibility"""
+        from . import conductivity
+        return conductivity.shg_susceptibility(h,**kwargs)
+
+    def get_nonlinear_conductivity(h,**kwargs):
+        """n-th order conductivity sigma_{b a1..an}(w1..wn) at any order and
+        tuple of frequencies, see conductivity.nonlinear_conductivity"""
+        from . import conductivity
+        return conductivity.nonlinear_conductivity(h,**kwargs)
+
+    def get_nonlinear_susceptibility(h,**kwargs):
+        """n-th order susceptibility chi^(n) in SI units, see
+        conductivity.nonlinear_susceptibility"""
+        from . import conductivity
+        return conductivity.nonlinear_susceptibility(h,**kwargs)
+
+    def get_nonlinear_dc_conductivity(h,**kwargs):
+        """dc nonlinear conductivity of a metal in powers of the relaxation
+        time, see conductivity.nonlinear_dc_conductivity"""
+        from . import conductivity
+        return conductivity.nonlinear_dc_conductivity(h,**kwargs)
+
+    def get_berry_curvature_dipole(h,**kwargs):
+        """Berry curvature dipole of the Fermi surface, see
+        conductivity.berry_curvature_dipole"""
+        from . import conductivity
+        return conductivity.berry_curvature_dipole(h,**kwargs)
+
+    def get_shift_current(h,**kwargs):
+        """Shift-current conductivity of the bulk photovoltaic effect, see
+        conductivity.shift_current"""
+        from . import conductivity
+        return conductivity.shift_current(h,**kwargs)
+
+    def get_injection_current(h,**kwargs):
+        """Injection rate of the bulk photovoltaic effect, see
+        conductivity.injection_current"""
+        from . import conductivity
+        return conductivity.injection_current(h,**kwargs)
+
+    def get_excitonic_optical_conductivity(h,**kwargs):
+        """Optical conductivity with excitons, from the Tamm-Dancoff BSE,
+        see conductivity.excitonic_optical_conductivity"""
+        from . import conductivity
+        return conductivity.excitonic_optical_conductivity(h,**kwargs)
+
+    def get_excitonic_shg_conductivity(h,**kwargs):
+        """Second-harmonic conductivity with excitons, from the
+        Tamm-Dancoff BSE, see conductivity.excitonic_shg_conductivity"""
+        from . import conductivity
+        return conductivity.excitonic_shg_conductivity(h,**kwargs)
+
+    def get_excitonic_shg_susceptibility(h,**kwargs):
+        """Second-harmonic susceptibility with excitons, in nm^(4-d)/V,
+        see conductivity.excitonic_shg_susceptibility"""
+        from . import conductivity
+        return conductivity.excitonic_shg_susceptibility(h,**kwargs)
 
     def get_nonlinear_drude_conductivity(h,**kwargs):
         """l-th order nonlinear Drude conductivity sigma^{x^l1 y^l2 ; b},
@@ -312,6 +481,12 @@ class Hamiltonian():
         bsetk.spinflip.magnon_energies"""
         from . import bse
         return bse.magnon_energies(self,**kwargs)
+    def get_magnon_chern(self,**kwargs):
+        """Return the Chern number of a group of magnon bands of
+        time-dependent Hartree-Fock on this magnetic mean field, on a mesh
+        of Q; see bsetk/topology.py (magnon_chern and mode_chern)"""
+        from . import bse
+        return bse.magnon_chern(self,**kwargs)
     def get_goldstone_residual(self,**kwargs):
         """Return how far this magnetic mean field is from having a
         zero-energy magnon at Q=0, as the Goldstone theorem requires of
@@ -371,6 +546,23 @@ class Hamiltonian():
         flat (qs,es) arrays, same convention as get_bands"""
         from . import bse
         return bse.exciton_bands(self,**kwargs)
+    def get_exciton_chern(self,**kwargs):
+        """Return the Chern number of a group of exciton bands of the
+        Bethe-Salpeter equation on this mean field, on a mesh of Q; see
+        bsetk/topology.py (exciton_chern and mode_chern)"""
+        from . import bse
+        return bse.exciton_chern(self,**kwargs)
+    def get_exciton_kdos_bands(self,**kwargs):
+        """Return the exciton density of states A(Q,w) along a q-path,
+        projected with an operator on the electron or on the hole, as flat
+        (qs,es,ds) arrays, same convention as get_kdos_bands"""
+        from . import bse
+        return bse.exciton_kdos_bands(self,**kwargs)
+    def get_exciton_structure_factor(self,**kwargs):
+        """Return the excitonic dynamical structure factor S(Q,w) along a
+        q-path, as flat (qs,es,ss) arrays"""
+        from . import bse
+        return bse.exciton_structure_factor(self,**kwargs)
     def get_hopping_dict(self):
         """Return the dictionary with the hoppings"""
         return multicell.get_hopping_dict(self)
@@ -566,11 +758,18 @@ class Hamiltonian():
         """Check if two hamiltonians are the same"""
         return hamiltonianmode.same_hamiltonian(self,*args,**kwargs)
     def get_supercell(self,nsuper,**kwargs):
-      """ Creates a supercell of a one dimensional system"""
+      """The supercell of nsuper repetitions along the lattice vectors (a
+      number, or one per direction), or along the rows of an integer
+      matrix M, A_supercell = M A, for any M (htk.supercell.matrix_supercell).
+      M is 3x3, or dxd on a d-dimensional lattice, padded with 1 along
+      the missing directions"""
       # the contract is a new Hamiltonian, so the no-op cases return a copy
       # and never an alias of self, which the caller would then mutate
       if nsuper is None: return self.copy() # do nothing
       if self.dimensionality==0: return self.copy() # nothing to replicate
+      if np.ndim(nsuper)==2: # a supercell matrix, A_S = M A
+          from .htk.supercell import matrix_supercell
+          return matrix_supercell(self,nsuper,**kwargs)
       try: 
           nsuper[0] # check if it is a tuple 
           ns = nsuper # array as input
@@ -587,6 +786,14 @@ class Hamiltonian():
       return multicell.supercell_hamiltonian(self,nsuper=ns,**kwargs)
     def supercell(self,*args,**kwargs):
       return self.get_supercell(*args,**kwargs)
+    def get_ultracell(self,hs,emax=None,window=None,rebuild_basis=False):
+      """The supercell hs of this unit cell, with any modulation added to
+      it, solved in the Bloch states of this unit cell with energy up to
+      emax, or in the window=(emin,emax) with the states below emin frozen
+      (the ultra long-range method); see ultracell.Ultracell"""
+      from .ultracell import Ultracell
+      return Ultracell(self,hs,emax=emax,window=window,
+              rebuild_basis=rebuild_basis)
     def set_finite_system(self,**kwargs):
       """ Transforms the system into a finite system"""
       return set_finite_system(self,**kwargs) 
@@ -646,14 +853,6 @@ class Hamiltonian():
               return superconductivity.get_eh_sector(m,i=0,j=0)
           self.modify_hamiltonian_matrices(f) # modify the matrices
           self.has_eh = False # set to normal
-      elif self.check_mode("spinless_nambu"): 
-          # spinless Nambu matrices interleave electrons and holes, site by
-          # site (sctk.spinless.reorder), so the electron sector is the
-          # even rows and columns
-          def f(m):
-              return m[::2,::2]
-          self.modify_hamiltonian_matrices(f) # modify the matrices
-          self.has_eh = False # set to normal
       elif self.check_mode("spinful"): pass
       elif self.check_mode("spinless"): pass
       else:
@@ -665,28 +864,36 @@ class Hamiltonian():
     def get_topological_invariant(self,**kwargs):
         """Return a topological invariant of the occupied bands.
 
-        In one dimension this is the Berry (Zak) phase, in two the Z2
+        In one dimension this is the Z2 invariant for a time-reversal-
+        symmetric superconductor (class DIII) and the Berry (Zak) phase
+        otherwise, in two the Z2
         invariant for a time-reversal-symmetric Hamiltonian and the Chern
-        number otherwise. The 0d and 3d cases used to return None and
-        raise a bare `raise` respectively."""
+        number otherwise, and in three the strong and weak Z2 indices
+        (nu0,(nu1,nu2,nu3)) for a time-reversal-symmetric Hamiltonian and
+        the Chern vector (C1,C2,C3) otherwise. The 0d case used to return
+        None."""
         if self.dimensionality==0:
             raise ValueError("a 0-dimensional (finite) Hamiltonian has no "
               +"Brillouin zone, so no topological invariant is defined for "
               +"it; build a periodic system, or look at the spectrum of "
               +"the finite cluster instead")
         elif self.dimensionality==1:
+            if self.has_eh and self.has_time_reversal_symmetry():
+                return topology.z2_invariant_1d(self,**kwargs) # class DIII
             return topology.berry_phase(self,**kwargs) # Zak phase
         elif self.dimensionality==2: 
             if self.has_time_reversal_symmetry():
                 return topology.z2_invariant(self,**kwargs)
             else:
                 return topology.chern(self,**kwargs)
+        elif self.dimensionality==3:
+            if self.has_time_reversal_symmetry():
+                return topology.z2_invariant_3d(self,**kwargs)
+            else:
+                return topology.chern_vector(self,**kwargs)
         else:
-            raise NotImplementedError("no topological invariant is "
-              +"implemented for a 3-dimensional Hamiltonian; compute the "
-              +"Chern number of a 2d slice with get_chern on a fixed third "
-              +"momentum, or the Berry phase along a chosen k-path with "
-              +"topology.berry_phase(h,kpath=...)")
+            raise ValueError("no topological invariant is defined for a "
+              +"Hamiltonian of dimensionality "+str(self.dimensionality))
     def shift_fermi(self,fermi): self.add_onsite(fermi)  
     def first_neighbors(self):
       """ Create first neighbor hopping"""
@@ -701,9 +908,9 @@ class Hamiltonian():
     def add_hopping_matrix(self,fm,**kwargs):
         """
         Add a certain hopping matrix to the Hamiltonian. Any extra keyword
-        (in particular nc, the neighbor cutoff) is forwarded to the
-        geometry's Hamiltonian builder -- raise it above its default when
-        fm reaches beyond the cells that default cutoff covers.
+        is forwarded to the geometry's Hamiltonian builder: fm is evaluated
+        on every cell with a pair of sites within rcut=5.0, so pass a
+        larger rcut (or a box of cells, nc) when fm reaches farther.
         """
         if not self.is_multicell: 
             self.turn_multicell()
@@ -744,18 +951,25 @@ class Hamiltonian():
     @get_docstring(VJinteraction)
     def get_mean_field_hamiltonian(self,return_total_energy=False,
             integration="ed",**kwargs):
-        if self.has_spin and integration in ("ed","kpm"):
+        if self.has_spin and integration in ("ed","kpm","ultracell"):
             scf = VJinteraction(self,integration=integration,**kwargs)
         else:
             # VJinteraction requires has_spin (spin-spin exchange has no
             # meaning for a spinless Hamiltonian -- see its own has_spin
-            # check) and only supports integration="ed"/"kpm" (no
-            # qtci/solver zoo); fall back for the remaining combinations to
+            # check) and only supports integration="ed"/"kpm"/"ultracell"
+            # (no qtci/solver zoo); fall back for the remaining
+            # combinations (a spinless ultracell among them) to
             # whichever of Vinteraction/Vinteraction_kpm supports this
             # integration mode -- Vinteraction itself never learned "kpm"
             # (that is Vinteraction_kpm's own separate entry point), so
             # route there explicitly instead of forwarding integration="kpm"
-            # into Vinteraction's get_dm, which only accepts "ed"/"qtci"
+            # into Vinteraction's get_dm, which accepts the names of
+            # scftk.densitydensity.get_integration_names() ("ed", "qtci",
+            # "triangle")
+            if checkclass.is_iterable(kwargs.get("filling")) and not self.has_spin:
+                from . import check # a per-site filling needs VJinteraction
+                check.require_spin(self,"a per-site (array) filling "
+                        "(supported only by VJinteraction)")
             if integration=="kpm":
                 scf = Vinteraction_kpm(self,**kwargs)
             else:
@@ -846,7 +1060,7 @@ class Hamiltonian():
         Add Kekule coupling
         """
         if self.dimensionality==0: # zero dimensional
-          m = kekule.kekule_matrix(self.geometry.r,t=t)
+          m = kekule.kekule_matrix(self.geometry.r,t=t,sparse=self.is_sparse)
           self.intra = self.intra + self.spinless2full(m)
         else: # workaround for higher dimensionality
           r = self.geometry.multireplicas(2) # get many replicas
@@ -932,12 +1146,20 @@ class Hamiltonian():
         Two different quantities go by this name:
 
         - mode="vev" (the default) returns the physical magnetization: the
-          per-site expectation value (<S_x>,<S_y>,<S_z>) over the occupied
-          states, i.e. get_vev("sx"/"sy"/"sz"). This is the moment, and it
-          is what to report as one. Being a Brillouin-zone integral it
-          needs a k-mesh: pass nk, or rely on the mesh a self-consistent
-          Hamiltonian remembers from its own loop. With the electron-hole
-          (Nambu) degree of freedom it is read off the electron sector, so
+          per-site expectation value of the Pauli matrices,
+          (<sigma_x>,<sigma_y>,<sigma_z>), over the occupied states, i.e.
+          get_vev("sx"/"sy"/"sz") with sz = diag(1,-1). The z component is
+          n_up - n_dn, so a fully polarized electron gives 1, twice its
+          <S_z> = 1/2. This is the moment, and it is what to report as one
+          (halve it for the spin S = sigma/2). Being a Brillouin-zone
+          integral it needs a k-mesh: pass nk, or rely on the mesh a
+          self-consistent Hamiltonian remembers from its own loop. The
+          same goes for the temperature: a self-consistent Hamiltonian is
+          read at the T it was converged at (h.temperature, see
+          densitymatrix.default_smearing), so that states degenerate with
+          its Fermi level share their electrons as they did in the loop;
+          pass T to override it. With the electron-hole (Nambu) degree of freedom the hole-hole block
+          of the spin operators is dropped (operators.vev_operator), so
           that a BdG description of a state gives the same moment as the
           normal-state description of that same state.
 
@@ -972,15 +1194,11 @@ class Hamiltonian():
             # operators and shares the diagonalization between them
             nsites = len(self.geometry.r) # number of sites
             idx = [operators.index(self,n=[i]) for i in range(nsites)]
-            # the electron-sector restriction a Nambu Hamiltonian needs
-            # lives in get_vev, whose convention this shares
-            pe = None
-            if self.has_eh:
-                pe = operators.Operator(operators.get_electron(self))
             ops = []
             for name in ["sx","sy","sz"]:
                 op = self.get_operator(name) # spin operator
-                if pe is not None: op = pe*op*pe # electron sector
+                # counted once on a Nambu Hamiltonian, as in get_vev
+                op = operators.vev_operator(self,op)
                 ops += [(o*op).get_matrix() for o in idx]
             out = spectrum.ev(self,operator=ops,**kwargs).real
             mx,my,mz = out[:nsites],out[nsites:2*nsites],out[2*nsites:]
@@ -998,16 +1216,17 @@ class Hamiltonian():
         states, so a physical one-body observable is counted twice: the
         site occupation of a BdG Hamiltonian came out as 2 where the
         identical normal-state Hamiltonian gives 1, and its moment twice
-        as large. The operator is therefore restricted to the electron
-        sector there, the same convention spectrum.get_filling_spinful_nambu
-        uses for the filling, so that a BdG description of a state returns
-        the same numbers as the normal-state description of that state.
+        as large. The hole-hole block of the operator is therefore dropped
+        there (operators.vev_operator), so that a BdG description of a
+        state returns the same numbers as the normal-state description of
+        that state, while a pairing operator, which lives in the
+        electron-hole blocks, keeps its value: get_vev("spair") is the
+        share of get_single_vev("spair") on each site. The electron-sector
+        restriction this used to apply made every pairing operator zero.
         """
         n = len(self.geometry.r) # number of sites
         op = self.get_operator(operator) # get an operator
-        if self.has_eh: # restrict to the electron sector, see above
-            pe = operators.Operator(operators.get_electron(self))
-            op = pe if op is None else pe*op*pe
+        op = operators.vev_operator(self,op) # counted once, see above
         if op is not None and op.matrix is None:
             # an operator defined only by its action, and possibly a
             # different one at every kpoint: the Brillouin-zone sum has to
@@ -1049,9 +1268,18 @@ class Hamiltonian():
         return h
     def turn_multicell(self):
         """Conver to multicell Hamiltonian"""
+        if self.is_multicell: return
         h = multicell.turn_multicell(self)
         self.is_multicell = True
         self.hopping = h.hopping # assign hopping
+        # drop the attributes the hopping list supersedes, as the copy of
+        # multicell.turn_multicell does: kept, h.inter went stale at the
+        # first change of the hoppings, and a routine that read it (the
+        # 1d decimation of dos_surface) used the old hopping in silence
+        if self.dimensionality == 1: self.inter = None
+        elif self.dimensionality == 2:
+            for name in ("tx","ty","txy","txmy"):
+                if hasattr(self,name): delattr(self,name)
     def get_no_multicell(self):
         """Return a multicell Hamiltonian"""
         h1 = multicell.turn_no_multicell(self)
@@ -1150,6 +1378,7 @@ class Hamiltonian():
         # returns one entry per operator and there is one operator here,
         # so this used to hand back an array of length one
         A = self.get_operator(A) # get an operator
+        A = operators.vev_operator(self,A) # counted once, see get_vev
         if A.matrix is None: # applied inside the sum over kpoints, see get_vev
             from .vev import kresolved_orbital_vev
             return float(np.sum(kresolved_orbital_vev(self,A,**kwargs)))
@@ -1157,9 +1386,12 @@ class Hamiltonian():
     def get_several_vev(self,As,**kwargs):
         As = [self.get_operator(A) for A in As] # get an operator
         if all(A.matrix is not None for A in As): # all of them are matrices
-            # contract them against one density matrix, built once
+            # contract them against one density matrix, built once, each
+            # counted once on a Nambu Hamiltonian, see get_vev
+            As = [operators.vev_operator(self,A) for A in As]
             return spectrum.ev(self,operator=[A.get_matrix() for A in As],
                     **kwargs).real
+        # get_single_vev drops the hole-hole block itself
         return np.array([self.get_single_vev(A,**kwargs) for A in As])
 
 
@@ -1177,11 +1409,6 @@ def normalize_nsuper(h,nsuper):
   the supercell builder, and a three-component one on a 2d Hamiltonian
   built matrices of n1*n2*n3 cells next to a geometry of n1*n2, with
   nothing downstream noticing."""
-  if np.array(nsuper).shape==(3,3): # a supercell matrix
-      raise NotImplementedError("a non-orthogonal (3x3 matrix) supercell is "
-              "only implemented for the geometry, g.get_supercell(m); for a "
-              "Hamiltonian give the number of repetitions along each lattice "
-              "vector instead")
   ns = [n for n in nsuper] # as a list
   if len(ns)>3:
       raise ValueError("nsuper has "+str(len(ns))+" components, but a "

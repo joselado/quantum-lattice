@@ -26,6 +26,12 @@ class Operator():
         from .hamiltonians import Hamiltonian
         self.linear = linear
         self.matrix = None
+        # None, or a function of the kpoint returning an N x r matrix U with
+        # O(k) = U U^dagger, which lets a KPM expansion take the trace
+        # Tr[O delta(E-H)] exactly from the r columns of U (the unfolding
+        # projector has one, see unfolding.bloch_projector). A copy keeps
+        # it; a product or a sum, built out of a copy below, drops it
+        self.factor = None
         if algebra.ismatrix(m):
             self.m = lambda v,k=None: m@v # create dummy function
             self.matrix = m
@@ -34,6 +40,7 @@ class Operator():
             self.m = m.m
             self.linear = m.linear
             self.matrix = m.matrix
+            self.factor = m.factor # the same operator, the same factor
         elif isinstance(m, numbers.Number): 
             self.m = lambda v,k=None: m*v
         elif callable(m): 
@@ -50,6 +57,7 @@ class Operator():
         """Define the multiply method"""
         if type(a)==Operator:
             out = Operator(self)
+            out.factor = None # a product is not factored as self is
             if self.matrix is not None and a.matrix is not None:
                 out.matrix = self.get_matrix()@a.get_matrix()
                 out.m = lambda v,k=None: out.matrix@v # create dummy function
@@ -71,6 +79,7 @@ class Operator():
                 return self*Operator(a) # convert to operator
         elif algebra.isnumber(a): # single number, just multiply
             out = Operator(self) # make a copy
+            out.factor = None # nor a multiple
             if self.matrix is not None:
                 out.matrix = self.get_matrix()*a # multiply
                 out.m = lambda v,k=None: out.matrix@v # create dummy function
@@ -100,6 +109,7 @@ class Operator():
         """Define the add method"""
         if type(a)==Operator:
             out = Operator(self)
+            out.factor = None # nor a sum
             out.m = lambda v,k=None: self.m(v,k=k) + a.m(v,k=k)
             if self.matrix is not None and a.matrix is not None:
                 out.matrix = self.matrix + a.matrix
@@ -250,15 +260,6 @@ def get_pairing(h,ptype="s"):
   """Return an operator that calculates the expectation value of the
   s-wave pairing"""
   require_nambu(h,"a pairing operator")
-  if not h.check_mode("spinful_nambu"):
-      # these are all 4x4 (spin x electron-hole) blocks: built on a
-      # spinless Nambu Hamiltonian they came out twice the size of its
-      # Hilbert space instead of raising
-      raise NotImplementedError("the pairing operators ('spair', 'deltax',"
-        +" 'deltay', 'deltaz') are singlet/d-vector components in the "
-        +"spin x electron-hole basis, so they are only defined for a "
-        +"spinful Nambu Hamiltonian; this one is spinless Nambu. Use "
-        +"h.extract('swave') or sctk.spinless for the spinless case")
   if ptype=="s": op = superconductivity.spair
   elif ptype=="deltax": op = superconductivity.deltax
   elif ptype=="deltay": op = superconductivity.deltay
@@ -278,43 +279,47 @@ def get_electron(h):
   """Operator to project on the electron sector"""
   if not h.has_eh:
       return np.identity(h.intra.shape[0])
-  elif h.check_mode("spinful_nambu"): # only for e-h systems
-      op = superconductivity.proje
-      r = h.geometry.r
-      out = [[None for ri in r] for rj in r]
-      for i in range(len(r)): # loop over positions
-        out[i][i] = op
-      return bmat(out)
-  elif h.check_mode("spinless_nambu"):
-      from .sctk import spinless
-      return spinless.proje(h.intra.shape[0])
-  else:
-      raise ValueError("the electron projector needs a Nambu Hamiltonian; "
-              "call h.setup_nambu_spinor() first")
+  op = superconductivity.proje
+  r = h.geometry.r
+  out = [[None for ri in r] for rj in r]
+  for i in range(len(r)): # loop over positions
+    out[i][i] = op
+  return bmat(out)
 
 
 def get_hole(h):
   """Operator to project on the hole sector"""
-  if not h.has_eh:
-      require_nambu(h,"the hole projector")
-  elif h.check_mode("spinful_nambu"): # only for e-h systems
-      op = superconductivity.projh
-      r = h.geometry.r
-      out = [[None for ri in r] for rj in r]
-      for i in range(len(r)): # loop over positions
-        out[i][i] = op
-      return bmat(out)
-  elif h.check_mode("spinless_nambu"):
-      from .sctk import spinless
-      return spinless.projh(h.intra.shape[0])
-  else:
-      raise ValueError("the hole projector needs a Nambu Hamiltonian; call "
-              "h.setup_nambu_spinor() first")
+  require_nambu(h,"the hole projector")
+  op = superconductivity.projh
+  r = h.geometry.r
+  out = [[None for ri in r] for rj in r]
+  for i in range(len(r)): # loop over positions
+    out[i][i] = op
+  return bmat(out)
 
 
 def get_tauz(h):
   """Nambu particle-hole grading operator (+1 electron, -1 hole)"""
   return get_electron(h)-get_hole(h)
+
+
+def vev_operator(h,op):
+  """The operator to sum over the occupied states to get <op>
+
+  With the electron-hole (Nambu) degree of freedom the sum runs over the
+  whole particle-hole-redundant set of negative-energy BdG states, and a
+  normal observable, which the Nambu lift puts both in the electron-electron
+  and in the hole-hole block, is counted twice. Dropping the hole-hole block
+  counts it once, and leaves a pairing operator, which lives in the
+  electron-hole blocks, untouched; restricting to the electron sector
+  instead, as get_vev and real_space_vev used to do, turned every pairing
+  operator into zero.
+  Applying it twice gives the same operator. op=None is the identity, whose
+  electron-electron block is the electron projector."""
+  if not h.has_eh: return op # nothing to drop
+  if op is None: return Operator(get_electron(h)) # the occupation
+  ph = Operator(get_hole(h)) # projector on the hole sector
+  return op - ph*op*ph # works for an operator without a matrix as well
 
 
 def get_bulk(h,fac=0.8):
@@ -448,9 +453,13 @@ def get_velocity(h):
   if h.dimensionality==1:
     vk = current.current_operator(h)
     def f(w,k=[0.,0.,0.]):
-        return vk(k)@w
+        # current.derivative inherits the type of h.intra, an np.matrix on
+        # a dense Hamiltonian, and matrix@vector is then a (1,n) matrix:
+        # an elementwise product with it is a matrix product, which made
+        # get_vev("current") raise a shape error. Return the shape of w
+        return np.asarray(vk(k)@w).reshape(np.shape(w))
     return f
-  elif h.dimensionality==2:
+  elif h.dimensionality in (2,3):
     # the Cartesian band speed |<v>|, with v_alpha = i[H,r_alpha] built by
     # conductivitytk.kubo (the shared, benchmarked velocity: it applies
     # current.hk_derivative's 2*pi normalization, the reduced->Cartesian
@@ -462,16 +471,24 @@ def get_velocity(h):
     # out with three different speeds.
     from .conductivitytk.kubo import _setup,_velocities
     hm,orders,hkgen,jac,dr,cellvol,scale = _setup(h)
+    # the k-point and the velocities of the last call, kept and read as
+    # one object: the states of one k-point come in turn
+    last = [None]
     def f(w,k=[0.,0.,0.]):
-      hk = hkgen(k) # Bloch Hamiltonian at this k-point
-      v = _velocities(hm,orders,jac,dr,hk,k) # Cartesian velocity operators
-      vs = np.array([braket_wAw(w,v[a]).real for a in range(3)])
+      key = tuple(np.asarray(k,dtype=float).ravel())
+      kept = last[0]
+      if kept is None or kept[0]!=key: # one build per k-point, not per state
+        hk = hkgen(k) # Bloch Hamiltonian at this k-point
+        kept = (key,_velocities(hm,orders,jac,dr,hk,k)) # Cartesian velocities
+        last[0] = kept
+      v = kept[1]
+      vs =np.array([braket_wAw(w,v[a]).real for a in range(3)])
       return np.sqrt(vs.dot(vs))*w # return the modulus of the velocity
     return Operator(f)
   else:
     raise NotImplementedError("the velocity operator is only implemented "
-      +"for dimensionality 1 and 2 (current.derivative, the shared "
-      +"k-derivative, has no 3D branch)")
+      +"for dimensionality 1, 2 and 3, got dimensionality "
+      +str(h.dimensionality))
 
 
 
@@ -549,7 +566,11 @@ def get_sigma_minus(h):
         dr = r1-r2 # distance
         if 0.9<dr.dot(dr)<1.1: return 1.0 # get first neighbor
         return 0.0
-    h0 = h.geometry.get_hamiltonian(has_spin=h.has_spin,fun=fun) # FN coupling
+    import warnings
+    with warnings.catch_warnings(): # not reciprocal on purpose, see above
+        warnings.filterwarnings("ignore",message="the hopping function tij "
+                "is not reciprocal")
+        h0 = h.geometry.get_hamiltonian(has_spin=h.has_spin,fun=fun) # FN coupling
     hk = h0.get_hk_gen() # get generator
     return hk # return function
 

@@ -312,9 +312,47 @@ from .current import derivative
 
 
 
-def parametric_hopping_hamiltonian(h,cutoff=5,fc=None,rcut=5.0):
-  """ Gets a first neighbor hamiltonian"""
-  from .neighbor import parametric_hopping
+def _has_entries(m):
+  """Whether a dense or sparse matrix has an entry that is not exactly
+  zero, the test of the parametric builders for keeping a cell.
+
+  It used to be sum|m| > 1e-5, an absolute threshold, so a weak coupling
+  such as 1e-7*exp(-d) kept its pairs inside the cell 0 and lost all its
+  pairs to the images, and a cell and its supercell gave two different
+  crystals. A threshold relative to the largest entry would still drop a
+  weak tail next to a strong first neighbor, and a sum over a cell grows
+  with the size of the cell, so no threshold is independent of the cell
+  it is written in. Which cells are built is set by the cells and the
+  rcut of the caller, so a cell is dropped only when nothing in it
+  couples. A NaN counts as an entry, so that a check downstream sees it"""
+  from scipy.sparse import issparse
+  if issparse(m): return m.count_nonzero()>0
+  return bool(np.any(np.asarray(m)!=0.))
+
+
+def parametric_hopping_hamiltonian(h,cutoff=5,fc=None,rcut=5.0,
+        spinful_generator=False,cells=None):
+  """The Hamiltonian of the hopping function fc(r1,r2), on the cells of
+  the box |n_k| <= cutoff, or on the list of cells (n1,n2,n3) if given,
+  skipping a cell with no pair of sites within rcut. The matrices are
+  sparse if h is.
+
+  spinful_generator: fc returns the 2x2 spin block of each pair of sites
+  instead of a number, and h must be spinful"""
+  from .neighbor import parametric_hopping,parametric_hopping_spinful
+  if spinful_generator:
+    if fc is None:
+      raise ValueError("a spinful hopping generator needs its hopping "
+              "function, pass it as fc")
+    if not h.has_spin:
+      raise ValueError("a spinful hopping generator returns 2x2 spin "
+              "blocks, so it needs a spinful Hamiltonian (has_spin=True)")
+    def build(r1,r2):
+        return parametric_hopping_spinful(r1,r2,fc,is_sparse=h.is_sparse)
+  else:
+    def build(r1,r2):
+        return h.spinless2full(parametric_hopping(r1,r2,fc,
+            is_sparse=h.is_sparse))
   if fc is None:
     rcut = 2.1 # stop in this neighbor
     def fc(r1,r2):
@@ -327,9 +365,10 @@ def parametric_hopping_hamiltonian(h,cutoff=5,fc=None,rcut=5.0):
   h.is_multicell = True 
 # first neighbors hopping, all the matrices
   a1, a2, a3 = g.a1, g.a2, g.a3
-  h.intra = h.spinless2full(parametric_hopping(r,r,fc)) # intra matrix
+  h.intra = build(r,r) # intra matrix
   # generate directions
-  dirs = h.geometry.neighbor_directions(n=cutoff) # directions of the hoppings
+  if cells is None: dirs = h.geometry.neighbor_directions(n=cutoff)
+  else: dirs = [tuple(int(x) for x in d) for d in cells] # those given
   # generate hoppings
   h.hopping = [] # empty list
   for d in dirs: # loop over directions
@@ -341,9 +380,9 @@ def parametric_hopping_hamiltonian(h,cutoff=5,fc=None,rcut=5.0):
         if not close_enough(r,r2,rcut=rcut): # check if we can skip this one
 #          print("Skipping hopping",[i1,i2,i3])
           continue
-        t.m = h.spinless2full(parametric_hopping(r,r2,fc))
+        t.m = build(r,r2)
         t.dir = [i1,i2,i3] # store direction
-        if np.sum(np.abs(t.m))>0.00001: h.hopping.append(t) # append 
+        if _has_entries(t.m): h.hopping.append(t) # not an empty cell
   return h
 
 
@@ -352,8 +391,12 @@ def parametric_hopping_hamiltonian(h,cutoff=5,fc=None,rcut=5.0):
 
 
 
-def parametric_matrix(h,cutoff=2,fm=None):
-  """ Gets a first neighbor hamiltonian"""
+def parametric_matrix(h,cutoff=2,fm=None,cells=None,spinful_generator=False):
+  """The Hamiltonian of the matrix generator fm(rs1,rs2) on the cells of
+  the box |n_k| <= cutoff, or on the list of cells (n1,n2,n3) if given.
+
+  spinful_generator: fm returns the spinful matrix, with the 2x2 spin
+  block of each pair of sites, so it is not doubled"""
   from .neighbor import parametric_hopping
   if fm is None:
     raise ValueError("parametric_matrix needs a hopping function, pass it as "
@@ -363,9 +406,14 @@ def parametric_matrix(h,cutoff=2,fm=None):
   h.is_multicell = True
 # first neighbors hopping, all the matrices
   a1, a2, a3 = g.a1, g.a2, g.a3
-  h.intra = h.spinless2full(fm(r,r)) # intra matrix
+  if spinful_generator:
+    h.has_spin = True
+    def full(m): return m # already spinful
+  else: full = h.spinless2full
+  h.intra = full(fm(r,r)) # intra matrix
   # generate directions
-  dirs = h.geometry.neighbor_directions(n=cutoff) # directions of the hoppings
+  if cells is None: dirs = h.geometry.neighbor_directions(n=cutoff)
+  else: dirs = [tuple(int(x) for x in d) for d in cells] # those given
   # generate hoppings
   h.hopping = [] # empty list
   def gett(d):
@@ -374,9 +422,9 @@ def parametric_matrix(h,cutoff=2,fm=None):
         t = Hopping() # hopping class
         da = a1*i1+a2*i2+a3*i3 # direction
         r2 = [ri + da for ri in r]
-        t.m = h.spinless2full(fm(r,r2))
+        t.m = full(fm(r,r2))
         t.dir = [i1,i2,i3] # store direction
-        if np.sum(np.abs(t.m))>0.00001: return t
+        if _has_entries(t.m): return t # not an empty cell
         else: return None
 #  from . import parallel
   ts = parallel.pcall(gett,dirs) # get hoppings
@@ -477,7 +525,7 @@ def close_enough(rs1,rs2,rcut=2.0):
     return bool(np.any(dists<rcut))
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def close_enough_bruteforce(rs1,rs2,rcut=2.0):
     """O(len(rs1)*len(rs2)) reference implementation of close_enough,
     kept for testing against (see tests/geometry/test_neighbor_kdtree.py

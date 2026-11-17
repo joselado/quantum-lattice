@@ -25,9 +25,16 @@ class SpinModel(): # class for a spin Hamiltonian
     self.b = np.zeros((len(g.r),3)) # magnetic field
     self.j = np.array([zero]) # empty list
     self.pairs = np.array([[0,0]]) # empty list
-  def add_heisenberg(self,Jij=None,Jm=[1.,1.,1.],**kwargs):
-    h = self.geometry.get_hamiltonian(has_spin=False,tij=Jij)
-    m = coo_matrix(h.get_hk_gen()([0.,0.,0.])) # get onsite matrix
+  def add_heisenberg(self,Jij=None,Jm=[1.,1.,1.],rcut=None):
+    """Add the exchange Jij S_i.S_j, with Jij a list of couplings to the
+    first, second, ... neighbors, which reaches its last shell, or a
+    function Jij(r1,r2) or a HoppingGenerator taken on every pair up to the
+    distance rcut and on none beyond (None: every pair of a finite system,
+    5.0 for a periodic one), a site with its own periodic images included
+    but not a site with itself, and Jm the diagonal of the exchange
+    tensor. An rcut given with a list raises"""
+    from .specialhopping import folded_interaction
+    m = folded_interaction(self.geometry,Jij,rcut=rcut) # k=0 couplings
 #    (pairs,js) = add_heisenberg(self.geometry.r)
     pairs = np.array([m.row,m.col]).transpose() # convert to array
     self.pairs = np.concatenate([self.pairs,pairs])
@@ -35,7 +42,8 @@ class SpinModel(): # class for a spin Hamiltonian
     jmat[0,0] = Jm[0]
     jmat[1,1] = Jm[1]
     jmat[2,2] = Jm[2]
-    jout = [j.real*jmat for j in m.data] # store
+    # one 3x3 tensor per pair, also when no pair is in range
+    jout = np.array([j.real*jmat for j in m.data]).reshape((-1,3,3))
     self.j = np.concatenate([self.j,jout])
   def add_field(self,v):
     """Add magnetic field"""
@@ -45,7 +53,7 @@ class SpinModel(): # class for a spin Hamiltonian
   def energy(self,**kwargs):
     """ Calculate the energy"""
     eout = energy(self.theta,self.phi,self.b,self.j,self.pairs)
-    return eout
+    return float(eout) # a number, not a zero-dimensional jax array
   def get_local_energy(self):
       from .classicalspintk.localenergy import get_local_energy
       return get_local_energy(self)
@@ -54,8 +62,10 @@ class SpinModel(): # class for a spin Hamiltonian
       return deepcopy(self)
   def get_magnetization(self):
       return get_magnetization(self)
-  def minimize_energy(self,theta0=None,phi0=None,tries=10,calle=None):
-    """Minimize the energy of the spin model"""
+  def minimize_energy(self,theta0=None,phi0=None,tries=10,calle=None,
+          silent=False):
+    """Minimize the energy of the spin model. silent=True does not print
+    the minimum energy found"""
     thetas = [None for i in range(tries)]
     phis = [None for i in range(tries)]
     es = [None for i in range(tries)]
@@ -68,8 +78,9 @@ class SpinModel(): # class for a spin Hamiltonian
         phis[i] = phi.copy()
         es[i] = e
     imin = es.index(min(es)) # minimum
-    print("Minimum energy",es[imin])
-    print("Minimum energy per spin",es[imin]/len(self.phi))
+    if not silent:
+        print("Minimum energy",es[imin])
+        print("Minimum energy per spin",es[imin]/len(self.phi))
     self.theta = thetas[imin].copy()
     self.phi = phis[imin].copy()
     self.update_magnetization()

@@ -194,39 +194,6 @@ def v_ij_density_spinless(i,j,n,g=1.0,d=[0,0,0],contribution="AB"):
   return v
 
 
-def v_ij_fast_coulomb(i,jvs,n,vcut=1e-3):
-  """Return the interaction part for the fast Coulomb trick"""
-  v = interaction()
-  v.a = csc_matrix(([1.0],[[i],[i]]),shape=(n,n),dtype=np.complex128) # cc
-  jj = range(n) # indexes
-  if len(jvs)!=n: # something wrong
-      raise ValueError("the fast-Coulomb interaction needs one potential "
-              "value per site")
-  v.b = csc_matrix((jvs,[jj,jj]),shape=(n,n),dtype=np.complex128) # cdc
-  v.b.eliminate_zeros()
-  v.dir = [0,0,0] # direction of the neighbor
-  v.dhop = [0,0,0] # hopping that is affected
-  v.g = 1.0 # default value
-  v.contribution = "A"
-  return v
-
-
-
-def v_ij_fast_coulomb_spinful(i,jvs,n,channel="up"):
-  """Return the interaction part for the fast Coulomb trick"""
-  jvs2 = np.zeros(2*n) # initialize
-  if channel=="up":
-      for jj in range(n): jvs2[2*jj] = jvs[jj]
-      ii = 2*i+1
-  elif channel=="down":
-      for jj in range(n): jvs2[2*jj+1] = jvs[jj]
-      ii = 2*i
-  else:
-      raise ValueError("unknown channel; the accepted ones are 'up' and "
-              "'down'")
-  return v_ij_fast_coulomb(ii,jvs2,2*n)
-
-
 
 symmetry_breaking = ["magnetic","antiferro","ferroX","ferroY",
         "ferroZ","Charge density wave","Haldane",
@@ -292,14 +259,35 @@ def _guess_randomXY(h,h0,fun,mode):
 
 def _guess_random(h,h0,fun,mode):
     """A fully random Hermitian guess, built from h itself rather than
-    from the cleaned copy: every hopping of the dictionary is replaced"""
+    from the cleaned copy: every hopping of the dictionary is replaced.
+    For a sparse h the random entries are drawn on its sparsity pattern
+    and on the onsite block of every site (its spin, and its Nambu
+    partners if any), so the guess stays sparse: a dense random matrix
+    would make the first mean-field Hamiltonian of a large system dense"""
     dd = h.get_dict()
     for key in dd:
         n = dd[key].shape[0]
-        dd[key] = np.random.random((n,n))-.5 + 1j*(np.random.random((n,n))-.5)
+        if h.is_sparse: dd[key] = _random_on_pattern(h,dd[key],key)
+        else:
+            dd[key] = np.random.random((n,n))-.5 + 1j*(np.random.random((n,n))-.5)
     dd = MultiHopping(dd)
     dd = dd + dd.get_dagger()
     return dd.get_dict()
+
+def _random_on_pattern(h,m,key):
+    """Random complex entries on the nonzeros of the sparse matrix m, and,
+    for the onsite matrix, on the block of every site"""
+    from scipy.sparse import coo_matrix
+    from .algebra import block_diagonal
+    p = abs(coo_matrix(m)) # pattern of m
+    if key==(0,0,0): # every orbital of a site with every other one
+        ns = len(h.geometry.r) # number of sites
+        b = m.shape[0]//ns # orbitals per site
+        p = p + abs(block_diagonal(np.ones((ns,b,b))))
+    p = coo_matrix(p)
+    data = np.random.random(p.nnz)-.5 + 1j*(np.random.random(p.nnz)-.5)
+    return coo_matrix((data,(p.row,p.col)),shape=m.shape).tocsc()
+
 
 def _guess_dimerization(h,h0,fun,mode):
     return guess(h,mode="random",fun=fun)
@@ -345,7 +333,9 @@ def _guess_swave(h,h0,fun,mode):
 def _guess_pwave(h,h0,fun,mode):
     require_nambu(h,mode)
     for t in h0.hopping: t.m *= 0. # clean
-    h0.add_pairing(delta=fun,mode="pwave") # px+ipy pairing
+    # px+ipy pairing with d along (1,1,1), so that the equal-spin (d in the
+    # plane) and the opposite-spin (d along z) triplets are both seeded
+    h0.add_pairing(delta=fun,mode="pwave",d=np.array([1.,1.,1.])/np.sqrt(3.))
     hop = dict()
     hop[(0,0,0)] = h0.intra
     for t in h0.hopping: hop[tuple(t.dir)] = t.m
@@ -463,90 +453,6 @@ def broyden_solver(scf):
 
 
 
-def coulomb_interaction(g,vc=1.0,vcut=1e-4,vfun=None,has_spin=False,**kwargs):
-    """Return a list with the Coulomb interaction terms"""
-    interactions = [] # empty list
-    nat = len(g.r) # number of atoms
-    lat = np.sqrt(g.a1.dot(g.a1)) # size of the unit cell
-    rcut = 4.0
-    g.ncells = max([int(2*rcut/lat),1]) # number of unit cells to consider
-    ri = g.r # positions
-    if vfun is None: # no function provided
-        def vfun(dr):
-            if dr<1e-4: return 0.0
-            if dr>rcut: return 0.0
-            return vc/dr*np.exp(-dr/rcut)
-    for d in g.neighbor_directions(): # loop
-      rj = np.array(g.replicas(d)) # positions
-      for i in range(nat): # loop over atoms
-        for j in range(nat): # loop over atoms
-          dx = rj[j,0] - ri[i,0]
-          dy = rj[j,1] - ri[i,1]
-          dz = rj[j,2] - ri[i,2]
-          dr = dx*dx + dy*dy + dz*dz
-          dr = np.sqrt(dr) # square root
-          v = vfun(dr) # interaction
-          if v>1e-3: # sizeble interaction
-            if has_spin:
-              interactions.append(v_ij_density_spinless(2*i,2*j+1,2*nat,
-              g=v,d=[0,0,0]))
-            else:
-              interactions.append(v_ij_density_spinless(i,j,nat,
-              g=v,d=[0,0,0]))
-    return interactions
-
-
-def coulomb_interaction_spinless(g,**kwargs):
-    return coulomb_interaction(g,has_spin=False,**kwargs)
-
-
-def coulomb_interaction_spinful(g,**kwargs):
-    return coulomb_interaction(g,has_spin=True,**kwargs)
-
-
-
-def fast_coulomb_interaction(g,vc=1.0,vcut=1e-4,vfun=None,has_spin=False,**kwargs):
-    """Return a list with the Coulomb interaction terms, summed over sites"""
-    interactions = [] # empty list
-    nat = len(g.r) # number of atoms
-    lat = np.sqrt(g.a1.dot(g.a1)) # size of the unit cell
-    rcut = 4.0
-    g.ncells = max([int(2*rcut/lat),1]) # number of unit cells to consider
-    ri = g.r # positions
-    if vfun is None: # no function provided
-        def vfun(dr):
-            if dr<1e-4: return 0.0
-            if dr>rcut: return 0.0
-            return vc/dr*np.exp(-dr/rcut)
-    for i in range(nat): # loop over atoms
-      vjs = np.zeros(nat) # initialize
-      for d in g.neighbor_directions(): # loop
-        rj = np.array(g.replicas(d)) # positions
-        for j in range(nat): # loop over atoms
-          dx = rj[j,0] - ri[i,0]
-          dy = rj[j,1] - ri[i,1]
-          dz = rj[j,2] - ri[i,2]
-          dr = dx*dx + dy*dy + dz*dz
-          dr = np.sqrt(dr) # square root
-          vt = vfun(dr) # interaction
-          vjs[j] += vt # add contribution
-      vjs[vjs<1e-4] = 0.0 # discard near zeros
-      if np.sum(vjs)>1e-3: # sizable interaction
-        print("Total Coulomb term",np.sum(vjs))
-        if has_spin:
-          interactions.append(
-                  v_ij_fast_coulomb_spinful(i,vjs,nat,channel="up")
-                  )
-          interactions.append(
-                  v_ij_fast_coulomb_spinful(i,vjs,nat,channel="down")
-                  )
-        else:
-            raise NotImplementedError("the fast-Coulomb interaction is only "
-                    "implemented for spinless and spinful Hamiltonians, not "
-                    "for Nambu ones")
-    return interactions
-
-
 def identify_symmetry_breaking(h0,h,as_string=False,tol=1e-3):
     """Given two Hamiltonians, identify what is the symmetry
     breaking between them"""
@@ -588,22 +494,42 @@ def order_parameter(self,name):
 
 
 
+from .scftk.convergence import MeanFieldConvergenceError
+
+
+def _raising(engine):
+    """The engine as a public entry point: a loop that stops before maxerror
+    raises MeanFieldConvergenceError, as the get_*_mean_field_hamiltonian
+    methods do, so an unconverged state is never returned silently. Pass
+    check_convergence=False to get the SCF object back with
+    .converged=False instead (the scftk engines themselves always do)."""
+    from functools import wraps
+    from .scftk.convergence import require_converged
+    @wraps(engine)
+    def f(*args,check_convergence=True,**kwargs):
+        scf = engine(*args,**kwargs)
+        if scf is NotImplemented: return scf # SzSz/SxSx/SySy sentinel
+        if check_convergence: require_converged(scf)
+        return scf
+    return f
+
+
 from .scftk import densitydensity
 
-hubbardscf = densitydensity.hubbard
-Vinteraction = densitydensity.Vinteraction
+hubbardscf = _raising(densitydensity.hubbard)
+Vinteraction = _raising(densitydensity.Vinteraction)
 
 from .scftk import densitydensity_kpm
 
-hubbardscf_kpm = densitydensity_kpm.hubbard_kpm
-Vinteraction_kpm = densitydensity_kpm.Vinteraction_kpm
+hubbardscf_kpm = _raising(densitydensity_kpm.hubbard_kpm)
+Vinteraction_kpm = _raising(densitydensity_kpm.Vinteraction_kpm)
 
 from .scftk.potentials import keldysh
 
 from .scftk import spinspin
 
-SzSz = spinspin.SzSz
-SxSx = spinspin.SxSx
-SySy = spinspin.SySy
-Jinteraction = spinspin.Jinteraction
-VJinteraction = spinspin.VJinteraction
+SzSz = _raising(spinspin.SzSz)
+SxSx = _raising(spinspin.SxSx)
+SySy = _raising(spinspin.SySy)
+Jinteraction = _raising(spinspin.Jinteraction)
+VJinteraction = _raising(spinspin.VJinteraction)

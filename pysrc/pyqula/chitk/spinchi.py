@@ -56,30 +56,46 @@ def _use_pair_basis(H):
     is exactly the Fock rung of the exchange bonds. For a V1-ordered
     ferromagnet the site vertex is identically zero and gives no magnon
     at all. So the public entry points take this route instead of
-    returning either number."""
+    returning either number.
+
+    A Hamiltonian marked H.site_spin_vertex=True keeps the site-basis
+    vertex. Its mean field has no Fock rung of the exchange in the spin
+    channel for the ladder to match: the bond-only spinon saddle of
+    spinon.SpinonHamiltonian, whose fluctuation in the spin channel is the
+    random phase approximation with the vertex J(q), arXiv:2503.13831."""
+    if getattr(H,"site_spin_vertex",False): return False
     return len(_interaction_matrices(H))>0 and not _is_site_local(H)
 
 
 _PAIR_ROUTE_KWARGS = ("energies","delta","nk","T","q","imode","ij_mode",
-                      "chi_prec")
+                      "chi_prec","integration")
 
 
-def _pair_route_kwargs(H,kwargs):
+def _pair_route_kwargs(H,kwargs,also=()):
     """Translate the keyword arguments of the site-basis response into the
     pair-basis ones, keeping the site-basis defaults (chitk.chiAB.chiAB_q:
     energies from -3 to 3, delta=0.1, nk=60, a temperature equal to delta)
-    so that the same call means the same response on either route."""
-    unknown = sorted(set(kwargs) - set(_PAIR_ROUTE_KWARGS))
+    so that the same call means the same response on either route. also
+    names the keywords the caller takes itself (channel, for the pole
+    search of magnon_bands), which are accepted and listed but not
+    returned."""
+    accepted = list(_PAIR_ROUTE_KWARGS) + list(also)
+    unknown = sorted(set(kwargs) - set(accepted))
     if len(unknown)>0:
         raise ValueError("this Hamiltonian's interaction couples different "
             "sites, so its RPA spin response is summed in the pair basis "
             "(chitk.pairchi), which does not take %s; the accepted "
-            "keyword arguments are %s"%(unknown,list(_PAIR_ROUTE_KWARGS)))
+            "keyword arguments are %s"%(unknown,accepted))
     if kwargs.get("imode","mesh")!="mesh":
         raise NotImplementedError("imode=%r is not implemented for an "
             "interaction that couples different sites, whose RPA spin "
             "response is summed in the pair basis (chitk.pairchi) on a "
             "k-mesh; use imode='mesh'"%(kwargs["imode"],))
+    if kwargs.get("integration","grid")!="grid":
+        raise NotImplementedError("integration=%r is not implemented for an "
+            "interaction that couples different sites, whose RPA spin "
+            "response is summed in the pair basis (chitk.pairchi) on the "
+            "uniform mesh; use integration='grid'"%(kwargs["integration"],))
     if H.has_eh:
         raise NotImplementedError("the RPA spin response of a Nambu "
             "Hamiltonian whose interaction couples different sites is not "
@@ -102,9 +118,10 @@ def _pair_route_response(H,ops,opsB,**kwargs):
     response: (energies, one (nop*N)x(nop*N) matrix per energy).
 
     q=None follows chitk.chiAB.chiAB: the response averaged over the q
-    points of the k-mesh, i.e. the local one. Here each q is dressed on
-    its own before the average, which is the RPA of the local response
-    (the site basis averages the bare response and dresses it at q=0)."""
+    points of the k-mesh, i.e. the local one. Each q is dressed on its own
+    before the average, which is the RPA of the local response; the site
+    basis does the same (chitk.rpa._local_rpa_response), and where its
+    vertex is exact the two local responses agree to 3e-13."""
     from .pairchi import pair_chi_rpa
     kw = _pair_route_kwargs(H,kwargs)
     q = kwargs.get("q",None)
@@ -475,7 +492,7 @@ def _map_over_q(f,qpath,**kwargs):
     return parallel.pcall(f,qpath) # CPU path, as before
 
 
-def magnon_bands(H,qpath=None,nq=20,**kwargs):
+def magnon_bands(H,qpath=None,nq=None,**kwargs):
     """Return the magnon bands: the poles of the full spin RPA kernel
     (the same Sx,Sy,Sz channel used by spinchi_full/get_iets_ldos), scanned
     along a q-path. This is the collective-mode dispersion of the spin
@@ -489,7 +506,8 @@ def magnon_bands(H,qpath=None,nq=20,**kwargs):
     different sites, density-density
     or exchange, is scanned with the pair-basis ladder instead
     (chitk.pairchi.magnon_bands_pair, see _use_pair_basis), with the
-    energies/delta/nk/T defaults of this function.
+    energies/delta/nk/T defaults of this function, and channel= is passed
+    to its pole search (chitk.pairchi.pair_rpa_poles).
 
     Returns (qs,ws,gammas): qs is the integer index of the q-point along
     the path (the same convention used by get_bands for the k-axis),
@@ -505,8 +523,12 @@ def magnon_bands(H,qpath=None,nq=20,**kwargs):
         if "q" in kwargs:
             raise ValueError("magnon_bands scans a q-path, pass qpath or "
                              "nq rather than q")
+        # channel selects the pairs of the pole search only, so it is
+        # passed here and not returned by _pair_route_kwargs, which the
+        # response functions share
+        kw = _pair_route_kwargs(H,kwargs,also=("channel",))
         return magnon_bands_pair(H,qpath=qpath,nq=nq,
-                                 **_pair_route_kwargs(H,kwargs))
+                                 channel=kwargs.get("channel","auto"),**kw)
     Ss = _full_spin_operators(H)
     U = _full_spin_U(H)
     if U is None: raise ValueError("Hamiltonian has no mean-field "
@@ -515,7 +537,8 @@ def magnon_bands(H,qpath=None,nq=20,**kwargs):
     # the operator/projector tensor is q-independent: build it once and
     # reuse it at every q-point instead of rebuilding it from Ss each time
     pAs,pBs = build_ops_projectors(H,Ss)
-    qpath = H.geometry.get_kpath(qpath,nk=nq) # generate the q-path
+    from ..klist import get_qpath
+    qpath = get_qpath(H.geometry,qpath,nq) # generate the q-path
     def f(q):
         return rpa_kernel_poles_ops(H,V=U,pAs=pAs,pBs=pBs,q=q,**kwargs)
     outs = _map_over_q(f,qpath,**kwargs) # compute the poles at every q
@@ -556,14 +579,15 @@ def get_iets_ldos(H,nk=1,delta=1e-2,e=0.,**kwargs):
 
 
 def get_qdos_iets(H,energies=np.linspace(0.,1.,100),
-                  qpath=None,nq=20,
+                  qpath=None,nq=None,
                   nk=10,delta=1e-2,**kwargs):
     """Return the momentum-resolved spin respose function"""
     def f(q):
         return H.get_spinchi_full(q=q,nk=nk,energies=energies,
                                 delta=delta,**kwargs)
     #out = parallel.pcall_deep(f,qs,cores=1) # compute all
-    qpath = H.geometry.get_kpath(qpath,nk=nq) # generate kpath
+    from ..klist import get_qpath
+    qpath = get_qpath(H.geometry,qpath,nq) # generate the q-path
 #    out = [f(q) for q in qpath] # compute all
     out = _map_over_q(f,qpath,**kwargs) # compute all
     qout = [] # empty list

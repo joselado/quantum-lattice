@@ -12,8 +12,10 @@ The contraction
 
     out[i,j,w] = sum_ab MA[i,a,b] MB[j,b,a] (f_a-f_b)/(e_a-e'_b-w+i*delta)
 
-is a GEMM in disguise: flattening p=(a,b) and writing TA[i,p]=MA[i,a,b],
-TB[j,p]=MB[j,b,a], D[p,w]=(f_a-f_b)/(e_a-e'_b-w+i*delta),
+(with a degenerate pair, e_a=e'_b, contributing i*delta*f'(e_a)/(i*delta-w)
+instead, as in chiAB.lindhard_pair) is a GEMM in disguise: flattening
+p=(a,b) and writing TA[i,p]=MA[i,a,b], TB[j,p]=MB[j,b,a],
+D[p,w]=(f_a-f_b)/(e_a-e'_b-w+i*delta),
 
     out[w] = (TA * D[:,w]) @ TB.T
 
@@ -23,7 +25,8 @@ and it is bit-for-bit the same arithmetic as the numba loop (verified to
 
 Two implementation points that are not cosmetic:
 
-- The numba kernel skips pairs with |f_a-f_b| < delta/100, which at low
+- The numba kernel skips pairs with |fac| < chiAB.PAIR_TOL*delta, a pair
+  whose contribution is below 1e-14 at every frequency, which at low
   temperature is every occupied-occupied and empty-empty pair. Reproducing
   that as a mask would multiply zeros; here the surviving pairs are
   *gathered* into a compact index list. The number of survivors varies with
@@ -45,9 +48,6 @@ gpu.apply()
 
 import numpy as np
 import jax
-jax.config.update("jax_enable_x64",True) # allow float64/complex128 (JAX
-# defaults to 32 bit precision, which would silently truncate "double"
-# precision requests down to "single")
 import jax.numpy as jnp
 from functools import partial
 
@@ -77,6 +77,33 @@ def _occupations(es,temp):
     return 0.5*(1. - np.tanh(0.5*beta*np.asarray(es)))
 
 
+def _pair_factors(es1,es2,temp,delta):
+    """Return (fac, dE), the (n,n) occupation factors and energy
+    differences of every (a,b) pair, as chiAB.lindhard_pair builds them: a
+    degenerate pair, |e_a-e_b| < chiAB.DEGENERATE_TOL, gets
+    fac = i*delta*f'(e_a) and dE = 0 instead of the zero that f_a-f_b
+    gives, the intraband continuum it stands for on the k-mesh (see
+    lindhard_pair for the physics)"""
+    from .chiAB import DEGENERATE_TOL
+    o1 = _occupations(es1,temp)
+    o2 = _occupations(es2,temp)
+    fac = (o1[:,None] - o2[None,:]).astype(np.complex128) # (n,n)
+    dE = np.asarray(es1)[:,None] - np.asarray(es2)[None,:] # (n,n)
+    deg = np.abs(dE) < DEGENERATE_TOL # degenerate pairs
+    fprime = -(1./temp)*o1*(1.-o1) # derivative of the Fermi function
+    fac[deg] = (1j*delta*np.broadcast_to(fprime[:,None],fac.shape))[deg]
+    dE[deg] = 0.
+    return fac,dE
+
+
+def pair_survivors(fac,delta):
+    """Return the boolean mask of the pairs that chiAB_matrix does not
+    skip, |fac| >= chiAB.PAIR_TOL*delta, the pairs whose contribution
+    |fac|/delta is not negligible at some frequency"""
+    from .chiAB import PAIR_TOL
+    return np.abs(fac) >= PAIR_TOL*delta
+
+
 def pair_plan(es1,es2,temp,delta,pair_pad=None):
     """Return (idx_ab, idx_ba, facs, dE), the gathered+padded list of
     (a,b) pairs that survive the occupation cutoff of chiAB_matrix.
@@ -86,11 +113,8 @@ def pair_plan(es1,es2,temp,delta,pair_pad=None):
     entries carry facs=0, so they contribute exactly zero to the result
     while keeping every device-side shape constant."""
     n = len(es1)
-    cutoff = delta/100. # same cutoff as the numba kernel
-    o1 = _occupations(es1,temp)
-    o2 = _occupations(es2,temp)
-    fac = o1[:,None] - o2[None,:] # (n,n) occupation factor
-    sel = np.abs(fac) >= cutoff # the pairs the numba loop does not skip
+    fac,dEab = _pair_factors(es1,es2,temp,delta) # (n,n) each
+    sel = pair_survivors(fac,delta) # the pairs the numba loop does not skip
     idx = np.flatnonzero(sel.ravel()) # flat (a,b) indices
     count = len(idx)
     if pair_pad is None: # quantize, so nearby k-points share a compilation
@@ -104,7 +128,7 @@ def pair_plan(es1,es2,temp,delta,pair_pad=None):
     a = idx_pad//n # first state index
     b = idx_pad%n # second state index
     facs = np.concatenate([fac.ravel()[idx],np.zeros(pad)])
-    dE = np.asarray(es1)[a] - np.asarray(es2)[b]
+    dE = dEab.ravel()[idx_pad] # zero for a degenerate pair
     return idx_pad,(b*n+a),facs.astype(np.complex128),dE
 
 
@@ -179,12 +203,10 @@ def chi_matrix_kmesh_gpu(hks1,hks2,energies,Ais,Bjs,temp,delta,
     nk = hks1.shape[0]
     if pair_pad is None: # one padded length for the whole mesh
         n = hks1.shape[1]
-        cutoff = delta/100.
         counts = []
         for ik in range(nk):
-            fac = _occupations(es1k_h[ik],temp)[:,None] \
-                    - _occupations(es2k_h[ik],temp)[None,:]
-            counts.append(int(np.sum(np.abs(fac)>=cutoff)))
+            fac,_ = _pair_factors(es1k_h[ik],es2k_h[ik],temp,delta)
+            counts.append(int(np.sum(pair_survivors(fac,delta))))
         pair_pad = int(np.ceil(max(max(counts),1)/PAIR_PAD_QUANTUM)
                        *PAIR_PAD_QUANTUM)
         pair_pad = min(pair_pad,n*n)

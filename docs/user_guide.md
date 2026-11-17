@@ -324,7 +324,7 @@ calculation with an error saying so, rather than silently adding nothing.
 | Fermi energy (`fermi`) | Shifts the Fermi (chemical potential) energy, controlling how many electron states below it are filled. Equivalent to doping the system away from half filling, without changing the bands themselves. |
 | Exchange field (`exchange`) | A Zeeman-like exchange field (Jx,Jy,Jz) that couples to the electron spin, favoring alignment along its direction. Splits spin-up and spin-down bands. |
 | Haldane (`haldane`) | A complex second-neighbor hopping that breaks time-reversal symmetry with zero net flux (Haldane model). Opens a topological gap and can produce a Chern insulator. |
-| Kane-Mele (`kanemele`) | Intrinsic spin-orbit coupling acting like a Haldane term with opposite sign per spin, preserving time-reversal symmetry. Opens a quantum-spin-Hall gap with counter-propagating spin-polarized edge states. Its amplitude follows the chirality of the two-hop path between the coupled sites, so it vanishes identically on a lattice whose paths are collinear, such as a linear chain. |
+| Kane-Mele (`kanemele`) | Intrinsic spin-orbit coupling acting like a Haldane term with opposite sign per spin, preserving time-reversal symmetry. Opens a quantum-spin-Hall gap with counter-propagating spin-polarized edge states. Its amplitude follows the chirality of the two-hop path between the coupled sites, so it vanishes identically on a lattice whose paths are collinear, such as a linear chain, or come in pairs of opposite chirality that cancel, such as the triangular lattice. |
 | Anti-Haldane (`antihaldane`) | A staggered Haldane coupling that flips sign between the two valleys instead of sharing one chirality. Used to probe valley-contrasting physics such as valley Hall effects. |
 | Anti-Kane-Mele (`antikanemele`) | A staggered analogue of Kane-Mele spin-orbit coupling, opposite sign between valleys/sublattices. For valley- or sublattice-selective spin-orbit physics beyond standard QSH. |
 | Sublattice imbalance (`mAB`) | A staggered onsite potential raising one sublattice and lowering the other, breaking inversion symmetry. On honeycomb this opens a trivial mass gap at the Dirac points (as in hBN). |
@@ -539,9 +539,10 @@ variation on one of them.
   **Spiral exchange** amplitude (how strongly the texture couples to the
   electrons), and the two spin-orbit couplings: **Rashba SOC**, and
   **Intrinsic SOC** (Kane-Mele-like). Note that intrinsic SOC follows the
-  chirality of two-hop paths between sites, and those are collinear on a
-  chain — so it has no effect there, and only does something on the
-  triangular lattice.
+  chirality of two-hop paths between sites: those are collinear on a
+  chain, and on the triangular lattice every pair of sites is joined by two
+  paths of opposite chirality that cancel — so it has no effect on either
+  of this mode's lattices. Use Rashba SOC to tie spin to real space here.
 
   The mode's own calculation is **LDOS along the spiral** (Spiral LDOS
   tab): the local density of states as a colormap, with position along the
@@ -557,7 +558,7 @@ variation on one of them.
   - **None** — the total (charge) LDOS. Without spin-orbit coupling this
     comes out perfectly flat along the spiral, and that is physically
     correct: charge cannot see a texture that only rotates spin. Turning on
-    Rashba or intrinsic SOC ties spin to real space and makes it modulate.
+    Rashba SOC ties spin to real space and makes it modulate.
   - **Sx / Sy / Sz / Custom axis** — the LDOS of one fixed spin direction in
     the laboratory frame. An in-plane direction oscillates with the spiral
     period, since the local moments turn past it; the cone axis does not.

@@ -1,3 +1,4 @@
+from . import filewrite
 from . import specialhopping
 from . import specialgeometry
 import numpy as np
@@ -88,6 +89,105 @@ from .specialhamiltoniantk.tmdc import doped_MoS2
 from .specialhamiltoniantk.heavyfermion import H2HFH
 
 
+def three_band_tmdc(material="MoS2",model="TNN",functional="GGA",soc=True,
+        fermi="midgap"):
+    """Three-band tight-binding model of a group-VIB transition metal
+    dichalcogenide monolayer MX2, from G.-B. Liu et al., PRB 88, 085433
+    (2013), arXiv:1305.6089: the d_z2, d_xy and d_x2-y2 orbitals of the
+    metal atom on a triangular lattice, which describe the bands around
+    the K and -K valleys.
+
+    Parameters
+    ----------
+    material : str
+      "MoS2", "WS2", "MoSe2", "WSe2", "MoTe2" or "WTe2"
+    model : str
+      "TNN" (default), hoppings up to third neighbors, which reproduce the
+      three d bands in the whole Brillouin zone, or "NN", first neighbors
+      only, accurate around K
+    functional : str
+      "GGA" (default) or "LDA", the first-principles bands the parameters
+      were fitted to; the lattice constant changes with it
+    soc : bool or float
+      True adds the onsite spin-orbit coupling lambda L.S of the paper,
+      with its lambda for the material, and makes the Hamiltonian spinful;
+      a number is used as lambda in eV; False gives the spinless model
+    fermi : "midgap", float or None
+      "midgap" puts the Fermi level in the middle of the gap of the
+      undoped monolayer, a number is the energy (in eV, in the paper's
+      zero) moved to zero, None keeps the paper's zero
+
+    Energies are in eV and lengths in Angstrom, with the lattice constant
+    of the paper. The nearest-neighbor vector is along x, so x is the
+    zigzag direction and K = (4 pi/(3a),0). Each orbital is a site of the
+    geometry, at the position of the metal atom, in the order d_z2, d_xy,
+    d_x2-y2. The model has no chalcogen p orbitals, so the conduction band
+    around Gamma and the valence band around M are only qualitative.
+    """
+    from .specialhamiltoniantk import threebandtmdc
+    return threebandtmdc.three_band_tmdc(material=material,model=model,
+            functional=functional,soc=soc,fermi=fermi)
+
+
+def three_band_tmdc_multilayer(layers,t_perp,stacking="H",model="TNN",
+        functional="GGA",soc=True,onsite=None,vdw_gap=3.0,fermi="midgap",
+        interlayer="dz2"):
+    """Multilayer of three-band MX2 monolayers (see three_band_tmdc), for
+    instance layers=["MoS2","MoS2","WSe2","WSe2"].
+
+    Parameters
+    ----------
+    layers : list of str
+      the material of each layer, from the bottom
+    t_perp : float, triple, or a list of them
+      interlayer hopping in eV between the three nearest metal atoms of two
+      neighboring layers, one value for every interface or a list with one
+      value per interface. The three-band fit has no interlayer hopping, so
+      it has to be chosen. With interlayer="dz2" it is a number, the
+      hopping between the d_z2 orbitals: in a 2H homobilayer it splits the
+      d_z2 valence band at Gamma by exactly 6|t_perp|, and it does not
+      couple the K valleys, where the phases of the three bonds add to
+      zero. With interlayer="slater_koster" it is (V_sigma,V_pi,V_delta)
+    interlayer : str
+      "dz2" (default), the d_z2-d_z2 hopping above, or "slater_koster", the
+      two-center d-d integrals V_sigma, V_pi, V_delta on the actual bond
+      vector, which couple all three orbitals and also the K valleys
+    stacking : str or list of str
+      "H" (default) puts the next layer rotated by 180 degrees, the 2H
+      stacking, where a homobilayer is centrosymmetric; "R" keeps the
+      orientation, the R (3R) stacking. One value for every interface, or
+      a list with one value per interface. In both, the metal atoms of
+      the next layer are shifted laterally by a/sqrt3. A model with only
+      metal orbitals cannot tell the 2Hc stacking of MoS2 (metal above
+      chalcogen) from 2Ha (metal above the hollow site): "H" covers both
+    model, functional, soc, fermi : as in three_band_tmdc, with each
+      layer keeping its own hoppings and spin-orbit coupling
+    onsite : list of float
+      an energy in eV added to each layer. The energies of the fit are
+      not aligned between different materials, so for a heterostructure
+      this sets the band alignment; it is also a potential step between
+      the layers
+    vdw_gap : float
+      distance in Angstrom between the chalcogen planes of neighboring
+      layers; the metal-metal distance is z_XX + vdw_gap, 6.13 A for MoS2
+
+    All layers share one lattice constant, the average of the layers' a,
+    with the hoppings of each layer unchanged, so a heterostructure of
+    materials with different a is strained to a common commensurate cell.
+    Lengths are in Angstrom and energies in eV, with x along zigzag and
+    the stack centered at z = 0. The d_z2-only t_perp does not couple
+    the K valleys, so close to the gap the layers stay almost
+    independent: in a 2H bilayer a potential step between the layers
+    gives only a small in-plane second-harmonic response. The Slater-
+    Koster coupling has no such restriction.
+    """
+    from .specialhamiltoniantk import threebandtmdc
+    return threebandtmdc.three_band_tmdc_multilayer(layers,t_perp,
+            stacking=stacking,model=model,functional=functional,soc=soc,
+            onsite=onsite,vdw_gap=vdw_gap,fermi=fermi,interlayer=interlayer)
+
+
+
 
 
 def NbSe2(**kwargs):
@@ -107,8 +207,9 @@ def TaS2_SOC(**kwargs):
 
 def TMDC_MX2(soc=0.0,cdw=0.0,g=None,tij=[1.0],
               drcdw = np.array([0.,0.,0.]), # shift in the CDW profile
-              normalize=True):
+              normalize=True,write=None):
     """Return the Hamiltonian of NbSe2"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     if g is None: 
         g = geometry.triangular_lattice()  # triangular lattice
         if cdw!=0.0: g = g.get_supercell(3,store_primal=True)
@@ -133,7 +234,7 @@ def TMDC_MX2(soc=0.0,cdw=0.0,g=None,tij=[1.0],
         rc = np.mean(h.geometry.get_closest_position([.1,.1,0.],n=3),axis=0)
         rc = rc - np.array(drcdw) # add the shift
         f = lambda r: f0(r-rc)
-        h.geometry.write_profile(f)
+        if write: h.geometry.write_profile(f)
         h.add_onsite(f)
     h.set_filling(.5)
     h = h.get_dense() # dense Hamiltonian

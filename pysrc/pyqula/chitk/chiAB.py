@@ -13,6 +13,12 @@ def chiAB(h,q=None,nk=60,**kwargs):
         return chiAB_q(h,q=q,nk=nk,**kwargs)
     else:
         qs = h.geometry.get_kmesh(nk=nk) # get the kmesh
+        if kwargs.get("integration","grid")=="triangle" and \
+                kwargs.get("eigen",None) is None:
+            # every q of the mesh takes its bands at k+q from the same
+            # diagonalization of the k-mesh, done once on first use
+            from .simplexchi import MeshEigen
+            kwargs = dict(kwargs,eigen=MeshEigen(h,nk))
         out = [chiAB_q(h,q=q,nk=nk,
                        **kwargs) for q in qs] # get all the k kpoints
         return out[0][0],np.mean([o[1] for o in out],axis=0)
@@ -24,7 +30,9 @@ def chiAB_q(h,energies=np.linspace(-3.0,3.0,100),q=[0.,0.,0.],nk=60,
                imode="mesh", # integration mode in momentum space
                ij_mode = "explicit", # loop over elements mode
                mode="matrix", # return object
-               chi_prec=None # precision of the Lindhard kernel
+               chi_prec=None, # precision of the Lindhard kernel
+               integration="grid", # how the k-sum is done
+               eigen=None, # shared diagonalization of the mesh (triangle)
                ):
     """Compute AB response function
        - energies: energies of the dynamical response
@@ -37,18 +45,56 @@ def chiAB_q(h,energies=np.linspace(-3.0,3.0,100),q=[0.,0.,0.],nk=60,
        - imode: integration mode
        - ij_mode: loop ove elements mode
        - mode: output to return
+       - integration: how the k-sum is done, one of
+         get_integration_names(). "grid" sums the Lindhard terms over the
+         uniform mesh. "triangle" interpolates the bands at k and k+q and
+         the matrix elements linearly inside the segments, triangles or
+         tetrahedra of the same mesh (1D, 2D, 3D) and integrates the two
+         Fermi steps and the resonance exactly (chitk/simplexchi.py), so
+         that the mesh only resolves the bands: it converges at second
+         order in 1/nk at any T and delta, T=0 and delta=0 included. It
+         takes imode="mesh" in double precision on the CPU, for
+         mode="matrix", "trace" and "diagonal". At a commensurate
+         nesting vector, (1/2,1/2) of the square lattice, an even nk puts
+         the line E(k) = E(k+q) on mesh edges and converges irregularly;
+         an odd nk converges at second order. Where T is above the
+         energy spacing of the mesh, nk of order v/T, the grid converges
+         exponentially and is the better choice
        - chi_prec: "single" or "double", the precision of the Lindhard
          contraction (mode="matrix"; both backends take both). Defaults
          to "single" under pyqula.gpu.set_gpu(True), where a consumer
          card's double precision is an order of magnitude slower, and to
          "double" on the CPU. The eigendecompositions stay in double
          either way, and the result is complex128 either way
+       - eigen: a chitk.simplexchi.MeshEigen of h and nk, the
+         diagonalization of the k-mesh shared by the q on the mesh, which
+         chiAB and the local RPA response (chitk.rpa._local_rpa_response)
+         pass to every q of the local response (q=None) with
+         integration="triangle". Only integration="triangle" takes it, and
+         only a MeshEigen of this same h object, unchanged since it
+         diagonalized the mesh
+
+       Each pair of states a (at k) and b (at k+q) contributes
+       (f_a-f_b)<a|A|b><b|B|a>/(e_a-e_b-omega+i*delta). A degenerate pair,
+       e_a=e_b, stands on the k-mesh for the intraband continuum around it
+       and contributes f'(e_a)*i*delta/(i*delta-omega) instead of zero:
+       the static limit f' at omega=0 (the isothermal compressibility, or
+       the Pauli term for a spin operator), and zero for |omega| >> delta,
+       as charge conservation requires at q=0 exactly. That is the
+       delta -> 0 static limit; when delta resolves the mesh in energy
+       differences the degenerate pair overcounts by O(f'/nk), so a
+       converged finite-delta dynamic calculation wants an odd nk, or a
+       mesh without the nesting points (see lindhard_pair).
 
        Whether the Lindhard kernel runs on the CPU (numba) or on the GPU
        (jax) is the package-wide switch of pyqula.gpu. The device path
        implements the mode="matrix", imode="mesh", ij_mode="explicit"
        combination only, and raises otherwise rather than silently
        computing on the CPU."""
+    # the numba kernels read energies.shape and subtract the array from a
+    # float, so a Python list (h.get_chi(energies=[0.])) failed to compile;
+    # atleast_1d also takes a single frequency given as a number
+    energies = np.atleast_1d(np.asarray(energies,dtype=np.float64))
     use_gpu = gpu.get_gpu() # the package-wide CPU/GPU switch
     if chi_prec is None: # the fast option where one exists
         chi_prec = "single" if use_gpu else "double"
@@ -82,6 +128,25 @@ def chiAB_q(h,energies=np.linspace(-3.0,3.0,100),q=[0.,0.,0.],nk=60,
     else: # pAs and pBs provided on input
         ij_mode = "explicit" # do the loop explicitly
         pass
+    if integration not in _integrations:
+        raise ValueError("unknown integration '"+str(integration)+"' of the "
+                "response function; it must be one of "
+                +str(get_integration_names()))
+    if integration!="grid":
+        if imode!="mesh":
+            raise NotImplementedError("integration='"+integration+"' sums "
+                    "on the uniform mesh, imode='mesh', got imode='"
+                    +str(imode)+"'")
+        if use_gpu or chi_prec!="double":
+            raise NotImplementedError("integration='"+integration+"' runs "
+                    "in double precision on the CPU only; call "
+                    "pyqula.gpu.set_gpu(False) and leave chi_prec unset")
+        return _integrations[integration](h,q=q,energies=energies,nk=nk,
+                pAs=pAs,pBs=pBs,delta=delta,T=temp,mode=mode,eigen=eigen)
+    if eigen is not None:
+        raise NotImplementedError("eigen, the shared diagonalization of "
+                "the mesh, is only taken by integration='triangle', got "
+                "integration='"+str(integration)+"'")
     if chi_prec=="single" and not use_gpu and (mode!="matrix"
             or ij_mode!="explicit"): # (the GPU path has its own guard)
         raise NotImplementedError("chi_prec='single' is only implemented "
@@ -174,11 +239,81 @@ def chiAB_q(h,energies=np.linspace(-3.0,3.0,100),q=[0.,0.,0.],nk=60,
 
 
 
-@jit(nopython=True)
+def _chi_triangle(h,**kwargs):
+    from .simplexchi import chi_triangle
+    return chi_triangle(h,**kwargs)
+
+
+_integrations = {"grid":None, # the Lindhard sum of chiAB_q itself
+                 "triangle":_chi_triangle}
+
+
+def get_integration_names():
+    """Accepted values of integration= of the response functions"""
+    return list(_integrations)
+
+
+DEGENERATE_TOL = 1e-8 # |e_a-e_b| below which a pair counts as degenerate
+PAIR_TOL = 1e-14 # a pair is skipped when |fac| < PAIR_TOL*delta, see below
+
+# The kernels skip a pair (a,b) when |fac| < PAIR_TOL*delta, fac as
+# lindhard_pair returns it. That is a bound on what the pair contributes:
+# |fac/(de - omega + i*delta)| <= |fac|/delta at every omega, for a
+# degenerate pair (fac = i*delta*f', de = 0) as for any other, so a skipped
+# pair changes the response by less than PAIR_TOL times its matrix
+# elements. At low T this still drops the occupied-occupied and
+# empty-empty pairs more than some 35 to 40 T from the Fermi level: a
+# filled occupation rounds to exactly 1 there, and an empty one,
+# exp(-e/T), falls below PAIR_TOL*delta. The previous cutoff, |fac| < delta/100, was not relative to
+# the contribution: it dropped every degenerate pair with |f'| < 1e-2 at
+# any delta, and at delta = 0.1 every pair with |f_a - f_b| < 1e-3, which
+# biased the response of metals at T = 0.05 to 0.1 by up to 2e-3.
+
+
+@jit(nopython=True,cache=True)
+def lindhard_pair(ea,eb,oa,ob,beta,delta):
+    """Return (fac,de) for the Lindhard term fac/(de - omega + i*delta) of
+    the pair of states a (energy ea, occupation oa) and b (eb, ob).
+
+    For a pair that is not degenerate this is (oa-ob, ea-eb). A degenerate
+    pair, ea=eb, would give zero, since oa=ob, but on a k-mesh it stands
+    for the intraband continuum around it, where (oa-ob)/(ea-eb) tends to
+    the derivative of the Fermi function f'. Dropping it made the static
+    response depend on whether a mesh point sits on a nesting point: for
+    the half-filled chain at q=pi and T=0.1, a mesh with nk a multiple of
+    4 has a pair at the Fermi level with ea=eb, and nk=200 gave -1.1635
+    against the -1.2135 of odd nk and of the band integral. A degenerate
+    pair gets instead fac = i*delta*f' with de = 0, the term
+    f'*i*delta/(i*delta - omega): the static limit f' at omega=0 (the
+    isothermal compressibility, or the Pauli term for a spin operator,
+    what a q->0 Stoner criterion needs), and zero for |omega| >> delta, as
+    charge conservation requires at q=0 exactly, with delta setting the
+    crossover. chitk/chijax.py's pair_plan does the same, and so do the
+    pair-basis kernels (chitk/pairchi.py's _accumulate and
+    chitk/pairchijax.py's band_pair_plan).
+
+    This is the delta -> 0 static limit, the one a converged static
+    calculation wants. When delta is instead large enough to resolve the
+    mesh in energy differences, the broadened term at that delta has a dip
+    of width delta around ea=eb that the neighboring mesh points already
+    sample, and the degenerate pair then overcounts by O(f'/nk): for a
+    converged finite-delta dynamic calculation use an odd nk, or any mesh
+    that does not contain the nesting points. The conserving way of
+    broadening the Lindhard function, which keeps the static limit at any
+    delta, is Mermin's relaxation-time form, N. D. Mermin, Phys. Rev. B 1,
+    2362 (1970), doi:10.1103/PhysRevB.1.2362."""
+    de = ea - eb
+    if np.abs(de)<DEGENERATE_TOL: # degenerate pair
+        fp = -beta*oa*(1.-oa) # derivative of the Fermi function
+        return 1j*delta*fp,0.
+    return (oa - ob) + 0j,de
+
+
+@jit(nopython=True,cache=True)
 def chiAB_jit(ws1,es1,ws2,es2,omegas,A,B,T,delta):
     """Compute the response function for a single (A,B) operator pair.
     A and B are expected to be local operators, like Sz in site 0"""
-    cutoff = delta/100 # cutoff for occupation difference
+    cutoff = PAIR_TOL*delta # below it the pair contributes nothing
     beta = 1./T # thermal broadening
     out  = np.zeros(omegas.shape[0],dtype=np.complex128) # initialize
     n = len(ws1) # number of wavefunctions
@@ -190,15 +325,15 @@ def chiAB_jit(ws1,es1,ws2,es2,omegas,A,B,T,delta):
         oi = occs1[i] # first occupation
         for j in range(n): # loop over wavefunctions
             oj = occs2[j] # second occupation
-            fac = oi - oj # occupation factor
+            fac,de = lindhard_pair(es1[i],es2[j],oi,oj,beta,delta) # occupation factor
             if np.abs(fac)<cutoff: continue # skip contribution if too small
             fac *= np.sum(np.conjugate(ws1[i])*Aws2[j]) # add the factor
             fac *= np.sum(np.conjugate(ws2[j])*Bws1[i]) # add the factor
-            out = out + fac*(1./(es1[i]-es2[j] - omegas + 1j*delta))
+            out = out + fac*(1./(de - omegas + 1j*delta))
     return out
 
 
-@jit(nopython=True,parallel=True)
+@jit(nopython=True,parallel=True,cache=True)
 def chiAB_matrix(ws1,es1,ws2,es2,energies,Ais,Bjs,temp,delta):
     """Compute the full ChiAB matrix.
     A naive implementation calls chiAB_jit once per (i,j) pair of
@@ -215,7 +350,7 @@ def chiAB_matrix(ws1,es1,ws2,es2,energies,Ais,Bjs,temp,delta):
     ni = len(Ais) # number of row operators
     nj = len(Bjs) # number of column operators
     n = len(ws1) # number of wavefunctions
-    cutoff = delta/100 # cutoff for occupation difference
+    cutoff = PAIR_TOL*delta # below it the pair contributes nothing
     beta = 1./temp # thermal broadening
     occs1 = 1./(1. + np.exp(beta*es1)) # occupations
     occs2 = 1./(1. + np.exp(beta*es2)) # occupations
@@ -234,9 +369,9 @@ def chiAB_matrix(ws1,es1,ws2,es2,energies,Ais,Bjs,temp,delta):
         for a in range(n): # loop over wavefunctions of ws1
             oa = occs1[a] # first occupation
             for b in range(n): # loop over wavefunctions of ws2
-                fac0 = oa - occs2[b] # occupation factor
+                fac0,de = lindhard_pair(es1[a],es2[b],oa,occs2[b],beta,delta)
                 if np.abs(fac0)<cutoff: continue # skip contribution if too small
-                denom = (fac0*(1./(es1[a]-es2[b] - energies + 1j*delta))
+                denom = (fac0*(1./(de - energies + 1j*delta))
                          ).astype(ws1.dtype)
                 MAiab = MA[i,a,b]
                 for j in range(nj): # loop over columns of the matrix
@@ -244,7 +379,7 @@ def chiAB_matrix(ws1,es1,ws2,es2,energies,Ais,Bjs,temp,delta):
     return np.transpose(out,(2,0,1)) # return transposed, first energy, then ij
 
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def chiAB_full_matrix_jit(ws1,es1,ws2,es2,omegas,A,B,T,delta):
     """Compute the full matrix of the response function.
     A and B are full operators, for example the full Sz operator"""
@@ -256,7 +391,7 @@ def chiAB_full_matrix_jit(ws1,es1,ws2,es2,omegas,A,B,T,delta):
     nj = ni # number of operators
     outm = np.zeros((ni,nj,len(omegas)),dtype=np.complex128) # initialize
     # now do the loop over wavefunctions
-    cutoff = delta/100 # cutoff for occupation difference
+    cutoff = PAIR_TOL*delta # below it the pair contributes nothing
     beta = 1./T # thermal broadening
     n = len(ws1) # number of wavefunctions
     Aws2 = (A@ws2.T).T # compute all the applied wavefunctions
@@ -273,7 +408,7 @@ def chiAB_full_matrix_jit(ws1,es1,ws2,es2,omegas,A,B,T,delta):
         oi = occs1[i] # first occupation
         for j in range(n): # loop over wavefunctions
             oj = occs2[j] # second occupation
-            fac0 = oi - oj # occupation factor
+            fac0,de = lindhard_pair(es1[i],es2[j],oi,oj,beta,delta) # occupation factor
             if np.abs(fac0)<cutoff: continue # skip contribution if too small
             wci = np.conjugate(ws1[i]) # get this wavefunction
             wcj = np.conjugate(ws2[j]) # get this wavefunction
@@ -283,11 +418,11 @@ def chiAB_full_matrix_jit(ws1,es1,ws2,es2,omegas,A,B,T,delta):
                 for jj in range(nj): # loop over columns of the correlator
                     fac  = np.sum(wci[2*ii:2*ii+2]*Awj[2*ii:2*ii+2]) # add the factor
                     fac *= np.sum(wcj[2*jj:2*jj+2]*Bwi[2*jj:2*jj+2]) # add the factor
-                    outm[ii,jj,:] += fac0*fac*(1./(es1[i]-es2[j] - omegas + 1j*delta)) # add contribution
+                    outm[ii,jj,:] += fac0*fac*(1./(de - omegas + 1j*delta)) # add contribution
     return outm # return result
 
 
-@jit(nopython=True,parallel=True)
+@jit(nopython=True,parallel=True,cache=True)
 def chiAB_full_matrix_jit_kmesh(ws1k,es1k,ws2k,es2k,omegas,A,B,T,delta):
     """Parallelize over kpoints"""
     nk = es1k[:,0].shape[0] # number of kpoints

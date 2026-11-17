@@ -1,4 +1,5 @@
 # library to deal with the spectral properties of the hamiltonian
+from . import filewrite
 import numpy as np
 import scipy.linalg as lg
 import scipy.sparse.linalg as slg
@@ -16,7 +17,7 @@ arpack_maxiter = 10000
 
 from numba import jit
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def fermi_weight(es,freqs,delta=1e-2):
     """Return the weigth on the energy"""
     ws = np.zeros(len(freqs),dtype=float) # weights
@@ -30,8 +31,15 @@ def fermi_surface_generator(h,
                     energies=[0.0],nk=50,nsuper=1,reciprocal=True,
                     delta=1e-2,refine_delta=1.0,operator=None,
                     full_bz=False, # special flag for unfolding
+                    primal_mesh=False,
                     numw=20,info=False):
-    """Calculates the Fermi surface of a 2d system"""
+    """Calculates the Fermi surface of a 2d system.
+
+    primal_mesh: draw the mesh in the Brillouin zone of the primal cell of
+    a supercell built with store_primal=True, and compute every point at
+    its image k_S = M@k_0 in the supercell (see
+    unfolding.get_primal_mesh_map), which is what an unfolded Fermi
+    surface of any supercell matrix M is computed on"""
     if h.is_sparse: mode = "sparse"
     else: mode = "full"
     energies = np.array(energies) # convert to array
@@ -49,6 +57,9 @@ def fermi_surface_generator(h,
     kyout = []
     if reciprocal: fR = h.geometry.get_k2K_generator() # get matrix
     else:  fR = lambda x: x # get identity
+    if primal_mesh: # the mesh is in the primal cell's Brillouin zone
+        from .unfolding import get_primal_mesh_map
+        fR = get_primal_mesh_map(h.geometry,reciprocal=reciprocal)
     # setup a reasonable value for delta: refine_delta is the refinement
     # factor of the broadening, as it is in fermisurfacetk.singlefs (which
     # applies it only to the delta it picks automatically). It used to be
@@ -66,9 +77,12 @@ def fermi_surface_generator(h,
 #            ws = [np.sum(delta/((e-es)**2+delta**2)) for e in energies] # weights
             return np.array(ws) # return weights
         else:
-            tmp,ds = h.get_dos(ks=[k],operator=operator,
+            # get_dos returns a DOS, with the 1/pi of the Lorentzian, while
+            # fermi_weight above has none; without undoing it an operator
+            # (the unfolding one, for instance) scaled the map by 1/pi
+            tmp,ds = h.get_dos(ks=[k],operator=operator,write=False,
                           energies=energies,delta=delta)
-            return ds # return weight
+            return np.pi*np.array(ds) # return weight
   ##############################################
     ts = timing.Testimator()
     # setup the operator
@@ -107,9 +121,10 @@ def fermi_surface_generator(h,
     return energies,rs,kdos
 
 
-def multi_fermi_surface(h,nk=None,delta=1e-2,write=True,
+def multi_fermi_surface(h,nk=None,delta=1e-2,write=None,
         output_folder="MULTIFERMISURFACE",**kwargs):
     """Compute several fermi surfaces"""
+    write = filewrite.resolve(write,True) # the call, else the global switch
     if nk is None: nk = int(10./delta)
     energies,rs,kdos = fermi_surface_generator(h,nk=nk,delta=delta,**kwargs)
     if write: 

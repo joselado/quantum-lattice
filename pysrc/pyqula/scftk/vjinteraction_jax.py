@@ -26,9 +26,9 @@
 #    incompatible with jax tracing -- same restriction densitydensity_jax.py's
 #    solver="newton"/"fsolve"/"newton_krylov" already have for Vinteraction)
 #  - a target filling is supported the same way densitydensity_jax.py does:
-#    mu is resolved *inside* the trace each step as the midpoint between the
-#    n_occ_total-th and (n_occ_total+1)-th eigenvalue of the full (sorted)
-#    spectrum, rather than a numpy root-find outside the trace
+#    mu is resolved *inside* the trace each step by
+#    densitydensity_jax.mu_for_filling, rather than a numpy root-find
+#    outside the trace
 #  - occupations always use a finite smearing temperature T (default 1e-4,
 #    see densitydensity_jax.default_T_jax) so the step is differentiable;
 #    degenerate levels are handled by densitydensity_jax.fermi_projector
@@ -162,14 +162,14 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-jax.config.update("jax_enable_x64", True)
-from .. import gpu
+from .. import gpu # also switches jax to double precision
 gpu.apply() # follow the package-wide CPU/GPU switch, see pyqula/gpu.py
 
 from .densitydensity import (SCF, set_hoppings, hamiltonian2dict,
         get_dc_energy, random_hermitian_guess)
 from .densitydensity_jax import (flatten_mf, unflatten_mf, make_bloch_stack,
-        get_mf_normal_jax, default_T_jax, solve_scf, fermi_projector)
+        get_mf_normal_jax, default_T_jax, solve_scf, fermi_projector,
+        mu_for_filling, warn_if_mix_unused)
 from .spinspin import _build_v, _build_density_v, _channel_is_zero, _AXIS_ROTATION
 from .mfconstrains import obj2mf
 from ..multihopping import MultiHopping
@@ -248,8 +248,7 @@ def _get_step_core_vj(dirs, dirs_all, n, vz_active, vx_active, vy_active,
         nk = ks.shape[0]
         if has_filling_target:
             es = jnp.linalg.eigvalsh(hks)            # (nk,n)
-            es_sorted = jnp.sort(es.reshape(-1))
-            mu_eff = 0.5 * (es_sorted[n_occ_total - 1] + es_sorted[n_occ_total])
+            mu_eff = mu_for_filling(es, n_occ_total, T)
         else:
             mu_eff = mu
         # P[k] = V f(E) V^dagger, differentiable at degeneracies
@@ -287,7 +286,7 @@ def build_step_function_vj(hop0, vz, vx, vy, ks, dirs, dirs_all, T,
     """Return step(x,mu) -> (xnew, dm, es, occ, mu_eff), the pure-JAX one
     SCF step combining the z/x/y channels -- structurally
     densitydensity_jax.build_step_function (same Bloch-stack build,
-    vmap(eigh), mu-for-filling jnp.sort trick, per-direction dm
+    vmap(eigh), in-trace mu_for_filling, per-direction dm
     reconstruction via einsum) generalized from a single get_mf_normal_jax
     call to VJinteraction's three-channel combination, mirroring
     spinspin._run_anisotropic_scf.compute_mf restricted to the normal-state
@@ -328,28 +327,17 @@ def build_step_function_vj(hop0, vz, vx, vy, ks, dirs, dirs_all, T,
     return step
 
 
-# VJinteraction/VJinteraction_jax's own public solver= names differ from
-# the internal dispatch names solve_scf (shared with Vinteraction/
-# densitydensity_jax.py, not renamed here) expects: "error_gradient"
-# describes what the solver does (minimizing the SCF residual, currently via
-# levenberg_marquardt_solve) rather than naming the specific algorithm
-# behind it, so that name can keep meaning the same thing even if the
-# algorithm behind it changes again (as it already has once, from
-# scipy L-BFGS-B to matrix-free Levenberg-Marquardt -- see the module
-# docstring's "solver='error_gradient'" section), and "linear_mixing" names
-# the algorithm itself rather than its role as a
-# baseline/comparison point ("fixed_point"). Translated once at the entry
-# point below so solve_scf's own dispatch (and its "lbfgs"/"fixed_point"
-# checks, shared verbatim with Vinteraction) never needs to know about the
-# VJinteraction-only names.
-_PUBLIC_SOLVER_NAMES = {"error_gradient": "levenberg_marquardt",
-        "linear_mixing": "fixed_point"}
+# The solver= names, including VJinteraction's documented "error_gradient"
+# and "linear_mixing", live in one registry in densitydensity_jax
+# (get_jax_solver_names/resolve_jax_solver), shared with Vinteraction's
+# use_jax=True route so both accept the same set.
 
 
 def generic_vjinteraction_jax(h0, vz, vx, vy, mf=None, nk=8, mu=0.0,
         vz_exchange=None, vd_reference=None,
-        filling=None, T=None, mix=0.1, maxerror=1e-5, maxite=2000,
-        solver="newton", verbose=0, gmres_tol=1e-6, gmres_restart=20):
+        filling=None, T=None, mix=None, maxerror=1e-5, maxite=2000,
+        solver="newton", verbose=0, gmres_tol=1e-6, gmres_restart=20,
+        kick_steps=60):
     """JAX-differentiable analogue of spinspin._run_anisotropic_scf,
     restricted to the normal-state case -- see the module docstring for the
     full scope restriction. vz/vx/vy are the (unpadded, possibly
@@ -357,18 +345,12 @@ def generic_vjinteraction_jax(h0, vz, vx, vy, mf=None, nk=8, mu=0.0,
     spinspin._build_v/_build_density_v; vd (density-density) must already be
     folded into vz by the caller, exactly as VJinteraction itself does for
     has_eh=False."""
-    if solver != "linear_mixing" and mix != 0.1:
-        # mix only controls solver="linear_mixing"'s linear-mixing step --
-        # newton/fsolve/newton_krylov/error_gradient all use their own
-        # backtracking/damping (Levenberg-Marquardt's own lam for
-        # error_gradient), so a
-        # caller-tuned mix (e.g. carried over from the numpy engine, where
-        # it always matters) would otherwise be silently ignored with no
-        # signal at all
-        warnings.warn("mix=%r has no effect for solver=%r (only "
-                "solver=\"linear_mixing\" uses linear mixing)"
-                % (mix, solver), stacklevel=2)
-    dispatch_solver = _PUBLIC_SOLVER_NAMES.get(solver, solver)
+    # newton/fsolve/newton_krylov/error_gradient all use their own
+    # backtracking/damping (Levenberg-Marquardt's own lam for
+    # error_gradient), so a caller-tuned mix (e.g. carried over from the
+    # numpy engine, where it always matters) would otherwise be silently
+    # ignored with no signal at all
+    warn_if_mix_unused(solver, mix)
     if T is None:
         T = default_T_jax
     elif T <= 0:
@@ -382,6 +364,7 @@ def generic_vjinteraction_jax(h0, vz, vx, vy, mf=None, nk=8, mu=0.0,
     h1 = h0.copy()
     h1 = h1.get_dense()
     h1.nk = nk
+    h1.temperature = T # the smearing observables read it at
     hop0 = hamiltonian2dict(h1)  # numpy dict, bare hoppings
     n = hop0[(0, 0, 0)].shape[0]
 
@@ -436,7 +419,7 @@ def generic_vjinteraction_jax(h0, vz, vx, vy, mf=None, nk=8, mu=0.0,
     if filling is not None:
         n_tot = n * ks.shape[0]
         n_occ_total = int(round(filling * n_tot))
-        n_occ_total = min(max(n_occ_total, 1), n_tot - 1)
+        n_occ_total = min(max(n_occ_total, 0), n_tot) # every state, or none
 
     # not wrapped in an extra jax.jit: build_step_function_vj's returned
     # closure already dispatches into a cached, once-jitted core shared
@@ -452,14 +435,14 @@ def generic_vjinteraction_jax(h0, vz, vx, vy, mf=None, nk=8, mu=0.0,
     # solver="lbfgs" residual-minimization rationale (this module's own
     # docstring "solver='error_gradient'" section) and why the single
     # trailing step_jit(x, mu) call it makes is exactly correct here too.
-    # dispatch_solver (not the public `solver` name) is what solve_scf sees
-    # -- see _PUBLIC_SOLVER_NAMES above.
+    # solve_scf resolves the solver= aliases ("linear_mixing",
+    # "error_gradient") through the same registry the spinless route uses.
     # callback_mf is never passed (VJinteraction's use_jax=True path has no
     # such hook at all), so solve_scf's NotImplementedError branch for it
     # never triggers here.
-    x, final_mu, ite, converged, dm, es, occ = solve_scf(step_jit, x0, mu,
-            dirs, n, dispatch_solver, maxite, maxerror, mix, verbose, gmres_tol,
-            gmres_restart)
+    x, final_mu, ite, converged, dm, es, occ, residual = solve_scf(step_jit, x0, mu,
+            dirs, n, solver, maxite, maxerror, mix, verbose, gmres_tol,
+            gmres_restart, kick_steps=kick_steps)
     mf_final = unflatten_mf(x, dirs, n)
     dm_np = {d: np.asarray(dm[d]) for d in dirs}
     mf_np = {d: np.asarray(mf_final[d]) for d in dirs}
@@ -538,14 +521,16 @@ def generic_vjinteraction_jax(h0, vz, vx, vy, mf=None, nk=8, mu=0.0,
     if not scf.converged:
         # unconditional (not gated on verbose), matching the numpy engine's
         # own "No convergence has been reached..." print -- maxite here is
-        # 2000 by default under use_jax=True even when the caller left the
-        # numpy engine's maxite=None (unbounded) default, so this is the
-        # only signal such a caller gets that the jax engine gave up early
+        # 2000 by default under use_jax=True, and also when the caller
+        # passed maxite=None (no limit on the numpy engine), so this tells
+        # a direct caller of the engine that the jax engine gave up early
+        # (the get_*_mean_field_hamiltonian wrappers raise on top of it)
         print("No convergence has been reached in", ite,
                 "iterations (solver=%r), stopping" % (solver,))
     scf.total_energy = etot.real
     scf.mu = final_mu
     scf.iterations = ite
+    scf.residual = residual
     if verbose > 1:
         print("##################")
         print("Total energy", scf.total_energy)
@@ -557,8 +542,8 @@ def generic_vjinteraction_jax(h0, vz, vx, vy, mf=None, nk=8, mu=0.0,
 def VJinteraction_jax(h0, V1=0.0, V2=0.0, V3=0.0, U=0.0, Vr=None,
         J1=0.0, J2=0.0, J3=0.0, Jr=None, J1x=0.0, J1y=0.0, J1z=0.0,
         mf=None, filling=0.5, mu=None, nk=8, maxerror=1e-5, maxite=2000,
-        T=None, mix=0.1, verbose=0, solver="newton",
-        gmres_tol=1e-6, gmres_restart=20):
+        T=None, mix=None, verbose=0, solver="newton",
+        gmres_tol=1e-6, gmres_restart=20, kick_steps=60, rcut=None):
     """JAX drop-in for spinspin.VJinteraction (use_jax=True path) -- see the
     module docstring for the scope restriction relative to the full numpy
     engine (normal-state only, dense ED, no constrains). Builds the same
@@ -587,17 +572,17 @@ def VJinteraction_jax(h0, V1=0.0, V2=0.0, V3=0.0, U=0.0, Vr=None,
                 "instead of raising, if not caught here")
     h1 = h0.get_multicell().get_dense()
     nd = h1.geometry.neighbor_distances()  # shared by all three _build_*_v calls
-    vz = _build_v(h1, J1 + J1z, J2, J3, Jr, nd=nd)
-    vd = _build_density_v(h1, V1, V2, V3, U, Vr, nd=nd)
-    vx = _build_v(h1, J1 + J1x, J2, J3, Jr, nd=nd)
-    vy = _build_v(h1, J1 + J1y, J2, J3, Jr, nd=nd)
+    vz = _build_v(h1, J1 + J1z, J2, J3, Jr, nd=nd, rcut=rcut)
+    vd = _build_density_v(h1, V1, V2, V3, U, Vr, nd=nd, rcut=rcut)
+    vx = _build_v(h1, J1 + J1x, J2, J3, Jr, nd=nd, rcut=rcut)
+    vy = _build_v(h1, J1 + J1y, J2, J3, Jr, nd=nd, rcut=rcut)
     vz_exchange = vz  # keep the pure exchange z channel and the density
     vd_reference = vd  # part, for h.Vchannels -- see generic_vjinteraction_jax
     vz = (MultiHopping(vz) + MultiHopping(vd)).get_dict()  # fold density-density in
 
     kwargs = dict(mf=mf, nk=nk, T=T, mix=mix, maxerror=maxerror, maxite=maxite,
             solver=solver, verbose=verbose, gmres_tol=gmres_tol,
-            gmres_restart=gmres_restart,
+            gmres_restart=gmres_restart, kick_steps=kick_steps,
             vz_exchange=vz_exchange, vd_reference=vd_reference)
     if mu is not None:
         return generic_vjinteraction_jax(h1, vz, vx, vy, mu=mu, filling=None,
